@@ -7,7 +7,7 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { TeamRole } from '@kgc/shared';
 import { findMember, stampSignIn } from './team';
-import { canExport, canOpen, canRunAction, homeFor } from './team-core';
+import { SESSION_TTL_MS, canExport, canOpen, canRunAction, homeFor, sessionTtlMs } from './team-core';
 
 /**
  * Console auth: an address, then a six-digit code emailed to it.
@@ -42,7 +42,6 @@ import { canExport, canOpen, canRunAction, homeFor } from './team-core';
  */
 
 const COOKIE = 'kgc_console_session';
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // One working day at a registration desk.
 
 export interface ConsoleSession {
   email: string;
@@ -155,7 +154,7 @@ async function startSession(session: ConsoleSession): Promise<void> {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: SESSION_TTL_MS / 1000,
+    maxAge: Math.max(0, Math.round((session.expiresAt - Date.now()) / 1000)),
   });
 }
 
@@ -202,7 +201,11 @@ export async function signInWithCode(
     return { ok: true, home: homeFor(['owner']) };
   }
   const member = (await findMember(email))!;
-  await startSession({ email: member.email, expiresAt: Date.now() + SESSION_TTL_MS, epoch: member.sessionEpoch });
+  await startSession({
+    email: member.email,
+    expiresAt: Date.now() + sessionTtlMs(member.roles),
+    epoch: member.sessionEpoch,
+  });
   await stampSignIn(member.id);
   return { ok: true, home: homeFor(member.roles) };
 }

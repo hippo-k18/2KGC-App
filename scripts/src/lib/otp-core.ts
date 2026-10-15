@@ -285,6 +285,20 @@ async function findActiveRegistration(
     if (data.status === 'active') return data;
   }
 
+  // Any other ticket on this address. A second purchase, a comp pass or a
+  // group seat is stored under its own id, not `registrationId(email)`, so the
+  // lookup above misses it: somebody whose first order was refunded and whose
+  // second is paid was told they had no ticket (T259 #7). Two equality filters,
+  // served by the automatic single-field indexes.
+  const byEmail = await db
+    .collection(COLLECTIONS.registrations)
+    .where('email', '==', email)
+    .where('status', '==', 'active')
+    .limit(ALT_EMAIL_QUERY_LIMIT)
+    .get();
+  const other = byEmail.docs.find((d) => (d.data() as RegistrationDoc).eventId === EVENT_ID);
+  if (other) return other.data() as RegistrationDoc;
+
   const altSnap = await db
     .collection(COLLECTIONS.registrations)
     .where('altEmails', 'array-contains', email)

@@ -18,6 +18,7 @@ import {
   cancelAttendeeAction,
   changeTicketTypeAction,
   reinstateAttendeeAction,
+  reissueBadgeQrAction,
   resendConfirmationAction,
   transferAttendeeAction,
   updateAttendeeAction,
@@ -108,6 +109,7 @@ export function EditPanel({
   const [restored, reinstate] = useActionState<AttendeeEditState, FormData>(reinstateAttendeeAction, {});
   const [labelled, label] = useActionState<FormState, FormData>(assignCategoryAction, {});
   const [sent, resend] = useActionState<AttendeeEditState, FormData>(resendConfirmationAction, {});
+  const [reissued, reissue] = useActionState<AttendeeEditState, FormData>(reissueBadgeQrAction, {});
 
   // The row menu links straight to `#transfer` and `#cancel`. A closed
   // `<details>` does not open for a fragment that names it, so this does.
@@ -252,6 +254,24 @@ export function EditPanel({
           Send confirmation again
         </SubmitButton>
       </form>
+
+      <details id="reissue" style={section} open={jump === 'reissue' || undefined}>
+        <summary className="linkish" style={{ cursor: 'pointer' }}>
+          Reissue badge QR
+        </summary>
+        <form action={reissue} style={{ marginTop: 12 }}>
+          {hidden(a.registrationId)}
+          <FormBanner state={reissued} />
+          <p className="body-2">
+            For somebody whose code was used by someone else, or who shared a photo of it. The old QR
+            stops scanning now. The app shows the new one next time they open their badge. A printed
+            badge needs printing again.
+          </p>
+          <SubmitButton variant="secondary" pendingLabel="Reissuing…">
+            Reissue badge QR
+          </SubmitButton>
+        </form>
+      </details>
 
       <details id="transfer" style={section} open={jump === 'transfer' || undefined}>
         <summary className="linkish" style={{ cursor: 'pointer' }}>

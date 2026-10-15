@@ -1412,6 +1412,11 @@ export interface CheckInDoc {
   checkedInAt: Timestamp;
   stationId: string;
   operatorUid?: string;
+  /**
+   * On the Main Door list only: the Day list whose check-in also wrote this
+   * one. An undo on that Day list removes it; nothing else does.
+   */
+  mirroredFrom?: string;
 }
 
 /**

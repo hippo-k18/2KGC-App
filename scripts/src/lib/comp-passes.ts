@@ -5,10 +5,11 @@ import {
   type CompPassDoc,
   type OrderDoc,
   type OrderLine,
+  type RegistrationDoc,
   type TicketTypeDoc,
 } from "@kgc/shared";
 import { ensureRegistration } from "./fulfilment.js";
-import { normaliseEmail } from "./ids.js";
+import { normaliseEmail, registrationId } from "./ids.js";
 
 /**
  * Complimentary passes: turning "includes 4 full conference passes" into four
@@ -291,6 +292,39 @@ export interface RedeemCompPassInput {
 
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/** Order states a pass may be issued against. */
+const PASS_ORDER_STATUSES: OrderDoc["status"][] = ["paid", "partially_refunded"];
+
+/**
+ * Why this address cannot take a pass, or null when it can.
+ *
+ * A pass goes through `ensureRegistration`, which rewrites the address's own
+ * registration in place. On somebody who already paid, that rewrote their paid
+ * ticket's type and name, and a later refund of that order then cancelled the
+ * pass too (T259 #8). On a transferred ticket it would revive a QR the old
+ * holder still has. So the pass is refused, and the organizer picks another
+ * address or sorts the existing ticket out first.
+ */
+async function existingTicketProblem(store: Firestore, email: string): Promise<string | null> {
+  const regs = store.collection(COLLECTIONS.registrations);
+  const [base, active] = await Promise.all([
+    regs.doc(registrationId(email)).get(),
+    regs.where("email", "==", email).where("status", "==", "active").limit(5).get(),
+  ]);
+  const live = active.docs.find((d) => (d.data() as RegistrationDoc).eventId === EVENT_ID);
+  if (live) {
+    const r = live.data() as RegistrationDoc;
+    return `${email} already holds an active ticket${r.ticketType ? ` (${r.ticketType})` : ""}. Use another address, or cancel that ticket first.`;
+  }
+  if (base.exists) {
+    const r = base.data() as RegistrationDoc;
+    if (r.eventId === EVENT_ID && (r.status === "transferred" || (r.status === "cancelled" && r.orderId))) {
+      return `${email} has a ${r.status} ticket on record, and a pass would bring its old badge back. Use another address.`;
+    }
+  }
+  return null;
+}
+
 /**
  * Name one attendee against a sponsorship's complimentary passes.
  *
@@ -333,6 +367,13 @@ export async function redeemCompPass(
   if (!allocation) {
     return { ok: false, error: "That order does not exist for this event." };
   }
+  // A refunded, cancelled or unpaid sponsorship grants nothing (T259 #15).
+  if (!PASS_ORDER_STATUSES.includes(allocation.orderStatus as OrderDoc["status"])) {
+    return {
+      ok: false,
+      error: `This sponsorship order is ${allocation.orderStatus || "not paid"}. Passes can only be issued on a paid order.`,
+    };
+  }
   if (allocation.total === 0) {
     return {
       ok: false,
@@ -340,6 +381,9 @@ export async function redeemCompPass(
         "Nothing on this order includes complimentary passes. Set a pass count on the package first.",
     };
   }
+
+  const held = await existingTicketProblem(store, email);
+  if (held) return { ok: false, error: held };
 
   /**
    * Which package pays for this seat.
@@ -509,18 +553,22 @@ export async function renameCompPass(
     return { ok: false, error: "That pass belongs to another event." };
   }
 
-  const registration = await ensureRegistration(store, {
-    email: pass.email,
-    name,
-    ticketType: pass.ticketTypeName,
-  });
+  /**
+   * The name and nothing else. This used to go through `ensureRegistration`,
+   * whose update branch writes `status: "active"`: renaming the pass of a
+   * cancelled ticket brought it back to life with its old QR (T259 #8).
+   */
+  const regId = pass.registrationId || registrationId(pass.email);
+  const regRef = store.collection(COLLECTIONS.registrations).doc(regId);
+  const reg = await regRef.get();
+  if (reg.exists) await regRef.update({ name, updatedAt: new Date() });
 
-  await ref.update({ name, registrationId: registration.registrationId });
+  await ref.update({ name, registrationId: regId });
 
   return {
     ok: true,
     seat: pass.seat,
-    registrationId: registration.registrationId,
+    registrationId: regId,
     email: pass.email,
     name,
   };

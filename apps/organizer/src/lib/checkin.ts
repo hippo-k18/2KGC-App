@@ -18,6 +18,7 @@ import {
 import {
   DAY_PATTERN,
   dayListId,
+  eventDayOf,
   ensureScopedList,
   SCOPE_GRACE_MINUTES,
   sessionListId,
@@ -242,6 +243,95 @@ export function matchCode(
 
   return null;
 }
+
+/**
+ * The scanner's lookup: one indexed query, not the whole registration list.
+ *
+ * Reading every registration per scan cost 0.5 to 1 s at 1000 registrations
+ * (T259 #5). `qrSecret` is an equality on one field, which Firestore's
+ * automatic index serves, and so is `claimCode` for a typed code. Codes are
+ * stored folded up, so a typed code is folded before it is asked for.
+ */
+export async function findRegistrationByCode(code: string): Promise<{
+  row: RegistrationRow;
+  matchedOn: 'qrSecret' | 'claimCode';
+  doc: RegistrationDoc;
+} | null> {
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+  const col = db().collection(COLLECTIONS.registrations);
+  const pick = (snap: FirebaseFirestore.QuerySnapshot) =>
+    snap.docs.find((d) => (d.data() as RegistrationDoc).eventId === EVENT_ID);
+
+  const bySecret = pick(await col.where('qrSecret', '==', trimmed).limit(5).get());
+  if (bySecret) {
+    const doc = bySecret.data() as RegistrationDoc;
+    return { row: toRow(bySecret.id, doc), matchedOn: 'qrSecret', doc };
+  }
+  // A claim code is six characters; a QR secret never is, so a long code that
+  // missed above is not worth a second query.
+  if (trimmed.length > 8) return null;
+  const byClaim = pick(await col.where('claimCode', '==', trimmed.toUpperCase()).limit(5).get());
+  if (!byClaim) return null;
+  const doc = byClaim.data() as RegistrationDoc;
+  return { row: toRow(byClaim.id, doc), matchedOn: 'claimCode', doc };
+}
+
+function toRow(id: string, r: RegistrationDoc): RegistrationRow {
+  return {
+    id,
+    name: r.name ?? r.email,
+    email: r.email,
+    ticketType: ticketLabel(r) || undefined,
+    status: r.status,
+    claimed: Boolean(r.claimedByUid),
+    ...(r.demo === true ? { demo: true } : {}),
+  };
+}
+
+/**
+ * Values the scanner needs on every scan that change a few times a day at
+ * most. Held for a minute per server instance, so a scan reads them once a
+ * minute instead of every time (T259 #5).
+ */
+const SCAN_CACHE_MS = 60_000;
+const scanCache = new Map<string, { at: number; value: Promise<unknown> }>();
+
+/** For tests: forget every cached value, as a fresh server instance would. */
+export function resetScanCaches(): void {
+  scanCache.clear();
+  touched.clear();
+}
+
+export function cachedForScan<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = scanCache.get(key);
+  if (hit && Date.now() - hit.at < SCAN_CACHE_MS) return hit.value as Promise<T>;
+  const value = load();
+  scanCache.set(key, { at: Date.now(), value });
+  // A failed load is not remembered, so the next scan tries again.
+  value.catch(() => scanCache.delete(key));
+  return value;
+}
+
+export interface TicketFacts {
+  /** Extras (Workshops): a badge holding only one of these is extra-only. */
+  extras: Set<string>;
+  /** Tickets that let the holder into a workshop: the extra itself, and any ticket that includes it. */
+  workshops: Set<string>;
+}
+
+export async function ticketFacts(): Promise<TicketFacts> {
+  const snap = await db().collection(COLLECTIONS.ticketTypes).where('eventId', '==', EVENT_ID).get();
+  const rows = snap.docs.map((d) => d.data() as { name?: string; kind?: string; includesWorkshops?: boolean });
+  return {
+    extras: new Set(rows.filter((t) => t.kind === 'extra' && t.name).map((t) => t.name!)),
+    workshops: new Set(
+      rows.filter((t) => t.name && (t.kind === 'extra' || t.includesWorkshops)).map((t) => t.name!),
+    ),
+  };
+}
+
+export { badgeIncludesWorkshops } from './checkin-core';
 
 export async function listStations(): Promise<Map<string, string>> {
   const snap = await db()
@@ -487,6 +577,20 @@ export async function ensureDayList(day: string): Promise<EnsureListResult> {
   };
 }
 
+/**
+ * Today's Day list, during the event (T259 #12).
+ *
+ * With one Main Door list for all five days, every returning attendee scanned
+ * ALREADY CHECKED IN from day two on unless somebody pressed Start on a Day
+ * list. On a programme day (New York time) the screens open today's list
+ * instead. Null on any other day, which keeps the Main Door as the default.
+ */
+export async function todaysDayList(programmeDays: string[], now = new Date()): Promise<EnsureListResult | null> {
+  const today = eventDayOf(now);
+  if (!programmeDays.includes(today)) return null;
+  return ensureDayList(today);
+}
+
 function shift(t: unknown, ms: number): Timestamp | undefined {
   const v = t as { toDate?: () => Date } | undefined;
   if (!v?.toDate) return undefined;
@@ -552,7 +656,14 @@ export async function checkInsByList(
  * `checkInStations/{deviceId}` — keyed by the device, so a station that reloads
  * the page is the same station and a duplicate scan can name where it happened.
  */
+const touched = new Map<string, { label: string; at: number }>();
+
 export async function touchStation(deviceId: string, label: string): Promise<void> {
+  // Once a minute per station is plenty for "last seen", and saves a read and
+  // a write on every scan.
+  const last = touched.get(deviceId);
+  if (last && last.label === label && Date.now() - last.at < SCAN_CACHE_MS) return;
+  touched.set(deviceId, { label, at: Date.now() });
   const ref = db().collection(COLLECTIONS.checkInStations).doc(deviceId);
   const now = FieldValue.serverTimestamp();
   const snap = await ref.get();

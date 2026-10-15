@@ -183,11 +183,11 @@ the order and not the price.
   withdrawn on 2026-08-28; what the shared secret costs is written down in
   `apps/organizer/src/lib/auth.ts`. ⚠️ On 2026-08-31 the allowlist was cut to
   the single address `demo@knowledgegraph.tech` and `MIN_LIVE_PASSPHRASE` was
-  lowered from 12 to 7 so the live passphrase could be `kgc2027`, at the owner's
+  lowered from 12 to 7 for a short shared passphrase (since retired), at the owner's
   request. The live dashboard is therefore a seven-character shared secret in
   front of the Admin SDK; rotate it before the event runs on real attendees.
   ⚠️ **The app has a hand-made account as of 2026-09-09**:
-  `demo@knowledgegraph.tech` / `kgc2027` — a real Firebase Auth user provisioned
+  `demo@knowledgegraph.tech` (password: see orchestrator/reports/T223.md), a real Firebase Auth user provisioned
   by `scripts/ops/create-demo-account.ts` because the six-digit code only
   reaches `hartigandeely@gmail.com` until the Resend domain is verified, so a
   rehearsal on any other machine could not sign in at all. It is a plain

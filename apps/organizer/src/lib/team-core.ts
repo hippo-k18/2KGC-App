@@ -217,3 +217,18 @@ export function memberIdFor(email: string): string {
 export function looksLikeEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 }
+
+/** One working day at a registration desk. */
+export const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+/**
+ * The door crew signs in at 7:00 and is still scanning late arrivals for the
+ * evening reception. Eight hours logged them out mid-afternoon, and signing
+ * back in needs an emailed code on the door device (T259 #13).
+ */
+export const CHECKIN_SESSION_TTL_MS = 14 * 60 * 60 * 1000;
+
+/** How long a dashboard session lasts for somebody holding these roles. */
+export function sessionTtlMs(roles: readonly TeamRole[]): number {
+  return roles.includes('checkin') ? CHECKIN_SESSION_TTL_MS : SESSION_TTL_MS;
+}
+
