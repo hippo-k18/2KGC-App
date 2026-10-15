@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { attendeeListStats, cancelledOrTransferred, countsAsAttendee, mergeAttendees } from './attendees-core';
+import { attendeeListStats, cancelledOrTransferred, countsAsAttendee, mergeAttendees, ticketRows } from './attendees-core';
+
+const user = (id: string, extra: Record<string, unknown> = {}) => ({
+  id, data: { email: `${id}@example.com`, name: id, visibleInDirectory: true, ...extra },
+});
+const reg = (id: string, email: string, extra: Record<string, unknown> = {}) => ({
+  id, data: { email, status: 'active' as const, ticketType: 'All Access (VIP)', ...extra },
+});
 
 describe('countsAsAttendee', () => {
   it('counts an active registration', () => {
@@ -18,12 +25,6 @@ describe('countsAsAttendee', () => {
 });
 
 describe('the demo login on the attendee list', () => {
-  const user = (id: string, extra: Record<string, unknown> = {}) => ({
-    id, data: { email: `${id}@example.com`, name: id, visibleInDirectory: true, ...extra },
-  });
-  const reg = (id: string, email: string, extra: Record<string, unknown> = {}) => ({
-    id, data: { email, status: 'active' as const, ticketType: 'All Access (VIP)', ...extra },
-  });
 
   it('marks the demo row from its profile or its registration', () => {
     const rows = mergeAttendees(
@@ -44,8 +45,15 @@ describe('the demo login on the attendee list', () => {
         reg('reg_demo', 'demo@example.com', { demo: true }),
       ],
     );
-    // Four registrations, one of them the demo: the page reads "3 of 3".
-    expect(attendeeListStats(rows)).toEqual({ people: 3, hidden: 1, signedIn: 2, ticketHolders: 3, multiHolders: 0 });
+    // Four registrations, one the demo and one cancelled: 2 active, 1 cancelled (T262).
+    expect(attendeeListStats(rows)).toEqual({
+      people: 3,
+      hidden: 1,
+      signedIn: 2,
+      ticketHolders: 2,
+      cancelled: 1,
+      multiHolders: 0,
+    });
   });
 
   it('divides "Signed into the app" by people only, so the demo is not one who has not (T228)', () => {
@@ -81,5 +89,26 @@ describe('cancelledOrTransferred', () => {
         { status: 'transferred' },
       ]),
     ).toBe(2);
+  });
+});
+
+describe('ticketRows, one row per ticket (T262)', () => {
+  it('lists a second ticket on a shared address as its own row', () => {
+    const regs = [
+      reg('reg_l', 'buyer39@example.com', { name: 'Łukasz' }),
+      reg('reg_e', 'Buyer39@example.com', { name: 'Ελένη' }),
+      reg('reg_ada', 'ada@example.com'),
+    ];
+    const users = [user('buyer39', { email: 'buyer39@example.com', name: 'Łukasz' }), user('staff')];
+    expect(mergeAttendees(users, regs).filter((r) => r.registrationId)).toHaveLength(2);
+    const rows = ticketRows(users, regs);
+    expect(rows.map((r) => r.registrationId).filter(Boolean).sort()).toEqual(['reg_ada', 'reg_e', 'reg_l']);
+    expect(rows.find((r) => r.registrationId === 'reg_e')?.name).toBe('Ελένη');
+    // The profile stays on the ticket it was on, and staff with no ticket are listed once.
+    expect(rows.find((r) => r.registrationId === 'reg_l')?.signedIn).toBe(true);
+    expect(rows.filter((r) => !r.registrationId)).toHaveLength(1);
+    const stats = attendeeListStats(rows);
+    expect(stats.ticketHolders).toBe(3);
+    expect(stats.multiHolders).toBe(1);
   });
 });

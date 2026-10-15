@@ -22,6 +22,7 @@ import {
   countsAsAttendee,
   emailKey,
   mergeAttendees,
+  ticketRows,
   type AttendeeRow,
 } from './attendees-core';
 import { recordError } from './errors';
@@ -621,6 +622,22 @@ export async function listAttendees(): Promise<AttendeeRow[]> {
   ]);
 
   return mergeAttendees(
+    userSnap.docs.map((d) => ({ id: d.id, data: d.data() as UserDoc })),
+    regSnap.docs.map((d) => ({ id: d.id, data: d.data() as RegistrationDoc })),
+  );
+}
+
+/**
+ * The attendee list with one row per ticket (T262), for the list screen and
+ * the attendee and catering exports. `listAttendees()` stays one row per
+ * address for everything that mails people.
+ */
+export async function listAttendeeTickets(): Promise<AttendeeRow[]> {
+  const [userSnap, regSnap] = await Promise.all([
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
+  ]);
+  return ticketRows(
     userSnap.docs.map((d) => ({ id: d.id, data: d.data() as UserDoc })),
     regSnap.docs.map((d) => ({ id: d.id, data: d.data() as RegistrationDoc })),
   );

@@ -112,7 +112,11 @@ export function attendeeListStats(all: AttendeeRow[]): {
   people: number;
   hidden: number;
   signedIn: number;
+  /** Rows on an active ticket (T262). A refunded ticket is not holding one. */
   ticketHolders: number;
+  /** Rows on a cancelled or transferred ticket, shown apart. */
+  cancelled: number;
+  /** Addresses, not rows: with a row per ticket one address shows several times. */
   multiHolders: number;
 } {
   const people = all.filter((a) => !a.demo);
@@ -120,8 +124,9 @@ export function attendeeListStats(all: AttendeeRow[]): {
     people: people.length,
     hidden: people.filter((a) => a.signedIn && !a.visibleInDirectory).length,
     signedIn: people.filter((a) => a.signedIn).length,
-    ticketHolders: people.filter((a) => a.registrationId).length,
-    multiHolders: people.filter((a) => a.activeTickets > 1).length,
+    ticketHolders: people.filter((a) => a.registrationId && a.registrationStatus === 'active').length,
+    cancelled: people.filter((a) => a.registrationId && a.registrationStatus !== 'active').length,
+    multiHolders: new Set(people.filter((a) => a.activeTickets > 1).map((a) => emailKey(a.email))).size,
   };
 }
 
@@ -228,6 +233,55 @@ export function mergeAttendees(
   }
 
   return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * One row per ticket, for the attendee list and the badge and catering
+ * exports (T262).
+ *
+ * Since 2026-09-26 one address can hold several tickets (a buyer with seats
+ * for colleagues), and `mergeAttendees` keys by address, so the second ticket
+ * vanished from the list, the badge file and the catering headcount. Here each
+ * registration is a row. The per-address rows are kept as the base, so the
+ * profile still attaches to the ticket it already did, and every registration
+ * that base did not show is added as its own row with its own name. People with
+ * a profile and no ticket stay listed once.
+ *
+ * Per-address uses (messaging, consents, cohorts) keep `mergeAttendees`: a row
+ * per ticket there would mail one address twice.
+ */
+export function ticketRows(
+  users: { id: string; data: Partial<UserDoc> }[],
+  registrations: { id: string; data: Partial<RegistrationDoc> }[],
+): AttendeeRow[] {
+  const byEmail = new Map<string, { id: string; data: Partial<RegistrationDoc> }[]>();
+  for (const r of registrations) {
+    const k = emailKey(r.data.email) || r.id;
+    byEmail.set(k, [...(byEmail.get(k) ?? []), r]);
+  }
+  const out: AttendeeRow[] = [];
+  const used = new Set<string>();
+  for (const u of users) {
+    const k = emailKey(u.data.email) || u.id;
+    const regs = byEmail.get(k) ?? [];
+    used.add(k);
+    // The profile goes on the ticket in its own name; failing that, the one the per-address list shows.
+    const named = regs.find((r) => (r.data.name ?? '').trim().toLowerCase() === (u.data.name ?? '').trim().toLowerCase());
+    const mine = named ?? (regs.length ? regs.reduce((a, b) => (preferRegistration(a.data, b.data) === a.data ? a : b)) : undefined);
+    out.push(...mergeAttendees([u], mine ? [mine] : []));
+    for (const r of regs) if (r !== mine) out.push(...mergeAttendees([], [r]));
+  }
+  for (const [k, regs] of byEmail) {
+    if (used.has(k)) continue;
+    for (const r of regs) out.push(...mergeAttendees([], [r]));
+  }
+  // `activeTickets` is per address, as the multi-ticket flag reads it.
+  const active = new Map<string, number>();
+  for (const r of registrations) {
+    if (r.data.status === 'active') active.set(emailKey(r.data.email), (active.get(emailKey(r.data.email)) ?? 0) + 1);
+  }
+  for (const row of out) row.activeTickets = row.registrationId ? (active.get(emailKey(row.email)) ?? 0) : 0;
+  return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // ---------------------------------------------------------------------------

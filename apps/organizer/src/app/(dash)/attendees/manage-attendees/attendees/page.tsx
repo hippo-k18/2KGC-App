@@ -1,12 +1,11 @@
 import Link from 'next/link';
-import { COLLECTIONS } from '@kgc/shared';
 import { getAttendeeForEdit } from '@/lib/attendee-admin';
 import { attendeeCategories } from '@/lib/attendee-categories';
 import { UNCATEGORISED, categoryCounts, categoryLabel, inCategory } from '@/lib/attendee-categories-core';
 import { attendeeListStats } from '@/lib/attendees-core';
 import { requireOrganizer } from '@/lib/auth';
 import { listTicketTypes } from '@/lib/commerce';
-import { countWhereEvent, listAttendees } from '@/lib/data';
+import { listAttendeeTickets } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { personRefParam } from '@/lib/person-data-core';
 import { Email, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
@@ -62,9 +61,9 @@ export default async function AttendeesPage({
   // from, because a bare id would have to be guessed at and guessing wrong
   // opens somebody else's file.
   const dataRef = typeof sp.data === 'string' ? sp.data : undefined;
-  const [all, registrations, catalogue, editing, { categories }] = await Promise.all([
-    listAttendees(),
-    countWhereEvent(COLLECTIONS.registrations),
+  // One row per ticket (T262): a second ticket on one address is a second badge.
+  const [all, catalogue, editing, { categories }] = await Promise.all([
+    listAttendeeTickets(),
     listTicketTypes(),
     editId ? getAttendeeForEdit(editId) : null,
     attendeeCategories(),
@@ -107,7 +106,7 @@ export default async function AttendeesPage({
   const editRow = editing ? all.find((a) => a.registrationId === editing.registrationId) : undefined;
   // Every figure below leaves out the shared demo login (T228): it is listed
   // like anyone, but counting it made "have not signed in" one too many.
-  const { people, hidden, signedIn, ticketHolders, multiHolders } = attendeeListStats(all);
+  const { people, hidden, signedIn, ticketHolders, cancelled, multiHolders } = attendeeListStats(all);
   const exportQuery = category ? `?category=${encodeURIComponent(category)}` : '';
   const href = (next: { q?: string; role?: string; category?: string }) => {
     const p = new URLSearchParams();
@@ -150,7 +149,8 @@ export default async function AttendeesPage({
               Total number of attendees: <strong>{people}</strong>
             </div>
             <div>
-              Holding a ticket: <strong>{ticketHolders}</strong> of {registrations} registrations
+              Active tickets: <strong>{ticketHolders}</strong>
+              {cancelled ? `. Cancelled: ${cancelled}` : ''}
             </div>
             {/*
               One address may buy several tickets (2026-09-26). Allowed, but
