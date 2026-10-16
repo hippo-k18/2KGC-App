@@ -169,7 +169,7 @@ describe('E1', () => {
     const sent = mail();
     expect(sent).toHaveLength(1);
     expect(sent[0].template).toBe('cfp-received');
-    expect(sent[0].subject).toBe('We have your KGC 2027 submission');
+    expect(sent[0].subject).toBe('We received your KGC 2027 submission');
     expect(sent[0].text).toContain('Lineage at scale\nTalk, 25 minutes');
     expect(sent[0].text).toContain('by Sunday 14 March 2027 at the latest');
     expect(sent[0].text).not.toMatch(/\[|—/);

@@ -9,7 +9,7 @@ export function HowItWorks({ open }: { open: boolean }) {
   return (
     <section className={s.steps} aria-labelledby="how-it-works">
       <h2 id="how-it-works" className={s.stepsTitle}>
-        How it works
+        From invoice to ticket
       </h2>
       <ol>
         <li>

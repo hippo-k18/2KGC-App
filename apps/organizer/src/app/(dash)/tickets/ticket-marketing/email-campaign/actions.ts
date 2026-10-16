@@ -205,7 +205,7 @@ export async function sendCampaignAction(
   } catch (err) {
     recordError('campaign.start', err);
     return {
-      error: 'The send could not start, because who has already been mailed could not be read. Nothing was sent. Try again in a minute.',
+      error: 'The send could not start: the list of people already mailed could not be read. Nothing was sent. Try again in a minute.',
       keep,
     };
   }

@@ -3,6 +3,9 @@
  *
  *   npx tsx scripts/ops/t249-cfp-2027.ts                 # dry run: prints the plan, writes nothing
  *   npx tsx scripts/ops/t249-cfp-2027.ts --apply         # backs up, then writes
+ *   npx tsx scripts/ops/t249-cfp-2027.ts --copy-only [--apply]
+ *                                                        # T270: rewrite `instructions` only, for a
+ *                                                        # call already migrated (Deb's copy edits)
  *     [--backup-dir=<dir>] [--call=call-for-speakers-kgc-2027]
  *     [--accept-notice=<email>] [--reminder=<email>]
  *
@@ -43,20 +46,26 @@ const args = new Map(
   }),
 );
 const APPLY = args.get('apply') === 'true';
+const COPY_ONLY = args.get('copy-only') === 'true';
 const CALL_ID = args.get('call') ?? 'call-for-speakers-kgc-2027';
 const BACKUP_DIR = args.get('backup-dir') ?? path.resolve('..', 'backups', 't249');
 
-/** Min's plan, section 2, with the line wrapping of the Google Doc taken out. */
+/**
+ * Min's plan, section 2, with the line wrapping of the Google Doc taken out.
+ * Updated to Deb Cameron's copy edits of 14 October (read from the doc on
+ * 16 October), with two capitalisation typos fixed and nothing else changed.
+ */
 export const PAGE_COPY = [
   'We want talks and workshops about real work: something you built, a decision you would change, a project that went wrong, results you measured. No product pitches.',
-  'Formats. Conference talks run 25 or 45 minutes, Wednesday 5 to Friday 7 May 2027. Hands-on workshops run Monday 3 and Tuesday 4 May 2027, at Jay Conference Bryant Park, New York. Choose "talk" or "workshop" below. If you want to offer both, submit twice.',
-  'What we ask for now. Your name, email and organisation, a title, an abstract of roughly 150 to 300 words, the session type and a track. Workshops also need learning objectives, an outline, and anything attendees have to install. Bio and photo come later, after acceptance.',
-  'How we review. We read submissions every week and accept as we go, rather than holding everything until a deadline. If your session is a fit you hear early, and we start promoting you early.',
+  'Formats. Conference talks run 25 or 45 minutes, from Wednesday May 5 to Friday May 7. Hands-on workshops run Monday and Tuesday. Talks and workshops must be given in person at Jay Conference Bryant Park.',
+  'Choose "talk" or "workshop" below. If you want to offer both, submit twice.',
+  'What to submit. Your name, email, and organization, the title and an abstract of roughly 150 to 300 words, the session type, and a track. For Workshops, submit learning objectives, an outline, and anything attendees have to install. Bio and photo come later, after acceptance.',
+  "How we review. We read submissions every week and accept them on a rolling basis. If your session is a good fit, we will let you know that it's accepted early, and we will start promoting it early.",
   'Three things worth knowing before you submit:',
-  '- Submitting early genuinely helps. Slots are limited and they fill as we go, so the earlier you are in, the more room there is. It is not first come first served, and we will not take a weak session because it arrived early. But it is not neutral either.',
+  '- Submitting early genuinely helps. Slots are limited and they fill as we go, so the earlier you submit, the more room there is. It is not first come first served, and we will not accept a weak session because it arrived early. But it is not neutral either.',
   '- Not hearing from us is not a no. A submission we have not answered is still open and still being read. Every submission gets a decision, yes or no, by [DECISION DATE] at the latest.',
-  '- You can ask us at any time. If you want to know where your submission stands, write to contact@knowledgegraph.tech and we will tell you plainly.',
-  'If we accept you, we will email you for the rest: bio, headshot, final title and session details. You have one week to send them, after which the slot may go to someone else.',
+  '- You can contact us at any time. If you want to know where your submission stands, write to contact@knowledgegraph.tech and we will tell you plainly.',
+  'If we accept your session, we will email you to submit your bio, a headshot, the final title and session details. You have one week to send them, after which the slot may go to someone else.',
   'Submissions close [CLOSE DATE].',
 ].join('\n\n');
 
@@ -105,6 +114,24 @@ async function main() {
   const snap = await ref.get();
   if (!snap.exists) throw new Error(`No call ${CALL_ID} on ${targetDescription()}`);
   const call = snap.data() as CallDoc;
+
+  if (COPY_ONLY) {
+    console.log(`Target: ${targetDescription()}, calls/${CALL_ID}`);
+    console.log(`Description: ${call.instructions === PAGE_COPY ? 'already current, nothing to write' : 'replace with the current page copy'}`);
+    console.log('Form, version and cfp settings: left alone (--copy-only).');
+    if (call.instructions === PAGE_COPY) return;
+    if (!APPLY) {
+      console.log('\nDry run. Nothing written. Add --apply to write.');
+      return;
+    }
+    mkdirSync(BACKUP_DIR, { recursive: true });
+    const file = path.join(BACKUP_DIR, `call-${CALL_ID}-instructions-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+    writeFileSync(file, JSON.stringify({ instructions: call.instructions ?? null }, null, 2));
+    console.log(`Backup: ${file}`);
+    await ref.update({ instructions: PAGE_COPY, updatedBy: 't270-copy', updatedAt: Timestamp.now() });
+    console.log('Written.');
+    return;
+  }
 
   const before = [...(call.form ?? [])].sort((a, b) => a.order - b.order);
   const { after, notes } = planForm(before);

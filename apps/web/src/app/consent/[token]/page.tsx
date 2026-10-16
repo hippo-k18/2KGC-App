@@ -87,10 +87,10 @@ export default async function ConsentPage({
 
         {failed && (
           <p className="notice bad" role="alert">
-            <strong>That did not save.</strong> Nothing has been recorded. This page is not
-            telling you it worked when it did not. Try again, and if it keeps failing email{' '}
-            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and a human will record
-            it by hand.
+            <strong>That did not save.</strong> Nothing has been recorded. Try again, and if it
+            keeps failing email{' '}
+            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will record it
+            for you.
           </p>
         )}
 
@@ -195,9 +195,6 @@ export default async function ConsentPage({
             <button type="submit" className="btn btn-primary">
               I agree
             </button>
-            <p className="muted" style={{ marginTop: 16 }}>
-              Nothing is recorded until you press the button.
-            </p>
           </form>
         )}
 
@@ -208,10 +205,9 @@ export default async function ConsentPage({
           `firestore.rules` — so the honest instruction is to email a person.
         */}
         <p className="muted" style={{ marginTop: 32 }}>
-          Changed your mind, or need this withdrawn? There is no button for it here on purpose: a
-          consent record that could be edited afterwards would not be worth keeping. Email{' '}
-          <a href={`mailto:${SITE.contactEmail}?subject=Consent`}>{SITE.contactEmail}</a> and a
-          person will deal with it.
+          Changed your mind, or need this withdrawn? Email{' '}
+          <a href={`mailto:${SITE.contactEmail}?subject=Consent`}>{SITE.contactEmail}</a> and we
+          will take care of it.
         </p>
 
         <p className="muted">

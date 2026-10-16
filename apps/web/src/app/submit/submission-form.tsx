@@ -218,8 +218,7 @@ export function SubmissionForm({
           defaultValue={a?.email}
         />
         <p className="hint">
-          Where the decision goes, and where we send your link back to this submission. There is
-          no password and no account.
+          We send the decision and your link to this submission here.
         </p>
         {errors.authorEmail && (
           <p className="hint" style={{ color: '#991b1b' }} role="alert">
@@ -244,8 +243,7 @@ export function SubmissionForm({
           <label htmlFor="bio">A short bio</label>
           <textarea id="bio" name="bio" rows={4} maxLength={1000} defaultValue={a?.bio} />
           <p className="hint">
-            Optional. If your work is accepted this becomes your speaker biography, so it is worth the
-            two minutes now.
+            Optional. If your work is accepted, this becomes your speaker bio.
           </p>
         </div>
       )}

@@ -133,8 +133,8 @@ export default async function SubmitPage({ params }: { params: Promise<{ callId:
                 promise the server will not keep, and somebody will spend twenty
                 minutes filling it in before finding out.
               */}
-              The submission form is not shown because nothing typed into it could be saved. If you
-              believe this is a mistake, email{' '}
+              Submissions cannot be saved right now, so the form is hidden. If you think this is a
+              mistake, email{' '}
               <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
             </p>
           </>
@@ -159,8 +159,7 @@ export default async function SubmitPage({ params }: { params: Promise<{ callId:
                   .{' '}
                 </>
               )}
-              You do not need an account: fill this in, and we will email you a link that brings
-              you back to it.
+              No account needed. We will email you a link back to your submission.
             </p>
             <SubmissionForm call={call} />
           </>

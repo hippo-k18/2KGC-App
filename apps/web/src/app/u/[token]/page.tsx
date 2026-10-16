@@ -88,8 +88,8 @@ export default async function UnsubscribePage({
 
         {state === 'on' && error === '1' && (
           <p className="notice bad" role="alert">
-            That did not work: your unsubscribe could not be saved, so you are still on the list.
-            Please press the button again in a minute, or email{' '}
+            Your unsubscribe could not be saved, so you are still on the list. Try again in a
+            minute, or email{' '}
             <a href={`mailto:${SITE.contactEmail}?subject=Unsubscribe`}>{SITE.contactEmail}</a>.
           </p>
         )}
@@ -126,9 +126,6 @@ export default async function UnsubscribePage({
               </button>
             </form>
 
-            <p className="muted" style={{ marginTop: 20 }}>
-              Nothing has changed yet. This takes effect when you press the button.
-            </p>
           </>
         )}
 
@@ -152,10 +149,9 @@ export default async function UnsubscribePage({
               speaking at) is not marketing and still reaches you.
             </p>
             <p className="muted">
-              Changed your mind? We deliberately have no one-click way back on, because a link that
-              could re-subscribe you is a link somebody else could use to do it. Email{' '}
+              Changed your mind? Email{' '}
               <a href={`mailto:${SITE.contactEmail}?subject=Re-subscribe`}>{SITE.contactEmail}</a>{' '}
-              and we will add you back by hand.
+              and we will add you back.
             </p>
           </>
         )}

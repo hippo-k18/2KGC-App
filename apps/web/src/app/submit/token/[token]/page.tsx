@@ -74,8 +74,8 @@ export default async function SubmissionTokenPage({
 
         {r === 'submitted' && (
           <p className="notice" role="status">
-            <strong>Submitted.</strong> We have emailed you this link. Keep it: it is how you
-            come back, and you can change anything below while the call is open.
+            <strong>Submitted.</strong> We have emailed you this link. Use it to come back and make
+            changes while the call is open.
           </p>
         )}
         {r === 'saved' && (
@@ -93,9 +93,8 @@ export default async function SubmissionTokenPage({
         )}
         {r === 'error' && (
           <p className="notice bad" role="alert">
-            <strong>That did not work, and nothing has changed.</strong> Email{' '}
-            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and a person will sort
-            it out.
+            <strong>Something went wrong and nothing was changed.</strong> Email{' '}
+            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will help.
           </p>
         )}
 
@@ -150,9 +149,8 @@ export default async function SubmissionTokenPage({
         */}
         {own.formMoved && own.editable && (
           <p className="notice">
-            The organizers have changed the questions since you started, and the form below asks
-            the current ones. Anything you have already written is kept. Read through before you
-            save.
+            The organizers have changed the questions since you started. The form shows the current
+            ones and keeps what you already wrote. Check it before you save.
           </p>
         )}
 

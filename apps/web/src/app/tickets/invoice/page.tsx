@@ -79,8 +79,7 @@ export default async function InvoicePage() {
           <p className="notice">
             Invoicing is not open yet. Email{' '}
             <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> who&rsquo;s coming and
-            who pays, and we will raise one by hand. Ten people or a hundred, and sponsor
-            allocations too.
+            who pays, and we will raise one by hand, including for sponsor allocations.
           </p>
           <HowItWorks open={false} />
         </div>

@@ -258,7 +258,7 @@ export async function saveCfpSettings(
     void k;
   }
   if (dates.closeDate && dates.decisionDate && dates.decisionDate < dates.closeDate) {
-    return { ok: false, error: 'The decision date is before the close date. Everyone is answered after the call closes.' };
+    return { ok: false, error: 'The decision date must be on or after the close date.' };
   }
   if (dates.closeDate && `${dates.closeDate}T23:59` <= call.opensAtLocal) {
     return { ok: false, error: 'The close date is before the call opens.' };

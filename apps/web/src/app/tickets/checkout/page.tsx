@@ -95,12 +95,11 @@ export default async function CheckoutPage({
           <div className="checkout checkout-closed">
             <h1 style={{ fontSize: '1.4rem' }}>Registration is not open yet</h1>
             <p className="notice warn">
-              Ticket sales for {ev.name} have not opened. Everything else on this site is
-              current.
+              Ticket sales for {ev.name} have not opened.
             </p>
             <p>
               Write to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will
-              tell you the moment they do.
+              tell you when they open.
             </p>
           </div>
         )}

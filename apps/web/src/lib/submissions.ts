@@ -539,11 +539,11 @@ export async function saveSubmission(
     if (title.length < 3) fieldErrors.title = 'Give your submission a title.';
     if (abstract.length < 40) {
       fieldErrors.abstract =
-        'The abstract is too short to be read by a committee. Say what the work is and why it matters.';
+        'The abstract is too short. Say what the work is and why it matters.';
     }
-    if (authorName.length < 2) fieldErrors.authorName = 'We need a name to put on the programme.';
+    if (authorName.length < 2) fieldErrors.authorName = 'Enter your name.';
     if (!authorEmail.includes('@')) {
-      fieldErrors.authorEmail = 'We need an address to send the decision to.';
+      fieldErrors.authorEmail = 'Enter your email address.';
     }
     if ((call.sessionTypes ?? []).length > 0 && !input.sessionType) {
       fieldErrors.sessionType = 'Choose what you are offering this as.';
@@ -565,7 +565,7 @@ export async function saveSubmission(
      * emailed and there is no account — an address-less draft is a document its
      * author can never reach again.
      */
-    fieldErrors.authorEmail = 'We need an address so we can send you the link back to this draft.';
+    fieldErrors.authorEmail = 'Enter your email address so we can send you the link to this draft.';
   }
 
   if (input.trackId && !(call.trackIds ?? []).includes(input.trackId)) {

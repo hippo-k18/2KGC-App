@@ -103,8 +103,8 @@ export default async function SpeakerProfilePage({
 
         {justSaved && (
           <p className="notice" role="status">
-            <strong>Thank you, that is with the organizers.</strong> Nothing has changed on the
-            website yet. It appears once somebody has read it.
+            <strong>Thank you, the organizers have it.</strong> It appears on the website once
+            they have read it.
           </p>
         )}
 
@@ -234,9 +234,7 @@ export default async function SpeakerProfilePage({
               defaultValue={ctx.photoURL ?? ''}
             />
             <p className="hint">
-              A link to a headshot, square if you have one. The organizers save the picture
-              themselves rather than linking to it, so the website never loads it from somewhere
-              else. If all you have is a file, email it to{' '}
+              A link to a headshot, square if you have one. If you only have a file, email it to{' '}
               <a href={`mailto:${SITE.contactEmail}?subject=Speaker photo`}>{SITE.contactEmail}</a>{' '}
               and we will add it for you.
             </p>

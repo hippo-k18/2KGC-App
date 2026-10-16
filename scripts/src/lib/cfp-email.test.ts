@@ -25,7 +25,9 @@ const ref = { name: 'Ada Lovelace', title: 'Lineage at scale', typeLine: 'Talk, 
 describe('E1', () => {
   it('says when the answer comes once the decision date is set', () => {
     const m = cfpReceivedMessage({ ...ref, decisionDay: 'Sunday 14 February 2027', link: 'https://x/t' });
-    expect(m.subject).toBe('We have your KGC 2027 submission');
+    expect(m.subject).toBe('We received your KGC 2027 submission');
+    expect(m.text).toContain('Thank you; we received your submission:');
+    expect(m.text).toContain('Here is what happens next.');
     expect(m.text).toContain('Hi Ada,');
     expect(m.text).toContain('Lineage at scale\nTalk, 25 minutes');
     expect(m.text).toContain('you will have an answer by Sunday 14 February 2027 at the latest.');
@@ -57,13 +59,14 @@ describe('E2 and E3', () => {
     expect(m.text).toContain('Please send them within one week, by Monday 9 November 2026.');
     expect(m.text).toContain('→ https://x/speaker/abc');
     expect(m.text).not.toContain('For workshops');
+    expect(m.text).toContain("If there's anything you are unsure about, just reply to this email.");
     expect(m.html).toContain('Replies go to');
     clean(m);
   });
 
   it('asks a workshop for its outline and install list, and drops an unset notice date', () => {
     const m = cfpAcceptedMessage({ ...e2, workshop: true, typeLine: 'Workshop' });
-    expect(m.text).toContain('For workshops: your outline and anything attendees must install');
+    expect(m.text).toContain('For workshops: your learning objectives, outline and anything attendees must install');
     expect(m.text).not.toContain('will be shared by');
     clean(m);
   });
@@ -85,6 +88,8 @@ describe('E4, E6 and S1', () => {
     );
     const without = cfpCloseDeclinedMessage(ref);
     expect(without.text).toContain('We are not able to fit it into the 2027 program.\n');
+    expect(without.text).toContain('We had far more good submissions than time slots, and the ones we could not accept');
+    expect(without.text).toContain('Thank you for your submission.');
     clean(with_);
     clean(without);
   });
@@ -92,9 +97,15 @@ describe('E4, E6 and S1', () => {
   it('E6 and S1 drop the decision date while unset', () => {
     const e6 = cfpStillOpenMessage(ref);
     expect(e6.text).not.toContain('answer by');
+    expect(e6.text).toContain('we have not reached a decision on your submission yet. That is all it means.');
+    expect(cfpStillOpenMessage({ ...ref, decisionDay: 'Sunday 14 February 2027' }).text).toContain(
+      'You will have an answer by Sunday 14 February 2027 at the latest, and most likely before.',
+    );
     clean(e6);
     const s1 = cfpStatusReplyText({ name: 'Ada Lovelace', decisionDay: 'Sunday 14 February 2027' });
     expect(s1).toContain('You will have an answer by Sunday 14 February 2027 at the latest.');
+    expect(s1).toContain('We read submissions every week and accept as we go');
+    expect(s1).toContain('tell us and we will add it to your submission.');
     clean(s1);
     clean(cfpStatusReplyText({}));
   });

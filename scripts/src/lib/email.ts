@@ -834,8 +834,8 @@ export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInp
        ${input.dueDate ? row('Due', esc(input.dueDate)) : ''}
      </table>
      ${button(input.hostedInvoiceUrl, 'View and pay the invoice')}
-     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;"><strong>What happens next.</strong> Tickets are issued when the invoice is paid, not when it is raised, so nobody is registered yet. As soon as payment clears, every attendee on the invoice gets their own confirmation email with their ticket.</p>
-     <p style="margin:12px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">The link above lets finance pay by card or bank transfer and download a PDF for your records.</p>`,
+     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;">Tickets are issued once the invoice is paid, so nobody is registered yet. When payment clears, each attendee on the invoice gets a confirmation email with their ticket.</p>
+     <p style="margin:12px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">The invoice can be paid by card or bank transfer from that link, and downloaded as a PDF.</p>`,
   );
 
   const text = `Your Knowledge Graph Conference invoice is ready.
@@ -846,9 +846,9 @@ Total:    ${total}${input.poNumber ? `\nPO:       ${input.poNumber}` : ''}${inpu
 
 View and pay: ${input.hostedInvoiceUrl}
 
-What happens next: tickets are issued when the invoice is paid, not when it is
-raised, so nobody is registered yet. When payment clears, each attendee gets
-their own confirmation with their ticket.`;
+Tickets are issued once the invoice is paid, so nobody is registered yet. When
+payment clears, each attendee on the invoice gets a confirmation email with
+their ticket.`;
 
   return send(store, {
     to: input.to,
@@ -1057,19 +1057,19 @@ export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInp
     'Your Knowledge Graph Conference sign-in code',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Enter this code in the KGC app to sign in.</p>
      <p style="margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:30px;font-weight:600;letter-spacing:.22em;background:#f4f5f7;border:1px solid #e3e5e8;border-radius:4px;padding:16px;text-align:center;">${esc(input.code)}</p>
-     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;">It expires in ${input.ttlMinutes} minutes and works once. If it has run out, ask for a new one from the same screen.</p>
-     <p style="margin:14px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">If you didn't ask to sign in, you can ignore this email. Nobody can use the code without it, and no one has been given access to your account.</p>`,
+     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;">It expires in ${input.ttlMinutes} minutes and works once. If it expires, request a new one on the same screen.</p>
+     <p style="margin:14px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">If you didn't ask for this code, you can ignore this email. No one can sign in to your account without it.</p>`,
   );
 
   const text = `Enter this code in the KGC app to sign in.
 
   ${input.code}
 
-It expires in ${input.ttlMinutes} minutes and works once. If it has run out, ask
-for a new one from the same screen.
+It expires in ${input.ttlMinutes} minutes and works once. If it expires, request
+a new one on the same screen.
 
-If you didn't ask to sign in, you can ignore this email. Nobody can use the
-code without it, and no one has been given access to your account.
+If you didn't ask for this code, you can ignore this email. No one can sign in
+to your account without it.
 
 3-7 May 2027, Jay Conference Bryant Park, New York.
 Please don't reply to this email. For questions, write to ${CONTACT}.`;
@@ -1278,9 +1278,9 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
    */
   const unsubscribeHtml = unsubscribe
     ? `<p style="margin:26px 0 0;padding-top:16px;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;line-height:1.6;">
-         You are receiving this because your address is on a Knowledge Graph Conference mailing
-         list. <a href="${unsubscribe.page}" style="color:#6b7280;">Unsubscribe</a> with one click,
-         no sign-in. It stops campaign email. Anything about a ticket you hold still reaches you.
+         You are receiving this because you are on a Knowledge Graph Conference mailing list.
+         <a href="${unsubscribe.page}" style="color:#6b7280;">Unsubscribe</a>. You will still get
+         emails about any ticket you hold.
        </p>`
     : '';
   const postalHtml = postal
@@ -1293,7 +1293,7 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
   );
 
   const unsubscribeText = unsubscribe
-    ? `\n\nYou are receiving this because your address is on a KGC mailing list.\nUnsubscribe (one click, no sign-in): ${unsubscribe.page}\nThat stops campaign email. Anything about a ticket you hold still reaches you.`
+    ? `\n\nYou are receiving this because you are on a Knowledge Graph Conference mailing list.\nUnsubscribe: ${unsubscribe.page}\nYou will still get emails about any ticket you hold.`
     : '';
 
   const text = `${firstNameOf(input.name) ? `Hi ${firstNameOf(input.name)},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}${postal ? `\n${postal}` : ''}`;
@@ -1399,9 +1399,8 @@ export async function sendSubmissionReceipt(
      </table>
      ${button(input.link, input.draft ? 'Finish your submission' : 'View or edit your submission')}
      <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
-       That link opens your submission and nothing else: no other submission, no reviews, no
-       scores. Please do not forward it: anybody who has it can read and, while the call is open,
-       edit your abstract. It stops working after twelve months.
+       Please do not forward this link. Anyone who has it can read your abstract and, while the
+       call is open, edit it. It stops working after twelve months.
      </p>`,
   );
 
@@ -1417,9 +1416,8 @@ Call:   ${input.callTitle}${closes ? `\nCloses: ${closes}` : ''}
 ${input.draft ? 'Finish your submission' : 'View or edit your submission'}:
 ${input.link}
 
-That link opens your submission and nothing else. Please do not forward it:
-anybody who has it can read, and while the call is open edit, your abstract.
-It stops working after twelve months.
+Please do not forward this link. Anyone who has it can read your abstract and,
+while the call is open, edit it. It stops working after twelve months.
 
 --
 Knowledge Graph Conference 2027`;
@@ -1490,12 +1488,12 @@ export async function sendSubmissionDecision(
   if (input.waitlisted) return sendWaitlisted(store, input);
 
   const opening = input.accepted
-    ? `we are delighted to say that <strong>“${esc(input.title)}”</strong> has been accepted for ${esc(input.callTitle)}.`
+    ? `we are pleased to tell you that <strong>“${esc(input.title)}”</strong> has been accepted for ${esc(input.callTitle)}.`
     : `thank you for submitting <strong>“${esc(input.title)}”</strong> to ${esc(input.callTitle)}. After review, we are not able to include it in the programme this year.`;
 
   const next = input.accepted
-    ? `We will be in touch separately about scheduling. The date, time and room are decided as the programme is assembled, so this is not a slot yet.`
-    : `We had more good submissions than we have room for, and a decision not to include one is not a judgement that it was weak. We would be glad to see you submit again.`;
+    ? `We will be in touch about scheduling. The date, time and room are set when the programme is put together.`
+    : `We had more good submissions than we have room for, and this is not a judgement on the quality of yours. We would be glad to see you submit again.`;
 
   const noteHtml = input.note?.trim()
     ? `<div style="margin:20px 0 0;padding:14px 16px;background:#fafbfc;border:1px solid #e3e5e8;border-radius:4px;">
@@ -1522,14 +1520,14 @@ export async function sendSubmissionDecision(
 
   const text = `${greeting} ${
     input.accepted
-      ? `we are delighted to say that "${input.title}" has been accepted for ${input.callTitle}.`
+      ? `we are pleased to tell you that "${input.title}" has been accepted for ${input.callTitle}.`
       : `thank you for submitting "${input.title}" to ${input.callTitle}. After review, we are not able to include it in the programme this year.`
   }
 
 ${
   input.accepted
-    ? 'We will be in touch separately about scheduling. The date, time and room are decided as the programme is assembled, so this is not a slot yet.'
-    : 'We had more good submissions than we have room for, and a decision not to include one is not a judgement that it was weak. We would be glad to see you submit again.'
+    ? 'We will be in touch about scheduling. The date, time and room are set when the programme is put together.'
+    : 'We had more good submissions than we have room for, and this is not a judgement on the quality of yours. We would be glad to see you submit again.'
 }
 ${input.note?.trim() ? `\nFrom the committee:\n${input.note.trim()}\n` : ''}
 Read your submission:
@@ -1645,7 +1643,7 @@ export async function sendReviewerInvitation(
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const waiting =
     input.assigned === 0
-      ? 'Nothing has been assigned to you yet. Submissions will appear on your page as they are.'
+      ? 'Nothing has been assigned to you yet. Submissions will appear on your page when they are.'
       : `${input.assigned} submission${input.assigned === 1 ? ' is' : 's are'} waiting for you.`;
   const due = input.dueLabel ? ` Reviews are wanted by ${input.dueLabel}.` : '';
 
@@ -1666,10 +1664,10 @@ export async function sendReviewerInvitation(
      <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(waiting)}${esc(due)}</p>
      ${button(input.link, 'Open your review page')}
      <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
-       There is no account and no password. The link is your access, so please do not forward it:
-       anybody who has it can read the submissions assigned to you and score them in your name. If
-       you have a conflict of interest with a submission, say so on its page and it is taken off
-       your list. The link stops working after six months.
+       You don't need an account or a password. This link is your access, so please do not forward
+       it: anyone who has it can read and score the submissions assigned to you. If you have a
+       conflict of interest with a submission, say so on its page and it will be taken off your
+       list. The link stops working after six months.
      </p>`,
   );
 
@@ -1680,10 +1678,10 @@ ${waiting}${due}
 Open your review page:
 ${input.link}
 
-There is no account and no password. The link is your access, so please do not
-forward it: anybody who has it can read the submissions assigned to you and
-score them in your name. If you have a conflict of interest with a submission,
-say so on its page and it is taken off your list. The link stops working after
+You don't need an account or a password. This link is your access, so please
+do not forward it: anyone who has it can read and score the submissions
+assigned to you. If you have a conflict of interest with a submission, say so
+on its page and it will be taken off your list. The link stops working after
 six months.
 
 Knowledge Graph Conference 2027`;
@@ -1742,7 +1740,7 @@ export async function sendSpeakerProfileRequest(
         : `You are speaking at Knowledge Graph Conference 2027, on ${input.sessionTitles.length} sessions.`;
   const missing = input.missingLabel
     ? `We are missing ${input.missingLabel} for you.`
-    : 'You can check what we hold and change anything that is out of date.';
+    : 'You can check your details and update anything that is out of date.';
 
   const noteParas = (input.note ?? '')
     .split(/\n\s*\n/)
@@ -1761,9 +1759,9 @@ export async function sendSpeakerProfileRequest(
      <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(missing)} Your bio, job title, company, links and a link to your slides all go on the same page.</p>
      ${button(input.link, 'Fill in your profile')}
      <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
-       There is no account and no password. The link is your access, so please do not forward it.
-       Nothing you send appears anywhere until one of the organizers has read it. The link stops
-       working after six months.
+       You don't need an account or a password. This link is your access, so please do not forward
+       it. Nothing you send is published until an organizer has reviewed it. The link stops working
+       after six months.
      </p>`,
   );
 
@@ -1775,9 +1773,9 @@ on the same page.
 Fill in your profile:
 ${input.link}
 
-There is no account and no password. The link is your access, so please do not
-forward it. Nothing you send appears anywhere until one of the organizers has
-read it. The link stops working after six months.
+You don't need an account or a password. This link is your access, so please
+do not forward it. Nothing you send is published until an organizer has
+reviewed it. The link stops working after six months.
 
 Knowledge Graph Conference 2027`;
 
@@ -1813,7 +1811,7 @@ export async function sendTeamInvitation(store: Firestore, input: TeamInvitation
     'Your organizer dashboard access',
     `<p style="${P}">${greeting} you have been added to the organizer dashboard for Knowledge Graph Conference 2027.</p>
      <p style="${P}">Your access: <strong>${esc(input.rolesLabel)}</strong>.</p>
-     <p style="${P}">Sign in with this email address. We send you a code each time, so there is no password to keep.</p>
+     <p style="${P}">Sign in with this email address. We will email you a code each time you sign in.</p>
      ${button(input.link, 'Open the dashboard')}`,
   );
 
@@ -1821,7 +1819,7 @@ export async function sendTeamInvitation(store: Firestore, input: TeamInvitation
 
 Your access: ${input.rolesLabel}.
 
-Sign in with this email address. We send you a code each time, so there is no password to keep.
+Sign in with this email address. We will email you a code each time you sign in.
 
 ${input.link}`;
 
@@ -1888,8 +1886,7 @@ export async function sendConsentRequest(
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} ${opening}</p>
      ${button(input.link, 'Read it and sign')}
      <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
-       The link is yours alone, so please do not forward it. You can read the whole text before you
-       agree to anything.
+       This link is personal to you, so please do not forward it.
      </p>`,
   );
 
@@ -1900,8 +1897,7 @@ export async function sendConsentRequest(
 Read it and sign:
 ${input.link}
 
-The link is yours alone, so please do not forward it. You can read the whole text
-before you agree to anything.
+This link is personal to you, so please do not forward it.
 
 Knowledge Graph Conference 2027`;
 
@@ -1971,13 +1967,12 @@ export async function sendExhibitorLeadLink(
            `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`,
        )
        .join('')}
-     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Open this on the phone or tablet you will have on the stand. Point it at an attendee's badge, they agree on screen to share their details, and you can add a note and download the whole list as a spreadsheet whenever you like.</p>
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Open this link on the phone or tablet you will use on the stand and scan an attendee's badge. They agree on screen to share their details. You can add notes and download your list as a spreadsheet at any time.</p>
      ${button(input.link, 'Open your lead desk')}
      <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
-       There is no account and no password. The link is your access, so share it with your stand
-       team and nowhere else. Nobody is added to your list unless they are standing in front of you
-       and tap to agree. You see only the people your stand has scanned. The link stops working
-       after four months.
+       You don't need an account or a password. This link is your access, so share it only with
+       your stand team. Attendees are added to your list only when they agree on screen, and you see
+       only the people your stand has scanned. The link stops working after four months.
      </p>`,
   );
 
@@ -1985,17 +1980,17 @@ export async function sendExhibitorLeadLink(
     input.boothNumber ? ` is on stand ${input.boothNumber}` : ' is exhibiting'
   } at Knowledge Graph Conference 2027.
 ${noteParas.length ? `\n${noteParas.join('\n\n')}\n` : ''}
-Open this on the phone or tablet you will have on the stand. Point it at an
-attendee's badge, they agree on screen to share their details, and you can add
-a note and download the whole list as a spreadsheet whenever you like.
+Open this link on the phone or tablet you will use on the stand and scan an
+attendee's badge. They agree on screen to share their details. You can add
+notes and download your list as a spreadsheet at any time.
 
 Open your lead desk:
 ${input.link}
 
-There is no account and no password. The link is your access, so share it with
-your stand team and nowhere else. Nobody is added to your list unless they are
-standing in front of you and tap to agree. You see only the people your stand
-has scanned. The link stops working after four months.
+You don't need an account or a password. This link is your access, so share it
+only with your stand team. Attendees are added to your list only when they agree
+on screen, and you see only the people your stand has scanned. The link stops
+working after four months.
 
 Knowledge Graph Conference 2027`;
 
@@ -2114,13 +2109,13 @@ export async function sendBlogInvitation(store: Firestore, input: BlogInvitation
   const html = shell(
     'Write for the KGC blog',
     `<p style="${P}">${greeting} ${esc(input.invitedBy)} has added you to the Knowledge Graph Conference blog as ${esc(input.roleLabel)}.</p>
-     <p style="${P}">Sign in with this email address. We send you a code each time, so there is no password to keep.</p>
+     <p style="${P}">Sign in with this email address. We will email you a code each time you sign in.</p>
      ${button(input.link, 'Open the blog editor')}
      <p style="${SMALL}">Posts you write go to the KGC editors for review before they are published.</p>`,
   );
   const text = `${greeting} ${input.invitedBy} has added you to the Knowledge Graph Conference blog as ${input.roleLabel}.
 
-Sign in with this email address. We send you a code each time, so there is no password to keep.
+Sign in with this email address. We will email you a code each time you sign in.
 
 ${input.link}
 
@@ -2288,10 +2283,10 @@ export function cfpReceivedMessage(
     link?: string;
   },
 ): CfpMessage {
-  const msg = cfpMessage('We have your KGC 2027 submission', input.name, [
-    { p: 'Thank you, we have your submission:' },
+  const msg = cfpMessage('We received your KGC 2027 submission', input.name, [
+    { p: 'Thank you; we received your submission:' },
     { lines: [input.title, input.typeLine] },
-    { p: 'Here is how it goes from here, so you are not left wondering.' },
+    { p: 'Here is what happens next.' },
     {
       p:
         'We read submissions every week rather than waiting for a deadline, and we accept as we go. ' +
@@ -2346,7 +2341,7 @@ export function cfpAcceptedMessage(input: CfpAcceptedInput): CfpMessage {
         'A short bio, around 100 words',
         'A headshot',
         'Your final title and session description',
-        ...(input.workshop ? ['For workshops: your outline and anything attendees must install'] : []),
+        ...(input.workshop ? ['For workshops: your learning objectives, outline and anything attendees must install'] : []),
       ],
     },
     { link: { href: input.link, label: 'Send your details' } },
@@ -2356,7 +2351,7 @@ export function cfpAcceptedMessage(input: CfpAcceptedInput): CfpMessage {
         'are confirmed, so this is what gets you into the next announcement. If we have not heard ' +
         'from you after a week, we may give the slot to someone else.',
     },
-    { p: 'Anything you are unsure about, just reply to this email.' },
+    { p: "If there's anything you are unsure about, just reply to this email." },
     { p: 'Welcome aboard.' },
   ]);
 }
@@ -2405,8 +2400,8 @@ export function cfpCloseDeclinedMessage(
     { p: `We are not able to fit it into the 2027 program.${reason ? ` ${reason}` : ''}` },
     {
       p:
-        'This is not a comment on the work. We had far more good submissions than rooms, and the ' +
-        'ones we could not take were in many cases a scheduling problem rather than a quality one.',
+        'This is not a comment on the work. We had far more good submissions than time slots, and the ' +
+        'ones we could not accept were in many cases a scheduling problem rather than a quality one.',
     },
     {
       p:
@@ -2414,7 +2409,7 @@ export function cfpCloseDeclinedMessage(
         'and are still open. And if you are coming anyway, speakers who were not placed this year are ' +
         'the first people we read next year.',
     },
-    { p: 'Thank you for putting it in front of us.' },
+    { p: 'Thank you for your submission.' },
   ]);
 }
 
@@ -2428,8 +2423,8 @@ export function cfpStillOpenMessage(
     { lines: [input.title] },
     {
       p:
-        'We are reading every week and accepting as we go, and we have not got to a decision on yours ' +
-        `yet. That is all it means.${
+        'We are reading submissions every week and accepting them as we go, and we have not reached a ' +
+        `decision on your submission yet. That is all it means.${
           input.decisionDay ? ` You will have an answer by ${input.decisionDay} at the latest, and most likely before.` : ''
         }`,
     },
@@ -2446,9 +2441,9 @@ export function cfpStatusReplyText(input: { name?: string; decisionDay?: string 
   return [
     first ? `Hi ${first},` : 'Hi,',
     'Thanks for checking in.',
-    'Your submission is still open. We read every week and accept as we go, so a submission that has not been answered is one we have not reached a decision on yet, not one we have turned down.',
+    'Your submission is still open. We read submissions every week and accept as we go, so a submission that has not been answered is one we have not reached a decision on yet, not one we have turned down.',
     ...(input.decisionDay ? [`You will have an answer by ${input.decisionDay} at the latest.`] : []),
-    'Sorry we cannot be more precise than that. If anything changes on your side, a new title, a co-presenter, a date you cannot make, tell us and we will put it on the submission.',
+    'Sorry we cannot be more precise than that. If anything changes on your side, a new title, a co-presenter, a date you cannot make, tell us and we will add it to your submission.',
     'Best,\nThe KGC team',
   ].join('\n\n');
 }
@@ -2511,8 +2506,8 @@ export function cfpWeeklyReminderMessage(input: {
     `KGC 2027 submissions: ${input.open} open`,
     input.name,
     [
-      { p: `It is Thursday, time for this week's pass. ${fresh} ${input.open} in all are waiting for a decision.` },
-      { p: 'For each one: accept, reject, or leave it for next week. Accept emails the speaker for you.' },
+      { p: `${fresh} ${input.open} in all are waiting for a decision.` },
+      { p: 'Accept, reject or leave each one for next week. Accepting a submission emails the speaker.' },
       { link: { href: input.link, label: 'Open the review list' } },
     ],
   );

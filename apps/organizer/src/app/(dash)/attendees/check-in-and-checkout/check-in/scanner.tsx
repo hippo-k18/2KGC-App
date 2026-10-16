@@ -620,7 +620,7 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
       {result.outcome === 'ok' ? (
         <div className="scan-meta">
           {kiosk ? (
-            <>Checked in at {when(result.checkedInAt)}. You are all set. Enjoy the conference.</>
+            <>Checked in at {when(result.checkedInAt)}. Enjoy the conference.</>
           ) : (
             <>
               Checked in at {when(result.checkedInAt)}.

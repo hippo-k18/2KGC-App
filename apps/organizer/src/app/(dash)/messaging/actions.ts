@@ -168,7 +168,7 @@ export async function sendBulkMessageAction(
   if (recent && Date.now() - recent < COOLDOWN_MS) {
     const wait = Math.ceil((COOLDOWN_MS - (Date.now() - recent)) / 1000);
     return {
-      error: `A different message went out ${Math.round((Date.now() - recent) / 1000)}s ago. Wait ${wait}s. A duplicate is indistinguishable from a mistake in someone's inbox.`,
+      error: `A different message went out ${Math.round((Date.now() - recent) / 1000)}s ago. Wait ${wait}s.`,
       keep,
     };
   }
@@ -199,7 +199,7 @@ export async function sendBulkMessageAction(
   } catch (err) {
     recordError('message.start', err);
     return {
-      error: 'The send could not start, because who has already been mailed could not be read. Nothing was sent. Try again in a minute.',
+      error: 'The send could not start: the list of people already mailed could not be read. Nothing was sent. Try again in a minute.',
       keep,
     };
   }

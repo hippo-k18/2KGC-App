@@ -31,7 +31,7 @@ export function SettingsForm({ callId, cfp }: { callId: string; cfp: CallCfpSett
           type="date"
           label="Close date"
           defaultValue={cfp.closeDate ?? ''}
-          hint="The last day submissions are taken. Also becomes the deadline, at 23:59 New York time."
+          hint="The last day for submissions. The form closes at 23:59 New York time."
         />
         <Field
           name="decisionDate"
