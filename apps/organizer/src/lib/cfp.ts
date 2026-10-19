@@ -19,8 +19,6 @@ import {
 } from '@kgc/shared';
 import {
   DETAILS_DUE_DAYS,
-  closeDecisionDate,
-  closeDecisionOpen,
   closeDecisionPlan,
   dateIn,
   dayAfter,
@@ -184,6 +182,14 @@ export async function getCfpCall(callId: string): Promise<CfpCall | null> {
     opensAtLocal: c.opensAtLocal,
     enabled: Boolean(c.cfp),
   };
+}
+
+/**
+ * Whether the call is still taking submissions: no close date yet, or the
+ * close date not yet past. The same line `holdE2ForClose` draws.
+ */
+export function callStillOpen(nowMs: number, call: Pick<CfpCall, 'cfp' | 'timeZone'>): boolean {
+  return !holdE2ForClose(nowMs, call.cfp, call.timeZone);
 }
 
 /** The call this flow is about: the published one with settings, else the newest published. */
@@ -719,7 +725,7 @@ export async function rejectCfp(input: {
   const r = await decideSubmission({ id: input.submissionId, accept: false, notify: false, actor: input.actor });
   if (!r.ok) return r;
   if (!wasAccepted || !a) {
-    return { ok: true, message: 'Rejected. Nothing was sent; the author hears with everyone else after the close.' };
+    return { ok: true, message: 'Rejected. Nothing was sent. The author is told only when someone presses Send on Dates and emails.' };
   }
 
   const at = Timestamp.fromMillis(input.nowMs ?? Date.now());
@@ -743,7 +749,7 @@ export async function rejectCfp(input: {
   const parts = ['Changed to rejected.'];
   parts.push(
     told
-      ? 'The author was already told they were accepted, so they will not get the “not accepted” email after the close. Tell them yourself.'
+      ? 'The author was already told they were accepted, so they will not get the “not accepted” email. Tell them yourself.'
       : 'Their acceptance email had not gone, and now will not.',
   );
   if (a.speakerId) {
@@ -828,19 +834,41 @@ export async function saveDeclineReason(submissionId: string, reason: string, ac
  * E4. The declined version to every rejection not yet told, and the accepted
  * version, followed by E2, to every acceptance made after the close.
  * Undecided submissions are skipped and counted.
+ *
+ * ── The only way a "not accepted" email goes (T275) ─────────────────────────
+ *
+ * The owner, 2026-10-19: no rejection email when someone clicks Reject; all
+ * of them at once, when someone presses this button, and never before. So
+ * this sends whenever it is pressed. It used to refuse until two weeks after
+ * the close (T252); the owner wants the timing to be theirs. While the call
+ * is still open it needs `confirmStillOpen` as well, the second tick box on
+ * the page, because an author rejected today and told today may tell others
+ * the call is still taking submissions.
+ *
+ * Each author gets it once: the claim below stamps `closeDecision` before the
+ * send, and a press after that skips them. Undecided submissions do not stop
+ * it; they are left alone and counted, and a later press tells only whoever
+ * has been rejected since.
+ *
+ * The accepted-after-close half is unchanged by an early press. Before the
+ * close an acceptance mails E2 at once and is never held, so nothing is in
+ * that list. After the close an acceptance is held for this send; one made
+ * after a press waits for the next press, as it always has.
  */
-export async function sendCloseDecisions(input: { callId: string; actor: string; nowMs?: number }): Promise<CfpResult> {
+export async function sendCloseDecisions(input: {
+  callId: string;
+  actor: string;
+  nowMs?: number;
+  /** Required while the call is still open. */
+  confirmStillOpen?: boolean;
+}): Promise<CfpResult> {
   const now = input.nowMs ?? Date.now();
   const call = await getCfpCall(input.callId);
   if (!call) return { ok: false, error: 'That call does not exist.' };
-  // Enforced here as well as by the disabled button (T252).
-  if (!closeDecisionOpen(now, call.cfp, call.timeZone)) {
-    const from = closeDecisionDate(call.cfp);
+  if (callStillOpen(now, call) && !input.confirmStillOpen) {
     return {
       ok: false,
-      error: from
-        ? `The decision email can go from ${formatDay(from)}, two weeks after the close. Nothing was sent.`
-        : 'Set the close date first. The decision email goes two weeks after it. Nothing was sent.',
+      error: 'The call is still open. Tick the second box to confirm you want to send the decisions now. Nothing was sent.',
     };
   }
   // Strict: a failed read must not look like "nobody to tell".
@@ -941,7 +969,9 @@ export async function sendCloseDecisions(input: { callId: string; actor: string;
       (e2Failed
         ? ` ${e2Failed} acceptance email${e2Failed === 1 ? '' : 's'} with the details link did not go. ${e2Failed === 1 ? 'It is' : 'They are'} retried every hour until ${e2Failed === 1 ? 'it goes' : 'they go'}.`
         : '') +
-      (plan.undecided.length ? ` ${plan.undecided.length} still undecided were left alone.` : ''),
+      (plan.undecided.length
+        ? ` ${plan.undecided.length} still undecided ${plan.undecided.length === 1 ? 'was' : 'were'} left alone. Anyone you reject later is told the next time you press Send.`
+        : ''),
   };
 }
 

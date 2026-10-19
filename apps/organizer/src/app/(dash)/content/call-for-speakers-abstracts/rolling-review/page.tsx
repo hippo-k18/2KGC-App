@@ -1,9 +1,8 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { currentCfpCallId, getCfpCall, listCfpSubmissions } from '@/lib/cfp';
+import { callStillOpen, currentCfpCallId, getCfpCall, listCfpSubmissions } from '@/lib/cfp';
 import {
   closeDecisionDate,
-  closeDecisionOpen,
   closeDecisionPlan,
   formatDay,
   stillOpenRecipients,
@@ -53,14 +52,12 @@ export default async function RollingReviewPage({
   const decisionDay = formatDay(call.cfp.decisionDate);
   const e4Day = formatDay(closeDecisionDate(call.cfp));
   /*
-   * E4 stays disabled until two weeks after the close (T252): one early press
-   * would tell every rejected author months before everyone else hears.
+   * E4 sends whenever it is pressed (T275): the owner decides when rejections
+   * go, and this is the only thing that sends them. While the call is still
+   * open the page warns and asks for a second tick.
    */
-  const e4Blocked = closeDecisionOpen(Date.now(), call.cfp, call.timeZone)
-    ? undefined
-    : e4Day
-      ? `This send opens on ${e4Day}, two weeks after the close. Until then it cannot be sent.`
-      : 'Set the close date above first. This send opens two weeks after it.';
+  const stillOpen = callStillOpen(Date.now(), call);
+  const closeDay = formatDay(call.cfp.closeDate);
 
   return (
     <>
@@ -127,20 +124,22 @@ export default async function RollingReviewPage({
 
       <Panel>
         <h2 className="section-header" style={{ marginTop: 0 }}>
-          E4: the decision after the close
+          E4: the decision emails
         </h2>
         <p className="body-2">
-          {e4Day ? `Due two weeks after the close, on ${e4Day}. ` : 'Due two weeks after the close. '}
-          The &ldquo;not accepted&rdquo; version goes to every rejection not yet told. The
-          &ldquo;accepted&rdquo; version goes to acceptances made after the close, and their
-          acceptance email with the details link follows it.
+          The only way a &ldquo;not accepted&rdquo; email goes. Rejecting a submission sends
+          nothing; pressing Send below emails every rejection not yet told, all at once, each
+          author once. The &ldquo;accepted&rdquo; version goes to acceptances made after the close,
+          and their acceptance email with the details link follows it.
+          {e4Day ? ` The plan has it two weeks after the close, on ${e4Day}, but it sends whenever you press it.` : ''}
           {e4Done ? ` ${e4Done} have already been sent.` : ''}
         </p>
         {plan.undecided.length > 0 && (
           <p className="body-2">
-            <strong>{plan.undecided.length} still undecided.</strong> Decide them on the{' '}
-            <Link href={`${CFA_BASE}/review?call=${call.id}`}>weekly review</Link> first; this
-            send leaves them alone.
+            <strong>{plan.undecided.length} still undecided.</strong> They are not included and
+            are not told anything. You can send now anyway; anyone you reject later is told the
+            next time you press Send. Decide them on the{' '}
+            <Link href={`${CFA_BASE}/review?call=${call.id}`}>weekly review</Link>.
           </p>
         )}
 
@@ -180,7 +179,13 @@ export default async function RollingReviewPage({
           count={plan.declined.length + plan.accepted.length}
           label={`Send E4 to ${plan.declined.length + plan.accepted.length}`}
           confirmLabel={`Email ${plan.declined.length} “not accepted” and ${plan.accepted.length} “accepted”`}
-          blocked={e4Blocked}
+          stillOpen={
+            stillOpen
+              ? closeDay
+                ? `The call is still open until ${closeDay}. Authors you tell now may tell others before it closes.`
+                : 'The call has no close date yet, so it is still open. Authors you tell now may tell others while it is.'
+              : undefined
+          }
         />
       </Panel>
     </>

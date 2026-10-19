@@ -7,10 +7,12 @@ import {
   headerText,
   idempotencyKeyFor,
   retryableStatus,
+  sendBlogSignInCode,
   sendBulkMessage,
   sendInvoiceRaised,
   sendPurchaseConfirmation,
   sendRefundConfirmation,
+  sendSignInCode,
   sendSubmissionReceipt,
 } from './email.js';
 
@@ -23,7 +25,7 @@ const store = {
   collection: () => ({ add: async (doc: Record<string, unknown>) => void logged.push(doc) }),
 } as unknown as Firestore;
 
-const requests: { subject: string; text: string; html: string }[] = [];
+const requests: { from: string; reply_to: string; subject: string; text: string; html: string }[] = [];
 
 beforeEach(() => {
   logged.length = 0;
@@ -362,5 +364,35 @@ describe('template copy (T258 #18, T259 #2)', () => {
       expect(part).toContain('registration desk');
       expect(part).not.toMatch(/shows (your|the) badge QR/);
     }
+  });
+});
+
+describe('the sender (T275)', () => {
+  it('is contact@ for every kind of email, even where the env still names hello@', async () => {
+    vi.stubEnv('EMAIL_FROM', 'Knowledge Graph Conference <hello@knowledgegraph.tech>');
+    vi.stubEnv('EMAIL_REPLY_TO', 'hello@knowledgegraph.tech');
+    provider('ok');
+    await refund('Ada Nakamura');
+    await sendPurchaseConfirmation(store, {
+      to: 'ada@example.com',
+      name: 'Ada Nakamura',
+      ticketType: 'Main Conference',
+      amountCents: 19_900,
+      currency: 'usd',
+      orderUrl: 'https://www.knowledgegraph.tech/order/abc',
+      claimCode: '',
+    });
+    await sendSignInCode(store, { to: 'ada@example.com', code: '123456', ttlMinutes: 10 });
+    await sendBlogSignInCode(store, { to: 'ada@example.com', code: '123456', expiresLabel: '10 minutes', surface: 'ticket' });
+    await sendBulkMessage(store, { to: 'ada@example.com', subject: 'Hello', body: 'Hi.', campaignId: 'c1', actor: 'x' });
+    expect(requests).toHaveLength(5);
+    for (const r of requests) {
+      expect(r.from).toBe('Knowledge Graph Conference <contact@knowledgegraph.tech>');
+      expect(r.reply_to).toBe('contact@knowledgegraph.tech');
+      expect(`${r.text}\n${r.html}`).not.toContain('hello@');
+      expect(`${r.text}\n${r.html}`).not.toContain("don't reply");
+    }
+    expect(requests[1].text).toContain('Questions? Reply to this email or write to contact@knowledgegraph.tech.');
+    expect(requests[1].html).toContain('Questions? Reply to this email or write to <a href="mailto:contact@knowledgegraph.tech"');
   });
 });

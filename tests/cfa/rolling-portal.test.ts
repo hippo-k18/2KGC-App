@@ -57,6 +57,7 @@ beforeEach(async () => {
 });
 
 interface Captured {
+  from: string;
   to: string;
   subject: string;
   template: string;
@@ -171,7 +172,11 @@ describe('E1', () => {
     expect(sent[0].template).toBe('cfp-received');
     expect(sent[0].subject).toBe('We received your KGC 2027 submission');
     expect(sent[0].text).toContain('Lineage at scale\nTalk, 25 minutes');
-    expect(sent[0].text).toContain('by Sunday 14 March 2027 at the latest');
+    // The owner's copy (T275), from contact@, and no date in it any more.
+    expect(sent[0].text).toContain('Thank you for submitting your proposal to the Knowledge Graph Conference (KGC)!');
+    expect(sent[0].text).toContain('Best,\nThe KGC Team');
+    expect(sent[0].text).not.toContain('Sunday 14 March 2027');
+    expect(sent[0].from).toBe('Knowledge Graph Conference <contact@knowledgegraph.tech>');
     expect(sent[0].text).not.toMatch(/\[|—/);
 
     // An edit through the author's own link is not acknowledged again.
@@ -179,10 +184,10 @@ describe('E1', () => {
     expect(mail()).toHaveLength(1);
   });
 
-  it('leaves the answer-by sentence out while the decision date is unset', async () => {
+  it('reads the same while the decision date is unset', async () => {
     await seedCall({});
     await saveSubmission(CALL_ID, talk());
-    expect(mail()[0].text).not.toContain('Either way');
+    expect(mail()[0].text).toContain('we will only follow up with submissions that are accepted');
   });
 });
 

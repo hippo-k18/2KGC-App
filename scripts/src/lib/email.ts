@@ -73,30 +73,41 @@ export function emailEnabled(): boolean {
 }
 
 /**
- * Who the mail comes from.
+ * Who the mail comes from: the conference's staffed inbox, for every email
+ * this system sends (owner, 2026-10-19: "all emails should come from contact
+ * at knowledge graph ... not from hello").
  *
- * Must be a domain verified in Resend, or every send returns 403. A friendly
- * name is included because "Knowledge Graph Conference" in an inbox list is
- * recognised and a bare address is not.
+ * A constant, not `EMAIL_FROM`. Every deployment's env file still names
+ * hello@, and an override would quietly keep it; one address in the code is
+ * the only way "every email" stays true. The domain is verified in Resend, so
+ * a send from it is accepted. The friendly name is there because "Knowledge
+ * Graph Conference" in an inbox list is recognised and a bare address is not.
  */
+export const FROM_ADDRESS = `Knowledge Graph Conference <${EVENT.contactEmail}>`;
+
 function fromAddress(): string {
-  return process.env.EMAIL_FROM ?? 'Knowledge Graph Conference <tickets@knowledgegraph.tech>';
+  return FROM_ADDRESS;
 }
 
-/** Where "questions?" should go. Falls back to the from address. */
 /**
- * Where questions go: the conference's real, staffed inbox.
- *
- * Mail is sent *from* hello@knowledgegraph.tech, which has no mailbox behind
- * it, so every email tells people not to reply and to write here instead.
- * Reply-To points here as well, for the people who reply anyway, and so does
- * the List-Unsubscribe mailto, so neither ends up in an inbox nobody reads.
+ * Where replies go: the same staffed inbox the mail now comes from. Set
+ * explicitly anyway, so a client that prefers Reply-To lands in the same
+ * place, and so does the List-Unsubscribe mailto. Not `EMAIL_REPLY_TO` either,
+ * for the same reason as the from address.
  */
 const CONTACT = EVENT.contactEmail;
 
 function replyTo(): string {
-  return process.env.EMAIL_REPLY_TO ?? CONTACT;
+  return CONTACT;
 }
+
+/**
+ * The footer line. Mail used to come from hello@, which has no mailbox, so it
+ * said "Please don't reply". It comes from contact@ now and a reply arrives,
+ * so every email invites one.
+ */
+const REPLY_LINE_TEXT = `Questions? Reply to this email or write to ${CONTACT}.`;
+const REPLY_LINE_HTML = `Questions? Reply to this email or write to <a href="mailto:${CONTACT}" style="color:#6b7280;">${CONTACT}</a>.`;
 
 interface SendInput {
   to: string;
@@ -538,13 +549,6 @@ interface ShellImages {
   hero?: { src: string; alt: string };
   /** Play confetti above the heading: an animated GIF, first frame is static. */
   confetti?: boolean;
-  /**
-   * A footer that invites replies instead of refusing them. For mail whose
-   * copy says "just reply to this email": Reply-To is the staffed inbox, so a
-   * reply does arrive, and a footer saying the opposite under that line would
-   * contradict it.
-   */
-  replyOk?: boolean;
 }
 
 function emailImage(file: string): string {
@@ -575,11 +579,7 @@ function shell(heading: string, body: string, images: ShellImages = {}): string 
         </td></tr>
         <tr><td style="padding:18px 28px;background:#fafbfc;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;">
           3–7 May 2027 · Jay Conference Bryant Park, New York<br>
-          ${
-            images.replyOk
-              ? `Replies go to <a href="mailto:${CONTACT}" style="color:#6b7280;">${CONTACT}</a>.`
-              : `Please don't reply to this email. For questions, write to <a href="mailto:${CONTACT}" style="color:#6b7280;">${CONTACT}</a>.`
-          }
+          ${REPLY_LINE_HTML}
         </td></tr>
       </table>
     </td></tr>
@@ -739,7 +739,7 @@ Your personal link to share: ${invite.link}
     : ''
 }
 3-7 May 2027, Jay Conference Bryant Park, New York.
-Please don't reply to this email. For questions, write to ${CONTACT}.`;
+${REPLY_LINE_TEXT}`;
 
   return send(store, {
     to: input.to,
@@ -786,7 +786,7 @@ Paid:          ${price}
 View your ticket: ${input.orderUrl}
 
 3-7 May 2027, Jay Conference Bryant Park, New York.
-Please don't reply to this email. For questions, write to ${CONTACT}.`;
+${REPLY_LINE_TEXT}`;
 
   return send(store, {
     to: input.to,
@@ -1072,7 +1072,7 @@ If you didn't ask for this code, you can ignore this email. No one can sign in
 to your account without it.
 
 3-7 May 2027, Jay Conference Bryant Park, New York.
-Please don't reply to this email. For questions, write to ${CONTACT}.`;
+${REPLY_LINE_TEXT}`;
 
   return send(store, {
     to: input.to,
@@ -1296,7 +1296,7 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     ? `\n\nYou are receiving this because you are on a Knowledge Graph Conference mailing list.\nUnsubscribe: ${unsubscribe.page}\nYou will still get emails about any ticket you hold.`
     : '';
 
-  const text = `${firstNameOf(input.name) ? `Hi ${firstNameOf(input.name)},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\nPlease don't reply to this email. For questions, write to ${CONTACT}.${unsubscribeText}${postal ? `\n${postal}` : ''}`;
+  const text = `${firstNameOf(input.name) ? `Hi ${firstNameOf(input.name)},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\n${REPLY_LINE_TEXT}${unsubscribeText}${postal ? `\n${postal}` : ''}`;
 
   return send(store, {
     to: input.to,
@@ -2224,10 +2224,15 @@ export interface CfpMessage {
   html: string;
 }
 
-function cfpMessage(subject: string, greetingName: string | undefined, blocks: CfpBlock[]): CfpMessage {
+function cfpMessage(
+  subject: string,
+  greetingName: string | undefined,
+  blocks: CfpBlock[],
+  signedBy = 'The KGC team',
+): CfpMessage {
   const first = firstNameOf(greetingName);
   const greeting = first ? `Hi ${first},` : 'Hi,';
-  const all: CfpBlock[] = [{ p: greeting }, ...blocks, { lines: ['Best,', 'The KGC team'] }];
+  const all: CfpBlock[] = [{ p: greeting }, ...blocks, { lines: ['Best,', signedBy] }];
 
   const text = all
     .map((b) => {
@@ -2260,7 +2265,7 @@ function cfpMessage(subject: string, greetingName: string | undefined, blocks: C
     })
     .join('\n');
 
-  return { subject, text, html: shell(esc(subject), html, { replyOk: true }) };
+  return { subject, text, html: shell(esc(subject), html) };
 }
 
 /** Drops blocks whose sentence needed a date that is not set. */
@@ -2274,38 +2279,54 @@ export interface CfpSubmissionRef {
   typeLine: string;
 }
 
-/** E1. On submission. Replaces the old acknowledgement for this call. */
+/**
+ * E1. On submission. The owner's copy, word for word (T275, 2026-10-19),
+ * exclamation marks and "The KGC Team" included. Two things around it are
+ * ours: the greeting every CFP email opens with, and the title block under
+ * the first line, so the author can see which submission this is. The type
+ * line is left out when there is none (the form may stop asking for a track
+ * or a length).
+ */
 export function cfpReceivedMessage(
   input: CfpSubmissionRef & {
-    /** "Sunday 14 February 2027", or absent while the date is unset. */
+    /** No longer printed: the owner's copy names no date. Kept so callers need not change. */
     decisionDay?: string;
     /** The author's own link back to the submission. */
     link?: string;
   },
 ): CfpMessage {
-  const msg = cfpMessage('We received your KGC 2027 submission', input.name, [
-    { p: 'Thank you; we received your submission:' },
-    { lines: [input.title, input.typeLine] },
-    { p: 'Here is what happens next.' },
-    {
-      p:
-        'We read submissions every week rather than waiting for a deadline, and we accept as we go. ' +
-        'That means two things. If your session is a fit, you may hear from us quite soon. And if you ' +
-        'do not hear from us, that is not a no: it means your submission is still open and still being read.',
-    },
-    ...when(input.decisionDay, (d) => ({
-      p: `Either way, you will have an answer by ${d} at the latest.`,
-    })),
-    {
-      p:
-        `If you would rather just ask, write to ${CONTACT} and we will tell you where things stand.`,
-    },
-  ]);
+  const titleBlock = [input.title, input.typeLine].map((l) => l?.trim()).filter((l): l is string => Boolean(l));
+  const msg = cfpMessage(
+    'We received your KGC 2027 submission',
+    input.name,
+    [
+      { p: 'Thank you for submitting your proposal to the Knowledge Graph Conference (KGC)!' },
+      ...(titleBlock.length ? [{ lines: titleBlock }] : []),
+      {
+        p:
+          'We review and announce accepted submissions on a rolling basis. Given that we host various ' +
+          'programs and events throughout the year, we may consider your submission for future ' +
+          'opportunities as well.',
+      },
+      {
+        p:
+          'Please note that we will only follow up with submissions that are accepted, rather than ' +
+          'providing individual updates on every submission.',
+      },
+      {
+        p:
+          "If you have any questions or need anything in the meantime, please don't hesitate to reach " +
+          'out to us at program@knowledgegraph.tech.',
+      },
+      { p: 'Thank you again for your interest in contributing to the KGC community!' },
+    ],
+    'The KGC Team',
+  );
   if (!input.link) return msg;
   /*
-   * Not Min's copy: the author's only way back to their submission is this
-   * link, and the acknowledgement it replaces carried it. Kept below the
-   * sign-off so her message reads exactly as written.
+   * Not the owner's copy: the author's only way back to their submission is
+   * this link, and the acknowledgement it replaced carried it. Kept below the
+   * sign-off so the message reads exactly as written.
    */
   return {
     ...msg,

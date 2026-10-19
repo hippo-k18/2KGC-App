@@ -83,7 +83,8 @@ export function DecisionPanel({
         <p className="body-2">
           Accept creates the speaker, emails {authorEmail ?? 'the author'} their acceptance with the
           link for their details, and tells onboarding. Reject records the decision and sends nothing:
-          the author is told with everyone else after the close.
+          the author is told only when someone presses Send on Dates and emails, with every other
+          rejection.
         </p>
       ) : (
         <>
@@ -114,7 +115,7 @@ export function DecisionPanel({
           label="Withdraw the acceptance"
           description={
             told
-              ? 'Required to change the decision to rejected. The author has already been emailed their acceptance and will not get the “not accepted” email after the close, so tell them yourself. The speaker becomes unlisted again.'
+              ? 'Required to change the decision to rejected. The author has already been emailed their acceptance and will not get the “not accepted” email, so tell them yourself. The speaker becomes unlisted again.'
               : 'Required to change the decision to rejected. Their acceptance email has not been sent and will not be. The speaker becomes unlisted again.'
           }
         />

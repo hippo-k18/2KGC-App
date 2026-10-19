@@ -555,7 +555,7 @@ function RollingPanel({
           <>
             <dt className="muted">Not told yet</dt>
             <dd style={{ margin: 0 }}>
-              The author hears with everyone after the close.
+              The author is told only when someone presses Send on Dates and emails.
               {detail.declineReason ? ` Their line: ${detail.declineReason}` : ' No reason line yet.'}
             </dd>
           </>

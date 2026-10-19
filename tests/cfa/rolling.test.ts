@@ -26,6 +26,7 @@ import {
 } from '@kgc/shared';
 import { speakerId } from '@kgc/scripts/src/lib/ids';
 import { db } from '@/lib/firestore';
+import { decideMany, decideSubmission } from '@/lib/submissions';
 import {
   acceptCfp,
   rejectCfp,
@@ -373,11 +374,7 @@ describe('after the close', () => {
     await rejectCfp({ submissionId: 'sub_no', actor: ACTOR });
     expect((await saveDeclineReason('sub_no', 'The program already covers this ground.', ACTOR)).ok).toBe(true);
 
-    // Not before two weeks after the close (T252).
-    const early = await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: AFTER + DAY });
-    expect(early.ok).toBe(false);
-    expect(mail()).toHaveLength(1);
-
+    // Whenever it is pressed, not only from two weeks after the close (T275).
     const r = await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: E4_OPEN });
     expect(r.ok && r.message).toMatch(/1 “not accepted” and 1 “accepted”.*1 still undecided/);
 
@@ -404,6 +401,92 @@ describe('after the close', () => {
     expect(mail()[0].text).toContain('You will have an answer by Sunday 14 March 2027 at the latest');
     await sendStillOpen({ callId: CALL_ID, actor: ACTOR });
     expect(mail()).toHaveLength(1);
+  });
+});
+
+describe('rejections go only when Send is pressed (T275)', () => {
+  const CLOSED = { ...CFP, closeDate: '2027-02-28' };
+  const LATER = [ACCEPT_AT, Date.parse('2027-03-02T15:00:00Z'), Date.parse('2027-03-15T15:00:00Z'), Date.parse('2027-06-01T15:00:00Z')];
+  const declined = () => mail().filter((m) => m.template === 'cfp-decision-declined' || m.template === 'submission-decision');
+
+  it('Reject from the weekly review, the submission page and the bulk bar sends nothing, then or later', async () => {
+    await seedCall(CLOSED);
+    await seed('sub_a');
+    await seed('sub_b');
+    await seed('sub_c');
+    // The three screens all call this one function on a rolling call.
+    for (const id of ['sub_a', 'sub_b', 'sub_c']) expect((await rejectCfp({ submissionId: id, actor: ACTOR })).ok).toBe(true);
+    // No timer sends it either, before the close or long after.
+    for (const at of LATER) await runCfpSchedule(at);
+    expect(declined()).toHaveLength(0);
+    expect(mail().filter((m) => m.to.endsWith('@authors.test'))).toHaveLength(0);
+  });
+
+  it('the old "Email the author" option sends nothing on a rolling call, single or bulk', async () => {
+    await seedCall(CLOSED);
+    await seed('sub_a');
+    await seed('sub_b');
+    await seed('sub_c');
+    const one = await decideSubmission({ id: 'sub_a', accept: false, notify: true, note: 'No.', actor: ACTOR });
+    expect(one.ok && one.message).toMatch(/Nothing was sent/);
+    expect((await raw('sub_a')).status).toBe('rejected');
+    const many = await decideMany({ ids: ['sub_b', 'sub_c'], accept: false, notify: true, actor: ACTOR });
+    expect(many.ok).toBe(true);
+    expect((await raw('sub_c')).status).toBe('rejected');
+    expect(mail()).toHaveLength(0);
+  });
+
+  it('withdrawing an acceptance sends no "not accepted" email, now or from Send', async () => {
+    await seedCall(CLOSED);
+    await seed('sub_yes');
+    await acceptCfp({ submissionId: 'sub_yes', actor: ACTOR, nowMs: ACCEPT_AT });
+    const before = mail().length;
+    expect((await rejectCfp({ submissionId: 'sub_yes', actor: ACTOR, withdrawAccepted: true })).ok).toBe(true);
+    for (const at of LATER) await runCfpSchedule(at);
+    await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[2] });
+    expect(mail().slice(before).filter((m) => m.to === 'sub_yes@authors.test')).toHaveLength(0);
+  });
+
+  it('Send works while the call is open, but only with the second box ticked', async () => {
+    await seedCall(CLOSED);
+    await seed('sub_no');
+    await seed('sub_open', { name: 'Alan Turing' });
+    await rejectCfp({ submissionId: 'sub_no', actor: ACTOR });
+
+    const refused = await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: ACCEPT_AT });
+    expect(refused.ok).toBe(false);
+    expect(!refused.ok && refused.error).toMatch(/still open.*Nothing was sent/);
+    expect(mail()).toHaveLength(0);
+
+    const r = await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: ACCEPT_AT, confirmStillOpen: true });
+    expect(r.ok && r.message).toMatch(/Sent 1 “not accepted” and 0 “accepted”.*1 still undecided was left alone/);
+    expect(mail().map((m) => [m.template, m.to])).toEqual([['cfp-decision-declined', 'sub_no@authors.test']]);
+    expect((await raw('sub_open')).closeDecision).toBeUndefined();
+  });
+
+  it('a call with no close date counts as open', async () => {
+    await seedCall();
+    await seed('sub_no');
+    await rejectCfp({ submissionId: 'sub_no', actor: ACTOR });
+    expect((await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[3] })).ok).toBe(false);
+    expect((await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[3], confirmStillOpen: true })).ok).toBe(true);
+    expect(declined()).toHaveLength(1);
+  });
+
+  it('each author is told once; a later press tells only those rejected since', async () => {
+    await seedCall(CLOSED);
+    await seed('sub_1');
+    await seed('sub_2', { name: 'Grace Hopper' });
+    await rejectCfp({ submissionId: 'sub_1', actor: ACTOR });
+    await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[1] });
+    await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[1] + DAY });
+    expect(declined().map((m) => m.to)).toEqual(['sub_1@authors.test']);
+
+    await rejectCfp({ submissionId: 'sub_2', actor: ACTOR });
+    expect(declined()).toHaveLength(1);
+    await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[2] });
+    await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[3] });
+    expect(declined().map((m) => m.to)).toEqual(['sub_1@authors.test', 'sub_2@authors.test']);
   });
 });
 

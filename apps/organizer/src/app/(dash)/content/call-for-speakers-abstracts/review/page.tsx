@@ -67,7 +67,7 @@ export default async function ReviewPage({
         tiles={[
           { label: 'Open', value: counts.open, sub: fresh ? `${fresh} new since your last pass` : 'nothing new' },
           { label: 'Accepted', value: counts.accepted },
-          { label: 'Rejected', value: counts.rejected, sub: 'told after the close' },
+          { label: 'Rejected', value: counts.rejected, sub: 'told when you press Send' },
         ]}
       />
 

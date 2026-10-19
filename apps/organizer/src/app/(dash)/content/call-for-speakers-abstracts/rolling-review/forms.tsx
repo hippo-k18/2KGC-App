@@ -117,28 +117,33 @@ export function ConfirmedSend({
   count,
   label,
   confirmLabel,
-  blocked,
+  stillOpen,
 }: {
   kind: 'close' | 'still-open';
   callId: string;
   count: number;
   label: string;
   confirmLabel: string;
-  /** Why this send cannot go yet. The controls are disabled while set. */
-  blocked?: string;
+  /**
+   * The call is still open: this warning, and a second box that must be
+   * ticked as well (T275). The send is allowed, never blocked.
+   */
+  stillOpen?: string;
 }) {
   const [state, action] = useActionState<FormState, FormData>(
     kind === 'close' ? sendCloseDecisionsAction : sendStillOpenAction,
     {},
   );
   const [ticked, setTicked] = useState(false);
+  const [openTicked, setOpenTicked] = useState(false);
+  const ready = ticked && count > 0 && (!stillOpen || openTicked);
   return (
     <form action={action}>
       <input type="hidden" name="callId" value={callId} />
       <FormBanner state={state} />
-      {blocked && (
-        <p className="whova-banner info" role="note">
-          <span>{blocked}</span>
+      {stillOpen && (
+        <p className="whova-banner warning" role="alert">
+          <span>{stillOpen}</span>
         </p>
       )}
       <CheckboxField
@@ -147,12 +152,21 @@ export function ConfirmedSend({
         description="An email cannot be recalled once it is sent."
         checked={ticked}
         onChange={setTicked}
-        disabled={count === 0 || Boolean(blocked)}
+        disabled={count === 0}
       />
+      {stillOpen && (
+        <CheckboxField
+          name="confirmStillOpen"
+          label="Send now, while the call is still open"
+          checked={openTicked}
+          onChange={setOpenTicked}
+          disabled={count === 0}
+        />
+      )}
       {/* A fresh emailed code, as for every other mass send (T252). */}
-      {!blocked && count > 0 && <ConfirmCodeField id={`confirm-code-${kind}`} />}
+      {count > 0 && <ConfirmCodeField id={`confirm-code-${kind}`} />}
       <FormActions>
-        <SubmitButton disabled={!ticked || count === 0 || Boolean(blocked)} pendingLabel="Sending…">
+        <SubmitButton disabled={!ready} pendingLabel="Sending…">
           {label}
         </SubmitButton>
       </FormActions>

@@ -35,7 +35,7 @@ import { recordError } from './errors';
 import { db } from './firestore';
 import { ensureSpeakerContact } from './speaker-contacts';
 import { deriveTimes } from './time';
-import { getCall } from './calls';
+import { getCall, getCallDoc } from './calls';
 
 /**
  * Submissions, from the organizer's side: reading them, deciding on them, and
@@ -409,6 +409,21 @@ export async function decideSubmission(input: {
     }
 
     /*
+     * ── Never mail from here on the rolling review (T275) ─────────────────
+     *
+     * On a call run with the rolling-review settings the author hears only
+     * from that flow: E2 on accept, and the "not accepted" E4 when an
+     * organizer presses Send on Dates and emails, all at once. The screens
+     * hide the notify box on those calls, and this holds even when a request
+     * says otherwise (the bulk bar checks only the first ticked row's call).
+     * Read before anything is written, and not through `getCall`, which
+     * answers null on a failed read: a failure here must stop the decision,
+     * not let a mail through.
+     */
+    const rolling = Boolean((await getCallDoc(sub.callId))?.cfp);
+    const notify = input.notify && !rolling;
+
+    /*
      * The round increments only when a decision is *replacing* one. A first
      * decision is round 1; changing an acceptance to a rejection is round 2,
      * because the committee met again.
@@ -441,10 +456,16 @@ export async function decideSubmission(input: {
       targetPath: `${COLLECTIONS.submissions}/${input.id}`,
       targetId: input.id,
       before: { status: sub.status, round: sub.decision?.round ?? null },
-      after: { status, round, notified: input.notify },
+      after: { status, round, notified: notify },
     });
 
-    if (!input.notify) {
+    if (rolling) {
+      return {
+        ok: true,
+        message: `Recorded as ${status}. Nothing was sent: on this call authors hear from the decision emails on Dates and emails.`,
+      };
+    }
+    if (!notify) {
       return {
         ok: true,
         message: `Recorded as ${status}. The author has not been told. Use “Notify the author” when the committee is ready.`,

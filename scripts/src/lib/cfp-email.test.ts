@@ -23,23 +23,40 @@ const clean = (m: CfpMessage | string) => {
 const ref = { name: 'Ada Lovelace', title: 'Lineage at scale', typeLine: 'Talk, 25 minutes' };
 
 describe('E1', () => {
-  it('says when the answer comes once the decision date is set', () => {
+  // The owner's copy, word for word (T275).
+  const OWNER = [
+    'Thank you for submitting your proposal to the Knowledge Graph Conference (KGC)!',
+    'We review and announce accepted submissions on a rolling basis. Given that we host various programs and events throughout the year, we may consider your submission for future opportunities as well.',
+    'Please note that we will only follow up with submissions that are accepted, rather than providing individual updates on every submission.',
+    "If you have any questions or need anything in the meantime, please don't hesitate to reach out to us at program@knowledgegraph.tech.",
+    'Thank you again for your interest in contributing to the KGC community!',
+    'Best,\nThe KGC Team',
+  ];
+
+  it('is the owner\'s copy, with the greeting, the title block and the private link around it', () => {
     const m = cfpReceivedMessage({ ...ref, decisionDay: 'Sunday 14 February 2027', link: 'https://x/t' });
     expect(m.subject).toBe('We received your KGC 2027 submission');
-    expect(m.text).toContain('Thank you; we received your submission:');
-    expect(m.text).toContain('Here is what happens next.');
-    expect(m.text).toContain('Hi Ada,');
-    expect(m.text).toContain('Lineage at scale\nTalk, 25 minutes');
-    expect(m.text).toContain('you will have an answer by Sunday 14 February 2027 at the latest.');
-    expect(m.text).toContain('https://x/t');
+    expect(m.text).toBe(
+      [
+        'Hi Ada,',
+        OWNER[0],
+        'Lineage at scale\nTalk, 25 minutes',
+        ...OWNER.slice(1),
+        'View or edit your submission until the call closes:\nhttps://x/t',
+      ].join('\n\n'),
+    );
+    // The old copy named a date; the owner's does not.
+    expect(m.text).not.toContain('Sunday 14 February 2027');
     expect(m.html).toContain('href="https://x/t"');
+    expect(m.html).toContain('The KGC Team');
+    expect(m.html).toContain('reach out to us at program@knowledgegraph.tech.');
     clean(m);
   });
 
-  it('leaves that sentence out while the date is unset', () => {
-    const m = cfpReceivedMessage(ref);
-    expect(m.text).not.toContain('Either way');
-    expect(m.text).toContain('If you would rather just ask, write to contact@knowledgegraph.tech');
+  it('works without a type line, or a link', () => {
+    const m = cfpReceivedMessage({ ...ref, typeLine: '' });
+    expect(m.text).toContain(`${OWNER[0]}\n\nLineage at scale\n\n${OWNER[1]}`);
+    expect(m.text.endsWith('Best,\nThe KGC Team')).toBe(true);
     clean(m);
   });
 });
@@ -60,7 +77,7 @@ describe('E2 and E3', () => {
     expect(m.text).toContain('→ https://x/speaker/abc');
     expect(m.text).not.toContain('For workshops');
     expect(m.text).toContain("If there's anything you are unsure about, just reply to this email.");
-    expect(m.html).toContain('Replies go to');
+    expect(m.html).toContain('Questions? Reply to this email');
     clean(m);
   });
 

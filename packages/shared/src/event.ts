@@ -36,9 +36,9 @@ export const TIME_ZONE = "America/New_York";
  * to prevent.
  *
  * It is a fact about the conference, not copy: the same class of thing as
- * `website` and `venue` beside it. `EMAIL_REPLY_TO` in `@kgc/scripts` is a
- * different address for a different job — it is where a ticket receipt's
- * replies land, and it is configurable per deployment.
+ * `website` and `venue` beside it. Since T275 it is also the address every
+ * email is sent from and replies to (`FROM_ADDRESS` in `@kgc/scripts`
+ * email.ts), so there is no second, per-deployment address any more.
  */
 const CONTACT_EMAIL = "contact@knowledgegraph.tech";
 

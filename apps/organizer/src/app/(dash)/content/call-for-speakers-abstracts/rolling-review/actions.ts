@@ -66,7 +66,12 @@ export async function sendCloseDecisionsAction(_prev: FormState, fd: FormData): 
     return { error: 'That confirmation code is not right, or it has expired. Nothing has been sent.' };
   }
   try {
-    const r = await sendCloseDecisions({ callId: s(fd, 'callId'), actor });
+    const r = await sendCloseDecisions({
+      callId: s(fd, 'callId'),
+      actor,
+      // The second box, shown only while the call is still open (T275).
+      confirmStillOpen: fd.get('confirmStillOpen') === 'on',
+    });
     refresh();
     return r.ok ? { ok: true, message: r.message } : { error: r.error };
   } catch (err) {

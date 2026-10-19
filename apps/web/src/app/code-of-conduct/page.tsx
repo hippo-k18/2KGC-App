@@ -92,9 +92,9 @@ const SANCTIONS = [
  * report vanishing quietly. It was chosen over the two other candidates on
  * exactly that test: `info@knowledgegraph.tech`, which this page used to carry,
  * appeared nowhere else in the repository and nothing here corroborates that
- * anyone reads it; and `EMAIL_REPLY_TO` (`hello@knowledgegraph.tech`) is the
- * reply-to on ticket receipts, an automated-mail address configured per
- * deployment, which is not where a harassment report should land.
+ * anyone reads it; and hello@knowledgegraph.tech, the old automated sender,
+ * which has no mailbox. (Since T275 every email comes from and replies to
+ * contact@ as well.)
  *
  * ⚠️ It is still a *general* mailbox, and that is the cost: whoever answers
  * marketing enquiries would read an incident report. That is a reason for an
