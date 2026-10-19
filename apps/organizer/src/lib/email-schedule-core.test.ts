@@ -176,7 +176,13 @@ describe('waiting for someone to send', () => {
         expect(item.kind).toBe('waiting');
         expect(item.blocked).toBeUndefined();
         expect(JSON.stringify(item)).not.toMatch(/opens on|cannot open/);
+        // No planned date (T293): never timed, never a day to wait for.
+        expect(item.whenMs).toBeUndefined();
+        expect(JSON.stringify(item)).not.toMatch(/two weeks|due on/i);
       }
+      expect(callSchedule(c, OK, at).find((i) => i.key === 'e4d:call_1')!.when).toBe(
+        'Not scheduled. They go only when someone presses Send.',
+      );
     }
   });
 

@@ -4,7 +4,6 @@ import { ROUTES } from '@/lib/nav';
 import { canOpen } from '@/lib/team-core';
 import { callStillOpen, currentCfpCallId, getCfpCall, listCfpSubmissions } from '@/lib/cfp';
 import {
-  closeDecisionDate,
   closeDecisionPlan,
   formatDay,
   stillOpenRecipients,
@@ -22,7 +21,8 @@ export const dynamic = 'force-dynamic';
  * The rolling review's settings and its two manual sends (T249).
  *
  * Dates and addresses first, because every email reads them. Then S1 for the
- * inbox to copy, E6 for January, and E4 for two weeks after the close. Both
+ * inbox to copy, E6 for January, and E4, which has no date: it goes when
+ * someone presses Send (T293). Both
  * sends go only to people who have not had them, so pressing again after a
  * partial failure retries only the ones that did not go.
  */
@@ -54,7 +54,6 @@ export default async function RollingReviewPage({
   const e6Done = rows.filter((r) => r.stillOpenSentAtMs).length;
   const e4Done = rows.filter((r) => r.closeDecisionSent).length;
   const decisionDay = formatDay(call.cfp.decisionDate);
-  const e4Day = formatDay(closeDecisionDate(call.cfp));
   /*
    * E4 sends whenever it is pressed (T275): the owner decides when rejections
    * go, and this is the only thing that sends them. While the call is still
@@ -145,7 +144,7 @@ export default async function RollingReviewPage({
           nothing; pressing Send below emails every rejection not yet told, all at once, each
           author once. The &ldquo;accepted&rdquo; version goes to acceptances made after the close,
           and their acceptance email with the details link follows it.
-          {e4Day ? ` The plan has it two weeks after the close, on ${e4Day}, but it sends whenever you press it.` : ''}
+          {' '}Not scheduled: nothing plans a date for these, and nothing sends them by itself.
           {e4Done ? ` ${e4Done} have already been sent.` : ''}
         </p>
         {plan.undecided.length > 0 && (

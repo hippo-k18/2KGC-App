@@ -113,7 +113,6 @@ export function nextReminderMs(call: ScheduleCall, nowMs: number): number | unde
   const window = {
     opensAtMs: call.opensAtMs,
     closesAtMs: call.closesAtMs,
-    cfp: call.cfp,
     openCount: call.rows.filter(isOpen).length,
   };
   const tz = call.timeZone;
@@ -220,7 +219,7 @@ export function callSchedule(call: ScheduleCall, env: ScheduleEnv, nowMs: number
       email: 'E4 Not accepted',
       template: 'cfp-decision-declined',
       kind: 'waiting',
-      when: 'Waiting for someone to send',
+      when: 'Not scheduled. They go only when someone presses Send.',
       to: plural(declined.length, 'author'),
       count: declined.length,
       note: e4Note,

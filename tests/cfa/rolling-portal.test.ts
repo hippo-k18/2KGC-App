@@ -223,12 +223,20 @@ describe('the page copy', () => {
   const copy = 'Rolling review.\n\n- Every submission gets a decision by [DECISION DATE] at the latest.\n\nSubmissions close [CLOSE DATE].';
 
   it('fills set dates and drops sentences with unset ones', async () => {
-    await seedCall({ decisionDate: '2027-03-14' }, copy);
+    // No close anywhere: neither Dates and emails nor the call editor (T293).
+    await seedCall({ decisionDate: '2027-03-14' }, copy, { closesAtLocal: '' });
     const call = await loadCall(CALL_ID);
     expect(call?.instructions).toContain('by Sunday 14 March 2027 at the latest.');
     expect(call?.instructions).not.toContain('Submissions close');
     expect(call?.instructions).not.toMatch(/\[/);
     expect(call?.cfp?.closeDay).toBeUndefined();
+  });
+
+  it("fills [CLOSE DATE] from the call editor's close when Dates and emails has none (T293)", async () => {
+    await seedCall({ decisionDate: '2027-03-14' }, copy, { closesAtLocal: '2027-01-31T23:59' });
+    const call = await loadCall(CALL_ID);
+    expect(call?.instructions).toContain('Submissions close Sunday 31 January 2027.');
+    expect(call?.cfp?.closeDay).toBe('Sunday 31 January 2027');
   });
 });
 

@@ -196,19 +196,18 @@ describe('the Thursday reminder', () => {
     const thu9 = Date.parse('2026-11-12T14:00:00Z');
     const opensAtMs = Date.parse('2026-11-01T04:00:00Z');
     const closesAtMs = Date.parse('2027-02-01T04:59:00Z');
-    const cfp = { closeDate: '2027-01-31' };
     // Before 1 November: no reminder, even on a Thursday morning.
     const earlyThu = Date.parse('2026-10-29T13:00:00Z');
     expect(reminderDue(earlyThu, NY, undefined)).toBe(true);
-    expect(reminderDue(earlyThu, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 3 })).toBe(false);
+    expect(reminderDue(earlyThu, NY, undefined, { opensAtMs, closesAtMs, openCount: 3 })).toBe(false);
     // Open: yes, whatever the count.
-    expect(reminderDue(thu9, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 0 })).toBe(true);
-    // After the close: only while something is undecided, and never once E4 is due.
+    expect(reminderDue(thu9, NY, undefined, { opensAtMs, closesAtMs, openCount: 0 })).toBe(true);
+    // After the close: only while something is undecided. E4 has no due date to end it (T293).
     const after = Date.parse('2027-02-04T14:00:00Z');
-    expect(reminderDue(after, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 0 })).toBe(false);
-    expect(reminderDue(after, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 2 })).toBe(true);
-    const e4Week = Date.parse('2027-02-18T14:00:00Z');
-    expect(reminderDue(e4Week, NY, undefined, { opensAtMs, closesAtMs, cfp, openCount: 2 })).toBe(false);
+    expect(reminderDue(after, NY, undefined, { opensAtMs, closesAtMs, openCount: 0 })).toBe(false);
+    expect(reminderDue(after, NY, undefined, { opensAtMs, closesAtMs, openCount: 2 })).toBe(true);
+    const twoWeeksOn = Date.parse('2027-02-18T14:00:00Z');
+    expect(reminderDue(twoWeeksOn, NY, undefined, { opensAtMs, closesAtMs, openCount: 2 })).toBe(true);
   });
 });
 
@@ -267,15 +266,31 @@ describe('the settings warning', () => {
   });
 });
 
-describe('when E4 may go (T252)', () => {
-  it('needs a close date and two weeks after it', async () => {
-    const { closeDecisionOpen, closeDecisionDate } = await import('./cfp-core');
-    expect(closeDecisionDate({})).toBeUndefined();
-    expect(closeDecisionOpen(Date.parse('2030-01-01T00:00:00Z'), {}, NY)).toBe(false);
-    const cfp = { closeDate: '2027-01-31' };
-    expect(closeDecisionDate(cfp)).toBe('2027-02-14');
-    expect(closeDecisionOpen(Date.parse('2027-02-14T04:00:00Z'), cfp, NY)).toBe(false); // 23:00 on the 13th in NY
-    expect(closeDecisionOpen(Date.parse('2027-02-14T15:00:00Z'), cfp, NY)).toBe(true);
+describe('E4 has no planned date (T293)', () => {
+  it('exports nothing that computes one', async () => {
+    const core = (await import('./cfp-core')) as Record<string, unknown>;
+    expect(core.closeDecisionDate).toBeUndefined();
+    expect(core.closeDecisionOpen).toBeUndefined();
+    expect(core.CLOSE_DECISION_AFTER_DAYS).toBeUndefined();
+  });
+});
+
+describe('one close date (T293)', () => {
+  it("takes the day from the call's own close, set in the call editor", async () => {
+    const { cfpWithClose, pageValues, holdE2ForClose: hold, missingSettings: missing } = await import('./cfp-core');
+    const cfp = cfpWithClose({ decisionDate: '2027-02-14' }, '2027-01-31T23:59');
+    expect(cfp).toEqual({ decisionDate: '2027-02-14', closeDate: '2027-01-31' });
+    expect(pageValues(cfp)['CLOSE DATE']).toBe('Sunday 31 January 2027');
+    expect(missing(cfp)).not.toContain('Close date');
+    expect(hold(Date.parse('2027-02-01T15:00:00Z'), cfp, NY)).toBe(true);
+  });
+
+  it('lets the call editor win when the two disagree, and falls back when the call has none', async () => {
+    const { cfpWithClose } = await import('./cfp-core');
+    expect(cfpWithClose({ closeDate: '2027-02-28' }, '2027-01-31T23:59').closeDate).toBe('2027-01-31');
+    expect(cfpWithClose({ closeDate: '2027-02-28' }, undefined).closeDate).toBe('2027-02-28');
+    expect(cfpWithClose({ closeDate: '2027-02-28' }, '').closeDate).toBe('2027-02-28');
+    expect(cfpWithClose(undefined, undefined)).toEqual({});
   });
 });
 

@@ -35,7 +35,8 @@ async function seed(id: string, over: Record<string, unknown>) {
       status: 'published',
       timeZone: 'America/New_York',
       opensAtLocal: '2026-10-01T00:00',
-      closesAtLocal: '2099-01-31T23:59',
+      // The same day as `cfp.closeDate`: the call's own close wins (T293).
+      closesAtLocal: '2027-01-31T23:59',
       opensAt: new Date('2026-10-01T04:00:00Z'),
       closesAt: new Date('2099-02-01T04:59:00Z'),
       sessionTypes: ['talk'],

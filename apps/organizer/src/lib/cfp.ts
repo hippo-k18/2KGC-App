@@ -19,6 +19,7 @@ import {
 } from '@kgc/shared';
 import {
   DETAILS_DUE_DAYS,
+  cfpWithClose,
   closeDecisionPlan,
   dateIn,
   dayAfter,
@@ -65,7 +66,8 @@ import { fromWallClock } from './time';
  * speaker, mails E2 with the self-service link and a date a week out, and
  * tells Min. Reject records and sends nothing. Five days after E2, E3 nudges
  * anyone who has sent nothing. In January one manual E6 goes to everyone
- * still waiting. Two weeks after the close one E4 send tells everyone else.
+ * still waiting. E4 tells everyone else, when someone presses Send: it has
+ * no planned date (T293).
  *
  * Every rule about *what is due* is in `@kgc/scripts/src/lib/cfp-core.ts`,
  * pure and tested. This file reads, writes and sends.
@@ -175,7 +177,8 @@ export async function getCfpCall(callId: string): Promise<CfpCall | null> {
   return {
     id: snap.id,
     title: c.title,
-    cfp: c.cfp ?? {},
+    // One close date: the call's own `closesAtLocal` wins (T293).
+    cfp: cfpWithClose(c.cfp, c.closesAtLocal),
     sessionTypes: c.sessionTypes ?? [],
     timeZone: c.timeZone ?? TIME_ZONE,
     closesAtLocal: c.closesAtLocal,
@@ -839,7 +842,8 @@ export async function saveDeclineReason(submissionId: string, reason: string, ac
  * The owner, 2026-10-19: no rejection email when someone clicks Reject; all
  * of them at once, when someone presses this button, and never before. So
  * this sends whenever it is pressed. It used to refuse until two weeks after
- * the close (T252); the owner wants the timing to be theirs. While the call
+ * the close (T252); the owner wants the timing to be theirs, and since T293
+ * no screen or schedule plans a date for it either. While the call
  * is still open it needs `confirmStillOpen` as well, the second tick box on
  * the page, because an author rejected today and told today may tell others
  * the call is still taking submissions.
@@ -1046,6 +1050,7 @@ export async function runCfpSchedule(nowMs: number = Date.now()): Promise<Schedu
     if (!call.cfp || call.status !== 'published') continue;
     report.calls++;
     const tz = call.timeZone ?? TIME_ZONE;
+    const cfp = cfpWithClose(call.cfp, call.closesAtLocal);
     /*
      * Strict: a failed read is a failure in the report, never "0 open" in
      * François's inbox (T258 #17). The other calls still run.
@@ -1061,7 +1066,7 @@ export async function runCfpSchedule(nowMs: number = Date.now()): Promise<Schedu
 
     for (const r of e2RetriesDue(rows)) {
       const ref = db().collection(COLLECTIONS.submissions).doc(r.id);
-      const outcome = await sendOwedE2(ref, r, { cfp: call.cfp, timeZone: tz }, nowMs);
+      const outcome = await sendOwedE2(ref, r, { cfp, timeZone: tz }, nowMs);
       if (outcome === 'sent') report.e2Retried.push(r.id);
       else if (outcome !== 'not-owed') report.failures.push(`E2 ${r.id}: ${outcome}`);
     }
@@ -1103,7 +1108,6 @@ export async function runCfpSchedule(nowMs: number = Date.now()): Promise<Schedu
     const reminderWindow = {
       opensAtMs: ms(call.opensAt),
       closesAtMs: ms(call.closesAt),
-      cfp: call.cfp,
       openCount: rows.filter(isOpen).length,
     };
     if (

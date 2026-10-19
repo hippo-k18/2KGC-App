@@ -71,7 +71,14 @@ export const NAV: NavNode[] = [
       { name: "message_speakers", title: "Message Speakers", slug: "message-speakers" },
       { name: "speaker_release_consent", title: "Release & Consent Forms", slug: "release-and-consent-forms" }
     ] },
-    { name: "call_for_speakers", title: "Call For Speakers/Abstracts", slug: "call-for-speakers-abstracts" },
+    // Not Whova's: the call's own screens, named as the call's header links name them, so Dates and emails is in the rail (T293).
+    { name: "call_for_speakers", title: "Call For Speakers/Abstracts", slug: "call-for-speakers-abstracts", children: [
+      { name: "cfp_weekly_review", title: "Weekly review", slug: "review" },
+      { name: "cfp_dates_emails", title: "Dates and emails", slug: "rolling-review" },
+      { name: "cfp_submissions", title: "Submissions", slug: "submissions" },
+      { name: "cfp_submission_form", title: "Submission form", slug: "form-builder" },
+      { name: "cfp_reviewers", title: "Reviewers", slug: "reviewers" }
+    ] },
     { name: "exhibitor_center", title: "Exhibitor Center", slug: "exhibitor-center", children: [
       { name: "exhibitor_manager", title: "Exhibitor Manager", slug: "exhibitor-manager" },
       { name: "exhibitor_messages", title: "Message Exhibitors", slug: "message-exhibitors" },
@@ -407,6 +414,11 @@ export const IMPLEMENTED = new Set<string>([
   'content/branding-center/customize-resources',
   'content/branding-center/web-app-speaker-page',
   'content/call-for-speakers-abstracts',
+  'content/call-for-speakers-abstracts/review',
+  'content/call-for-speakers-abstracts/rolling-review',
+  'content/call-for-speakers-abstracts/submissions',
+  'content/call-for-speakers-abstracts/form-builder',
+  'content/call-for-speakers-abstracts/reviewers',
   'content/exhibitor-center/message-exhibitors',
   'content/exhibitor-center/outreach-campaigns',
   'content/fair-center/fair-manager',

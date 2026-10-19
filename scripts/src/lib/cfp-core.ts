@@ -247,6 +247,26 @@ export function isIsoDate(value: string | undefined): value is string {
 }
 
 /**
+ * The settings with `closeDate` taken from the call's own close (T293).
+ *
+ * There are two places to set the close: Dates and emails (`cfp.closeDate`,
+ * written through to `closesAtLocal`) and the call editor (`closesAtLocal`
+ * alone). Min used the editor, so the page and the emails, which read
+ * `cfp.closeDate`, left the date out while the server enforced it. The
+ * call's `closesAtLocal` is the deadline the server keeps, so its day wins;
+ * `cfp.closeDate` is the fallback for a call with no close of its own.
+ * Every reader of a call's settings goes through this, so there is one close
+ * date, never two.
+ */
+export function cfpWithClose(
+  cfp: CallCfpSettings | undefined,
+  closesAtLocal: string | undefined,
+): CallCfpSettings {
+  const day = closesAtLocal?.slice(0, 10);
+  return isIsoDate(day) ? { ...(cfp ?? {}), closeDate: day } : { ...(cfp ?? {}) };
+}
+
+/**
  * `2027-01-15` → "Friday 15 January 2027", the form Min's plan writes dates
  * in. Read as a calendar date, never as an instant, so no zone can move it.
  */
@@ -488,20 +508,20 @@ export const REMINDER_HOUR = 9;
  *
  * ⚠️ Only while there is something the reviewer could be reviewing (T258
  * #17): never before the call opens, and after the close only while
- * submissions are still undecided and E4 has not come due. Without `window`
+ * submissions are still undecided. There is no planned date for the "not
+ * accepted" emails any more (T293), so nothing else ends it. Without `window`
  * it is the bare weekday rule, which is what the tests of that rule read.
  */
 export function reminderDue(
   nowMs: number,
   timeZone: string,
   lastWeek: string | undefined,
-  window?: { opensAtMs?: number; closesAtMs?: number; cfp?: CallCfpSettings; openCount: number },
+  window?: { opensAtMs?: number; closesAtMs?: number; openCount: number },
 ): boolean {
   if (window) {
     if (window.opensAtMs !== undefined && nowMs < window.opensAtMs) return false;
     if (window.closesAtMs !== undefined && nowMs > window.closesAtMs) {
       if (window.openCount === 0) return false;
-      if (closeDecisionOpen(nowMs, window.cfp, timeZone)) return false;
     }
   }
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -521,7 +541,8 @@ export function reminderDue(
 // ---------------------------------------------------------------------------
 
 /**
- * E4, two weeks after the close. The accepted version goes to acceptances
+ * E4, sent only when someone presses Send; nothing plans a date for it
+ * (T293). The accepted version goes to acceptances
  * made at or after the close whose E2 is held for it; the declined version to
  * every rejection not yet told. Undecided submissions get neither: they are
  * counted so the screen can say they need a decision first.
@@ -594,23 +615,10 @@ export function missingSettings(cfp: CallCfpSettings | undefined): string[] {
 // When E4 may go
 // ---------------------------------------------------------------------------
 
-/** E4 is due this many days after the close (Min's plan: "two weeks after the close"). */
-export const CLOSE_DECISION_AFTER_DAYS = 14;
-
-/** `YYYY-MM-DD` on which E4 becomes sendable, or undefined while no close date is set. */
-export function closeDecisionDate(cfp: CallCfpSettings | undefined): string | undefined {
-  if (!isIsoDate(cfp?.closeDate)) return undefined;
-  const d = new Date(`${cfp.closeDate}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + CLOSE_DECISION_AFTER_DAYS);
-  return d.toISOString().slice(0, 10);
-}
-
-/**
- * Whether E4 may be sent now (T252). Never before the close date is set, and
- * never before two weeks after it: one early press would tell every rejected
- * author "not accepted" months before everyone else hears.
+/*
+ * Never planned (T293). The owner, 2026-10-19: "the system shouldn't plan
+ * rejections, that decision should be made in the future." There used to be
+ * a due date two weeks after the close (T252), shown on Dates and emails and
+ * used to stop the Thursday reminder. Now the "not accepted" emails have no
+ * date anywhere: they go when someone presses Send, and never by themselves.
  */
-export function closeDecisionOpen(nowMs: number, cfp: CallCfpSettings | undefined, timeZone: string): boolean {
-  const from = closeDecisionDate(cfp);
-  return Boolean(from) && dateIn(nowMs, timeZone) >= from!;
-}

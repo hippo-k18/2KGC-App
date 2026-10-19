@@ -10,6 +10,7 @@ import {
 } from '@kgc/shared';
 import {
   DETAILS_DUE_DAYS,
+  cfpWithClose,
   closeDecisionPlan,
   dayAfter,
   formatDay,
@@ -86,7 +87,7 @@ async function scheduleCalls(): Promise<(ScheduleCall & { submissions: CfpSubmis
       timeZone: call.timeZone ?? TIME_ZONE,
       opensAtMs: ms(call.opensAt),
       closesAtMs: ms(call.closesAt),
-      cfp: call.cfp,
+      cfp: cfpWithClose(call.cfp, call.closesAtLocal),
       rows: submissions.map((s) => ({ ...s, title: s.title })),
       submissions,
     });

@@ -43,6 +43,7 @@ import {
 import {
   abstractProblem,
   abstractWordLimits,
+  cfpWithClose,
   dateIn,
   asksTalkLength,
   asksTrack,
@@ -209,7 +210,9 @@ async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
   // Sanitised here as well as on save, so a document edited by hand in the
   // console is held to the same allow-list (`call-text-core.ts`).
   const stored = parseCallText(call.instructionsDoc);
-  const doc = stored && call.cfp ? fillCallTextPlaceholders(stored, pageValues(call.cfp), PAGE_TOKENS) : stored;
+  // One close date: "[CLOSE DATE]" is the call's own `closesAtLocal` when set (T293).
+  const settings = call.cfp ? cfpWithClose(call.cfp, call.closesAtLocal) : undefined;
+  const doc = stored && settings ? fillCallTextPlaceholders(stored, pageValues(settings), PAGE_TOKENS) : stored;
   return {
     id,
     title: call.title,
@@ -223,7 +226,7 @@ async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
     instructions: doc
       ? callTextToPlain(doc)
       : call.cfp
-        ? fillPlaceholders(call.instructions ?? '', pageValues(call.cfp))
+        ? fillPlaceholders(call.instructions ?? '', pageValues(settings))
         : (call.instructions ?? ''),
     fields: [...(call.form ?? [])].sort((a, b) => a.order - b.order),
     formVersion: call.formVersion ?? 1,
@@ -241,7 +244,7 @@ async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
           cfp: {
             abstractMaxWords: limits.max,
             talkMinutes: talkMinutesOf(call.cfp),
-            closeDay: formatDay(call.cfp.closeDate),
+            closeDay: formatDay(settings?.closeDate),
           },
         }
       : {}),
@@ -867,7 +870,7 @@ export async function saveSubmission(
         title: title || 'Untitled',
         link,
         closesAtLabel: call.cfp
-          ? (formatDay(call.cfp.closeDate) ?? 'the call closes')
+          ? (formatDay(cfpWithClose(call.cfp, call.closesAtLocal).closeDate) ?? 'the call closes')
           : `${(call.closesAtLocal ?? '').replace('T', ' ')} (${call.timeZone ?? ''})`,
         draft: status === 'draft',
       });

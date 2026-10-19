@@ -89,7 +89,7 @@ const CFP: CallCfpSettings = {
   decisionDate: '2027-03-14',
 };
 
-async function seedCall(cfp: CallCfpSettings = CFP): Promise<void> {
+async function seedCall(cfp: CallCfpSettings = CFP, closesAtLocal = '2027-02-28T23:59'): Promise<void> {
   await db().collection(COLLECTIONS.calls).doc(CALL_ID).set({
     eventId: EVENT_ID,
     title: 'Call for Speakers. KGC 2027',
@@ -97,7 +97,7 @@ async function seedCall(cfp: CallCfpSettings = CFP): Promise<void> {
     status: 'published',
     timeZone: 'America/New_York',
     opensAtLocal: '2026-11-01T00:00',
-    closesAtLocal: '2027-02-28T23:59',
+    closesAtLocal,
     opensAt: new Date('2026-11-01T04:00:00Z'),
     closesAt: new Date('2027-03-01T04:59:00Z'),
     sessionTypes: ['talk', 'workshop'],
@@ -484,11 +484,21 @@ describe('rejections go only when Send is pressed (T275)', () => {
   });
 
   it('a call with no close date counts as open', async () => {
-    await seedCall();
+    // No close anywhere: neither Dates and emails nor the call editor (T293).
+    await seedCall(CFP, '');
     await seed('sub_no');
     await rejectCfp({ submissionId: 'sub_no', actor: ACTOR });
     expect((await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[3] })).ok).toBe(false);
     expect((await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[3], confirmStillOpen: true })).ok).toBe(true);
+    expect(declined()).toHaveLength(1);
+  });
+
+  it("takes the close from the call editor when Dates and emails has none (T293)", async () => {
+    await seedCall(CFP);
+    await seed('sub_no');
+    await rejectCfp({ submissionId: 'sub_no', actor: ACTOR });
+    // Closed on 28 February by the call itself: no second tick needed after it.
+    expect((await sendCloseDecisions({ callId: CALL_ID, actor: ACTOR, nowMs: LATER[3] })).ok).toBe(true);
     expect(declined()).toHaveLength(1);
   });
 
