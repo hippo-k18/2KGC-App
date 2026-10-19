@@ -1,7 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { runCfpSchedule } from '@/lib/cfp';
+import { COLLECTIONS } from '@kgc/shared';
+import { CRON_STATUS_DOC } from '@/lib/email-schedule';
 import { recordError } from '@/lib/errors';
+import { db } from '@/lib/firestore';
 
 /**
  * `POST /api/cron/cfp` — the call for papers' clock (T249): E3 five days after
@@ -38,6 +41,16 @@ export async function POST(request: NextRequest) {
   const nowMs = process.env.NODE_ENV !== 'production' && fake ? Date.parse(fake) : Date.now();
   try {
     const report = await runCfpSchedule(Number.isFinite(nowMs) ? nowMs : Date.now());
+    /*
+     * So the Email Log's Scheduled tab can tell a timer that runs from one
+     * that stopped (T274). The real clock, never `?now=`, and never allowed to
+     * turn a finished run into a failure.
+     */
+    await db()
+      .collection(COLLECTIONS.settings)
+      .doc(CRON_STATUS_DOC)
+      .set({ lastRunAtMs: Date.now(), failures: report.failures.length })
+      .catch((err) => recordError('cfp.cron.status', err));
     return NextResponse.json(report);
   } catch (err) {
     recordError('cfp.cron', err);

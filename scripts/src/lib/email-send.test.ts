@@ -10,7 +10,9 @@ import {
   sendBulkMessage,
   sendInvoiceRaised,
   sendPurchaseConfirmation,
+  sendBlogSignInCode,
   sendRefundConfirmation,
+  sendSignInCode,
   sendSubmissionReceipt,
 } from './email.js';
 
@@ -19,14 +21,55 @@ import {
  * fake `fetch` and an in-memory `emailLog` (T135B, TK-222/227/228).
  */
 const logged: Record<string, unknown>[] = [];
-const store = {
-  collection: () => ({ add: async (doc: Record<string, unknown>) => void logged.push(doc) }),
-} as unknown as Firestore;
+/** `emailBodies/{id}`, and which log row each belongs to (T274). */
+const bodies = new Map<string, Record<string, unknown>>();
+const rowIds: string[] = [];
+let seq = 0;
+
+/** `doc()` mints an id and `set` records the write, as `log()` uses them. */
+function fakeCollection(name: string, contactExists = false) {
+  return {
+    name,
+    doc: (given?: string) => {
+      const id = given ?? `row_${++seq}`;
+      return {
+        id,
+        get: async () => ({ exists: contactExists, data: () => ({}) }),
+        set: async (doc: Record<string, unknown>) => {
+          if (name === 'emailBodies') bodies.set(id, doc);
+          else {
+            logged.push(doc);
+            rowIds.push(id);
+          }
+        },
+      };
+    },
+  };
+}
+
+/** `batch()`, as `log()` uses it: the sets run on commit. */
+function fakeBatch() {
+  const ops: (() => Promise<void>)[] = [];
+  const b = {
+    set: (ref: { set: (d: Record<string, unknown>) => Promise<void> }, doc: Record<string, unknown>) => {
+      ops.push(() => ref.set(doc));
+      return b;
+    },
+    commit: async () => {
+      for (const op of ops) await op();
+    },
+  };
+  return b;
+}
+
+const store = { collection: (name: string) => fakeCollection(name), batch: fakeBatch } as unknown as Firestore;
 
 const requests: { subject: string; text: string; html: string }[] = [];
 
 beforeEach(() => {
   logged.length = 0;
+  rowIds.length = 0;
+  bodies.clear();
   requests.length = 0;
   vi.stubEnv('RESEND_API_KEY', 're_test_key');
   vi.stubEnv('RESEND_TIMEOUT_MS', '50');
@@ -252,13 +295,7 @@ describe('retries, idempotency and pacing (T258 #3)', () => {
 
 describe('bulk mail and the unsubscribe link (T258 #10, #11)', () => {
   const withContact = (exists: boolean) =>
-    ({
-      collection: (name: string) => ({
-        add: async (doc: Record<string, unknown>) => void logged.push(doc),
-        doc: () => ({ get: async () => ({ exists, data: () => ({}) }) }),
-        name,
-      }),
-    }) as unknown as Firestore;
+    ({ collection: (name: string) => fakeCollection(name, exists), batch: fakeBatch }) as unknown as Firestore;
 
   it('refuses campaign mail when the address has no contact, so no unsubscribe link', async () => {
     scripted200();
@@ -364,3 +401,80 @@ describe('template copy (T258 #18, T259 #2)', () => {
     }
   });
 });
+
+/**
+ * T274: every send keeps the message for the dashboard's Email Log, in
+ * `emailBodies` under the log row's own id, with sign-in codes masked.
+ */
+describe('the Email Log keeps what was sent', () => {
+  it('stores the exact message under the row id and marks the row', async () => {
+    provider('ok');
+    expect(await refund('Ada Nakamura')).toBe('sent');
+    expect(logged[0]).toMatchObject({ status: 'sent', hasBody: true });
+    const body = bodies.get(rowIds[0])!;
+    expect(body).toBeDefined();
+    expect(body.html).toBe(requests[0].html);
+    expect(body.text).toBe(requests[0].text);
+    expect(body.subject).toBe(requests[0].subject);
+    expect(body).toMatchObject({ to: 'ada@example.com', template: 'refund-confirmation' });
+    expect(String(body.from)).toContain('@');
+    expect(String(body.replyTo)).toContain('@');
+    expect((body.expireAt as Date).getTime()).toBeGreaterThan((body.at as Date).getTime());
+  });
+
+  it('stores it for a failed send and a skipped one too', async () => {
+    provider('hang');
+    expect(await refund('Ada')).toBe('failed');
+    vi.stubEnv('RESEND_API_KEY', '');
+    expect(await refund('Ada')).toBe('skipped');
+    expect(logged.map((l) => [l.status, l.hasBody])).toEqual([
+      ['failed', true],
+      ['skipped', true],
+    ]);
+    expect(bodies.size).toBe(2);
+  });
+
+  it('masks the app sign-in code in the stored copy and nowhere else', async () => {
+    provider('ok');
+    expect(await sendSignInCode(store, { to: 'ada@example.com', code: '482913', ttlMinutes: 10 })).toBe('sent');
+    // The recipient gets the code.
+    expect(requests[0].text).toContain('482913');
+    expect(requests[0].html).toContain('482913');
+    // The log and the stored copy do not.
+    const body = bodies.get(rowIds[0])!;
+    expect(JSON.stringify(body)).not.toContain('482913');
+    expect(JSON.stringify(logged[0])).not.toContain('482913');
+    expect(body.masked).toBe(true);
+    expect(String(body.text)).toContain('••••••');
+    // The footer year is not mistaken for a code.
+    expect(String(body.text)).toContain('2027');
+  });
+
+  it('masks the dashboard code, which is also in the real subject line', async () => {
+    provider('ok');
+    expect(
+      await sendBlogSignInCode(store, { to: 'owner@example.com', code: '771204', expiresLabel: '10 minutes', surface: 'dashboard' }),
+    ).toBe('sent');
+    expect(requests[0].subject).toContain('771204');
+    const body = bodies.get(rowIds[0])!;
+    expect(body.subject).toBe('•••••• is your KGC dashboard code');
+    expect(JSON.stringify(body)).not.toContain('771204');
+    expect(logged[0]).toMatchObject({ template: 'dashboard-sign-in-code', hasBody: true });
+  });
+
+  it('still logs the row, without a preview, when the body cannot be stored', async () => {
+    provider('ok');
+    const failingBodies = {
+      collection: (name: string) => fakeCollection(name),
+      // A batch Firestore refuses, as it would a body over the size limit.
+      batch: () => ({ set() { return this; }, commit: async () => Promise.reject(new Error('too large')) }),
+    } as unknown as Firestore;
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(await refund2(failingBodies)).toBe('sent');
+    expect(logged).toHaveLength(1);
+    expect(logged[0].hasBody).toBeUndefined();
+  });
+});
+
+const refund2 = (s: Firestore) =>
+  sendRefundConfirmation(s, { to: 'ada@example.com', name: 'Ada', amountCents: 10_000, currency: 'usd' });

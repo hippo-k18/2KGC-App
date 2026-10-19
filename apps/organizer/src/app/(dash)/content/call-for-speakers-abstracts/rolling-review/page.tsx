@@ -79,6 +79,12 @@ export default async function RollingReviewPage({
           <Link key="s" href={`${CFA_BASE}/submissions?call=${call.id}`}>
             All submissions
           </Link>,
+          <Link key="l" href="/tools/email-log?group=cfp">
+            Email log
+          </Link>,
+          <Link key="q" href="/tools/email-log?tab=scheduled">
+            Scheduled emails
+          </Link>,
         ]}
       />
 

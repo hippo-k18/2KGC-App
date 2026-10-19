@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Firestore } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT, EVENT_ID, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
+import { storedBody, type CaptureInput } from './email-capture.js';
 import { contactId } from './ids.js';
 import { ensureReferralCode, firstNameOf, inviteMailto, personalInviteUrl } from './referrals.js';
 import { mintUnsubscribeToken } from './unsubscribe-token.js';
@@ -98,6 +99,11 @@ function replyTo(): string {
   return process.env.EMAIL_REPLY_TO ?? CONTACT;
 }
 
+/** Who mail is from and where replies go, as configured now. For the Email Log's re-created previews (T274). */
+export function senderIdentity(): { from: string; replyTo: string } {
+  return { from: fromAddress(), replyTo: replyTo() };
+}
+
 interface SendInput {
   to: string;
   subject: string;
@@ -132,6 +138,11 @@ interface SendInput {
    * must build the same message every time (see `issuedAt` on bulk mail).
    */
   idempotencyKey?: string;
+  /**
+   * Values that must not be kept in the Email Log's stored copy: a sign-in
+   * code. Masked in the subject, HTML and text before anything is written.
+   */
+  secrets?: readonly string[];
 }
 
 /**
@@ -157,18 +168,40 @@ function defined<T extends Record<string, unknown>>(doc: T): Partial<T> {
   return Object.fromEntries(Object.entries(doc).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
+/**
+ * Write one `emailLog` row and, when given, the message behind it.
+ *
+ * Both go in one batch, so the row says `hasBody` exactly when the body landed
+ * and the send pays one round trip, not two (T274). If the batch fails (a body
+ * Firestore refuses), the row is written alone: a lost preview never costs the
+ * row, and never the send.
+ */
 async function log(
   store: Firestore,
   entry: Omit<EmailLogDoc, 'eventId' | 'at'>,
+  body?: CaptureInput,
 ): Promise<void> {
   try {
-    await store
-      .collection(COLLECTIONS.emailLog)
-      // A native Date, never `FieldValue.serverTimestamp()`. Each app resolves
-      // its own copy of `firebase-admin`, and Firestore checks sentinels with
-      // `instanceof` — a sentinel built here is the wrong class for the
-      // caller's store and the whole write fails. See `fulfilment.ts`.
-      .add(defined({ ...entry, eventId: EVENT_ID, at: new Date() }));
+    const at = new Date();
+    const ref = store.collection(COLLECTIONS.emailLog).doc();
+    // A native Date, never `FieldValue.serverTimestamp()`. Each app resolves
+    // its own copy of `firebase-admin`, and Firestore checks sentinels with
+    // `instanceof` — a sentinel built here is the wrong class for the
+    // caller's store and the whole write fails. See `fulfilment.ts`.
+    const row = defined({ ...entry, eventId: EVENT_ID, at });
+    if (body) {
+      try {
+        await store
+          .batch()
+          .set(store.collection(COLLECTIONS.emailBodies).doc(ref.id), defined({ ...storedBody(body, at), eventId: EVENT_ID }))
+          .set(ref, { ...row, hasBody: true })
+          .commit();
+        return;
+      } catch (err) {
+        console.error('[email] could not store the message for the Email Log', err);
+      }
+    }
+    await ref.set(row);
   } catch (err) {
     // The log is the diagnostic, not the product. If even this fails, say so on
     // stdout and carry on — there is nothing useful left to do.
@@ -268,68 +301,92 @@ async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
     actor: input.actor,
   };
 
+  const headers: Record<string, string> | undefined = input.unsubscribeUrl
+    ? {
+        /*
+         * RFC 8058 one-click. `List-Unsubscribe-Post` is what promotes
+         * the header from "open this link" to a button the client
+         * presses itself, and both Gmail and Yahoo have required it
+         * since 2024 for anyone sending bulk mail at volume.
+         *
+         * The `mailto:` is the fallback for clients that honour the
+         * header but not the POST. It is second because a client that
+         * understands both must prefer the https one.
+         */
+        'List-Unsubscribe': `<${input.unsubscribeUrl}>, <mailto:${replyTo()}?subject=unsubscribe>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      }
+    : undefined;
+  // What the Email Log keeps: the message exactly as it is handed to Resend.
+  const body: CaptureInput = {
+    from: fromAddress(),
+    replyTo: replyTo(),
+    to: input.to,
+    subject: input.subject,
+    html: input.html,
+    text: input.text,
+    headers,
+    template: input.template,
+    secrets: input.secrets,
+  };
+
   const captured = capture(input);
   if (captured) {
-    await log(store, { ...base, status: 'sent', providerId: `capture:${captured}` });
+    await log(store, { ...base, status: 'sent', providerId: `capture:${captured}` }, body);
     return 'sent';
   }
 
   if (!emailEnabled()) {
-    await log(store, {
-      ...base,
-      status: 'skipped',
-      reason: 'RESEND_API_KEY is not set on this deployment',
-    });
+    await log(
+      store,
+      {
+        ...base,
+        status: 'skipped',
+        reason: 'RESEND_API_KEY is not set on this deployment',
+      },
+      body,
+    );
     return 'skipped';
   }
 
-  const body = JSON.stringify({
-    from: fromAddress(),
+  const payload = JSON.stringify({
+    from: body.from,
     to: [input.to],
-    reply_to: replyTo(),
+    reply_to: body.replyTo,
     subject: input.subject,
     html: input.html,
     // A plain-text part is not decoration: some corporate mail gateways
     // score HTML-only mail as spam, and a conference receipt landing in a
     // spam folder is the failure this whole file exists to avoid.
     text: input.text,
-    ...(input.unsubscribeUrl
-      ? {
-          headers: {
-            /*
-             * RFC 8058 one-click. `List-Unsubscribe-Post` is what promotes
-             * the header from "open this link" to a button the client
-             * presses itself, and both Gmail and Yahoo have required it
-             * since 2024 for anyone sending bulk mail at volume.
-             *
-             * The `mailto:` is the fallback for clients that honour the
-             * header but not the POST. It is second because a client that
-             * understands both must prefer the https one.
-             */
-            'List-Unsubscribe': `<${input.unsubscribeUrl}>, <mailto:${replyTo()}?subject=unsubscribe>`,
-            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-          },
-        }
-      : {}),
+    ...(headers ? { headers } : {}),
   });
   const key = idempotencyKeyFor(input.template, input.idempotencyKey ?? randomUUID(), input.to);
 
-  const result = await deliver(body, key);
+  const result = await deliver(payload, key);
   if (result.ok) {
-    await log(store, {
-      ...base,
-      status: 'sent',
-      providerId: result.id,
-      ...(result.attempts > 1 ? { attempts: result.attempts } : {}),
-    });
+    await log(
+      store,
+      {
+        ...base,
+        status: 'sent',
+        providerId: result.id,
+        ...(result.attempts > 1 ? { attempts: result.attempts } : {}),
+      },
+      body,
+    );
     return 'sent';
   }
-  await log(store, {
-    ...base,
-    status: 'failed',
-    error: result.error.slice(0, 500),
-    ...(result.attempts > 1 ? { attempts: result.attempts } : {}),
-  });
+  await log(
+    store,
+    {
+      ...base,
+      status: 'failed',
+      error: result.error.slice(0, 500),
+      ...(result.attempts > 1 ? { attempts: result.attempts } : {}),
+    },
+    body,
+  );
   console.error('[email] not sent', input.template, result.error.slice(0, 200));
   return 'failed';
 }
@@ -686,9 +743,27 @@ const BRING_YOUR_TEAM =
  */
 export async function sendPurchaseConfirmation(store: Firestore, input: PurchaseEmailInput): Promise<SendOutcome> {
   if (input.addedExtra) return sendExtraAdded(store, { ...input, addedExtra: input.addedExtra });
+  const message = purchaseConfirmationMessage(input, await inviteFor(store, input));
+  return send(store, {
+    to: input.to,
+    ...message,
+    template: 'purchase-confirmation',
+    orderId: input.orderId,
+    registrationId: input.registrationId,
+  });
+}
+
+/**
+ * The ticket confirmation, built and not sent. Pure, so the dashboard's Email
+ * Log can re-create the preview of one sent before bodies were stored (T274).
+ * `invite` is the "Bring your team" block, or null to leave it out.
+ */
+export function purchaseConfirmationMessage(
+  input: Pick<PurchaseEmailInput, 'to' | 'name' | 'ticketType' | 'amountCents' | 'currency' | 'orderUrl'>,
+  invite: { link: string; mailto: string } | null,
+): { subject: string; html: string; text: string } {
   const price = formatPrice(input.amountCents, input.currency);
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
-  const invite = await inviteFor(store, input);
 
   const html = shell(
     "You're going to the Knowledge Graph Conference",
@@ -741,15 +816,20 @@ Your personal link to share: ${invite.link}
 3-7 May 2027, Jay Conference Bryant Park, New York.
 Please don't reply to this email. For questions, write to ${CONTACT}.`;
 
-  return send(store, {
-    to: input.to,
-    subject: `Your Knowledge Graph Conference ticket: ${input.ticketType}`,
-    html,
-    text,
-    template: 'purchase-confirmation',
-    orderId: input.orderId,
-    registrationId: input.registrationId,
-  });
+  return { subject: `Your Knowledge Graph Conference ticket: ${input.ticketType}`, html, text };
+}
+
+/** The invite block for a re-created preview: the referral code the registration already holds. */
+export function inviteForCode(code: string | undefined, orderUrl: string, name: string): { link: string; mailto: string } | null {
+  if (!code) return null;
+  let origin: string;
+  try {
+    origin = new URL(orderUrl).origin;
+  } catch {
+    origin = publicSiteOrigin();
+  }
+  const link = personalInviteUrl(origin, code);
+  return { link, mailto: inviteMailto(link, firstNameOf(name)) };
 }
 
 /**
@@ -1084,6 +1164,7 @@ Please don't reply to this email. For questions, write to ${CONTACT}.`;
     html,
     text,
     template: 'sign-in-code',
+    secrets: [input.code],
   });
 }
 
@@ -2054,9 +2135,21 @@ export async function sendBlogSignInCode(store: Firestore, input: BlogSignInCode
 
 It expires in ${input.expiresLabel}. If you did not ask for it, ignore this email.`;
   const logged = { to: input.to, subject: copy.log, template: copy.template };
+  // The stored copy has the real subject with the code masked, so the preview
+  // reads as the inbox did.
+  const body: CaptureInput = {
+    from: fromAddress(),
+    replyTo: replyTo(),
+    to: input.to,
+    subject: `${input.code} ${copy.subject}`,
+    html,
+    text,
+    template: copy.template,
+    secrets: [input.code],
+  };
 
   if (!emailEnabled()) {
-    await log(store, { ...logged, status: 'skipped', reason: 'RESEND_API_KEY is not set on this deployment' });
+    await log(store, { ...logged, status: 'skipped', reason: 'RESEND_API_KEY is not set on this deployment' }, body);
     return 'skipped';
   }
   try {
@@ -2075,16 +2168,16 @@ It expires in ${input.expiresLabel}. If you did not ask for it, ignore this emai
       }),
     });
     if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      await log(store, { ...logged, status: 'failed', error: `${res.status} ${body}`.slice(0, 500) });
+      const failure = await res.text().catch(() => '');
+      await log(store, { ...logged, status: 'failed', error: `${res.status} ${failure}`.slice(0, 500) }, body);
       return 'failed';
     }
     const json = (await res.json().catch(() => ({}))) as { id?: string };
-    await log(store, { ...logged, status: 'sent', providerId: json.id });
+    await log(store, { ...logged, status: 'sent', providerId: json.id }, body);
     return 'sent';
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await log(store, { ...logged, status: 'failed', error: message.slice(0, 500) });
+    await log(store, { ...logged, status: 'failed', error: message.slice(0, 500) }, body);
     return 'failed';
   }
 }

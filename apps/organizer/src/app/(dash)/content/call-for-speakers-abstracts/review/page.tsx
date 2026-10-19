@@ -58,6 +58,9 @@ export default async function ReviewPage({
           <Link key="r" href={`${CFA_BASE}/rolling-review?call=${call.id}`}>
             Dates and emails
           </Link>,
+          <Link key="l" href="/tools/email-log?group=cfp">
+            Email log
+          </Link>,
         ]}
       />
 

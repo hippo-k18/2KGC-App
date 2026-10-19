@@ -28,6 +28,8 @@ export const COLLECTIONS = {
    * read by the dashboard to answer "did the confirmation actually go out?".
    */
   emailLog: "emailLog",
+  /** The rendered message behind one `emailLog` row, keyed by the same id (T274). */
+  emailBodies: "emailBodies",
   /** Organizer-authored preference bags, one document per feature area. */
   settings: "settings",
   /**
