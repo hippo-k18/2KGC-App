@@ -17,6 +17,7 @@ import {
 } from '@/lib/email-log-core';
 import { listEmailLog } from '@/lib/email-log';
 import { cronHealth } from '@/lib/email-schedule-core';
+import { CONTACT_ADDRESS, EMAIL_FORMATS, renderFormat, searchFormats } from '@kgc/scripts/src/lib/email-catalogue';
 import { loadSchedule } from '@/lib/email-schedule';
 import { recordError } from '@/lib/errors';
 import { Banner, EmptyState, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tabs, Tag, paginate } from '../../ui';
@@ -28,9 +29,10 @@ export const dynamic = 'force-dynamic';
  * sent out and every email that is scheduled to send", with the email shown as
  * the recipient saw it.
  *
- * Two tabs. Sent reads `emailLog`, every row any part of the system writes.
+ * Three tabs. Sent reads `emailLog`, every row any part of the system writes.
  * Scheduled works out what the hourly run and the bulk sends will do, and
- * what is waiting on somebody's button.
+ * what is waiting on somebody's button. All email formats (T292) shows every
+ * email the system can send, filled with sample data.
  *
  * ⚠️ Nothing on these screens sends. There is no server action here at all,
  * so there is nothing a stray click or a replayed POST could set off.
@@ -42,7 +44,7 @@ export default async function EmailLogPage({
 }) {
   await requireOrganizer();
   const sp = await searchParams;
-  const tab = sp.tab === 'scheduled' ? 'scheduled' : 'sent';
+  const tab = sp.tab === 'scheduled' || sp.tab === 'formats' ? sp.tab : 'sent';
 
   return (
     <>
@@ -60,9 +62,10 @@ export default async function EmailLogPage({
         tabs={[
           { label: 'Sent', href: EMAIL_LOG_PATH, active: tab === 'sent' },
           { label: 'Scheduled', href: `${EMAIL_LOG_PATH}?tab=scheduled`, active: tab === 'scheduled' },
+          { label: 'All email formats', href: `${EMAIL_LOG_PATH}?tab=formats`, active: tab === 'formats' },
         ]}
       />
-      {tab === 'sent' ? <SentTab sp={sp} /> : <ScheduledTab />}
+      {tab === 'sent' ? <SentTab sp={sp} /> : tab === 'scheduled' ? <ScheduledTab /> : <FormatsTab sp={sp} />}
     </>
   );
 }
@@ -338,5 +341,78 @@ async function ScheduledTab() {
         {table(waiting, 'Nothing is waiting on a button.')}
       </Panel>
     </>
+  );
+}
+
+/**
+ * Every email the system can send (T292), from `email-catalogue.ts`. Each one
+ * is rendered by the same builder its sender uses, with sample data. Nothing
+ * here reads or writes Firestore.
+ */
+function FormatsTab({ sp }: { sp: Record<string, string | string[] | undefined> }) {
+  const q = (Array.isArray(sp.q) ? sp.q[0] : sp.q)?.trim() ?? '';
+  const shown = searchFormats(EMAIL_FORMATS, q);
+  const versions = EMAIL_FORMATS.reduce((n, f) => n + f.variants.length, 0);
+  const groups = (Object.entries(GROUP_LABEL) as [EmailGroup, string][])
+    .map(([g, label]) => ({ label, formats: shown.filter((f) => TEMPLATE_INFO[f.template].group === g) }))
+    .filter((g) => g.formats.length);
+
+  return (
+    <Panel>
+      <p className="body-2" style={{ marginTop: 0 }}>
+        {EMAIL_FORMATS.length} emails, {versions} versions in all. Every one comes from Knowledge Graph Conference
+        &lt;{CONTACT_ADDRESS}&gt;. Click one to see it as the recipient would, filled with sample details.
+      </p>
+      <form method="get" action={EMAIL_LOG_PATH} style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+        <input type="hidden" name="tab" value="formats" />
+        <SearchInput name="q" defaultValue={q} placeholder="Search by name, when it is sent or subject" width={360} />
+        <button type="submit" className="btn btn-default">
+          Search
+        </button>
+        {q ? (
+          <Link className="btn btn-default" href={`${EMAIL_LOG_PATH}?tab=formats`}>
+            Clear
+          </Link>
+        ) : null}
+      </form>
+
+      {groups.length === 0 ? <EmptyState compact>No email matches “{q}”.</EmptyState> : null}
+      {groups.map((g) => (
+        <section key={g.label} style={{ marginBottom: 18 }}>
+          <h2 className="section-header" style={{ marginTop: 8 }}>
+            {g.label}
+          </h2>
+          <Table
+            cols={[
+              { key: 'what', label: 'Email', className: 'cell-md' },
+              { key: 'when', label: 'When it is sent', className: 'cell-fill' },
+              { key: 'to', label: 'Who gets it', className: 'cell-md' },
+            ]}
+            rows={g.formats.map((f) => {
+              const href = `${EMAIL_LOG_PATH}/formats/${f.id}`;
+              return [
+                <span key="e" style={{ display: 'grid', gap: 2 }}>
+                  <Link href={href} className="row-link" style={{ fontWeight: 600 }}>
+                    {f.name}
+                  </Link>
+                  <span style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{renderFormat(f).email.subject}</span>
+                  {f.variants.length > 1 ? (
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      {f.variants.length} versions: {f.variants.map((v) => v.label).join(', ')}
+                    </span>
+                  ) : null}
+                </span>,
+                <span key="w" style={{ fontSize: 13 }}>
+                  {f.when}
+                </span>,
+                <span key="t" style={{ fontSize: 13 }}>
+                  {f.to}
+                </span>,
+              ];
+            })}
+          />
+        </section>
+      ))}
+    </Panel>
   );
 }
