@@ -300,10 +300,11 @@ export default async function SubmissionsPage({
               stackSm
               cols={[
                 { key: 'pick', label: <SelectAllCheckbox />, className: 'cell-xs' },
-                { key: 'title', label: 'Session' },
-                { key: 'author', label: 'Author', className: 'cell-md' },
-                { key: 'track', label: call.askTrack ? 'Track / type' : 'Type', className: 'cell-md' },
-                { key: 'reviews', label: 'Reviews', className: 'cell-sm' },
+                // The session takes the spare width, so its preview does not wrap word by word.
+                { key: 'title', label: 'Session', className: 'cell-fill' },
+                { key: 'author', label: 'Author', className: 'cell-mdsm' },
+                { key: 'track', label: call.askTrack ? 'Track / type' : 'Type', className: 'cell-mdsm' },
+                { key: 'reviews', label: 'Reviews', className: 'cell-xsm' },
                 { key: 'status', label: 'Status', className: 'cell-sm' },
               ]}
               empty={

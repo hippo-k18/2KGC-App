@@ -6,7 +6,7 @@ Knowledge Graphs Conference LLC is also referred to as “KGC”, “The Knowled
 
 ### Confirmation {#confirmation}
 
-A ticket purchase confirmation email will be sent to the email address used to purchase the ticket. This email contains a link to your ticket, which shows your badge QR code. Virtual sessions are watched in the KGC app or on the session pages of this website, signed in with the email address on your ticket. Stripe emails the payment receipt separately.
+A ticket purchase confirmation email will be sent to the email address used to purchase the ticket. This email contains a link to your ticket. Your badge QR code is in the KGC app; if you don't have the app, give your name at the registration desk. Virtual sessions are watched in the KGC app or on the session pages of this website, signed in with the email address on your ticket. Stripe emails the payment receipt separately.
 
 ## In-Person {#in-person}
 

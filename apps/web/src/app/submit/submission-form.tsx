@@ -13,6 +13,7 @@ import {
 } from '@kgc/scripts/src/lib/cfp-core';
 import type { OwnSubmission, PublicCall } from '@/lib/submissions';
 import { SubmissionFields } from './submission-fields';
+import { KeepTypedForm } from '@/components/keep-typed-form';
 import { formatDeadline } from '@/lib/site';
 import { submitAction, type SubmitState } from './actions';
 
@@ -86,7 +87,7 @@ export function SubmissionForm({
     : (formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal);
 
   return (
-    <form action={action} className="checkout">
+    <KeepTypedForm action={action} className="checkout">
       <input type="hidden" name="callId" value={call.id} />
       {token && <input type="hidden" name="token" value={token} />}
 
@@ -286,7 +287,8 @@ export function SubmissionForm({
           Submit
         </button>
         {/* Only a draft is ever on this form: a submitted one is read-only (T276). */}
-        <button type="submit" className="btn btn-outline" name="finish" value="">
+        {/* A draft may leave required questions empty; the server checks it loosely (T280 B#3). */}
+        <button type="submit" className="btn btn-outline" name="finish" value="" formNoValidate>
           Save as a draft
         </button>
       </div>
@@ -296,7 +298,7 @@ export function SubmissionForm({
         email you until the call closes{closesLabel ? ` on ${closesLabel}` : ''}. Once you press
         Submit, the submission is final and can no longer be changed.
       </p>
-    </form>
+    </KeepTypedForm>
   );
 }
 

@@ -368,8 +368,11 @@ export interface OwnSubmission {
   status: SubmissionStatus;
   /** "18 October 2026", once it has left draft. */
   submittedOn?: string;
-  /** The questions as they stood when this was answered. */
-  fields: FormFieldDef[];
+  /**
+   * The questions as they stood when this was answered, each still carrying
+   * the session types it is asked of.
+   */
+  fields: (FormFieldDef & Pick<CallFormFieldDef, 'sessionTypes'>)[];
   /** True when the call's form has moved on since. */
   formMoved: boolean;
   author: {
@@ -440,6 +443,8 @@ export async function loadOwnSubmission(submissionId: string): Promise<OwnSubmis
       ? (identitySnap.data() as SubmissionIdentityDoc)
       : undefined;
 
+    // `fieldsAtVersion` hands back the call's own field objects, so their
+    // `sessionTypes` are still on them; the cast only says so.
     const fields = fieldsAtVersion(
       { version: call.formVersion, fields: call.fields },
       (callDoc.priorVersions ?? []).map((v) => ({
@@ -448,7 +453,7 @@ export async function loadOwnSubmission(submissionId: string): Promise<OwnSubmis
         retiredAt: new Date(0),
       })),
       sub.formVersion ?? 1,
-    );
+    ) as OwnSubmission['fields'];
 
     return {
       id: submissionId,

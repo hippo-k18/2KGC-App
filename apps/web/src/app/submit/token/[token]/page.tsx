@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
-import { typeLabel } from '@kgc/scripts/src/lib/cfp-core';
+import { fieldsForSessionType, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { formatDeadline, SITE } from '@/lib/site';
 import { loadOwnSubmission } from '@/lib/submissions';
 import { SubmissionForm } from '../../submission-form';
@@ -210,6 +210,8 @@ export default async function SubmissionTokenPage({
  */
 function ReadOnly({ own }: { own: Awaited<ReturnType<typeof loadOwnSubmission>> }) {
   if (!own) return null;
+  // Only the questions this type was asked (T280 B#4): a talk has no workshop outline to show.
+  const asked = fieldsForSessionType(own.fields, own.sessionType).filter((f) => f.kind !== 'description');
   return (
     <div className="checkout">
       <h2 style={{ marginTop: 0 }}>{own.title || 'Untitled'}</h2>
@@ -263,12 +265,11 @@ function ReadOnly({ own }: { own: Awaited<ReturnType<typeof loadOwnSubmission>> 
         </p>
       )}
 
-      {own.fields.filter((f) => f.kind !== 'description').length > 0 && (
+      {asked.length > 0 && (
         <>
           <h3>Your answers</h3>
           <dl>
-            {own.fields
-              .filter((f) => f.kind !== 'description')
+            {asked
               .map((f) => {
                 const value = own.answers[f.id];
                 return (

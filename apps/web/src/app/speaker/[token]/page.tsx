@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { BIO_MAX } from '@kgc/scripts/src/lib/speaker-portal-core';
 import { SITE } from '@/lib/site';
 import { loadPortal, markOpened } from '@/lib/speaker-portal';
+import { KeepTypedForm } from '@/components/keep-typed-form';
 import { saveSpeakerProfileAction } from './actions';
 
 export const metadata: Metadata = {
@@ -138,7 +139,8 @@ export default async function SpeakerProfilePage({
           </>
         )}
 
-        <form action={saveSpeakerProfileAction}>
+        {/* Keeps what was typed when a save is refused (T280 B#2). */}
+        <KeepTypedForm action={saveSpeakerProfileAction}>
           <input type="hidden" name="token" value={token} />
 
           {ctx.submissions.map((sub) => (
@@ -303,7 +305,7 @@ export default async function SpeakerProfilePage({
             Nothing changes on the website or in the app until one of the organizers has read this.
             Clearing a box asks them to remove what is there now.
           </p>
-        </form>
+        </KeepTypedForm>
 
         <p className="muted" style={{ marginTop: 32 }}>
           This link is yours. Anybody who has it can change what we hold about you, so please do not
