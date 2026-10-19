@@ -18,6 +18,8 @@ import {
 } from '../../form';
 import { AGENDA_SESSION_TYPES, CFP_SESSION_TYPES, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { saveCallAction } from './actions';
+import { InstructionsEditor } from './instructions-editor';
+import { callTextFromPlain } from '@kgc/shared';
 
 /**
  * Setting up a call for abstracts.
@@ -64,15 +66,9 @@ export function CallForm({
         width="xl"
       />
 
-      <Textarea
-        label="Instructions"
-        name="instructions"
-        rows={8}
-        defaultValue={existing?.instructions}
-        placeholder={
-          'What are you asking for, and what will happen to it?\n\nBlank lines separate paragraphs. Plain text only.'
-        }
-        hint="Plain text; blank lines separate paragraphs. Say how long an abstract should be and how many reviewers will read it."
+      <InstructionsEditor
+        initial={existing?.instructionsDoc ?? callTextFromPlain('')}
+        hint="What people read above the form. Use the toolbar for headings, bold, italics, lists and links. [CLOSE DATE] and [DECISION DATE] are filled in from the call's dates."
       />
 
       <FormGrid>
@@ -122,6 +118,8 @@ export function CallForm({
           hint="Decides what reviewers see. It can be changed later."
         />
       </FormGrid>
+
+      <ShowOnWebsite existing={existing} />
 
       {/*
         A call for speakers offers the owner's six types (T276); any other call
@@ -218,5 +216,26 @@ export function CallForm({
         <SubmitButton>{existing ? 'Save call' : 'Create call'}</SubmitButton>
       </FormActions>
     </form>
+  );
+}
+
+/**
+ * "Show on website" (T277): the Apply to speak button in the site header,
+ * beside Register now. Separate from Status so a call can be published and
+ * shared by link before it is promoted on every page.
+ */
+function ShowOnWebsite({ existing }: { existing?: CallRow }) {
+  return (
+    <FieldSet
+      legend="Website"
+      hint="Adds an Apply to speak button next to Register now in the website header, and points the footer's Speak at KGC link here. Shown only while the call is published and has not closed. One call at a time: turning this on turns it off for any other call."
+    >
+      <CheckboxField
+        name="showOnWebsite"
+        value="1"
+        label="Show on website"
+        defaultChecked={existing?.showOnWebsite ?? false}
+      />
+    </FieldSet>
   );
 }

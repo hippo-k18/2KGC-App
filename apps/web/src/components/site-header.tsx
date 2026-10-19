@@ -27,6 +27,7 @@ export function SiteHeader({
   showAgenda = false,
   showSpeakers = false,
   showTickets = false,
+  applyHref,
   blogOrigin,
   mainOrigin,
 }: {
@@ -38,6 +39,11 @@ export function SiteHeader({
   showSpeakers?: boolean;
   /** Whether tickets are on sale. Off hides "Register now". */
   showTickets?: boolean;
+  /**
+   * `/submit/{callId}` for the call with "Show on website" ticked, resolved in
+   * the root layout (T277). Unset hides "Apply to speak".
+   */
+  applyHref?: string;
   /**
    * `BLOG_ORIGIN`, resolved in the root layout. `/blog` links go straight there:
    * as a relative `Link` they are prefetched, the middleware answers the
@@ -253,6 +259,23 @@ export function SiteHeader({
               </div>
             </div>
 
+            {/*
+              Apply to speak sits just before Register now, in the theme's blue
+              so the two calls to action read as a pair and not as one button
+              twice (T277). In the phone menu it is a full-width row like the
+              links above it.
+            */}
+            {applyHref && (
+              <Link
+                href={to(applyHref)}
+                className="btn btn-apply btn-sm"
+                style={{ marginLeft: 8 }}
+                aria-current={under(applyHref) ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                Apply to speak
+              </Link>
+            )}
             {showTickets && (
               <Link href={to('/tickets')} className="btn btn-primary btn-sm" style={{ marginLeft: 8 }}>
                 Register now

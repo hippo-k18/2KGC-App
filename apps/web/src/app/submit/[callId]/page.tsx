@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { formatDeadline, SITE } from '@/lib/site';
 import { loadCall } from '@/lib/submissions';
 import { SubmissionForm } from '../submission-form';
+import { CallText } from '@/components/call-text';
 
 /** Per-request, and it has to be. Whether a call is still open, against a deadline that can pass while somebody is on the page. */
 export const dynamic = 'force-dynamic';
@@ -100,18 +101,26 @@ export default async function SubmitPage({ params }: { params: Promise<{ callId:
         </p>
         <h1>{call.title}</h1>
 
-        {instructionBlocks(call.instructions).map((block, i) =>
-          block.kind === 'list' ? (
-            <ul key={i}>
-              {block.items.map((item, j) => (
-                <li key={j}>{item}</li>
-              ))}
-            </ul>
-          ) : (
-            <p key={i} className={i === 0 ? 'lede' : undefined} style={{ whiteSpace: 'pre-wrap' }}>
-              {block.text}
-            </p>
-          ),
+        {/*
+          Formatted text from the dashboard's editor when there is some (T277),
+          otherwise the plain text exactly as it has always been drawn.
+        */}
+        {call.instructionsDoc ? (
+          <CallText doc={call.instructionsDoc} />
+        ) : (
+          instructionBlocks(call.instructions).map((block, i) =>
+            block.kind === 'list' ? (
+              <ul key={i}>
+                {block.items.map((item, j) => (
+                  <li key={j}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p key={i} className={i === 0 ? 'lede' : undefined} style={{ whiteSpace: 'pre-wrap' }}>
+                {block.text}
+              </p>
+            ),
+          )
         )}
 
         {call.opensOn ? (

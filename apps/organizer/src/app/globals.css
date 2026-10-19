@@ -3920,3 +3920,154 @@ html:has(dialog[open]) {
     padding: 20px 16px;
   }
 }
+
+/* ------------------------------------------------- call text editor (T277) -
+ * The call for speakers' instructions box: a toolbar over a TipTap editor,
+ * framed like `.whova-text-input` so it reads as one of the form's fields.
+ */
+.call-text-editor {
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+}
+
+.call-text-editor:focus-within {
+  border-color: var(--interactive);
+}
+
+.call-text-toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-height: 41px;
+  padding: 4px 6px;
+}
+
+.call-text-toolbar select {
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 13px;
+  height: 30px;
+  padding: 0 6px;
+}
+
+.call-text-toolbar button {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  color: var(--body);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 15px;
+  height: 30px;
+  justify-content: center;
+  min-width: 30px;
+  padding: 0 6px;
+}
+
+.call-text-toolbar button:hover:not(:disabled) {
+  background: #e9ecf1;
+}
+
+.call-text-toolbar button[aria-pressed='true'] {
+  background: #dbe7f3;
+  color: var(--interactive-dark);
+}
+
+.call-text-toolbar button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.call-text-toolbar button:focus-visible,
+.call-text-toolbar select:focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: 1px;
+}
+
+.call-text-toolbar .sep {
+  align-self: stretch;
+  background: var(--hairline);
+  margin: 4px 4px;
+  width: 1px;
+}
+
+.call-text-link {
+  align-items: center;
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+}
+
+.call-text-link .whova-text-input {
+  height: 32px;
+  padding: 6px 10px;
+}
+
+.call-text-editor-body {
+  color: var(--body);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 22px;
+  max-height: 560px;
+  min-height: 220px;
+  outline: none;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+.call-text-editor-body > * + * {
+  margin-top: 10px;
+}
+
+.call-text-editor-body h2 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 26px;
+  margin-top: 18px;
+}
+
+.call-text-editor-body h3 {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  margin-top: 14px;
+}
+
+.call-text-editor-body ul,
+.call-text-editor-body ol {
+  padding-left: 22px;
+}
+
+.call-text-editor-body ul {
+  list-style: disc;
+}
+
+.call-text-editor-body ol {
+  list-style: decimal;
+}
+
+.call-text-editor-body li + li {
+  margin-top: 4px;
+}
+
+.call-text-editor-body blockquote {
+  border-left: 3px solid var(--hairline);
+  color: #555;
+  padding-left: 12px;
+}
+
+.call-text-editor-body a {
+  color: var(--interactive);
+  text-decoration: underline;
+}
+
+.call-text-editor-body > :first-child {
+  margin-top: 0;
+}

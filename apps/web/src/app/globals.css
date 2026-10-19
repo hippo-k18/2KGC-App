@@ -504,6 +504,36 @@ section.tint {
 }
 
 /*
+ * "Apply to speak" (T277), beside Register now while a call is shown on the
+ * website. The owner asked for blue with white text: the theme's own blue,
+ * `--palette-12`, where white text measures 6.8:1. Hover lifts it to a brighter
+ * blue (white 5.1:1) so it separates further from the navy bar, and the focus
+ * ring is white, since the site's teal ring barely shows on navy.
+ */
+.site-header nav a.btn-apply {
+  background: var(--palette-12);
+  color: var(--white);
+  padding: 10px 18px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.site-header nav a.btn-apply:hover,
+.site-header nav a.btn-apply[aria-current='page'] {
+  background: #1a6dcc;
+  color: var(--white);
+  box-shadow: none;
+}
+
+.site-header nav a.btn-apply:focus-visible {
+  outline: 2px solid var(--white);
+  outline-offset: 2px;
+}
+
+/*
  * The current page, as the live site marks it: the label and its 2px rule both
  * in the pale blue `--palette-4`, not orange.
  *
@@ -534,7 +564,8 @@ section.tint {
     padding-inline: 8px;
   }
 
-  .site-header nav a.btn-primary {
+  .site-header nav a.btn-primary,
+  .site-header nav a.btn-apply {
     padding-inline: 12px;
   }
 }
@@ -545,7 +576,44 @@ section.tint {
     padding-inline: 4px;
   }
 
-  .site-header nav a.btn-primary {
+  .site-header nav a.btn-primary,
+  .site-header nav a.btn-apply {
+    padding-inline: 8px;
+  }
+}
+
+/*
+ * With Apply to speak in the row as well (T277), the bar is up to 111px short
+ * at 901px when Speakers and Agenda are on, and Register now wrapped onto a
+ * second line. Only while that button is there, the row gets smaller type, and
+ * below 1000px the wordmark takes its phone height. Without the button nothing
+ * here applies and the measured sizes above stand.
+ */
+@media (900px < width <= 1100px) {
+  .site-header nav:has(.btn-apply) a {
+    font-size: 14px;
+    padding-inline: 4px;
+  }
+
+  .site-header nav:has(.btn-apply) a.btn {
+    font-size: 13px;
+    padding-inline: 10px;
+    letter-spacing: 0;
+  }
+}
+
+@media (900px < width <= 1000px) {
+  .site-header .bar:has(.btn-apply) .logo img {
+    height: 44px;
+  }
+
+  .site-header nav:has(.btn-apply) a {
+    font-size: 13px;
+    padding-inline: 3px;
+  }
+
+  .site-header nav:has(.btn-apply) a.btn {
+    font-size: 12px;
     padding-inline: 8px;
   }
 }
@@ -670,6 +738,17 @@ section.tint {
   .site-header nav.open a {
     padding: 14px 4px;
     border-radius: 0;
+  }
+
+  /*
+   * The two buttons at the foot of the open menu (T277). Square and touching,
+   * Apply to speak and Register now read as one two-coloured block, so each
+   * keeps its own rounded plate with a gap between them.
+   */
+  .site-header nav.open a.btn {
+    padding: 14px 12px;
+    border-radius: 5px;
+    margin-top: 12px;
   }
 
   .site-header .menu-toggle {
@@ -10563,4 +10642,30 @@ body:has([data-home-venue]) .venue-home {
 .terms-body h2[id],
 .terms-body h3[id] {
   scroll-margin-top: calc(var(--header-h) + 16px);
+}
+
+/*
+ * A call's formatted text on /submit/{callId} (T277). Headings, lists and
+ * quotes take the site's own type; this only spaces them as running copy and
+ * makes links look like links.
+ */
+.call-text h2,
+.call-text h3 {
+  margin-top: 1.2em;
+}
+
+.call-text > :first-child {
+  margin-top: 0;
+}
+
+.call-text blockquote {
+  border-left: 4px solid var(--line);
+  margin: 0 0 16px;
+  padding-left: 18px;
+}
+
+.call-text a {
+  color: var(--palette-12);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
