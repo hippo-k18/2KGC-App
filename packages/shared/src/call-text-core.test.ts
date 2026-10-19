@@ -7,12 +7,17 @@ import {
   fillCallTextPlaceholders,
   parseCallText,
   sanitizeCallText,
+  type CallTextBlock,
   type CallTextDoc,
+  type CallTextInline,
+  type CallTextMark,
 } from "./call-text-core.js";
 
 const TOKENS = ["CLOSE DATE", "DECISION DATE"] as const;
-const p = (...content: unknown[]) => ({ type: "paragraph", content });
-const t = (text: string, marks?: unknown[]) => (marks ? { type: "text", text, marks } : { type: "text", text });
+const p = (...content: CallTextInline[]): CallTextBlock => ({ type: "paragraph", content });
+// Marks are `unknown` so the sanitiser tests can hand it ones it must drop.
+const t = (text: string, marks?: unknown[]): CallTextInline =>
+  marks ? { type: "text", text, marks: marks as CallTextMark[] } : { type: "text", text };
 
 describe("sanitizeCallText: the allow-list", () => {
   it("keeps every supported node and mark", () => {

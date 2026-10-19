@@ -181,7 +181,10 @@ describe('previews of rows from before bodies were kept', () => {
     expect(p?.kind).toBe('recreated');
     expect(p?.subject).toBe('We received your KGC 2027 submission');
     expect(p?.html).toContain('Graphs at s1');
-    expect(p?.html).toContain('Sunday 14 February 2027');
+    // The owner's E1 copy (T275) names no date, and is from contact@.
+    expect(p?.html).toContain('Thank you for submitting your proposal to the Knowledge Graph Conference (KGC)!');
+    expect(p?.html).not.toContain('Sunday 14 February 2027');
+    expect(p?.from).toBe('Knowledge Graph Conference <contact@knowledgegraph.tech>');
     expect(p?.text).toContain('[private link]');
     expect(p?.notes?.join(' ')).toMatch(/Built again/);
   });

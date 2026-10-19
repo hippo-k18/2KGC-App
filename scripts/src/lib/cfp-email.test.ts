@@ -42,7 +42,7 @@ describe('E1', () => {
         OWNER[0],
         'Lineage at scale\nTalk, 25 minutes',
         ...OWNER.slice(1),
-        'View or edit your submission until the call closes:\nhttps://x/t',
+        'View your submission and, later, our decision here:\nhttps://x/t',
       ].join('\n\n'),
     );
     // The old copy named a date; the owner's does not.

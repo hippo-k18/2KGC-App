@@ -42,6 +42,7 @@ async function wipe() {
     COLLECTIONS.calls,
     COLLECTIONS.tracks,
     COLLECTIONS.emailLog,
+    COLLECTIONS.emailBodies,
     COLLECTIONS.speakers,
     COLLECTIONS.speakerProfileEdits,
     // The receipt caps count per address per hour; each test starts fresh.
@@ -187,6 +188,16 @@ describe('E1', () => {
     expect(sent[0].text).not.toContain('Sunday 14 March 2027');
     expect(sent[0].from).toBe('Knowledge Graph Conference <contact@knowledgegraph.tech>');
     expect(sent[0].text).not.toMatch(/\[|—/);
+
+    // The Email Log (T274) keeps it exactly as sent, from contact@ (T275), with the T276 type line.
+    const rows = await db().collection(COLLECTIONS.emailLog).where('template', '==', 'cfp-received').get();
+    expect(rows.size).toBe(1);
+    expect(rows.docs[0].data().hasBody).toBe(true);
+    const body = (await db().collection(COLLECTIONS.emailBodies).doc(rows.docs[0].id).get()).data()!;
+    expect(body.from).toBe('Knowledge Graph Conference <contact@knowledgegraph.tech>');
+    expect(body.replyTo).toBe('contact@knowledgegraph.tech');
+    expect(body.text).toBe(sent[0].text);
+    expect(body.html).toBe(sent[0].html);
 
     // A submitted one cannot be edited (T276), so nothing is acknowledged again.
     const again = await saveSubmission(CALL_ID, talk({ title: 'Lineage at scale, revised' }), first.submissionId);

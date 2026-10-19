@@ -11,7 +11,6 @@ import {
   sendBulkMessage,
   sendInvoiceRaised,
   sendPurchaseConfirmation,
-  sendBlogSignInCode,
   sendRefundConfirmation,
   sendSignInCode,
   sendSubmissionReceipt,
