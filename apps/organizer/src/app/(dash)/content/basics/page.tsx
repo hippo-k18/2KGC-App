@@ -3,7 +3,7 @@ import { COLLECTIONS, EVENT } from '@kgc/shared';
 import { eventBasics } from '@/lib/event';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { requireOrganizer } from '@/lib/auth';
-import { countActiveRegistrations, countWhereEvent, listSessions } from '@/lib/data';
+import { countActiveRegistrations, countSignedInAttendees, countWhereEvent, listSessions } from '@/lib/data';
 import { targetLabel } from '@/lib/firestore';
 import { ROUTES } from '@/lib/nav';
 import { dayOfInstant } from '@/lib/time';
@@ -44,7 +44,7 @@ export default async function BasicsPage() {
     readSettings(SETTINGS_KEYS.event),
     eventBasics(),
     listSessions(),
-    countWhereEvent(COLLECTIONS.users),
+    countSignedInAttendees(),
     countWhereEvent(COLLECTIONS.speakers),
     countWhereEvent(COLLECTIONS.sponsors),
     countWhereEvent(COLLECTIONS.tracks),

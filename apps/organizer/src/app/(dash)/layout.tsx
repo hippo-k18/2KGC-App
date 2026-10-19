@@ -102,7 +102,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
     countWhereEvent(COLLECTIONS.speakers),
     countWhereEvent(COLLECTIONS.sponsors),
   ]);
-  const { registrations, cancelled, users, signedIn } = adoption;
+  const { registrations, cancelled, signedIn } = adoption;
 
   const days = [...new Set(sessions.map((s) => s.day))].sort();
   /* The dates saved on Content > Basics lead; with none saved, the agenda's own span. */
@@ -239,7 +239,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
       <LiveStats
         viewAll={open('tools/report')}
         stats={[
-          { label: 'Signed in', value: users, href: '/attendees/manage-attendees/attendees' },
+          { label: 'Signed in', value: signedIn, href: '/attendees/manage-attendees/attendees' },
           { label: 'Registered', value: registrations, href: '/attendees/check-in-and-checkout/check-in' },
           { label: 'Sessions', value: sessions.length, href: '/content/agenda-center/session-manager' },
           { label: 'Speakers', value: speakers, href: '/content/speaker-center/speaker-manager' },

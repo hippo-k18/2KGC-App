@@ -731,6 +731,16 @@ export async function countActiveRegistrations(): Promise<number> {
   return snap.docs.filter((d) => countsAsAttendee(d.data() as RegistrationDoc)).length;
 }
 
+/**
+ * Signed-in attendees, by the header's rule: active tickets whose holder has a
+ * profile (T284). Counting `users` instead took in a cancelled ticket holder
+ * who had signed in, and organizers with no ticket, so Tools › Report read
+ * "Signed in 50 · 102% of tickets" beside 49 active registrations.
+ */
+export async function countSignedInAttendees(): Promise<number> {
+  return (await adoptionCounts()).signedIn;
+}
+
 /** The collections the shared demo login (T223) has a document in. */
 const HOLDS_DEMO: ReadonlySet<string> = new Set([COLLECTIONS.registrations, COLLECTIONS.users]);
 

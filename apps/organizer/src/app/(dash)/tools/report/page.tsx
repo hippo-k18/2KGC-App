@@ -5,7 +5,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { sessionAttendance } from '@/lib/attendance';
 import { DEFAULT_LIST_ID, countCheckIns, scanThroughput } from '@/lib/checkin';
 import { money, salesSummary } from '@/lib/commerce';
-import { countActiveRegistrations, countWhereEvent, listSessions, recentAudit } from '@/lib/data';
+import { countActiveRegistrations, countSignedInAttendees, countWhereEvent, listSessions, recentAudit } from '@/lib/data';
 import { recentErrors } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
 import { clockOf, dayLabel, todayInEventZone } from '@/lib/time';
@@ -59,7 +59,7 @@ export default async function ReportPage() {
     scans,
     sales,
   ] = await Promise.all([
-    countWhereEvent(COLLECTIONS.users),
+    countSignedInAttendees(),
     countWhereEvent(COLLECTIONS.announcements),
     countActiveRegistrations(),
     listSessions(),

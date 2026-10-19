@@ -723,6 +723,7 @@ export function SubmitButton({
   style,
   name,
   value,
+  pending: pendingProp,
 }: {
   children: ReactNode;
   pendingLabel?: ReactNode;
@@ -733,8 +734,14 @@ export function SubmitButton({
   /** For a form with two submits — `name`/`value` say which one was pressed. */
   name?: string;
   value?: string;
+  /**
+   * For a form that submits through `onSubmit` rather than `action`, where
+   * `useFormStatus` never reports pending. `call-form.tsx` says why it does.
+   */
+  pending?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const pending = pendingProp ?? status.pending;
   return (
     <button
       type="submit"

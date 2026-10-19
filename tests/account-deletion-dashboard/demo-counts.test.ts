@@ -22,7 +22,7 @@ vi.mock('../../apps/organizer/node_modules/next/cache.js', () => ({
 
 import { attendeeListStats, cancelledOrTransferred, countsAsAttendee } from '../../apps/organizer/src/lib/attendees-core';
 import { listRegistrations } from '../../apps/organizer/src/lib/checkin';
-import { adoptionCounts, countActiveRegistrations, countWhereEvent, listAttendees } from '../../apps/organizer/src/lib/data';
+import { adoptionCounts, countActiveRegistrations, countSignedInAttendees, countWhereEvent, listAttendees } from '../../apps/organizer/src/lib/data';
 
 const PROJECT = process.env.GCLOUD_PROJECT ?? 'demo-account-deletion';
 let db: Firestore;
@@ -76,5 +76,19 @@ describe('the shared demo login on the dashboard', () => {
 
   it('still counts a collection the demo has nothing in', async () => {
     expect(await countWhereEvent(COLLECTIONS.speakers)).toBe(1);
+  });
+
+  /*
+   * T284 (gate N2): Tools › Report and Content › Basics counted every profile,
+   * so a cancelled ticket holder who had signed in read "Signed in 3 · 150% of
+   * tickets" beside 2 active registrations. Signed in now means an active
+   * ticket whose holder has a profile, the header's own figure.
+   */
+  it('counts only active ticket holders as signed in, as the header does', async () => {
+    await db.doc(`${COLLECTIONS.users}/gone`).set({ eventId: EVENT_ID, name: 'gone', email: 'gone@example.com' });
+    await db.doc(`${COLLECTIONS.users}/org`).set({ eventId: EVENT_ID, name: 'org', email: 'organizer@example.com' });
+    expect(await countWhereEvent(COLLECTIONS.users)).toBe(4);
+    expect(await countSignedInAttendees()).toBe(2);
+    expect((await adoptionCounts()).signedIn).toBe(2);
   });
 });
