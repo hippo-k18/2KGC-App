@@ -72,6 +72,14 @@ export type SessionFormat =
   | "social";
 
 /**
+ * What a submitter can offer work as on a call (T276). The agenda's own
+ * formats plus two the call for speakers takes and the agenda has no format
+ * for: the HCLS symposium and tools and demonstrations. Promotion onto the
+ * agenda maps those two onto a talk (`agendaFormat` in cfp-core).
+ */
+export type CallSessionType = SessionFormat | "hcls" | "demo";
+
+/**
  * A person may hold several of these at once, which is why this is a list and
  * not a scalar. With 150+ speakers among ~1,000 attendees, roughly one in seven
  * users needs two, and an organizer who also gives a talk should not have to
@@ -3088,7 +3096,7 @@ export type CallFormFieldDef = Omit<FormFieldDef, "ticketTypeIds"> & {
    * either, so "required" on a workshop-only question means required of
    * workshops.
    */
-  sessionTypes?: SessionFormat[];
+  sessionTypes?: CallSessionType[];
 };
 
 /**
@@ -3181,7 +3189,7 @@ export interface CallDoc extends BaseDoc {
    * `sessions/{id}`, and a translation table between two vocabularies is a
    * translation table that will one day be missing a row.
    */
-  sessionTypes: SessionFormat[];
+  sessionTypes: CallSessionType[];
   /**
    * `tracks/{id}` ids, not names. Renaming a track then leaves every submission
    * still pointing at it, which is the same choice `SessionDoc.trackIds` makes.
@@ -3193,6 +3201,17 @@ export interface CallDoc extends BaseDoc {
    * the agenda or the app. Absent means off.
    */
   allowOtherTrack?: boolean;
+  /**
+   * Ask the Track question at all (T276). On a call run with `cfp` settings
+   * absent means off, so the live call stopped asking without an edit; on
+   * any other call absent means on, as before.
+   */
+  askTrack?: boolean;
+  /**
+   * Ask a talk its length (T276). Only a `cfp` call ever asks, and absent
+   * means off.
+   */
+  askTalkLength?: boolean;
 
   /** The questions as they stand now. */
   form: CallFormFieldDef[];
@@ -3341,7 +3360,12 @@ export interface SubmissionDoc extends BaseDoc {
    */
   trackOther?: string;
   /** One of the call's `sessionTypes`. Absent while still a draft. */
-  sessionType?: SessionFormat;
+  sessionType?: CallSessionType;
+  /**
+   * "Link to Additional Resources or Supporting Materials" (T276). A web
+   * address the author typed; optional.
+   */
+  resourceLink?: string;
   /** Answers to the call's form, keyed by `CallFormFieldDef.id`. */
   answers: Record<string, string | string[] | boolean>;
   /**
@@ -3555,6 +3579,11 @@ export interface SubmissionIdentityDoc {
    */
   email: string;
   affiliation?: string;
+  /**
+   * Optional, typed by the author (T276). Here beside the email because it is
+   * contact data: organizers see it, reviewers and the public never do.
+   */
+  phone?: string;
   coAuthors: SubmissionCoAuthor[];
   /** Offered to the programme committee, and reused as the speaker bio on acceptance. */
   bio?: string;

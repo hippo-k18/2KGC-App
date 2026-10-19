@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { agendaFormat, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { requireOrganizer } from '@/lib/auth';
 import { listCalls } from '@/lib/calls';
 import { listRooms } from '@/lib/data';
@@ -119,7 +120,8 @@ export default async function FromAcceptedSubmissionsPage({
             )}
           </p>
           <p className="body-2">
-            Offered as a <strong>{chosen.row.sessionType ?? 'talk'}</strong>. The abstract becomes
+            Offered as <strong>{typeLabel(chosen.row.sessionType ?? 'talk')}</strong>, so it goes on the
+            agenda as a <strong>{agendaFormat(chosen.row.sessionType)}</strong>. The description becomes
             the session description; the session is created as a <strong>draft</strong> so nothing
             reaches an attendee&rsquo;s phone until you publish it.
           </p>
@@ -168,7 +170,7 @@ export default async function FromAcceptedSubmissionsPage({
                       <strong>{row.title}</strong>
                     </Link>
                     <span className="muted" style={{ fontSize: 12 }}>
-                      {row.author?.name ?? 'no author on file'} · {row.sessionType ?? 'talk'} ·{' '}
+                      {row.author?.name ?? 'no author on file'} · {typeLabel(row.sessionType ?? 'talk')} ·{' '}
                       {callTitle}
                     </span>
                     <Link className="whova-btn-main small" href={`?id=${row.id}`}>

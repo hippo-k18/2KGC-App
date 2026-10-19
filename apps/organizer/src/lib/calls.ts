@@ -12,7 +12,7 @@ import {
   type CallFormVersion,
   type PublishStatus,
   type RubricCriterionDef,
-  type SessionFormat,
+  type CallSessionType,
   type WithId,
 } from '@kgc/shared';
 import {
@@ -28,6 +28,7 @@ import {
   validateForm,
   type FormVersionChange,
 } from '@kgc/scripts/src/lib/question-forms';
+import { asksTalkLength, asksTrack } from '@kgc/scripts/src/lib/cfp-core';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
 import { db } from './firestore';
@@ -83,10 +84,16 @@ export interface CallRow {
   closesAtLocal: string;
   opensAtMs: number;
   closesAtMs: number;
-  sessionTypes: SessionFormat[];
+  sessionTypes: CallSessionType[];
   trackIds: string[];
   /** "Other" ends the public Track list (T271). */
   allowOtherTrack: boolean;
+  /** Run with the call-for-speakers settings (T249): the six CFP session types apply. */
+  isCfp: boolean;
+  /** Whether the form asks for a track, after the CFP default (T276). */
+  askTrack: boolean;
+  /** Whether a talk is asked its length (T276). */
+  askTalkLength: boolean;
   form: CallFormFieldDef[];
   formVersion: number;
   priorVersions: { version: number; fields: CallFormFieldDef[] }[];
@@ -134,6 +141,9 @@ function toRow(id: string, c: CallDoc): CallRow {
     sessionTypes: c.sessionTypes ?? [],
     trackIds: c.trackIds ?? [],
     allowOtherTrack: c.allowOtherTrack === true,
+    isCfp: Boolean(c.cfp),
+    askTrack: asksTrack(c),
+    askTalkLength: asksTalkLength(c),
     form: [...(c.form ?? [])].sort((a, b) => a.order - b.order),
     formVersion: c.formVersion ?? 1,
     priorVersions: (c.priorVersions ?? []).map((v) => ({ version: v.version, fields: v.fields })),
@@ -239,9 +249,12 @@ export interface SaveCallInput {
   /** `YYYY-MM-DDTHH:mm` wall clock in the event's zone. */
   opensAtLocal: string;
   closesAtLocal: string;
-  sessionTypes: SessionFormat[];
+  sessionTypes: CallSessionType[];
   trackIds: string[];
   allowOtherTrack: boolean;
+  /** Absent leaves the stored setting alone (T276). */
+  askTrack?: boolean;
+  askTalkLength?: boolean;
   blindReview: BlindReviewMode;
   reviewsPerSubmission: number;
   reminderDaysBefore: number[];
@@ -337,6 +350,8 @@ export async function saveCall(input: SaveCallInput): Promise<CallResult> {
         sessionTypes: input.sessionTypes,
         trackIds: input.trackIds,
         allowOtherTrack: input.allowOtherTrack === true,
+        ...(input.askTrack === undefined ? {} : { askTrack: input.askTrack }),
+        ...(input.askTalkLength === undefined ? {} : { askTalkLength: input.askTalkLength }),
         blindReview: input.blindReview,
         reviewsPerSubmission: input.reviewsPerSubmission,
         reminderDaysBefore: input.reminderDaysBefore,
@@ -477,8 +492,8 @@ export async function saveCallField(input: {
      * key is left off rather than stored empty, so a question written before
      * this existed and one that asks everyone are the same document.
      */
-    const only = (input.sessionTypes ?? []).filter((t): t is SessionFormat =>
-      (call.sessionTypes ?? []).includes(t as SessionFormat),
+    const only = (input.sessionTypes ?? []).filter((t): t is CallSessionType =>
+      (call.sessionTypes ?? []).includes(t as CallSessionType),
     );
     if (only.length > 0 && only.length < (call.sessionTypes ?? []).length) field.sessionTypes = only;
 

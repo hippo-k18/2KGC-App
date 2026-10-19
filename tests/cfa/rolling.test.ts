@@ -120,7 +120,14 @@ async function seedCall(cfp: CallCfpSettings = CFP): Promise<void> {
 
 async function seed(
   id: string,
-  over: { sessionType?: 'talk' | 'workshop'; status?: SubmissionDoc['status']; name?: string; submittedAt?: Date } = {},
+  over: {
+    sessionType?: 'talk' | 'workshop' | 'hcls';
+    status?: SubmissionDoc['status'];
+    name?: string;
+    submittedAt?: Date;
+    /** Neither a track nor a length, as the T276 form sends. */
+    bare?: boolean;
+  } = {},
 ): Promise<string> {
   const ref = db().collection(COLLECTIONS.submissions).doc(id);
   await ref.set({
@@ -128,9 +135,9 @@ async function seed(
     callId: CALL_ID,
     title: `Talk ${id}`,
     abstract: 'An abstract.',
-    trackId: 'metadata',
+    ...(over.bare ? {} : { trackId: 'metadata' }),
     sessionType: over.sessionType ?? 'talk',
-    ...(over.sessionType === 'workshop' ? {} : { durationMinutes: 45 }),
+    ...(over.sessionType === 'workshop' || over.bare ? {} : { durationMinutes: 45 }),
     answers: {},
     formVersion: 1,
     status: over.status ?? 'submitted',
@@ -195,7 +202,7 @@ describe('Accept, in one click', () => {
     const [e2, notice] = mail();
     expect(e2.template).toBe('cfp-accepted');
     expect(e2.to).toBe('sub_a@authors.test');
-    expect(e2.text).toContain('Talk sub_a\nTalk, 45 minutes');
+    expect(e2.text).toContain('Talk sub_a\nPresentation Talks & Keynotes, 45 minutes');
     expect(e2.text).toContain('within one week, by Tuesday 17 November 2026.');
     expect(e2.text).toContain('Your session day and time will be shared by Monday 1 March 2027.');
     expect(e2.text).toMatch(/→ http:\/\/localhost:3200\/speaker\/\S+/);
@@ -205,6 +212,18 @@ describe('Accept, in one click', () => {
       expect(notice.text).toContain(fact);
     }
     for (const m of mail()) expect(m.text).not.toMatch(/\[|—/);
+  });
+
+  it('leaves the track out of the notice and the length out of the type line when there are none (T276)', async () => {
+    await seedCall();
+    await seed('sub_n', { bare: true, sessionType: 'hcls' });
+    const r = await acceptCfp({ submissionId: 'sub_n', actor: ACTOR, nowMs: ACCEPT_AT });
+    expect(r.ok).toBe(true);
+    const [e2, notice] = mail();
+    expect(e2.text).toContain('Talk sub_n\nHealth Care and Life Sciences (HCLS) Symposium\n');
+    expect(notice.text).not.toMatch(/Track:/);
+    expect(notice.text).toContain('Type: Health Care and Life Sciences (HCLS) Symposium');
+    for (const m of mail()) expect(m.text).not.toMatch(/undefined|· ·|: \n/);
   });
 
   it('is harmless to press twice, and finds a speaker who already exists', async () => {

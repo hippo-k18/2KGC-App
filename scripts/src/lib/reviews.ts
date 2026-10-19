@@ -10,7 +10,7 @@ import {
   type ReviewStatus,
   type ReviewerDoc,
   type RubricCriterionDef,
-  type SessionFormat,
+  type CallSessionType,
   type SubmissionDoc,
   type SubmissionIdentityDoc,
 } from '@kgc/shared';
@@ -188,7 +188,7 @@ export interface Assignment {
   abstract: string;
   trackId?: string;
   trackOther?: string;
-  sessionType?: SessionFormat;
+  sessionType?: CallSessionType;
   /** Questions and answers, already paired. Description blocks are left out. */
   answers: { prompt: string; value: string | string[] | boolean | undefined }[];
   /** Absent under double-blind, because the document was never read. */

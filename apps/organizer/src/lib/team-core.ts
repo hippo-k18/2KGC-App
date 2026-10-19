@@ -183,6 +183,7 @@ const EXPORT_ROLE: Record<string, Exclude<TeamRole, 'owner'>> = {
   sponsors: 'sponsors',
   'sponsor-report': 'sponsors',
   'checked-in': 'checkin',
+  'cfp-submissions': 'reviews',
 };
 
 export function canExport(roles: readonly TeamRole[], kind: string): boolean {

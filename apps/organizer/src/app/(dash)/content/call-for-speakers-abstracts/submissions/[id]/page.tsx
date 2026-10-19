@@ -19,7 +19,7 @@ import { DecisionPanel } from '../decision-panel';
 import { liftExclusionAction, undoDecisionAction } from '../actions';
 import { ExcludeReviewerForm } from '../exclude-form';
 import { getCfpCall, getCfpDetail, type CfpDetail } from '@/lib/cfp';
-import { cfpStatus, formatDay, dateIn, sessionTypeLine, trackLabel } from '@kgc/scripts/src/lib/cfp-core';
+import { cfpStatus, formatDay, dateIn, sessionTypeLine, trackLabel, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { cfpStatusReplyText } from '@kgc/scripts/src/lib/email';
 import { CfpStatusTag } from '../../cfp-ui';
 import { CopyBlock } from '../../rolling-review/forms';
@@ -147,7 +147,7 @@ export default async function SubmissionDetailPage({
 
       <Panel>
         <h2 className="section-header" style={{ marginTop: 0 }}>
-          The abstract
+          Session Description
         </h2>
         {submission.abstract ? (
           submission.abstract
@@ -160,13 +160,26 @@ export default async function SubmissionDetailPage({
               </p>
             ))
         ) : (
-          <NotInputted what="abstract text" compact />
+          <NotInputted what="session description" compact />
         )}
 
         <dl className="gap-grid" style={{ marginTop: 18 }}>
           <Row label="Call">{call?.title ?? submission.callId}</Row>
-          <Row label="Track">{trackName ?? <span className="muted">none chosen</span>}</Row>
-          <Row label="Session type">{submission.sessionType ?? <span className="muted">none chosen</span>}</Row>
+          {/* No Track row when the call does not ask and none was given (T276). */}
+          {(trackName || call?.askTrack) && (
+            <Row label="Track">{trackName ?? <span className="muted">none chosen</span>}</Row>
+          )}
+          <Row label="Session Type & Format">
+            {submission.sessionType ? typeLabel(submission.sessionType) : <span className="muted">none chosen</span>}
+          </Row>
+          {submission.durationMinutes ? <Row label="Talk length">{submission.durationMinutes} minutes</Row> : null}
+          {submission.resourceLink && (
+            <Row label="Additional resources">
+              <a href={submission.resourceLink} rel="noopener noreferrer nofollow" target="_blank" style={{ wordBreak: 'break-all' }}>
+                {submission.resourceLink}
+              </a>
+            </Row>
+          )}
           <Row label="Submitted">
             {submission.submittedAtMs
               ? new Date(submission.submittedAtMs).toLocaleString('en-GB')
@@ -193,11 +206,16 @@ export default async function SubmissionDetailPage({
               <Row label="Email">
                 <a href={`mailto:${submission.author.email}`}>{submission.author.email}</a>
               </Row>
-              <Row label="Affiliation">
+              <Row label="Organization">
                 {submission.author.affiliation ?? <span className="muted">not given</span>}
               </Row>
+              {submission.author.phone && (
+                <Row label="Phone">
+                  <a href={`tel:${submission.author.phone.replace(/[^0-9+]/g, '')}`}>{submission.author.phone}</a>
+                </Row>
+              )}
               {submission.author.coAuthors.length > 0 && (
-                <Row label="Co-authors">
+                <Row label="Co-Speakers or Co-Authors">
                   {submission.author.coAuthors
                     .map((c) => (c.affiliation ? `${c.name} (${c.affiliation})` : c.name))
                     .join(', ')}

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { assignmentFor, reviewerFor } from '@/lib/reviews';
 import { ReviewForm } from '../../review-form';
 import { conflictAction } from '../../actions';
@@ -76,7 +77,7 @@ export default async function ReviewSubmissionPage({
           <>
             <div className="checkout" style={{ marginBottom: 24 }}>
               <p className="hint" style={{ marginTop: 0 }}>
-                {[a.trackName, a.sessionType].filter(Boolean).join(' · ')}
+                {[a.trackName, a.sessionType && typeLabel(a.sessionType)].filter(Boolean).join(' · ')}
               </p>
               {a.abstract
                 .split(/\n\s*\n/)

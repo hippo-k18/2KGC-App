@@ -73,6 +73,7 @@ export default defineConfig({
             'tests/cfa/organizer.test.ts',
             'tests/cfa/review.test.ts',
             'tests/cfa/rolling.test.ts',
+            'tests/cfa/form-fields.test.ts',
             'tests/cfa/other-track.test.ts',
           ],
         },

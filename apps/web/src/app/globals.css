@@ -344,6 +344,22 @@ img {
   max-width: 80ch;
 }
 
+/* Type and date on a submitted abstract's own page (T276). */
+.submission-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 0 0 20px;
+}
+.submission-facts dt {
+  font-size: 13px;
+  color: var(--muted, #6b7280);
+}
+.submission-facts dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+}
+
 section {
   padding: 64px 0;
 }

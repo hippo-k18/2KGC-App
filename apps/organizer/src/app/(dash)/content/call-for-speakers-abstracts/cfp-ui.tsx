@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {
   CFP_STATUS_LABEL,
   missingSettings,
+  CFP_SESSION_TYPES,
   typeLabel,
   type CfpStatus,
 } from '@kgc/scripts/src/lib/cfp-core';
@@ -82,7 +83,8 @@ export function TypeFilter({
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 12px' }} role="group" aria-label="Session type">
       {item('All')}
-      {types.map((t) => item(`${typeLabel(t)}s`, t))}
+      {/* The six CFP names are already plural ("Workshops"); an agenda format is not. */}
+      {types.map((t) => item(CFP_SESSION_TYPES.some((c) => c.id === t) ? typeLabel(t) : `${typeLabel(t)}s`, t))}
     </div>
   );
 }

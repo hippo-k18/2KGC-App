@@ -10,13 +10,14 @@ import {
   publicSiteOrigin,
   type ReviewDoc,
   type SessionDoc,
-  type SessionFormat,
+  type CallSessionType,
   type SpeakerDoc,
   type SubmissionCoAuthor,
   type SubmissionDoc,
   type SubmissionIdentityDoc,
   type SubmissionStatus,
 } from '@kgc/shared';
+import { agendaFormat } from '@kgc/scripts/src/lib/cfp-core';
 import { mintSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
 import { emailEnabled, sendSubmissionDecision } from '@kgc/scripts/src/lib/email';
 import { sessionId as deriveSessionId, speakerId, stableGuid } from '@kgc/scripts/src/lib/ids';
@@ -72,7 +73,11 @@ export interface SubmissionRow {
   trackId?: string;
   /** The topic typed under "Other" (T271). */
   trackOther?: string;
-  sessionType?: SessionFormat;
+  sessionType?: CallSessionType;
+  /** A talk's length, when the call asked for one. */
+  durationMinutes?: number;
+  /** "Link to Additional Resources or Supporting Materials" (T276). */
+  resourceLink?: string;
   answers: Record<string, string | string[] | boolean>;
   formVersion: number;
   status: SubmissionStatus;
@@ -88,6 +93,8 @@ export interface SubmissionRow {
     name: string;
     email: string;
     affiliation?: string;
+    /** Organizers only: never shown to reviewers or on the website (T276). */
+    phone?: string;
     bio?: string;
     coAuthors: SubmissionCoAuthor[];
     speakerId?: string;
@@ -111,6 +118,8 @@ function toRow(id: string, s: SubmissionDoc, identity?: SubmissionIdentityDoc): 
     trackId: s.trackId,
     trackOther: s.trackOther,
     sessionType: s.sessionType,
+    durationMinutes: s.durationMinutes,
+    resourceLink: s.resourceLink,
     answers: s.answers ?? {},
     formVersion: s.formVersion ?? 1,
     status: s.status,
@@ -128,6 +137,7 @@ function toRow(id: string, s: SubmissionDoc, identity?: SubmissionIdentityDoc): 
           name: identity.name,
           email: identity.email,
           affiliation: identity.affiliation,
+          phone: identity.phone,
           bio: identity.bio,
           coAuthors: identity.coAuthors ?? [],
           speakerId: identity.speakerId,
@@ -752,7 +762,8 @@ export async function promoteSubmission(input: {
         roomId: input.roomId,
         roomName,
         trackIds: sub.trackId ? [sub.trackId] : [],
-        format: sub.sessionType ?? 'talk',
+        // The symposium and the demos go on as talks (`agendaFormat`, T276).
+        format: agendaFormat(sub.sessionType),
         speakerIds: [speakerDocId],
         speakerNames: [identity.name],
         tags: [],
@@ -766,7 +777,7 @@ export async function promoteSubmission(input: {
         status: 'draft',
         sequence: 0,
         stableGuid: stableGuid(sessionDocId),
-        ...qaDefaultsFor(sub.sessionType ?? 'talk'),
+        ...qaDefaultsFor(agendaFormat(sub.sessionType)),
       };
 
       tx.create(sessionRef, {

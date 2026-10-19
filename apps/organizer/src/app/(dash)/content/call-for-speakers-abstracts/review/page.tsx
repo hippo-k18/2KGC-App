@@ -98,7 +98,7 @@ export default async function ReviewPage({
                   <span className="muted">{row.organisation ?? ''}</span>
                 </div>
                 <div className="muted" style={{ fontSize: 12, margin: '4px 0 8px' }}>
-                  {row.trackName ?? 'No track'} · {sessionTypeLine(row.sessionType, row.durationMinutes)}
+                  {[row.trackName, sessionTypeLine(row.sessionType, row.durationMinutes)].filter(Boolean).join(' · ')}
                 </div>
                 <h3 style={{ fontSize: 16, margin: '0 0 6px' }}>
                   <Link href={`${CFA_BASE}/submissions/${row.id}`}>{row.title || 'Untitled'}</Link>
