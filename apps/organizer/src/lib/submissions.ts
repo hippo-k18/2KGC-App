@@ -69,6 +69,8 @@ export interface SubmissionRow {
   title: string;
   abstract: string;
   trackId?: string;
+  /** The topic typed under "Other" (T271). */
+  trackOther?: string;
   sessionType?: SessionFormat;
   answers: Record<string, string | string[] | boolean>;
   formVersion: number;
@@ -106,6 +108,7 @@ function toRow(id: string, s: SubmissionDoc, identity?: SubmissionIdentityDoc): 
     title: s.title ?? '',
     abstract: s.abstract ?? '',
     trackId: s.trackId,
+    trackOther: s.trackOther,
     sessionType: s.sessionType,
     answers: s.answers ?? {},
     formVersion: s.formVersion ?? 1,

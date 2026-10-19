@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  OTHER_TRACK,
+  TRACK_OTHER_MAX,
+  joinWords,
+  sessionTypeQuestion,
+  trackChoice,
+  trackLabel,
+  typeLabel,
   abstractProblem,
   cfpStatus,
   closeDecisionPlan,
@@ -221,5 +228,63 @@ describe('when E4 may go (T252)', () => {
     expect(closeDecisionDate(cfp)).toBe('2027-02-14');
     expect(closeDecisionOpen(Date.parse('2027-02-14T04:00:00Z'), cfp, NY)).toBe(false); // 23:00 on the 13th in NY
     expect(closeDecisionOpen(Date.parse('2027-02-14T15:00:00Z'), cfp, NY)).toBe(true);
+  });
+});
+
+describe('the Other track (T271)', () => {
+  const call = { trackIds: ['metadata'], allowOtherTrack: true };
+  const name = (id: string) => (id === 'metadata' ? 'Metadata' : undefined);
+
+  it('labels a track, an Other topic, or nothing', () => {
+    expect(trackLabel({ trackId: 'metadata' }, name)).toBe('Metadata');
+    expect(trackLabel({ trackOther: 'Logistics' }, name)).toBe('Other: Logistics');
+    expect(trackLabel({}, name)).toBeUndefined();
+  });
+
+  it('keeps the typed topic and no track id', () => {
+    expect(trackChoice(call, { trackId: OTHER_TRACK, trackOther: '  Supply   chains ' }, true)).toEqual({
+      trackOther: 'Supply chains',
+    });
+    expect(trackChoice(call, { trackId: 'metadata', trackOther: 'left over' }, true)).toEqual({
+      trackId: 'metadata',
+    });
+  });
+
+  it('needs a topic to submit, not to save a draft', () => {
+    expect(trackChoice(call, { trackId: OTHER_TRACK }, true).otherError).toBe('Say which topic.');
+    expect(trackChoice(call, { trackId: OTHER_TRACK }, false)).toEqual({});
+  });
+
+  it('refuses a topic over the limit', () => {
+    const long = 'x'.repeat(TRACK_OTHER_MAX + 1);
+    expect(trackChoice(call, { trackId: OTHER_TRACK, trackOther: long }, false).otherError).toMatch(/80 characters/);
+  });
+
+  it('refuses Other on a call that does not offer it, and an unknown track', () => {
+    expect(trackChoice({ trackIds: ['metadata'] }, { trackId: OTHER_TRACK, trackOther: 'x' }, true).error).toBeTruthy();
+    expect(trackChoice(call, { trackId: 'nope' }, true).error).toBeTruthy();
+  });
+
+  it('asks for a track when only Other is offered', () => {
+    expect(trackChoice({ trackIds: [], allowOtherTrack: true }, {}, true).error).toBe('Choose a track.');
+    expect(trackChoice({ trackIds: [] }, {}, true)).toEqual({});
+  });
+});
+
+describe('the session-type question follows the ticked types (T271)', () => {
+  it('asks nothing for one type', () => {
+    expect(sessionTypeQuestion(['talk'])).toBe('');
+    expect(sessionTypeQuestion([])).toBe('');
+  });
+  it('asks between two', () => {
+    expect(sessionTypeQuestion(['talk', 'workshop'])).toBe('Talk or workshop?');
+  });
+  it('lists three or more with "or" before the last', () => {
+    expect(sessionTypeQuestion(['talk', 'workshop', 'panel'])).toBe('Talk, workshop or panel?');
+    expect(sessionTypeQuestion(['keynote', 'talk', 'panel', 'poster'])).toBe('Keynote, talk, panel or poster?');
+  });
+  it('joins words and labels a type', () => {
+    expect(joinWords(['talk', 'workshop'], 'and')).toBe('talk and workshop');
+    expect(typeLabel('panel')).toBe('Panel');
   });
 });

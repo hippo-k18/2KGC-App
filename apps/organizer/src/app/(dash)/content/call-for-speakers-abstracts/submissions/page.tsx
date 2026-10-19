@@ -24,7 +24,7 @@ import { rankByTrack, OVERALL_MAX } from '@kgc/scripts/src/lib/review-core';
 import { CFA_BASE } from '../routes';
 import { BulkDecisionBar, RowCheckbox, SelectAllCheckbox } from './bulk-decision';
 import { getCfpCall, listCfpSubmissions } from '@/lib/cfp';
-import { cfpStatus, type CfpStatus } from '@kgc/scripts/src/lib/cfp-core';
+import { OTHER_TRACK, cfpStatus, trackLabel, type CfpStatus } from '@kgc/scripts/src/lib/cfp-core';
 import { CfpSettingsWarning, CfpStatusTag, TypeFilter } from '../cfp-ui';
 
 export const dynamic = 'force-dynamic';
@@ -112,7 +112,7 @@ export default async function SubmissionsPage({
   ]);
   const counts = countSubmissions(all);
   const trackName = new Map(tracks.map((t) => [t.id, t.name]));
-  const type = one('type') === 'talk' || one('type') === 'workshop' ? one('type') : undefined;
+  const type = (call.sessionTypes as string[]).includes(one('type') ?? '') ? one('type') : undefined;
 
   /*
    * The status the inbox reads (T249): open, accepted, details received,
@@ -262,6 +262,7 @@ export default async function SubmissionsPage({
           <TypeFilter
             base={`${CFA_BASE}/submissions`}
             current={type}
+            types={call.sessionTypes}
             params={{ call: callId, status: status === 'all' ? undefined : status, q: q || undefined }}
           />
         </div>
@@ -318,7 +319,7 @@ export default async function SubmissionsPage({
                 </span>,
                 <AuthorCell key="a" row={s} />,
                 <span key="k">
-                  {s.trackId ? (trackName.get(s.trackId) ?? s.trackId) : <span className="muted">no track</span>}
+                  {trackLabel(s, (id) => trackName.get(id) ?? id) ?? <span className="muted">no track</span>}
                   <span className="muted" style={{ display: 'block', fontSize: 12 }}>
                     {s.sessionType ?? '—'}
                   </span>
@@ -382,7 +383,11 @@ function RankingPanels({
   trackName: Map<string, string>;
   hasCriteria: boolean;
 }) {
-  const groups = rankByTrack(all, trackOrder);
+  // Every "Other" submission ranks in one group of its own (T271).
+  const groups = rankByTrack(
+    all.map((r) => (!r.trackId && r.trackOther ? { ...r, trackId: OTHER_TRACK } : r)),
+    trackOrder,
+  );
 
   if (groups.length === 0) {
     return (
@@ -403,7 +408,11 @@ function RankingPanels({
       {groups.map((g) => (
         <Panel key={g.trackId ?? 'none'} style={{ marginBottom: 16 }}>
           <h2 className="section-header" style={{ marginTop: 0 }}>
-            {g.trackId ? (trackName.get(g.trackId) ?? g.trackId) : 'No track chosen'}
+            {g.trackId === OTHER_TRACK
+              ? 'Other'
+              : g.trackId
+                ? (trackName.get(g.trackId) ?? g.trackId)
+                : 'No track chosen'}
             <span className="muted" style={{ fontWeight: 400, marginLeft: 8 }}>
               {g.rows.length} submission{g.rows.length === 1 ? '' : 's'}
             </span>
@@ -522,13 +531,14 @@ function StatusCell({ row }: { row: SubmissionRow }) {
   );
 }
 
-/** Title, abstract, author and affiliation. Everything an organizer would type. */
+/** Title, abstract, author, affiliation and an Other topic. Everything an organizer would type. */
 function matches(s: SubmissionRow, q: string): boolean {
   return (
     s.title.toLowerCase().includes(q) ||
     s.abstract.toLowerCase().includes(q) ||
     (s.author?.name.toLowerCase().includes(q) ?? false) ||
     (s.author?.email.toLowerCase().includes(q) ?? false) ||
-    (s.author?.affiliation?.toLowerCase().includes(q) ?? false)
+    (s.author?.affiliation?.toLowerCase().includes(q) ?? false) ||
+    (s.trackOther?.toLowerCase().includes(q) ?? false)
   );
 }

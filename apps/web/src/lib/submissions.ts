@@ -43,6 +43,7 @@ import {
   pageValues,
   sessionTypeLine,
   talkMinutesOf,
+  trackChoice,
 } from '@kgc/scripts/src/lib/cfp-core';
 import { db } from './firestore';
 
@@ -95,6 +96,8 @@ export interface PublicCall {
   formVersion: number;
   sessionTypes: SessionFormat[];
   tracks: { id: string; name: string }[];
+  /** "Other" ends the Track list, with a box for the topic (T271). */
+  allowOtherTrack: boolean;
   closesAtLocal: string;
   timeZone: string;
   /** Null while the call is accepting submissions; the sentence to show otherwise. */
@@ -177,6 +180,7 @@ async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
     formVersion: call.formVersion ?? 1,
     sessionTypes: call.sessionTypes ?? [],
     tracks,
+    allowOtherTrack: call.allowOtherTrack === true,
     closesAtLocal: call.closesAtLocal ?? '',
     timeZone: call.timeZone ?? 'America/New_York',
     refusal: submissionRefusal(windowInput(call), Date.now()),
@@ -304,6 +308,7 @@ export interface OwnSubmission {
   title: string;
   abstract: string;
   trackId?: string;
+  trackOther?: string;
   sessionType?: SessionFormat;
   durationMinutes?: number;
   answers: Record<string, AnswerValue>;
@@ -381,6 +386,7 @@ export async function loadOwnSubmission(submissionId: string): Promise<OwnSubmis
       title: sub.title ?? '',
       abstract: sub.abstract ?? '',
       trackId: sub.trackId,
+      trackOther: sub.trackOther,
       sessionType: sub.sessionType,
       durationMinutes: sub.durationMinutes,
       answers: sub.answers ?? {},
@@ -425,6 +431,8 @@ export interface SubmitInput {
   title: string;
   abstract: string;
   trackId?: string;
+  /** The topic typed under "Other". Kept only when the Track list says Other. */
+  trackOther?: string;
   sessionType?: string;
   /** A talk's length, as posted. Ignored for anything but a talk. */
   durationMinutes?: string;
@@ -515,9 +523,6 @@ export async function saveSubmission(
     if ((call.sessionTypes ?? []).length > 0 && !input.sessionType) {
       fieldErrors.sessionType = 'Choose what you are offering this as.';
     }
-    if ((call.trackIds ?? []).length > 0 && !input.trackId) {
-      fieldErrors.trackId = 'Choose a track.';
-    }
     if (call.cfp) {
       const problem = abstractProblem(abstract, abstractWordLimits(call.cfp));
       if (problem) fieldErrors.abstract = problem;
@@ -535,9 +540,9 @@ export async function saveSubmission(
     fieldErrors.authorEmail = 'We need an address so we can send you the link back to this draft.';
   }
 
-  if (input.trackId && !(call.trackIds ?? []).includes(input.trackId)) {
-    fieldErrors.trackId = 'That is not one of this call’s tracks.';
-  }
+  const track = trackChoice(call, input, input.finish);
+  if (track.error) fieldErrors.trackId = track.error;
+  if (track.otherError) fieldErrors.trackOther = track.otherError;
   if (input.sessionType && !(call.sessionTypes ?? []).includes(input.sessionType as SessionFormat)) {
     fieldErrors.sessionType = 'That is not one of this call’s session types.';
   }
@@ -666,7 +671,8 @@ export async function saveSubmission(
        * and "cannot be un-set" leaves a record permanently pointing at the wrong
        * thing.
        */
-      trackId: input.trackId ?? FieldValue.delete(),
+      trackId: track.trackId ?? FieldValue.delete(),
+      trackOther: track.trackOther ?? FieldValue.delete(),
       sessionType: (input.sessionType as SessionFormat | undefined) ?? FieldValue.delete(),
       durationMinutes: duration ?? FieldValue.delete(),
       /*

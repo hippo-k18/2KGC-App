@@ -1,5 +1,10 @@
 import Link from 'next/link';
-import { CFP_STATUS_LABEL, missingSettings, type CfpStatus } from '@kgc/scripts/src/lib/cfp-core';
+import {
+  CFP_STATUS_LABEL,
+  missingSettings,
+  typeLabel,
+  type CfpStatus,
+} from '@kgc/scripts/src/lib/cfp-core';
 import type { CallCfpSettings } from '@kgc/shared';
 import { Banner, Tag } from '../../ui';
 import { CFA_BASE } from './routes';
@@ -48,11 +53,15 @@ export function TypeFilter({
   base,
   current,
   params,
+  types,
 }: {
   base: string;
   current?: string;
   params: Record<string, string | undefined>;
+  /** The call's ticked session types. One tab each, after All (T271). */
+  types: readonly string[];
 }) {
+  if (types.length < 2) return null;
   const href = (type?: string) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v && k !== 'type' && k !== 'page') q.set(k, v);
@@ -73,8 +82,7 @@ export function TypeFilter({
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 12px' }} role="group" aria-label="Session type">
       {item('All')}
-      {item('Talks', 'talk')}
-      {item('Workshops', 'workshop')}
+      {types.map((t) => item(`${typeLabel(t)}s`, t))}
     </div>
   );
 }

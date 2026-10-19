@@ -85,6 +85,8 @@ export interface CallRow {
   closesAtMs: number;
   sessionTypes: SessionFormat[];
   trackIds: string[];
+  /** "Other" ends the public Track list (T271). */
+  allowOtherTrack: boolean;
   form: CallFormFieldDef[];
   formVersion: number;
   priorVersions: { version: number; fields: CallFormFieldDef[] }[];
@@ -131,6 +133,7 @@ function toRow(id: string, c: CallDoc): CallRow {
     closesAtMs: millis(c.closesAt),
     sessionTypes: c.sessionTypes ?? [],
     trackIds: c.trackIds ?? [],
+    allowOtherTrack: c.allowOtherTrack === true,
     form: [...(c.form ?? [])].sort((a, b) => a.order - b.order),
     formVersion: c.formVersion ?? 1,
     priorVersions: (c.priorVersions ?? []).map((v) => ({ version: v.version, fields: v.fields })),
@@ -238,6 +241,7 @@ export interface SaveCallInput {
   closesAtLocal: string;
   sessionTypes: SessionFormat[];
   trackIds: string[];
+  allowOtherTrack: boolean;
   blindReview: BlindReviewMode;
   reviewsPerSubmission: number;
   reminderDaysBefore: number[];
@@ -332,6 +336,7 @@ export async function saveCall(input: SaveCallInput): Promise<CallResult> {
         closesAt,
         sessionTypes: input.sessionTypes,
         trackIds: input.trackIds,
+        allowOtherTrack: input.allowOtherTrack === true,
         blindReview: input.blindReview,
         reviewsPerSubmission: input.reviewsPerSubmission,
         reminderDaysBefore: input.reminderDaysBefore,

@@ -39,7 +39,7 @@ export default async function ReviewPage({
   }
 
   const all = await listCfpSubmissions(call.id);
-  const type = sp.type === 'talk' || sp.type === 'workshop' ? sp.type : undefined;
+  const type = sp.type && (call.sessionTypes as string[]).includes(sp.type) ? sp.type : undefined;
   const counts = reviewCounts(all);
   const queue = reviewQueue(all, call.cfp.lastPassAtMs).filter(
     ({ row }) => !type || row.sessionType === type,
@@ -72,7 +72,7 @@ export default async function ReviewPage({
       />
 
       <Panel>
-        <TypeFilter base={`${CFA_BASE}/review`} current={type} params={{ call: sp.call }} />
+        <TypeFilter base={`${CFA_BASE}/review`} current={type} params={{ call: sp.call }} types={call.sessionTypes} />
         {queue.length === 0 ? (
           <p className="body-2" style={{ margin: 0 }}>
             Nothing is waiting for a decision{type ? ` among the ${type}s` : ''}.

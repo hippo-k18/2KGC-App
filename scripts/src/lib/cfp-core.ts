@@ -41,6 +41,56 @@ export function talkMinutesOf(cfp?: CallCfpSettings): number[] {
 // The form
 // ---------------------------------------------------------------------------
 
+/**
+ * The Track list's "Other" choice (T271). The select posts this value and the
+ * server stores the typed topic as `trackOther` with no `trackId`, so nothing
+ * that reads track ids (reviewer matching, the agenda) ever sees it.
+ */
+export const OTHER_TRACK = '__other__';
+export const TRACK_OTHER_MAX = 80;
+
+/**
+ * What a submission's track reads as on a screen or in a notice: the track's
+ * name, "Other: <their topic>", or undefined when neither is set.
+ */
+export function trackLabel(
+  sub: { trackId?: string; trackOther?: string },
+  name: (id: string) => string | undefined,
+): string | undefined {
+  if (sub.trackId) return name(sub.trackId);
+  if (sub.trackOther) return `Other: ${sub.trackOther}`;
+  return undefined;
+}
+
+/**
+ * The track a POST asked for, checked against the call. `error` belongs under
+ * the Track list and `otherError` under the "Which topic?" box. A draft may
+ * leave both empty; a finished submission may not when the call offers any.
+ */
+export function trackChoice(
+  call: { trackIds?: string[]; allowOtherTrack?: boolean },
+  input: { trackId?: string; trackOther?: string },
+  finish: boolean,
+): { trackId?: string; trackOther?: string; error?: string; otherError?: string } {
+  const offered = call.trackIds ?? [];
+  const other = call.allowOtherTrack === true;
+  if (input.trackId === OTHER_TRACK) {
+    if (!other) return { error: 'That is not one of this call’s tracks.' };
+    const text = (input.trackOther ?? '').trim().replace(/\s+/g, ' ');
+    if (text.length > TRACK_OTHER_MAX) {
+      return { otherError: `Keep the topic to ${TRACK_OTHER_MAX} characters or fewer.` };
+    }
+    if (!text && finish) return { otherError: 'Say which topic.' };
+    return text ? { trackOther: text } : {};
+  }
+  if (input.trackId) {
+    if (!offered.includes(input.trackId)) return { error: 'That is not one of this call’s tracks.' };
+    return { trackId: input.trackId };
+  }
+  if (finish && (offered.length > 0 || other)) return { error: 'Choose a track.' };
+  return {};
+}
+
 /** Words as a reader counts them: runs of non-space. */
 export function wordCount(text: string): number {
   const trimmed = text.trim();
@@ -79,6 +129,25 @@ export function fieldsForSessionType<F extends Pick<CallFormFieldDef, 'sessionTy
 }
 
 /** "Talk, 25 minutes" or "Workshop". The line E2 prints under the title. */
+/** "Talk", "Workshop": a session type as the form and the filters name it. */
+export const typeLabel = (type: string): string => type.charAt(0).toUpperCase() + type.slice(1);
+
+/** "a", "a or b", "a, b or c". */
+export function joinWords(words: readonly string[], conjunction: 'or' | 'and'): string {
+  if (words.length <= 1) return words[0] ?? '';
+  return `${words.slice(0, -1).join(', ')} ${conjunction} ${words[words.length - 1]}`;
+}
+
+/**
+ * The form's session-type question, built from the types ticked in the
+ * dashboard (T271): "Talk or workshop?", "Talk, workshop or panel?". Empty
+ * when there is one type or none, since there is then nothing to ask.
+ */
+export function sessionTypeQuestion(types: readonly string[]): string {
+  if (types.length < 2) return '';
+  return `${typeLabel(joinWords(types, 'or'))}?`;
+}
+
 export function sessionTypeLine(type: string | undefined, minutes?: number): string {
   if (type === 'workshop') return 'Workshop';
   if (type === 'talk') return minutes ? `Talk, ${minutes} minutes` : 'Talk';

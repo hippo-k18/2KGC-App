@@ -16,6 +16,7 @@ import {
   type ReviewerIdentity,
 } from '@kgc/scripts/src/lib/reviews';
 import type { RawReview } from '@kgc/scripts/src/lib/review-core';
+import { trackLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { db } from './firestore';
 
 /**
@@ -66,7 +67,7 @@ export async function assignmentFor(
     const a = await loadAssignment(db(), reviewer.id, submissionId);
     if (!a) return null;
     const names = await trackNames([a.trackId]);
-    return { ...a, trackName: a.trackId ? names.get(a.trackId) : undefined };
+    return { ...a, trackName: trackLabel(a, (id) => names.get(id)) };
   } catch (err) {
     console.error('[reviews] could not load assignment', submissionId, err);
     return null;
