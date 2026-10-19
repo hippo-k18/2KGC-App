@@ -137,7 +137,7 @@ export interface PublicCall {
    * leaves the bio for after acceptance.
    */
   cfp?: {
-    abstractMinWords: number;
+    /** The description's word limit. There is no minimum (T288). */
     abstractMaxWords: number;
     talkMinutes: number[];
     /** "Sunday 31 January 2027", or absent while the close date is unset. */
@@ -239,7 +239,6 @@ async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
     ...(call.cfp
       ? {
           cfp: {
-            abstractMinWords: limits.min,
             abstractMaxWords: limits.max,
             talkMinutes: talkMinutesOf(call.cfp),
             closeDay: formatDay(call.cfp.closeDate),
@@ -601,7 +600,7 @@ export async function saveSubmission(
 
   if (input.finish) {
     if (title.length < 3) fieldErrors.title = 'Give your submission a title.';
-    if (abstract.length < 40) {
+    if (!call.cfp && abstract.length < 40) {
       fieldErrors.abstract =
         'The description is too short. Say what the work is and why it matters.';
     }

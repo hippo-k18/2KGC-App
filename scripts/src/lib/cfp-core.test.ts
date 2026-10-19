@@ -14,6 +14,7 @@ import {
   trackLabel,
   typeLabel,
   abstractProblem,
+  abstractWordLimits,
   cfpStatus,
   closeDecisionPlan,
   dayAfter,
@@ -45,12 +46,19 @@ describe('abstract length', () => {
     expect(wordCount('')).toBe(0);
   });
 
-  it('takes 150 to 300 words and names the count otherwise', () => {
-    const limits = { min: 150, max: 300 };
-    expect(abstractProblem(words(150), limits)).toBeNull();
+  it('takes any length up to 300 words, but not none (T288)', () => {
+    const limits = { max: 300 };
+    expect(abstractProblem(words(1), limits)).toBeNull();
+    expect(abstractProblem(words(149), limits)).toBeNull();
     expect(abstractProblem(words(300), limits)).toBeNull();
-    expect(abstractProblem(words(149), limits)).toMatch(/149 words\. It needs 150 to 300/);
+    expect(abstractProblem('   ', limits)).toMatch(/Write a description/);
     expect(abstractProblem(words(301), limits)).toMatch(/301 words\. Cut it to 300/);
+  });
+
+  it('ignores a stored minimum and keeps the stored maximum (T288)', () => {
+    expect(abstractWordLimits({ abstractMinWords: 150, abstractMaxWords: 300 })).toEqual({ max: 300 });
+    expect(abstractWordLimits({ abstractMaxWords: 250 })).toEqual({ max: 250 });
+    expect(abstractWordLimits(undefined)).toEqual({ max: 300 });
   });
 });
 

@@ -140,8 +140,8 @@ export function SubmissionForm({
           onChange={(e) => setWords(wordCount(e.target.value))}
         />
         {cfp ? (
-          <p className="hint" aria-live="polite">
-            {cfp.abstractMinWords} to {cfp.abstractMaxWords} words. You have {words}.
+          <p className={words > cfp.abstractMaxWords ? 'hint over' : 'hint'} aria-live="polite">
+            Up to {cfp.abstractMaxWords} words. Word count: {words}
           </p>
         ) : (
           <p className="hint">

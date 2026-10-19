@@ -16,7 +16,6 @@ import type { CallCfpSettings, CallFormFieldDef, CallSessionType, SessionFormat,
 // Defaults
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_ABSTRACT_MIN_WORDS = 150;
 export const DEFAULT_ABSTRACT_MAX_WORDS = 300;
 export const DEFAULT_TALK_MINUTES = [25, 45];
 /** E2 asks for details within a week. */
@@ -26,10 +25,14 @@ export const NUDGE_AFTER_DAYS = 5;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function abstractWordLimits(cfp?: CallCfpSettings): { min: number; max: number } {
-  const min = cfp?.abstractMinWords ?? DEFAULT_ABSTRACT_MIN_WORDS;
-  const max = cfp?.abstractMaxWords ?? DEFAULT_ABSTRACT_MAX_WORDS;
-  return { min, max: Math.max(min, max) };
+/**
+ * The description's word limit: a maximum and no minimum (T288, the owner).
+ * A stored `abstractMinWords` from before then is ignored on purpose, so the
+ * live call needs no data change.
+ */
+export function abstractWordLimits(cfp?: CallCfpSettings): { max: number } {
+  const max = cfp?.abstractMaxWords;
+  return { max: Number.isInteger(max) && (max as number) > 0 ? (max as number) : DEFAULT_ABSTRACT_MAX_WORDS };
 }
 
 export function talkMinutesOf(cfp?: CallCfpSettings): number[] {
@@ -179,11 +182,9 @@ export function wordCount(text: string): number {
 }
 
 /** The sentence to show under the abstract, or null when its length is fine. */
-export function abstractProblem(text: string, limits: { min: number; max: number }): string | null {
+export function abstractProblem(text: string, limits: { max: number }): string | null {
   const n = wordCount(text);
-  if (n < limits.min) {
-    return `The description is ${n} word${n === 1 ? '' : 's'}. It needs ${limits.min} to ${limits.max}.`;
-  }
+  if (n === 0) return 'Write a description of your session.';
   if (n > limits.max) {
     return `The description is ${n} words. Cut it to ${limits.max} or fewer.`;
   }

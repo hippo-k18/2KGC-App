@@ -231,7 +231,8 @@ export interface CfpSettingsInput {
   sessionNoticeDate: string;
   acceptNoticeEmail: string;
   reviewerReminderEmail: string;
-  abstractMinWords: string;
+  /** Ignored since T288: the description has no minimum. */
+  abstractMinWords?: string;
   abstractMaxWords: string;
   talkMinutes: string;
 }
@@ -283,10 +284,9 @@ export async function saveCfpSettings(
     if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return { ok: false, error: `“${v}” is not an email address.` };
   }
 
-  const min = Number(input.abstractMinWords || 150);
   const max = Number(input.abstractMaxWords || 300);
-  if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max < min) {
-    return { ok: false, error: 'The abstract word limits need a minimum no larger than the maximum.' };
+  if (!Number.isInteger(max) || max < 1) {
+    return { ok: false, error: 'The description word limit needs to be a whole number of words.' };
   }
   const minutes = input.talkMinutes
     .split(/[,\s]+/)
@@ -301,7 +301,6 @@ export async function saveCfpSettings(
     'cfp.sessionNoticeDate': put(dates.sessionNoticeDate),
     'cfp.acceptNoticeEmail': put(emails.acceptNoticeEmail),
     'cfp.reviewerReminderEmail': put(emails.reviewerReminderEmail),
-    'cfp.abstractMinWords': min,
     'cfp.abstractMaxWords': max,
     'cfp.talkMinutes': minutes,
     updatedBy: actor,
@@ -320,7 +319,7 @@ export async function saveCfpSettings(
     targetPath: `${COLLECTIONS.calls}/${callId}`,
     targetId: callId,
     before: { ...(call.cfp ?? {}), closesAtLocal: call.closesAtLocal },
-    after: { ...dates, ...emails, min, max, minutes },
+    after: { ...dates, ...emails, max, minutes },
   });
 
   const moved = dates.closeDate && `${dates.closeDate}T23:59` !== call.closesAtLocal;

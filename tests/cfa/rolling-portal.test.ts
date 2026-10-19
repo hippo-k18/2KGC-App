@@ -148,18 +148,25 @@ describe('the form changes with talk or workshop', () => {
     expect(doc.answers['workshop-outline']).toBeUndefined();
   });
 
-  it('needs a talk length from the offered ones, 150 to 300 words, and an organisation', async () => {
+  it('needs a talk length from the offered ones, a description of up to 300 words, and an organisation', async () => {
     await seedCall({}, 'Plain.', { askTalkLength: true });
     const r = await saveSubmission(
       CALL_ID,
-      talk({ durationMinutes: '30', abstract: words(149), affiliation: '' }),
+      talk({ durationMinutes: '30', abstract: '', affiliation: '' }),
     );
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.fieldErrors?.durationMinutes).toMatch(/how long/);
-    expect(r.fieldErrors?.abstract).toMatch(/149 words/);
+    expect(r.fieldErrors?.abstract).toMatch(/Write a description/);
     expect(r.fieldErrors?.affiliation).toBeTruthy();
-    expect((await saveSubmission(CALL_ID, talk({ abstract: words(301) }))).ok).toBe(false);
+    const over = await saveSubmission(CALL_ID, talk({ abstract: words(301) }));
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(over.fieldErrors?.abstract).toMatch(/301 words\. Cut it to 300/);
+  });
+
+  it('has no minimum, even where the live call still stores one (T288)', async () => {
+    await seedCall({ abstractMinWords: 150, abstractMaxWords: 300 });
+    expect((await saveSubmission(CALL_ID, talk({ abstract: words(12) }))).ok).toBe(true);
   });
 
   it('leaves a call without the settings exactly as it was', async () => {

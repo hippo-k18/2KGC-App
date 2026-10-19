@@ -68,15 +68,9 @@ export function SettingsForm({ callId, cfp }: { callId: string; cfp: CallCfpSett
           defaultValue={(cfp.talkMinutes ?? [25, 45]).join(', ')}
         />
         <Field
-          name="abstractMinWords"
-          type="number"
-          label="Abstract, fewest words"
-          defaultValue={String(cfp.abstractMinWords ?? 150)}
-        />
-        <Field
           name="abstractMaxWords"
           type="number"
-          label="Abstract, most words"
+          label="Description, most words"
           defaultValue={String(cfp.abstractMaxWords ?? 300)}
         />
       </FormGrid>

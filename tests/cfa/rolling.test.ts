@@ -520,7 +520,6 @@ describe('the settings', () => {
         sessionNoticeDate: '',
         acceptNoticeEmail: 'Min@Example.org',
         reviewerReminderEmail: '',
-        abstractMinWords: '150',
         abstractMaxWords: '300',
         talkMinutes: '25, 45',
       },
@@ -534,7 +533,7 @@ describe('the settings', () => {
     expect(call.cfp?.acceptNoticeEmail).toBe('min@example.org');
     expect(call.cfp?.talkMinutes).toEqual([25, 45]);
 
-    const bad = await saveCfpSettings(CALL_ID, { closeDate: '', decisionDate: '', sessionNoticeDate: '', acceptNoticeEmail: 'nope', reviewerReminderEmail: '', abstractMinWords: '', abstractMaxWords: '', talkMinutes: '25' }, ACTOR);
+    const bad = await saveCfpSettings(CALL_ID, { closeDate: '', decisionDate: '', sessionNoticeDate: '', acceptNoticeEmail: 'nope', reviewerReminderEmail: '', abstractMaxWords: '', talkMinutes: '25' }, ACTOR);
     expect(bad.ok).toBe(false);
   });
 });

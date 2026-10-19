@@ -333,15 +333,21 @@ img {
 /*
  * The call for speakers, a submitter's own page and the speaker page (T271).
  * The 712px column squeezed the form and its intro into the middle of a wide
- * screen, so these three get about 860px of text, with running prose held to
- * a readable line.
+ * screen. T288 widened it again to 960px, the owner's "make the form and text
+ * wider", with the call text and the form sharing one left and right edge and
+ * running prose held to a readable line.
  */
 .wrap.narrow.cfp-page {
-  max-width: calc(860px + 2 * var(--wrap-padding));
+  max-width: calc(960px + 2 * var(--wrap-padding));
 }
 
 .wrap.narrow.cfp-page p:not(.lede):not(.eyebrow):not(.muted) {
   max-width: 80ch;
+}
+
+/* The deadline notice is a box, not prose, so it ends where the form does (T288). */
+.wrap.narrow.cfp-page p.notice:not(.lede):not(.eyebrow):not(.muted) {
+  max-width: none;
 }
 
 /* Type and date on a submitted abstract's own page (T276). */
@@ -2026,6 +2032,12 @@ body.nav-open {
   font-size: 0.84rem;
   color: var(--muted);
   margin-top: 5px;
+}
+
+/* The description's word count once it is past the limit (T288). */
+.field .hint.over {
+  color: #b91c1c;
+  font-weight: 700;
 }
 
 .checkout {

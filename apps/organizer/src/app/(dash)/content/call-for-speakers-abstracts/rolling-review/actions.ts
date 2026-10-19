@@ -31,7 +31,6 @@ export async function saveCfpSettingsAction(_prev: FormState, fd: FormData): Pro
         sessionNoticeDate: s(fd, 'sessionNoticeDate'),
         acceptNoticeEmail: s(fd, 'acceptNoticeEmail'),
         reviewerReminderEmail: s(fd, 'reviewerReminderEmail'),
-        abstractMinWords: s(fd, 'abstractMinWords'),
         abstractMaxWords: s(fd, 'abstractMaxWords'),
         talkMinutes: s(fd, 'talkMinutes'),
       },
