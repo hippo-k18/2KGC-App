@@ -10,8 +10,8 @@
 #   (Marketing > Event Website in the dashboard); `closed` is on but with no Stripe key
 #
 # The site is https://www.knowledgegraph.tech since 2026-09-26 (staging.
-# redirects there), served by the `kgc-staging` service on the DigitalOcean
-# droplet; the unit kept its old name. `/opt/kgc/deploy.sh staging` there builds whatever
+# redirects there), served on the DigitalOcean droplet by `kgc-web@3200` or
+# `kgc-web@3201` (two colours since T272). `/opt/kgc/deploy.sh staging` there builds whatever
 # is on GitHub for the droplet's branch, so this script refuses to deploy
 # unless your local HEAD is pushed and is what the droplet will build.
 #
