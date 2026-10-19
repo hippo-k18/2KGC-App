@@ -5,7 +5,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { sessionAttendance } from '@/lib/attendance';
 import { DEFAULT_LIST_ID, countCheckIns, scanThroughput } from '@/lib/checkin';
 import { money, salesSummary } from '@/lib/commerce';
-import { countWhereEvent, listSessions, recentAudit } from '@/lib/data';
+import { countActiveRegistrations, countWhereEvent, listSessions, recentAudit } from '@/lib/data';
 import { recentErrors } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
 import { clockOf, dayLabel, todayInEventZone } from '@/lib/time';
@@ -61,7 +61,7 @@ export default async function ReportPage() {
   ] = await Promise.all([
     countWhereEvent(COLLECTIONS.users),
     countWhereEvent(COLLECTIONS.announcements),
-    countWhereEvent(COLLECTIONS.registrations),
+    countActiveRegistrations(),
     listSessions(),
     recentAudit(),
     sessionAttendance(),
@@ -112,7 +112,7 @@ export default async function ReportPage() {
       <Panel>
         <StatTiles
           tiles={[
-            { label: 'Registrations', value: registrations, sub: 'tickets issued' },
+            { label: 'Registrations', value: registrations, sub: 'active tickets' },
             {
               label: 'Signed in',
               value: attendees,

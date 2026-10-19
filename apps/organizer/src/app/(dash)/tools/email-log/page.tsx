@@ -265,6 +265,11 @@ async function ScheduledTab() {
           {i.blocked ? (
             <span style={{ color: '#b42318', fontSize: 12 }}>{i.blocked}</span>
           ) : null}
+          {i.note ? (
+            <span className="muted" style={{ fontSize: 12 }}>
+              {i.note}
+            </span>
+          ) : null}
         </span>,
         <span key="t" style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
           {i.to}

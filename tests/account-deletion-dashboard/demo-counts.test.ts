@@ -22,7 +22,7 @@ vi.mock('../../apps/organizer/node_modules/next/cache.js', () => ({
 
 import { attendeeListStats, cancelledOrTransferred, countsAsAttendee } from '../../apps/organizer/src/lib/attendees-core';
 import { listRegistrations } from '../../apps/organizer/src/lib/checkin';
-import { countWhereEvent, listAttendees } from '../../apps/organizer/src/lib/data';
+import { adoptionCounts, countActiveRegistrations, countWhereEvent, listAttendees } from '../../apps/organizer/src/lib/data';
 
 const PROJECT = process.env.GCLOUD_PROJECT ?? 'demo-account-deletion';
 let db: Firestore;
@@ -62,10 +62,16 @@ describe('the shared demo login on the dashboard', () => {
     expect(cancelledOrTransferred(rows)).toBe(1);
   });
 
-  it('reads "Holding a ticket: 3 of 3" on the attendee list, not 4 of 3', async () => {
+  /*
+   * Active tickets only since T268: the cancelled ticket and the demo login
+   * are both left out, so "Holding a ticket" is 2, the same figure every
+   * registration count on the dashboard reads (T280, gate A#3 and A#6).
+   */
+  it('reads "Holding a ticket: 2", the same as every registration count', async () => {
     const stats = attendeeListStats(await listAttendees());
-    expect(stats.ticketHolders).toBe(await countWhereEvent(COLLECTIONS.registrations));
-    expect(stats.ticketHolders).toBe(3);
+    expect(stats.ticketHolders).toBe(2);
+    expect(await countActiveRegistrations()).toBe(2);
+    expect((await adoptionCounts()).registrations).toBe(2);
   });
 
   it('still counts a collection the demo has nothing in', async () => {

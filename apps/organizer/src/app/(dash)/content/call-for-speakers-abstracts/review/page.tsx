@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { requireOrganizer } from '@/lib/auth';
+import { requireAccess } from '@/lib/auth';
+import { ROUTES } from '@/lib/nav';
+import { canOpen } from '@/lib/team-core';
 import { currentCfpCallId, getCfpCall, listCfpSubmissions } from '@/lib/cfp';
 import { reviewCounts, reviewQueue, sessionTypeLine } from '@kgc/scripts/src/lib/cfp-core';
 import { NotInputted, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
@@ -22,7 +24,9 @@ export default async function ReviewPage({
 }: {
   searchParams: Promise<{ call?: string; type?: string }>;
 }) {
-  await requireOrganizer();
+  const access = await requireAccess();
+  // Only owners can open Tools; a reviewer would be bounced home by the link (T280 B#5).
+  const showEmailLog = canOpen(access.roles, ROUTES.emailLog);
   const sp = await searchParams;
   const callId = sp.call ?? (await currentCfpCallId());
   const call = callId ? await getCfpCall(callId) : null;
@@ -58,9 +62,13 @@ export default async function ReviewPage({
           <Link key="r" href={`${CFA_BASE}/rolling-review?call=${call.id}`}>
             Dates and emails
           </Link>,
-          <Link key="l" href="/tools/email-log?group=cfp">
-            Email log
-          </Link>,
+          ...(showEmailLog
+            ? [
+                <Link key="l" href={`${ROUTES.emailLog}?group=cfp`}>
+                  Email log
+                </Link>,
+              ]
+            : []),
         ]}
       />
 

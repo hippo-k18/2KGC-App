@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { COLLECTIONS } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { countWhereEvent } from '@/lib/data';
+import { countActiveRegistrations } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 
@@ -27,7 +26,7 @@ export default async function AttendeeLimitUpgradePage() {
   // A single `where('eventId', '==', …)` count. No second field, so no
   // composite index — the emulator would not catch a missing one and it fails
   // in production rather than here.
-  const registrations = await countWhereEvent(COLLECTIONS.registrations);
+  const registrations = await countActiveRegistrations();
 
   return (
     <>

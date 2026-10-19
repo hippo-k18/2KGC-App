@@ -50,8 +50,15 @@ vi.mock('@/lib/firebase/client', () => ({
   getFirebaseAuth: () => ({ currentUser: null }),
 }));
 
+/*
+ * The cached badge, shared across the tests unless cleared. It was not, so a
+ * test could settle on the badge the previous one cached before its own live
+ * snapshot arrived (T280, gate A#4). Hoisted so `beforeEach` can empty it.
+ */
+const storage = vi.hoisted(() => ({ memory: new Map<string, string>() }));
+
 vi.mock('@react-native-async-storage/async-storage', () => {
-  const memory = new Map<string, string>();
+  const { memory } = storage;
   return {
     default: {
       getItem: (k: string) => Promise.resolve(memory.get(k) ?? null),
@@ -140,7 +147,10 @@ beforeAll(async () => {
 
 afterAll(async () => env?.cleanup());
 
-beforeEach(async () => env.clearFirestore());
+beforeEach(async () => {
+  storage.memory.clear();
+  await env.clearFirestore();
+});
 
 afterEach(() => {
   act(() => root?.unmount());
@@ -239,7 +249,8 @@ describe('the badge finding its registration', () => {
     signedInAs('ada', 'ada@kgc.test');
 
     const badge = render(() => useBadge());
-    await settle(() => !badge.current().loading, 'the badge to settle');
+    // The live snapshot, not a cached badge that settles `loading` first.
+    await settle(() => badge.current().source === 'live', 'the live badge');
 
     expect(badge.current().error).toBeNull();
     expect(badge.current().badges.map((b) => b.qrSecret).sort()).toEqual(['second', 'third']);

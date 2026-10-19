@@ -446,12 +446,30 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  * campaign mail already queued, because the bulk senders await each send.
  */
 let nextSlotAt = 0;
-async function takeSlot(): Promise<void> {
+/** Callers holding a reserved slot and sleeping until it comes round. */
+let waiting = 0;
+export async function takeSlot(): Promise<void> {
   const gap = 1_000 / sendRatePerSecond();
   const now = Date.now();
+  /*
+   * Never further ahead than the callers already queued can justify (T280,
+   * gate A#1/A#2). `nextSlotAt` is wall-clock: a clock stepped back by hours
+   * (an NTP correction, or a test faking `Date`) left it hours in the future,
+   * and every send in the process then slept until the clock caught up. Each
+   * queued caller legitimately holds one gap, and the last send before them
+   * one more, so the bound is one gap per waiter plus one.
+   */
+  nextSlotAt = Math.min(nextSlotAt, now + (waiting + 1) * gap);
   const at = Math.max(now, nextSlotAt);
   nextSlotAt = at + gap;
-  if (at > now) await sleep(at - now);
+  if (at > now) {
+    waiting++;
+    try {
+      await sleep(at - now);
+    } finally {
+      waiting--;
+    }
+  }
 }
 
 /**

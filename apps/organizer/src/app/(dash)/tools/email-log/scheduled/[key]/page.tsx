@@ -54,6 +54,7 @@ export default async function ScheduledPreviewPage({
           ]}
         />
         {item.blocked ? <Banner kind="warning">{item.blocked}</Banner> : null}
+        {item.note ? <Banner kind="info">{item.note}</Banner> : null}
       </Panel>
 
       <Panel>
