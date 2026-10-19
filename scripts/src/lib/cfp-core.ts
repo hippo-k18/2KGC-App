@@ -128,7 +128,6 @@ export function fieldsForSessionType<F extends Pick<CallFormFieldDef, 'sessionTy
   return fields.filter((f) => askedOf(f, type));
 }
 
-/** "Talk, 25 minutes" or "Workshop". The line E2 prints under the title. */
 /** "Talk", "Workshop": a session type as the form and the filters name it. */
 export const typeLabel = (type: string): string => type.charAt(0).toUpperCase() + type.slice(1);
 
@@ -138,16 +137,7 @@ export function joinWords(words: readonly string[], conjunction: 'or' | 'and'): 
   return `${words.slice(0, -1).join(', ')} ${conjunction} ${words[words.length - 1]}`;
 }
 
-/**
- * The form's session-type question, built from the types ticked in the
- * dashboard (T271): "Talk or workshop?", "Talk, workshop or panel?". Empty
- * when there is one type or none, since there is then nothing to ask.
- */
-export function sessionTypeQuestion(types: readonly string[]): string {
-  if (types.length < 2) return '';
-  return `${typeLabel(joinWords(types, 'or'))}?`;
-}
-
+/** "Talk, 25 minutes" or "Workshop". The line E2 prints under the title. */
 export function sessionTypeLine(type: string | undefined, minutes?: number): string {
   if (type === 'workshop') return 'Workshop';
   if (type === 'talk') return minutes ? `Talk, ${minutes} minutes` : 'Talk';

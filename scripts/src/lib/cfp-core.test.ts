@@ -3,7 +3,6 @@ import {
   OTHER_TRACK,
   TRACK_OTHER_MAX,
   joinWords,
-  sessionTypeQuestion,
   trackChoice,
   trackLabel,
   typeLabel,
@@ -271,18 +270,7 @@ describe('the Other track (T271)', () => {
   });
 });
 
-describe('the session-type question follows the ticked types (T271)', () => {
-  it('asks nothing for one type', () => {
-    expect(sessionTypeQuestion(['talk'])).toBe('');
-    expect(sessionTypeQuestion([])).toBe('');
-  });
-  it('asks between two', () => {
-    expect(sessionTypeQuestion(['talk', 'workshop'])).toBe('Talk or workshop?');
-  });
-  it('lists three or more with "or" before the last', () => {
-    expect(sessionTypeQuestion(['talk', 'workshop', 'panel'])).toBe('Talk, workshop or panel?');
-    expect(sessionTypeQuestion(['keynote', 'talk', 'panel', 'poster'])).toBe('Keynote, talk, panel or poster?');
-  });
+describe('session-type words (T271)', () => {
   it('joins words and labels a type', () => {
     expect(joinWords(['talk', 'workshop'], 'and')).toBe('talk and workshop');
     expect(typeLabel('panel')).toBe('Panel');

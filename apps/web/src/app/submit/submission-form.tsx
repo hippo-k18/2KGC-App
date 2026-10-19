@@ -6,7 +6,6 @@ import {
   OTHER_TRACK,
   TRACK_OTHER_MAX,
   fieldsForSessionType,
-  sessionTypeQuestion,
   typeLabel,
   wordCount,
 } from '@kgc/scripts/src/lib/cfp-core';
@@ -97,20 +96,9 @@ export function SubmissionForm({
 
       <h2 style={{ marginTop: 0 }}>Your submission</h2>
 
-      {call.sessionTypes.length === 1 && (
+      {call.sessionTypes.length > 0 && (
         <div className="field">
-          <input type="hidden" name="sessionType" value={call.sessionTypes[0]} />
-          <p style={{ margin: 0 }}>
-            <strong>Session type:</strong> {typeLabel(call.sessionTypes[0])}
-          </p>
-        </div>
-      )}
-
-      {call.sessionTypes.length > 1 && (
-        <div className="field">
-          <label htmlFor="sessionType">
-            {cfp ? sessionTypeQuestion(call.sessionTypes) : 'What are you offering it as?'} *
-          </label>
+          <label htmlFor="sessionType">{cfp ? 'Select your submission *' : 'What are you offering it as? *'}</label>
           <select
             id="sessionType"
             name="sessionType"
