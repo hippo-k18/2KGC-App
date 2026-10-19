@@ -59,6 +59,24 @@ export default function SessionFeatureScreen() {
     [sessions, kind],
   );
 
+  /*
+   * By day, in the order the agenda already uses.
+   *
+   * Seventy-one sessions in one flat run is about seven and a half screens with
+   * nothing to steer by, while the agenda next to it groups the same sessions
+   * under day headings. `useSessions` is already ordered by day and start time,
+   * so this only inserts the breaks.
+   */
+  const days = useMemo(() => {
+    const out: { day: string; sessions: typeof matches }[] = [];
+    for (const s of matches) {
+      const group = out[out.length - 1];
+      if (group && group.day === s.day) group.sessions.push(s);
+      else out.push({ day: s.day, sessions: [s] });
+    }
+    return out;
+  }, [matches]);
+
   return (
     <>
       <PushedHeader backTitle="Home" backHref="/home" />
@@ -74,22 +92,29 @@ export default function SessionFeatureScreen() {
         </View>
 
         {matches.length ? (
-          <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
-            {matches.map((s, i, arr) => (
-              <ListRow
-                key={s.id}
-                title={s.title}
-                subtitle={[formatDayTab(s.day), formatTime(s.startsAtLocal)]
-                  .filter(Boolean)
-                  .join(' · ')}
-                meta={s.roomName}
-                trailing={<Chevron />}
-                first={i === 0}
-                last={i === arr.length - 1}
-                onPress={() => router.push({ pathname: '/agenda/[id]', params: { id: s.id } })}
-              />
-            ))}
-          </View>
+          days.map((group) => (
+            <View key={group.day} style={{ gap: Spacing.sm }}>
+              <Text variant="label" tone="secondary" accessibilityRole="header">
+                {formatDayTab(group.day).toUpperCase()}
+              </Text>
+              <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
+                {group.sessions.map((s, i, arr) => (
+                  <ListRow
+                    key={s.id}
+                    title={s.title}
+                    // The day is the heading above; the row carries the time
+                    // and the room, which is what tells one row from the next.
+                    subtitle={formatTime(s.startsAtLocal)}
+                    meta={s.roomName}
+                    trailing={<Chevron />}
+                    first={i === 0}
+                    last={i === arr.length - 1}
+                    onPress={() => router.push({ pathname: '/agenda/[id]', params: { id: s.id } })}
+                  />
+                ))}
+              </View>
+            </View>
+          ))
         ) : error ? (
           // Otherwise a refused agenda read says "no session in the programme has
           // Q&A switched on yet" — a claim about the programme, made without

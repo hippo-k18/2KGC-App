@@ -43,16 +43,14 @@ export default async function SocialActivityStreamPage() {
         title="Activity Stream Webpage"
         info={
           <>
-            <strong>Only one of the two streams is public</strong>
+            <strong>Announcements are public, posts are not</strong>
             <p>
-              Attendee posts are gated by <code>firestore.rules</code> behind the{' '}
-              <code>registered</code> claim and stay there. Announcements are written for broadcast
-              and are published at <code>/announcements</code>. There is no embed snippet: this site
-              is the site.
+              Attendee posts stay in the app for registered attendees. Announcements also show on
+              the public Announcements page.
             </p>
           </>
         }
-        tags={<Tag color="orange" fill="outline">half of it is public</Tag>}
+        tags={<Tag color="orange" fill="outline">announcements only</Tag>}
         links={[
           <Link key="c" href="/marketing/social-wall/social-wall-customization">
             Social wall customization
@@ -66,7 +64,7 @@ export default async function SocialActivityStreamPage() {
       <StatTiles
         tiles={[
           { label: 'Attendee posts', value: visible.length, sub: `${replies} replies` },
-          { label: 'Announcements', value: announcements.length, sub: 'organizer-written' },
+          { label: 'Announcements', value: announcements.length, sub: 'from organizers' },
           {
             label: 'On the public site',
             // The wall renders the newest 40 — the cap and the reason for it are
@@ -78,18 +76,18 @@ export default async function SocialActivityStreamPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The two streams, and where each one goes</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where each stream shows</h2>
         <Table
           cols={[
             { key: 's', label: 'Stream', className: 'cell-md' },
             { key: 'w', label: 'Who writes it', className: 'cell-md' },
-            { key: 'p', label: 'Where it is published', className: 'cell-fill' },
+            { key: 'p', label: 'Public page', className: 'cell-fill' },
           ]}
           rows={[
             [
               'Community board',
               'Attendees, in the app',
-              'Nowhere. Gated by the registered claim, and posted on that understanding. Publishing it retroactively changes the deal.',
+              'Not public. Registered attendees only.',
             ],
             [
               'Announcements',
@@ -97,8 +95,7 @@ export default async function SocialActivityStreamPage() {
               <span key="p">
                 <a href={publicUrl('/announcements')} target="_blank" rel="noreferrer">
                   /announcements
-                </a>{' '}, already a broadcast to everyone, and the public page reaches the people who never
-                installed the app.
+                </a>
               </span>,
             ],
           ]}

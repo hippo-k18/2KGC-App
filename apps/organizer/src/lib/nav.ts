@@ -131,7 +131,8 @@ export const NAV: NavNode[] = [
       { name: "meet_ups", title: "Meet-ups", slug: "meet-ups" },
       { name: "discussion_topics", title: "Discussion Topics", slug: "discussion-topics" },
       { name: "social_groups", title: "Social Groups", slug: "social-groups" },
-      { name: "attendee_matchmaking", title: "Attendee Matchmaking", slug: "attendee-matchmaking" }
+      { name: "attendee_matchmaking", title: "Attendee Matchmaking", slug: "attendee-matchmaking" },
+      { name: "community_reports", title: "Reports", slug: "reports" }
     ] },
     { name: "gamification", title: "Gamification", slug: "gamification", tag: "hot" },
     { name: "meetings", title: "1-1 Meeting Scheduler", slug: "1-1-meeting-scheduler" },
@@ -184,7 +185,7 @@ export const NAV: NavNode[] = [
   ] },
   { name: "tickets", title: "Tickets", slug: "tickets", widthClass: "large", children: [
     { name: "ticket_setup", title: "Ticket Setup", slug: "ticket-setup", tag: "step", tagLabel: "Step 1", children: [
-      { name: "create_tickets_attendee", title: "1.1 Create Tickets", slug: "1-1-create-tickets" },
+      { name: "create_tickets_attendee", title: "1.1 Create & Edit Tickets", slug: "1-1-create-tickets" },
       { name: "group_tickets", title: "Create Group Tickets", slug: "create-group-tickets" },
       { name: "question_form", title: "1.2 Question Forms", slug: "1-2-question-forms" },
       { name: "event_reg_confirm", title: "1.3 Confirmation Emails", slug: "1-3-confirmation-emails" },
@@ -307,7 +308,8 @@ export const NAV: NavNode[] = [
       { name: "post_event_access_duration", title: "Post Event Access Duration", slug: "post-event-access-duration" },
       { name: "code_access_control", title: "Code Access Control", slug: "code-access-control" }
     ] },
-    { name: "report", title: "Report", slug: "report" }
+    { name: "report", title: "Report", slug: "report" },
+    { name: "email_log", title: "Email Log", slug: "email-log" }
   ] }
 ];
 
@@ -328,6 +330,7 @@ export const IMPLEMENTED = new Set<string>([
   'attendees/manage-attendees/attendees',
   'attendees/check-in-and-checkout/check-in',
   'tools/report',
+  'tools/email-log',
   'tickets/ticket-setup/1-1-create-tickets',
   'tickets/orders-and-transactions/summary',
   'tickets/orders-and-transactions/attendee-orders',
@@ -347,6 +350,7 @@ export const IMPLEMENTED = new Set<string>([
   'engagement/community/discussion-topics',
   'engagement/community/social-groups',
   'engagement/community/attendee-matchmaking',
+  'engagement/community/reports',
   'marketing/event-webpages/agenda-webpage/general-purpose',
   'marketing/event-webpages/speaker-webpage',
   'marketing/event-webpages/sponsor-webpage/sponsor-list',
@@ -495,7 +499,7 @@ export const IMPLEMENTED = new Set<string>([
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */
-export const OURS = new Set<string>([]);
+export const OURS = new Set<string>(['engagement/community/reports']);
 
 export interface Resolved {
   node: NavNode;
@@ -552,6 +556,7 @@ export const ROUTES = {
   attendees: '/attendees/manage-attendees/attendees',
   checkIn: '/attendees/check-in-and-checkout/check-in',
   report: '/tools/report',
+  emailLog: '/tools/email-log',
   /** Kept under its Whova-era name so copied server actions revalidate correctly. */
   warRoom: '/tools/report',
   createTickets: '/tickets/ticket-setup/1-1-create-tickets',
@@ -564,7 +569,9 @@ export const ROUTES = {
   discountCodes: '/tickets/ticket-setup/discount-codes',
   analyticsExports: '/attendees/manage-attendees/analytics-and-exports',
   moderateBoard: '/tools/moderator-tools/community-board',
+  communityReports: '/engagement/community/reports',
   qaManager: '/content/agenda-center/session-qanda-manager',
+  streamingSetup: '/virtual-and-hybrid/online-session-manager/streaming-setup',
 } as const;
 
 /**

@@ -9,6 +9,7 @@ import {
   type CommunityPostDoc,
   type CommunityReplyDoc,
   type UserDoc,
+  nameOrId,
 } from '@kgc/shared';
 import { db } from './firestore';
 
@@ -173,7 +174,7 @@ export async function listCommunityPosts(): Promise<CommunityPostRow[]> {
       for (const r of visible) {
         if (seen.has(r.authorId)) continue;
         seen.add(r.authorId);
-        participants.push({ name: names.get(r.authorId) ?? r.authorId, createdAt: r.createdAt });
+        participants.push({ name: nameOrId(names, r.authorId), createdAt: r.createdAt });
       }
 
       const row: CommunityPostRow = {
@@ -181,7 +182,7 @@ export async function listCommunityPosts(): Promise<CommunityPostRow[]> {
         category: p.category,
         title: p.title,
         body: p.body,
-        authorName: names.get(p.authorId) ?? p.authorId,
+        authorName: nameOrId(names, p.authorId),
         authorId: p.authorId,
         status: p.status ?? 'visible',
         replyCount: visible.length,

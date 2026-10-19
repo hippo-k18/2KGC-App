@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listOrders, money } from '@/lib/commerce';
+import { isAbandoned, listOrders, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
+import { stampOfInstant } from '@/lib/time';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +14,9 @@ export const dynamic = 'force-dynamic';
  *
  * Stripe emits `checkout.session.expired` when a Checkout session is left
  * unpaid (24 hours by default), and the webhook in `apps/web` already handles
- * it: `cancelRegistrationByOrder({ reason: 'payment_failed' })` moves the order
- * to `cancelled`, so an abandonment stops saying `pending` for ever. Those
+ * it: `cancelUnpaidOrder` moves a pending order to `cancelled`, so an
+ * abandonment stops saying `pending` for ever. A disputed sale is `cancelled`
+ * too, and is left out here (`isAbandoned`). Those
  * orders are visible in Attendee Orders under the `cancelled` filter. This
  * screen is that same set, framed as what it is.
  *
@@ -22,8 +24,8 @@ export const dynamic = 'force-dynamic';
  *
  * A **single-seat** card purchase writes no order at checkout time — the order
  * document is created at fulfilment, from the webhook. So when one of those
- * expires there is nothing to update, and `cancelRegistrationByOrder` takes its
- * not-found branch: it writes the order anyway, deliberately, so the finance
+ * expires there is nothing to update, and `cancelUnpaidOrder` writes the order
+ * anyway, deliberately, so the finance
  * trail is complete, with `email: ''` and `totalCents: 0`.
  *
  * ⚠️ A **multi-seat** cart is the exception, as of 2026-08-31. It writes a
@@ -43,7 +45,7 @@ export default async function AbandonedRegistrationPage() {
   await requireOrganizer();
   const orders = await listOrders();
 
-  const abandoned = orders.filter((o) => o.status === 'cancelled');
+  const abandoned = orders.filter(isAbandoned);
   const withEmail = abandoned.filter((o) => o.email);
   const orphans = abandoned.length - withEmail.length;
   const pendingInvoices = orders.filter((o) => o.status === 'pending' && o.channel === 'invoice');
@@ -54,12 +56,10 @@ export default async function AbandonedRegistrationPage() {
         title="1.6 Abandoned Registration"
         info={
           <>
-            <strong>Abandonment is recorded, not recoverable</strong>
+            <strong>Checkouts that were started and not paid</strong>
             <p>
-              A single-seat card checkout writes no order until payment succeeds, so an expired one
-              leaves a placeholder with no address. The buyer&rsquo;s details are on the Stripe
-              session, not here. A multi-seat cart is the exception: it records its seat list before
-              the redirect.
+              A single-seat card checkout that expires leaves no email address, so most of these
+              cannot be followed up. Recovery emails are not available yet.
             </p>
           </>
         }
@@ -76,11 +76,11 @@ export default async function AbandonedRegistrationPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Abandoned', value: abandoned.length, sub: 'expired or failed at Stripe' },
+          { label: 'Abandoned', value: abandoned.length, sub: 'expired or failed at checkout' },
           {
-            label: 'With a contactable address',
+            label: 'With an email address',
             value: withEmail.length,
-            sub: `${orphans} placeholder${orphans === 1 ? '' : 's'} with no email`,
+            sub: `${orphans} with no email`,
           },
           {
             label: 'Invoices still unpaid',
@@ -102,12 +102,14 @@ export default async function AbandonedRegistrationPage() {
           rows={abandoned.slice(0, 25).map((o) => [
             o.email || <span key="e" className="muted">no address recorded</span>,
             o.channel,
-            o.totalCents === 0 ? <span key="a" className="muted">—</span> : money(o.totalCents, o.currency),
+            o.totalCents === 0 ? <span key="a" className="muted">none</span> : money(o.totalCents, o.currency),
             <span key="w">
-              {o.refundedAt ? o.refundedAt.slice(0, 16).replace('T', ' ') : '—'}
-              <div className="muted" style={{ fontSize: 12 }}>
-                Stripe session <code>{o.externalId || '—'}</code>
-              </div>
+              {o.refundedAt ? stampOfInstant(o.refundedAt) : ''}
+              {o.externalId ? (
+                <div className="muted" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
+                  Stripe reference {o.externalId}
+                </div>
+              ) : null}
             </span>,
           ])}
           empty={<NotInputted what="abandoned checkouts" compact />}
@@ -120,22 +122,16 @@ export default async function AbandonedRegistrationPage() {
           reading the column as a refund date in a finance review.
         */}
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          ⚠️ The timestamp comes from <code>refundedAt</code>, which the cancellation path stamps for
-          every terminal outcome. On these rows it means <em>when Stripe told us</em>, not that
-          anything was refunded, no money ever moved on an abandoned checkout.
+          No money moved on these checkouts. The time is when the checkout expired or failed.
         </p>
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>The one recoverable case</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Unpaid invoices</h2>
         <p className="body-2">
-          Unpaid <strong>invoices</strong> are different, and they are the abandonment worth
-          chasing. An invoice writes its order at the moment it is raised, with the company, the
-          billing contact, the PO number and the seat list, so there is a real person to email and a
-          real amount to ask for. Those rows are in{' '}
-          <Link href={ROUTES.attendeeOrders}>Attendee Orders</Link> as <code>pending</code> with the{' '}
-          <code>invoice</code> channel, and Stripe sends its own reminders on a schedule set in the
-          dashboard.
+          Unpaid invoices have a billing contact and an amount, so they can be followed up. Find
+          them in <Link href={ROUTES.attendeeOrders}>Attendee Orders</Link> as pending invoice
+          orders. Stripe sends its own reminders.
         </p>
       </Panel>
 

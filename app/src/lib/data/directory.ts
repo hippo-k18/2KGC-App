@@ -9,10 +9,12 @@ import {
   type SpeakerDoc,
   type SponsorDoc,
   type WithId,
+  groupSponsorsByTier,
 } from '@kgc/shared';
 
 import { getDb } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useEventSettings } from '@/lib/data/event-settings';
 import { useCollection } from '@/lib/data/use-collection';
 import { runWrite, type WriteResult } from '@/lib/data/write';
 
@@ -88,27 +90,44 @@ export function useInterests(people: DirectoryEntry[] | null): string[] {
 
 export function useSpeakers() {
   const { data, error, loading, retry } = useCollection<Speaker>(
-    () => query(collection(getDb(), COLLECTIONS.speakers), where('eventId', '==', EVENT_ID)),
+    /*
+     * `unlisted == false` is required by the rules (T252): a speaker accepted
+     * through the call for papers and not announced yet is not readable here
+     * at all. Two equality filters, so no composite index is needed.
+     */
+    () =>
+      query(
+        collection(getDb(), COLLECTIONS.speakers),
+        where('eventId', '==', EVENT_ID),
+        where('unlisted', '==', false),
+      ),
     [],
     (id, d) => ({ id, ...d }) as Speaker,
     (a, b) => a.name.localeCompare(b.name),
   );
-  return { speakers: data, error, loading, retry };
+  const speakers = data;
+  return { speakers, error, loading, retry };
 }
 
-const TIER_ORDER = ['platinum', 'gold', 'silver', 'bronze'];
-
+/**
+ * Sponsors in tier order, with the tier groups the People tab draws bands from.
+ *
+ * Tier order is a commercial commitment, not alphabetical. The order and the
+ * tier names are the list the organizer keeps on the dashboard's Sponsor
+ * Tiering (`useEventSettings().tiers`), grouped by the same
+ * `groupSponsorsByTier` the website uses. Sorted here rather than in the
+ * listener's comparator so a reordered tier list re-sorts without a new read.
+ */
 export function useSponsors() {
+  const { tiers } = useEventSettings();
   const { data, error, loading, retry } = useCollection<Sponsor>(
     () => query(collection(getDb(), COLLECTIONS.sponsors), where('eventId', '==', EVENT_ID)),
     [],
     (id, d) => ({ id, ...d }) as Sponsor,
-    // Tier order is a commercial commitment, not alphabetical.
-    (a, b) =>
-      TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) ||
-      a.name.localeCompare(b.name),
   );
-  return { sponsors: data, error, loading, retry };
+  const groups = useMemo(() => groupSponsorsByTier(tiers, data ?? []), [tiers, data]);
+  const sponsors = useMemo(() => (data ? groups.flatMap((g) => g.sponsors) : data), [data, groups]);
+  return { sponsors, groups, tiers, error, loading, retry };
 }
 
 /**

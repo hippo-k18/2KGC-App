@@ -28,11 +28,14 @@ export function Snippet({
   title,
   note,
   text,
+  maxHeight,
 }: {
   title: ReactNode;
   /** What to change before sending it. Rendered above the block, not inside. */
   note?: ReactNode;
   text: string;
+  /** Caps a long block (SVG markup) so it scrolls instead of filling the page. */
+  maxHeight?: number;
 }) {
   return (
     <div style={{ marginBottom: 20 }}>
@@ -52,7 +55,8 @@ export function Snippet({
           fontSize: 13,
           lineHeight: '20px',
           margin: 0,
-          overflowX: 'auto',
+          maxHeight,
+          overflow: 'auto',
           padding: 12,
           userSelect: 'all',
           whiteSpace: 'pre-wrap',
@@ -185,5 +189,21 @@ export function qrSvgMarkup(text: string, px = 240): string {
     `<rect width="${box}" height="${box}" fill="#fff"/>` +
     `<path transform="translate(${QR_QUIET_ZONE} ${QR_QUIET_ZONE})" fill="#000" d="${d}"/>` +
     `</svg>`
+  );
+}
+
+/**
+ * The SVG as a file. A data URI with `download`, so it needs no JavaScript and
+ * no route: the browser saves it straight from the link.
+ */
+export function QrDownload({ text, px = 600 }: { text: string; px?: number }) {
+  return (
+    <a
+      className="whova-btn-main secondary"
+      download="kgc-app-qr.svg"
+      href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvgMarkup(text, px))}`}
+    >
+      Download QR (SVG)
+    </a>
   );
 }

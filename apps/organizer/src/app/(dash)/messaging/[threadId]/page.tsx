@@ -4,6 +4,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { DESK_NAME, deskThread } from '@/lib/messaging';
 import { NotInputted, PageHeader, Panel, Tag } from '../../ui';
 import { markDeskThreadReadAction } from '../actions';
+import { isDeletedUser } from '@kgc/shared';
 import { DeskComposer } from '../desk-composer';
 
 export const dynamic = 'force-dynamic';
@@ -124,9 +125,16 @@ export default async function DeskThreadPage({
 
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Reply</h2>
-        <DeskComposer
-          fixedRecipient={{ uid: thread.correspondentUid, name: thread.correspondentName }}
-        />
+        {isDeletedUser(thread.correspondentUid) ? (
+          <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+            This person deleted their account, so there is nobody to reply to. The conversation is kept
+            for the record.
+          </p>
+        ) : (
+          <DeskComposer
+            fixedRecipient={{ uid: thread.correspondentUid, name: thread.correspondentName }}
+          />
+        )}
       </Panel>
     </>
   );

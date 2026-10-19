@@ -13,9 +13,9 @@ export default async function MeetUpsPage() {
         <>
           <strong>Board posts, not RSVPs</strong>
           <p>
-            Attendee-proposed meet-ups from the Community tab. There is no meet-up object, no
-            capacity and nothing to join, so the reply list is the nearest thing to a headcount and
-            is not the same as one. Somebody may have replied to say they cannot come.
+            Meet-ups attendees proposed on the community board. There is no RSVP or capacity yet,
+            so replies are the nearest thing to a headcount. A reply may be somebody saying they
+            cannot come.
           </p>
         </>
       }

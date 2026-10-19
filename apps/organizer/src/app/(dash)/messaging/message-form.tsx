@@ -1,5 +1,9 @@
 'use client';
 
+import { ConfirmCodeField } from '@/components/confirm-code';
+import { SendProgress } from '@/components/send-progress';
+import type { SendJobView } from '@/lib/send-jobs';
+
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { Audience, Recipient } from '@/lib/messaging';
@@ -25,6 +29,7 @@ export function MessageForm({
   withoutEmail,
   needsPassphrase,
   emailReady,
+  lastJob,
 }: {
   audience: Audience;
   segment: string;
@@ -32,6 +37,8 @@ export function MessageForm({
   withoutEmail: number;
   needsPassphrase: boolean;
   emailReady: boolean;
+  /** The newest send to this audience, so its progress survives a reload. */
+  lastJob?: SendJobView | null;
 }) {
   const [state, action] = useActionState<MessageState, FormData>(sendBulkMessageAction, {});
   const [subject, setSubject] = useState(state.keep?.subject ?? '');
@@ -49,11 +56,15 @@ export function MessageForm({
         </p>
       )}
       {state.ok && <p className="ok">{state.message}</p>}
+      {state.campaignId ? (
+        <SendProgress key={state.campaignId} campaignId={state.campaignId} />
+      ) : lastJob && lastJob.view !== 'done' ? (
+        <SendProgress key={lastJob.campaignId} campaignId={lastJob.campaignId} initial={lastJob} />
+      ) : null}
 
       {!emailReady && (
         <p className="error">
-          <strong>No email provider is configured.</strong> Set <code>RESEND_API_KEY</code> to send
-          anything. Until then every attempt is recorded as skipped, which is visible but useless.
+          <strong>Email is not set up yet.</strong> Nothing can be sent until it is.
         </p>
       )}
 
@@ -63,11 +74,12 @@ export function MessageForm({
         </label>
         <input
           id="subject"
+          className="whova-text-input"
           name="subject"
           required
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          placeholder="Your KGC 2027 slides are due 20 April"
+          placeholder={audience.example.subject}
           maxLength={120}
         />
       </div>
@@ -78,14 +90,13 @@ export function MessageForm({
         </label>
         <textarea
           id="body"
+          className="whova-text-input"
           name="body"
           rows={12}
           required
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder={
-            'Thanks again for speaking at KGC 2027.\n\nWe need your slides by 20 April so the AV team can load them.\n\nUpload here: …'
-          }
+          placeholder={audience.example.body}
         />
         {/*
           Said plainly because organizers paste from Word and expect formatting
@@ -125,6 +136,7 @@ export function MessageForm({
             </label>
             <input
               id="testAddress"
+              className="whova-text-input"
               name="testAddress"
               type="email"
               placeholder="you@knowledgegraph.tech"
@@ -135,16 +147,18 @@ export function MessageForm({
           <>
             <p style={{ fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
               This will email <strong>{recipients.length}</strong> {audience.noun} and{' '}
-              <strong>cannot be recalled</strong>. Sending twice is indistinguishable from a mistake
-              in somebody&rsquo;s inbox.
+              <strong>cannot be recalled</strong>. Check before you send.
             </p>
 
             <div className="whova-form-row" style={{ marginBottom: 10 }}>
               <label className="whova-form-label" htmlFor="confirmCount">
-                Type <code>{recipients.length}</code> to confirm
+                <span>
+                  Type <code>{recipients.length}</code> to confirm
+                </span>
               </label>
               <input
                 id="confirmCount"
+                className="whova-text-input"
                 name="confirmCount"
                 autoComplete="off"
                 inputMode="numeric"
@@ -152,28 +166,15 @@ export function MessageForm({
               />
             </div>
 
-            {needsPassphrase && (
-              <div className="whova-form-row" style={{ marginBottom: 0 }}>
-                <label className="whova-form-label" htmlFor="passphrase">
-                  Dashboard passphrase
-                </label>
-                <input
-                  id="passphrase"
-                  name="passphrase"
-                  type="password"
-                  autoComplete="off"
-                  style={{ maxWidth: 240 }}
-                />
-              </div>
-            )}
+            {needsPassphrase && <ConfirmCodeField />}
           </>
         )}
       </div>
 
       {withoutEmail > 0 && !testOnly && (
         <p className="muted" style={{ fontSize: 12 }}>
-          ⚠️ {withoutEmail} {withoutEmail === 1 ? 'record has' : 'records have'} no email address and
-          will receive nothing. They are listed under the recipients below.
+          ⚠️ {withoutEmail} of these {audience.noun} {withoutEmail === 1 ? 'has' : 'have'} no email
+          address and will receive nothing. They are listed under the recipients below.
         </p>
       )}
 

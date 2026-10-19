@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
 
   /**
+   * The development tools indicator, off.
+   *
+   * It is the dark circle in the corner of every screen on localhost. It never
+   * ships — it is a development-only overlay and the deployed dashboard has
+   * never carried it — but on a screen that is otherwise a one-to-one rebuild
+   * of somebody else's product it reads as a badge somebody stamped on the
+   * corner, and it was read as one. Nothing about the build changes.
+   */
+  devIndicators: false,
+
+  /**
    * `@kgc/shared` and `@kgc/scripts` are workspace packages published as raw
    * TypeScript (their `main` points straight at `src/`), so Next has to compile
    * them rather than treat them as prebuilt node_modules.
@@ -42,6 +53,31 @@ const nextConfig: NextConfig = {
       '.js': ['.ts', '.tsx', '.js'],
     };
     return config;
+  },
+
+  /** No `x-powered-by: Next.js` on every response (T263). */
+  poweredByHeader: false,
+
+  /**
+   * The same security headers as www (T263). www's HSTS `includeSubDomains`
+   * does not cover this host until a browser has visited the apex, so a first
+   * `http://` visit on conference Wi-Fi could be downgraded; this host now
+   * sends its own. Framing is same-origin only: nothing outside should ever
+   * show the dashboard in a frame, under its own buttons.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+    ];
   },
 
   typescript: { ignoreBuildErrors: false },

@@ -71,6 +71,8 @@ export const Colors = {
     groupedBackground: '#F2F2F7',
     /** Whova's blue header. Content on it uses `onHeader`. */
     header: Brand.blue,
+    /** The darker capsules that sit on the header: the profile pill, a tab badge. */
+    headerDeep: Brand.blueDark,
     onHeader: '#FFFFFF',
     /** The search field that sits inside the blue header. */
     headerField: '#E3E3E5',
@@ -121,6 +123,7 @@ export const Colors = {
     groupedBackground: '#000000',
     /** Held at Whova's blue in dark too — the header is the brand. */
     header: Brand.blue,
+    headerDeep: Brand.blueDark,
     onHeader: '#FFFFFF',
     headerField: '#2C2C2E',
     text: '#FFFFFF',

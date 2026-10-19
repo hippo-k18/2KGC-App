@@ -6,7 +6,7 @@ import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
-import { getPoll, publishTally } from '@/lib/polls';
+import { getPoll, publishTally, republishIfLive } from '@/lib/polls';
 
 const ROUTE = '/engagement/live-polling';
 
@@ -57,6 +57,7 @@ export async function savePollAction(_prev: PollState, formData: FormData): Prom
   const id = String(formData.get('id') ?? '').trim();
   const question = String(formData.get('question') ?? '').trim();
   const open = formData.get('open') === 'on';
+  const liveResults = formData.get('liveResults') === 'on';
   const raw = String(formData.get('options') ?? '');
 
   if (!sessionId) return { error: 'Choose the session this poll belongs to.' };
@@ -102,6 +103,14 @@ export async function savePollAction(_prev: PollState, formData: FormData): Prom
         options: parsed,
         open,
         /**
+         * Written on every save, never left off. A checkbox that is not ticked
+         * sends no key at all, and these stores run with
+         * `ignoreUndefinedProperties` under `merge: true`, so a field omitted
+         * on the write keeps its old value — an organizer who turns live
+         * results off and is told "Saved" would still be republishing.
+         */
+        liveResults,
+        /**
          * A new poll is seeded with an empty tally rather than left without
          * one: the app reads `tallies` and `totalVotes` directly, and a missing
          * map renders as a broken result rather than as a poll nobody has
@@ -119,8 +128,10 @@ export async function savePollAction(_prev: PollState, formData: FormData): Prom
       action: existing ? 'poll.update' : 'poll.create',
       targetPath: `${COLLECTIONS.sessions}/${sessionId}/${SUBCOLLECTIONS.polls}/${ref.id}`,
       targetId: ref.id,
-      before: existing ? { question: existing.question, open: existing.open } : {},
-      after: { question, open, options: parsed.length },
+      before: existing
+        ? { question: existing.question, open: existing.open, liveResults: existing.liveResults }
+        : {},
+      after: { question, open, liveResults, options: parsed.length },
     });
 
     revalidatePath(ROUTE);
@@ -172,6 +183,72 @@ export async function setPollOpenAction(formData: FormData): Promise<void> {
     recordError('poll.setOpen', err);
   }
   revalidatePath(ROUTE);
+}
+
+/**
+ * Turn live results on or off for one poll.
+ *
+ * Switching it on publishes the count straight away. Waiting for the room view's
+ * first tick would leave the app showing the old number for as long as it took
+ * somebody to open the projector page, and the organizer who just pressed this
+ * has every reason to think it took effect.
+ */
+export async function setLiveResultsAction(formData: FormData): Promise<void> {
+  const actor = await requireOrganizer();
+  const sessionId = String(formData.get('sessionId') ?? '').trim();
+  const id = String(formData.get('id') ?? '').trim();
+  const liveResults = String(formData.get('liveResults') ?? '') === 'true';
+  if (!sessionId || !id) return;
+
+  try {
+    const existing = await getPoll(sessionId, id);
+    if (!existing) return;
+
+    await db()
+      .collection(COLLECTIONS.sessions)
+      .doc(sessionId)
+      .collection(SUBCOLLECTIONS.polls)
+      .doc(id)
+      .update({ liveResults });
+
+    if (liveResults) await publishTally(sessionId, id);
+
+    await appendAudit({
+      actor,
+      action: 'poll.update',
+      targetPath: `${COLLECTIONS.sessions}/${sessionId}/${SUBCOLLECTIONS.polls}/${id}`,
+      targetId: id,
+      before: { liveResults: existing.liveResults },
+      after: { liveResults },
+    });
+  } catch (err) {
+    recordError('poll.setLiveResults', err);
+  }
+  revalidatePath(ROUTE);
+}
+
+/**
+ * One beat of the room view's timer.
+ *
+ * Called from the browser on an interval rather than from the page render: a
+ * server component that wrote on every GET would republish a tally because
+ * somebody refreshed a tab, and a prefetch would do it unasked. This is a POST,
+ * it re-reads `liveResults` before writing anything, and it returns the figure
+ * it left behind so the projector page can say when it last moved.
+ */
+export async function tickRoomViewAction(
+  sessionId: string,
+  pollId: string,
+): Promise<{ published: boolean; total: number }> {
+  await requireOrganizer();
+  if (!sessionId || !pollId) return { published: false, total: 0 };
+
+  try {
+    return await republishIfLive(sessionId, pollId);
+  } catch (err) {
+    recordError('poll.tickRoomView', err);
+    return { published: false, total: 0 };
+  }
 }
 
 /**

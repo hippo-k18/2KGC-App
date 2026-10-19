@@ -80,6 +80,13 @@ const IP_RATE_LIMIT_WINDOW_MINUTES = 15;
 const IP_REQUEST_MAX = 120;
 const IP_VERIFY_MAX = 120;
 
+/**
+ * Codes per address per day, on top of the five an hour (T263 P2, T264). Five
+ * an hour with five tries each is 600 guesses a day, about a 20% chance a year
+ * of guessing a code that can delete somebody's account. Fifteen a day is 75.
+ */
+const DAILY_MAX_REQUESTS = 15;
+
 const MAX_ATTEMPTS = 5;
 const ALT_EMAIL_QUERY_LIMIT = 5;
 
@@ -170,11 +177,13 @@ export async function requestSignInCode(
     const ipRef = ip
       ? db.collection(COLLECTIONS.rateLimits).doc(ipCounterId('requestOtp', ip))
       : undefined;
+    const dayRef = db.collection(COLLECTIONS.rateLimits).doc(`day_${id}`);
 
     // Every read first, then every write — Firestore rejects a transaction
     // that reads after it has queued a write.
     const rateSnap = await tx.get(rateLimitRef);
     const ipSnap = ipRef ? await tx.get(ipRef) : undefined;
+    const daySnap = await tx.get(dayRef);
 
     const rateData = rateSnap.data() as RateLimitDoc | undefined;
     const windowMs = RATE_LIMIT_WINDOW_MINUTES * 60_000;
@@ -182,6 +191,18 @@ export async function requestSignInCode(
       Boolean(rateData) && now.getTime() - toMillis(rateData!.windowStart) < windowMs;
 
     if (withinWindow && rateData!.count >= RATE_LIMIT_MAX_REQUESTS) {
+      limited = true;
+      return;
+    }
+
+    const nextDay = tickWindow(
+      daySnap.data() as WindowCounterDoc | undefined,
+      'requestOtp-day',
+      now,
+      24 * 60 * 60_000,
+      DAILY_MAX_REQUESTS,
+    );
+    if (!nextDay) {
       limited = true;
       return;
     }
@@ -203,6 +224,7 @@ export async function requestSignInCode(
       }
       tx.set(ipRef, nextIpWindow);
     }
+    tx.set(dayRef, nextDay);
 
     /*
      * No `satisfies RateLimitDoc` / `satisfies OtpCodeDoc` on these two, and
@@ -263,6 +285,20 @@ async function findActiveRegistration(
     if (data.status === 'active') return data;
   }
 
+  // Any other ticket on this address. A second purchase, a comp pass or a
+  // group seat is stored under its own id, not `registrationId(email)`, so the
+  // lookup above misses it: somebody whose first order was refunded and whose
+  // second is paid was told they had no ticket (T259 #7). Two equality filters,
+  // served by the automatic single-field indexes.
+  const byEmail = await db
+    .collection(COLLECTIONS.registrations)
+    .where('email', '==', email)
+    .where('status', '==', 'active')
+    .limit(ALT_EMAIL_QUERY_LIMIT)
+    .get();
+  const other = byEmail.docs.find((d) => (d.data() as RegistrationDoc).eventId === EVENT_ID);
+  if (other) return other.data() as RegistrationDoc;
+
   const altSnap = await db
     .collection(COLLECTIONS.registrations)
     .where('altEmails', 'array-contains', email)
@@ -304,6 +340,64 @@ async function ipLimitExceeded(db: Firestore, ip: string): Promise<boolean> {
 
 type CodeOutcome = 'ok' | 'no-code' | 'expired' | 'exhausted' | 'wrong-code';
 
+export type ConsumeOutcome =
+  | { ok: true; email: string }
+  | { ok: false; reason: 'invalid-argument' | 'resource-exhausted' | Exclude<CodeOutcome, 'ok'> };
+
+/**
+ * Check a code and use it up, and nothing else: no account, no claim, no token.
+ *
+ * `verifySignInCode` is this plus signing in. Deleting an account from the
+ * website (`/account/delete`) needs only the first half, the proof that the
+ * person holds the inbox; running the second half there would create the very
+ * account it is about to delete. Same limits, same single use, so a code that
+ * signs you in and a code that deletes you are equally hard to guess.
+ */
+export async function consumeSignInCode(
+  db: Firestore,
+  rawEmail: string,
+  rawCode: string,
+  ip: string | undefined,
+): Promise<ConsumeOutcome> {
+  const email = normaliseEmail(rawEmail);
+  const code = String(rawCode ?? '');
+  if (!EMAIL_SHAPE.test(email) || !CODE_SHAPE.test(code)) {
+    return { ok: false, reason: 'invalid-argument' };
+  }
+
+  if (ip && (await ipLimitExceeded(db, ip))) {
+    return { ok: false, reason: 'resource-exhausted' };
+  }
+
+  const otpRef = db.collection(COLLECTIONS.otpCodes).doc(otpDocId(email));
+
+  const outcome = await db.runTransaction<CodeOutcome>(async (tx) => {
+    const snap = await tx.get(otpRef);
+    if (!snap.exists) return 'no-code';
+
+    const data = snap.data() as OtpCodeDoc;
+    const now = Date.now();
+
+    if (toMillis(data.expiresAt) <= now) {
+      tx.delete(otpRef);
+      return 'expired';
+    }
+    if (data.attempts >= MAX_ATTEMPTS) {
+      tx.delete(otpRef);
+      return 'exhausted';
+    }
+    if (data.code !== code) {
+      tx.update(otpRef, { attempts: data.attempts + 1 });
+      return 'wrong-code';
+    }
+
+    tx.delete(otpRef);
+    return 'ok';
+  });
+
+  return outcome === 'ok' ? { ok: true, email } : { ok: false, reason: outcome };
+}
+
 /**
  * Redeem a code and mint a custom token.
  *
@@ -342,43 +436,9 @@ export async function verifySignInCode(
   rawCode: string,
   ip: string | undefined,
 ): Promise<VerifyOutcome> {
-  const email = normaliseEmail(rawEmail);
-  const code = String(rawCode ?? '');
-  if (!EMAIL_SHAPE.test(email) || !CODE_SHAPE.test(code)) {
-    return { ok: false, reason: 'invalid-argument' };
-  }
-
-  if (ip && (await ipLimitExceeded(db, ip))) {
-    return { ok: false, reason: 'resource-exhausted' };
-  }
-
-  const otpRef = db.collection(COLLECTIONS.otpCodes).doc(otpDocId(email));
-
-  const outcome = await db.runTransaction<CodeOutcome>(async (tx) => {
-    const snap = await tx.get(otpRef);
-    if (!snap.exists) return 'no-code';
-
-    const data = snap.data() as OtpCodeDoc;
-    const now = Date.now();
-
-    if (toMillis(data.expiresAt) <= now) {
-      tx.delete(otpRef);
-      return 'expired';
-    }
-    if (data.attempts >= MAX_ATTEMPTS) {
-      tx.delete(otpRef);
-      return 'exhausted';
-    }
-    if (data.code !== code) {
-      tx.update(otpRef, { attempts: data.attempts + 1 });
-      return 'wrong-code';
-    }
-
-    tx.delete(otpRef);
-    return 'ok';
-  });
-
-  if (outcome !== 'ok') return { ok: false, reason: outcome };
+  const consumed = await consumeSignInCode(db, rawEmail, rawCode, ip);
+  if (!consumed.ok) return { ok: false, reason: consumed.reason };
+  const email = consumed.email;
 
   const registration = await findActiveRegistration(db, email);
   if (!registration) return { ok: false, reason: 'no-registration' };

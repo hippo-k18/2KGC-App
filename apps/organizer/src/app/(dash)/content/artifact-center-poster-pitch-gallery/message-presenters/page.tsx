@@ -28,9 +28,8 @@ export default async function MessagePresentersPage() {
           <>
             <strong>Nobody to send to yet</strong>
             <p>
-              The sender, the segments and the delivery log are shared with Message Speakers,
-              Sponsors and Exhibitors. What is missing is the <code>artifacts</code> collection
-              those presenters and their addresses would live in.
+              There are no presenters to message yet, because posters, demos and pitches cannot be
+              added yet.
             </p>
           </>
         }
@@ -49,7 +48,7 @@ export default async function MessagePresentersPage() {
           what="presenters"
           action={
             <Link
-              className="whova-btn-main"
+              className="whova-btn-main primary"
               href="/content/artifact-center-poster-pitch-gallery/artifact-manager"
             >
               Artifact Manager

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { COLLECTIONS } from '@kgc/shared';
+import { COLLECTIONS, EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { countWhereEvent, listAnnouncements } from '@/lib/data';
 import { Banner, GapPanel, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, Table, Tag, listParams, paginate, sortRows } from '../../ui';
@@ -24,6 +24,19 @@ export const dynamic = 'force-dynamic';
  * The Drafts table is still shown, empty, because its absence would read as
  * "we forgot drafts" rather than "drafts need somewhere to save to".
  */
+/** "Aug 27, 6:03 PM" in the event's time zone, from the stored ISO timestamp. */
+function formatSent(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString('en-US', {
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'short',
+    timeZone: EVENT.timeZone,
+  });
+}
+
 export default async function AnnouncementsPage({
   searchParams,
 }: {
@@ -50,23 +63,20 @@ export default async function AnnouncementsPage({
         title="Announcements"
         info={
           <>
-            <strong>One audience, no schedule</strong>
+            <strong>One audience, sent now</strong>
             <p>
-              An announcement writes a document every signed-in attendee reads, and the optional
-              push is a topic broadcast, so there is nowhere for a narrower audience to be
-              expressed, and nothing records who a sent one reached.
+              Every announcement goes to all attendees in the app. Sending to a smaller group and
+              scheduling are not available yet.
             </p>
-            <p>
-              An announcement is not emailed. The bulk sender exists and is wired to speakers,
-              sponsors and exhibitors, but mailing every attendee needs an unsubscribe that this
-              collection has no field for, and a newsletter sent to somebody who opted out takes
-              the ticket receipts down with it.
-            </p>
+            <p>Announcements are not emailed.</p>
           </>
         }
         links={[
           <Link key="e" href="/engagement">
             Engagement
+          </Link>,
+          <Link key="em" href="/virtual-and-hybrid/logistics-management/emergency-manager">
+            Emergency Manager
           </Link>,
           <span key="n" className="muted">
             {all.length} sent
@@ -92,8 +102,7 @@ export default async function AnnouncementsPage({
         */}
         <Banner kind="warning">
           <strong>This reaches all {attendees} attendees and cannot be recalled.</strong> It appears
-          on their home screen within about a second. There is no scheduling and no draft. An
-          announcement goes out when somebody presses the button.
+          on their home screen right away. There are no drafts and no scheduling.
         </Banner>
 
         <AnnouncementForm recipientCount={attendees} />
@@ -119,12 +128,13 @@ export default async function AnnouncementsPage({
           empty={<NotInputted what="announcements" />}
           rows={pageRows.map((a) => [
             <strong key="s">{a.title}</strong>,
-            <span key="b" style={{ fontSize: 13 }}>
+            // Capped to the phone's visible table width so a long body wraps there.
+            <span key="b" style={{ display: 'block', fontSize: 13, maxWidth: 'calc(100vw - 84px)' }}>
               {a.body}
             </span>,
             'All attendees',
             <span key="c" style={{ whiteSpace: 'nowrap' }}>
-              {a.createdAt ?? '—'}
+              {a.createdAt ? formatSent(a.createdAt) : '—'}
             </span>,
             a.push ? (
               <Tag key="p" color="green" small>

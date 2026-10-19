@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { isGated } from '@kgc/shared';
+
 import { DECORATIVE } from '@/components/a11y';
 import { DataError, DataErrorBanner } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
@@ -280,7 +282,16 @@ export default function AgendaScreen() {
           <AgendaRow
             session={item}
             saved={saved.has(item.id)}
-            onToggleSaved={() => toggle(item.id)}
+            onToggleSaved={() => {
+              // Adding a capped or ticket-restricted session can answer "full,
+              // join the waitlist" or "not for your ticket", and a row has
+              // nowhere to say that. The session screen does, so it opens.
+              if (isGated(item) && !saved.has(item.id)) {
+                router.push({ pathname: '/agenda/[id]', params: { id: item.id } });
+                return;
+              }
+              void toggle(item.id, item);
+            }}
             last={index === section.data.length - 1}
             onPress={() => router.push({ pathname: '/agenda/[id]', params: { id: item.id } })}
           />
@@ -815,6 +826,7 @@ function AgendaRow({
             `${formatTime(session.endsAtLocal)}` +
             (session.roomName ? `, ${session.roomName}` : '') +
             (session.speakerNames?.length ? `, ${session.speakerNames.join(', ')}` : '') +
+            (session.streamState === 'live' ? ', streaming live' : '') +
             (saved ? ', in your agenda' : '')
           }
           style={{
@@ -862,6 +874,28 @@ function AgendaRow({
                 {session.title}
               </Text>
             </View>
+
+            {/* The one thing on an agenda row that is time-critical. It reads
+                `streamState` on the session itself, so no row pays for a read:
+                the link lives in a gated subcollection and this flag is the
+                part of it that is not a secret. The dot is decoration and the
+                words carry the meaning, so it is never colour-only. */}
+            {session.streamState === 'live' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View
+                  style={{
+                    width: TRACK_DOT,
+                    height: TRACK_DOT,
+                    borderRadius: TRACK_DOT / 2,
+                    backgroundColor: colors.danger,
+                  }}
+                  {...DECORATIVE}
+                />
+                <Text variant="subhead" tone="danger">
+                  Streaming live
+                </Text>
+              </View>
+            ) : null}
 
             {session.roomName ? (
               <Text variant="subhead" tone="secondary">

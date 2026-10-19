@@ -3,7 +3,8 @@ import { requireOrganizer } from '@/lib/auth';
 import { listQaSessions } from '@/lib/moderation';
 import { ROUTES } from '@/lib/nav';
 import { clockOf, todayInEventZone } from '@/lib/time';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { eventTimeZone } from '@/lib/event';
+import { EmptyState, GapPanel, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export const dynamic = 'force-dynamic';
 export default async function ModerateSessionQandAPage() {
   await requireOrganizer();
   const { sessions, questions } = await listQaSessions();
-  const today = todayInEventZone();
+  const today = todayInEventZone(new Date(), await eventTimeZone());
 
   const pending = questions.filter((q) => q.state === 'pending').length;
   const hidden = questions.filter((q) => q.state === 'hidden').length;
@@ -53,12 +54,8 @@ export default async function ModerateSessionQandAPage() {
         title="Moderate Session Q&A"
         info={
           <>
-            <strong>One queue, reached from two places</strong>
-            <p>
-              Every hide and mark-answered lives in the Session Q&amp;A Manager. A second set of
-              buttons over the same questions would let two moderators disagree about the same row,
-              so this screen only says where the work is.
-            </p>
+            <strong>Moderate in the Session Q&amp;A Manager</strong>
+            <p>This screen shows which sessions have questions waiting. Hide and mark answered there.</p>
           </>
         }
         tags={
@@ -73,7 +70,7 @@ export default async function ModerateSessionQandAPage() {
           )
         }
         actions={
-          <Link href={ROUTES.qaManager} className="whova-btn-main">
+          <Link href={ROUTES.qaManager} className="whova-btn-main secondary">
             Open Session Q&amp;A Manager
           </Link>
         }
@@ -103,7 +100,9 @@ export default async function ModerateSessionQandAPage() {
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Where the backlog is</h2>
         {backlog.length === 0 ? (
-          <NotInputted what="questions waiting for a moderator" />
+          <EmptyState compact>
+            <p className="empty-title">No questions waiting</p>
+          </EmptyState>
         ) : (
           <Table
             cols={[
@@ -139,9 +138,10 @@ export default async function ModerateSessionQandAPage() {
             organise around.
           </li>
           <li>
-            <strong>Pin is absent and upvote counts do not move.</strong> Both wait on the
-            `upvoteCount` trigger, which is written and undeployed — a pin control fighting a frozen
-            ranking would be worse than no pin control.
+            <strong>Pin is absent.</strong> It needs a field on the question and somewhere in the
+            app&rsquo;s board to render a pinned row, neither of which exists. Upvote counts are no
+            longer part of this note: the queue counts the votes themselves and shows the real
+            number.
           </li>
         </ul>
       </GapPanel>

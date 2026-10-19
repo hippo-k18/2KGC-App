@@ -1,4 +1,5 @@
 import { Linking, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
@@ -10,6 +11,7 @@ import { SkeletonBlock, SkeletonScreen } from '@/components/skeleton';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { kindLabel, linkHost, openable, useDocuments } from '@/lib/data/documents';
+import { readable, usePages } from '@/lib/data/pages';
 
 /**
  * The event's handouts — slide decks, datasets, the code of conduct.
@@ -44,7 +46,9 @@ import { kindLabel, linkHost, openable, useDocuments } from '@/lib/data/document
  * inert; `openable()` holds that reasoning.
  */
 export default function DocumentsScreen() {
+  const router = useRouter();
   const { documents, error, status, retry } = useDocuments();
+  const { pages } = usePages();
 
   if (error) {
     return (
@@ -64,7 +68,7 @@ export default function DocumentsScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="the documents"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <SkeletonBlock width="40%" height={26} />
             <SkeletonBlock height={64} radius={Radius.lg} />
             <SkeletonBlock height={64} radius={Radius.lg} />
@@ -75,6 +79,10 @@ export default function DocumentsScreen() {
   }
 
   const rows = (documents ?? []).filter(openable);
+  // A page listener failing is not a reason to withhold the handouts, so this
+  // screen reads `pages` without a second error branch: an unreadable set is an
+  // absent section, and the handouts below it still render.
+  const pageRows = (pages ?? []).filter(readable);
 
   return (
     <>
@@ -86,10 +94,50 @@ export default function DocumentsScreen() {
             Documents
           </Text>
           <Text variant="subhead" tone="secondary">
-            Handouts the organizers have published. Each one opens in your
-            browser.
+            {pageRows.length
+              ? 'What the organizers have published. Handouts open in your browser.'
+              : 'Handouts the organizers have published. Each one opens in your browser.'}
           </Text>
         </View>
+
+        {/*
+          The organizer's own pages, above the handouts.
+
+          They come first because the questions they answer — where is the
+          venue, what is the Wi-Fi, how do I get there — are the ones somebody
+          opens this screen in a hurry to answer, and because they open in the
+          app rather than throwing the reader into a browser. The section
+          disappears entirely when nothing is published, rather than sitting
+          there as an empty heading.
+        */}
+        {pageRows.length ? (
+          <View style={{ gap: Spacing.sm }}>
+            <Text variant="label" tone="secondary">
+              EVENT INFORMATION
+            </Text>
+            <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
+              {pageRows.map((p, i, arr) => (
+                <ListRow
+                  key={p.id}
+                  title={p.title}
+                  subtitle={p.summary}
+                  trailing={<Chevron />}
+                  first={i === 0}
+                  last={i === arr.length - 1}
+                  onPress={() =>
+                    router.push({ pathname: '/home/page/[slug]', params: { slug: p.slug } })
+                  }
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {pageRows.length && rows.length ? (
+          <Text variant="label" tone="secondary">
+            HANDOUTS
+          </Text>
+        ) : null}
 
         {rows.length ? (
           <View style={{ borderRadius: Radius.lg, overflow: 'hidden' }}>
@@ -121,7 +169,7 @@ export default function DocumentsScreen() {
               />
             ))}
           </View>
-        ) : (
+        ) : pageRows.length === 0 ? (
           <EmptyState
             icon="newspaper"
             title="Not inputted yet"
@@ -129,7 +177,7 @@ export default function DocumentsScreen() {
               'Handouts, slides and datasets appear here once the organizers publish them.'
             }
           />
-        )}
+        ) : null}
       </Screen>
     </>
   );

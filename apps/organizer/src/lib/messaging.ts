@@ -16,9 +16,14 @@ import {
   type ThreadDoc,
   type Timestamp,
   type UserDoc,
+  DELETED_USER_NAME,
+  isDeletedUser,
+  nameOrId,
 } from '@kgc/shared';
 import { listAttendees } from './data';
+import { speakerContacts } from './speaker-contacts';
 import { db } from './firestore';
+import { dedupeByEmail, foldCampaignRows } from './send-jobs-core';
 
 /**
  * Bulk email to a named audience — Message Speakers, Message Sponsors, Message
@@ -65,6 +70,16 @@ export interface Audience {
   title: string;
   /** Plural noun for prose: "45 speakers". */
   noun: string;
+  /**
+   * The worked example in the empty compose box: a subject and a body.
+   *
+   * Per audience, because the form is one component and the example was not.
+   * Every screen offered the same suggestion — "Your KGC 2027 slides are due 20
+   * April" over "Thanks again for speaking at KGC 2027" — so an organizer
+   * writing to exhibitors was shown a letter to a speaker, which reads as the
+   * wrong screen rather than as a placeholder.
+   */
+  example: { subject: string; body: string };
   /** Filters an organizer can narrow the send to. */
   segments: { id: string; label: string; describe: string }[];
 }
@@ -74,6 +89,10 @@ export const AUDIENCES: Record<AudienceId, Audience> = {
     id: 'speakers',
     title: 'Message Speakers',
     noun: 'speakers',
+    example: {
+      subject: 'Your KGC 2027 slides are due 20 April',
+      body: 'Thanks again for speaking at KGC 2027.\n\nWe need your slides by 20 April so the AV team can load them.\n\nUpload here: …',
+    },
     segments: [
       { id: 'all', label: 'Everyone', describe: 'Every speaker with an email address on file' },
       {
@@ -90,6 +109,10 @@ export const AUDIENCES: Record<AudienceId, Audience> = {
     id: 'sponsors',
     title: 'Message Sponsors',
     noun: 'sponsors',
+    example: {
+      subject: 'Your KGC 2027 logo and booth details',
+      body: 'Thanks again for sponsoring KGC 2027.\n\nWe need your logo by 20 April so it is on the site and in the app before doors open.\n\nSend it here: …',
+    },
     segments: [
       { id: 'all', label: 'Everyone', describe: 'Every sponsor contact on file' },
       { id: 'no-logo', label: 'Missing a logo', describe: 'Sponsors with no logo uploaded' },
@@ -109,6 +132,10 @@ export const AUDIENCES: Record<AudienceId, Audience> = {
     id: 'exhibitors',
     title: 'Message Exhibitors',
     noun: 'exhibitors',
+    example: {
+      subject: 'Setting up your KGC 2027 booth on 2 May',
+      body: 'Thanks again for exhibiting at KGC 2027.\n\nThe hall opens for setup at 14:00 on 2 May and closes at 19:00. Tell us how many staff passes you need by 20 April.\n\nFloor plan: …',
+    },
     segments: [
       { id: 'all', label: 'Everyone', describe: 'Every exhibitor still on the floor plan' },
       { id: 'no-booth', label: 'No booth assigned', describe: 'Exhibitors with no booth number' },
@@ -136,9 +163,14 @@ export async function resolveAudience(
   audience: AudienceId,
   segment: string,
 ): Promise<{ recipients: Recipient[]; withoutEmail: number }> {
-  if (audience === 'speakers') return resolveSpeakers(segment);
-  if (audience === 'exhibitors') return resolveExhibitors(segment);
-  return resolveSponsors(segment);
+  const resolved =
+    audience === 'speakers'
+      ? await resolveSpeakers(segment)
+      : audience === 'exhibitors'
+        ? await resolveExhibitors(segment)
+        : await resolveSponsors(segment);
+  // Two records sharing one contact got two copies (T258 #16). One per address.
+  return { ...resolved, recipients: dedupeByEmail(resolved.recipients) };
 }
 
 async function resolveSpeakers(segment: string) {
@@ -160,6 +192,7 @@ async function resolveSpeakers(segment: string) {
     userSnap.docs.map((d) => [d.id, (d.data() as UserDoc).email]),
   );
 
+  const contacts = await speakerContacts(speakerSnap.docs.map((d) => ({ id: d.id, data: d.data() as SpeakerDoc })));
   let withoutEmail = 0;
   const recipients: Recipient[] = [];
 
@@ -169,7 +202,7 @@ async function resolveSpeakers(segment: string) {
     if (segment === 'incomplete' && s.bio && s.photoURL) continue;
     if (segment === 'no-session' && (s.sessionIds ?? []).length > 0) continue;
 
-    const email = s.contactEmail ?? (s.userId ? emailByUid.get(s.userId) : undefined);
+    const email = contacts.get(d.id) ?? (s.userId ? emailByUid.get(s.userId) : undefined);
     if (!email) {
       withoutEmail++;
       continue;
@@ -286,9 +319,20 @@ export async function listCampaigns(limit = 25): Promise<CampaignRow[]> {
 
   const byCampaign = new Map<string, CampaignRow>();
 
+  /*
+   * One row per person per campaign. A resumed send writes a second row for
+   * everybody the first run failed, and a `sent` anywhere means they got it.
+   */
+  const perCampaign = new Map<string, EmailLogDoc[]>();
   for (const d of snap.docs) {
     const e = d.data() as EmailLogDoc;
     if (e.template !== 'bulk-message' || !e.campaignId) continue;
+    perCampaign.set(e.campaignId, [...(perCampaign.get(e.campaignId) ?? []), e]);
+  }
+  const folded = [...perCampaign.values()].flatMap((rows) => foldCampaignRows(rows));
+
+  for (const e of folded) {
+    if (!e.campaignId) continue;
 
     let at: string;
     try {
@@ -325,7 +369,7 @@ export async function listCampaigns(limit = 25): Promise<CampaignRow[]> {
 
 /** Every recipient of one campaign, for the "did Ada get it?" question. */
 export async function campaignRecipients(campaignId: string): Promise<
-  { to: string; status: EmailLogDoc['status']; error?: string; reason?: string }[]
+  { to: string; status: EmailLogDoc['status']; error?: string; reason?: string; bounced?: boolean }[]
 > {
   const snap = await db()
     .collection(COLLECTIONS.emailLog)
@@ -333,11 +377,17 @@ export async function campaignRecipients(campaignId: string): Promise<
     .where('campaignId', '==', campaignId)
     .get();
 
-  return snap.docs
-    .map((d) => {
-      const e = d.data() as EmailLogDoc;
-      return { to: e.to, status: e.status, error: e.error, reason: e.reason };
-    })
+  // One row per person: a resumed send logs a retried address twice.
+  return foldCampaignRows(snap.docs.map((d) => d.data() as EmailLogDoc))
+    .map((e) => ({
+      // `to` is null once the recipient has been erased.
+      to: e.to ?? '',
+      status: e.status,
+      error: e.error,
+      reason: e.reason,
+      // Set by the Resend webhook after the provider accepted it.
+      bounced: Boolean(e.bouncedAt || e.complainedAt),
+    }))
     .sort((a, b) => a.to.localeCompare(b.to));
 }
 
@@ -568,7 +618,7 @@ async function nameCorrespondents(rows: DeskThreadRow[]): Promise<void> {
   const byUid = new Map(snap.docs.map((d) => [d.id, (d.data() as DirectoryDoc).name]));
 
   for (const row of rows) {
-    row.correspondentName = byUid.get(row.correspondentUid) ?? row.correspondentUid;
+    row.correspondentName = nameOrId(byUid, row.correspondentUid);
   }
 }
 
@@ -621,7 +671,7 @@ export async function deskThread(threadId: string): Promise<DeskConversation | n
   return {
     threadId,
     correspondentUid,
-    correspondentName: entry?.name ?? correspondentUid,
+    correspondentName: isDeletedUser(correspondentUid) ? DELETED_USER_NAME : (entry?.name ?? correspondentUid),
     correspondentDetail: [entry?.title, entry?.company].filter(Boolean).join(', ') || undefined,
     unread: t.unread?.[DESK_UID] ?? 0,
     messages: msgSnap.docs.map((d) => {

@@ -1,0 +1,19 @@
+# The call for papers' hourly run (T249): E3 nudges and the Thursday reminder.
+# Installed on the droplet (T258 confirmed it running). To reinstall:
+#   cp kgc-cfp-cron.service kgc-cfp-cron.timer /etc/systemd/system/
+#   add CRON_SECRET=<32+ random chars> to /opt/kgc/shared/organizer.env and run /opt/kgc/deploy.sh restart dashboard
+#   printf 'CRON_SECRET=%s\n' "<same value>" > /etc/kgc-cfp-cron.env && chmod 600 /etc/kgc-cfp-cron.env
+#   systemctl daemon-reload && systemctl enable --now kgc-cfp-cron.timer
+[Unit]
+Description=KGC call for papers scheduled emails
+After=network-online.target kgc-dashboard.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/kgc-cfp-cron.env
+# --max-time: a hung dashboard must fail this run, not hold the unit until the next hour (T258 #17).
+TimeoutStartSec=15min
+# The dashboard's port changes with each deploy (T272: two colours, 3100 and
+# 3101); deploy.sh writes the live one to /opt/kgc/live/organizer.port. `$$` is
+# systemd's escape for a literal `$`, so the shell sees `$(cat ...)`.
+ExecStart=/bin/sh -c 'curl -fsS --max-time 600 -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:$$(cat /opt/kgc/live/organizer.port 2>/dev/null || echo 3100)/api/cron/cfp'

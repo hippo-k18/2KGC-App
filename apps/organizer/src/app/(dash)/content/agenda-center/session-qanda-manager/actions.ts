@@ -13,10 +13,9 @@ import { ROUTES } from '@/lib/nav';
  *
  * Whova's version says a moderator's powers are exactly three: hide a question,
  * pin it, mark it answered. Two of those are here. **Pinning is not**, and that
- * is deliberate rather than unfinished — pinning reorders the board, the board
- * is ranked by `upvoteCount`, and `upvoteCount` is maintained by a Cloud
- * Function trigger that does not exist on the Spark plan. A pin control that
- * fought a frozen ranking would be worse than no pin control.
+ * is deliberate rather than unfinished — it needs a field on the question, a
+ * rule saying who may write it, and a row in the app's board to render it in.
+ * None of the three exists, and a pin nobody in the room can see is not a pin.
  */
 
 export async function setQaSettingsAction(formData: FormData): Promise<void> {

@@ -4,7 +4,7 @@ import { LinkedIn } from '@/components/linkedin-icon';
 import { LEARN_FOUNDERS } from '@/lib/people';
 
 export const metadata: Metadata = {
-  title: 'Learn',
+  title: 'The Knowledge Graph Learning Program',
   description:
     'KGC | Learn: the team, the continuing education roster, and the four certificate programmes.',
 };
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
  * to `#8dccee` and renders `#e3f5fd`. Reading the CSS would have got that one
  * wrong by a long way.
  *
- *   hero            #e0e5ee + wave-13, wordmark at 1000px
+ *   hero            #e0e5ee, wave-13 behind the 1000px wordmark only
  *   team            #ffffff + wave-3
  *   continuing ed   #e3f5fd + wave-3
  *   programmes      #8dccee
@@ -78,14 +78,24 @@ export default function LearnPage() {
   return (
     <>
       <section className="learn-hero-band">
+        {/*
+          The wave sits behind the wordmark only. The copy goes below it on the
+          plain band colour, because over the mesh it was hard to read (owner,
+          2026-10-13).
+        */}
+        <div className="art">
+          {/* The wordmark is the page's title, so it is the h1. */}
+          <h1>
+            <Image
+              src="/kgc/learn-wordmark.png"
+              alt="KGC | Learn"
+              width={1000}
+              height={275}
+              priority
+            />
+          </h1>
+        </div>
         <div className="wrap-kgc">
-          <Image
-            src="/kgc/learn-wordmark.png"
-            alt="KGC | Learn"
-            width={1000}
-            height={275}
-            priority
-          />
           <p className="tagline">
             Learn how knowledge graphs can shape the future of your business and career.
           </p>

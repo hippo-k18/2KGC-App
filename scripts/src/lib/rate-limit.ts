@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
-import { Timestamp } from 'firebase-admin/firestore';
+import { COLLECTIONS } from '@kgc/shared';
+import type { Firestore, Timestamp } from 'firebase-admin/firestore';
 
 /**
  * ── Why this file moved out of `functions/` ─────────────────────────────────
@@ -171,39 +172,294 @@ export function ipCounterId(functionName: string, ip: string): string {
 }
 
 /**
- * The caller's IP when the endpoint is a **Next.js route handler** rather than
- * a Cloud Function.
+ * The caller's IP when the endpoint is a Next.js route handler or server
+ * action on the droplet.
  *
- * `callerIp` above cannot be reused as-is, and the reason is the whole point of
- * having two functions instead of one: the two hosts put the untrusted and the
- * trusted entry in *different places*, and reading the wrong one hands an
- * attacker a free reset of the per-IP counter by sending one header.
+ * `callerIp` above cannot be reused as-is: the two hosts put the entry a
+ * client cannot choose in different places, and reading the wrong one hands an
+ * attacker a free reset of every per-IP counter by sending one header.
  *
- *   Cloud Functions gen-2 — Google's front end APPENDS to whatever
- *   `X-Forwarded-For` the client sent, so the entry the client cannot choose is
- *   second from the end. That is what `callerIp` takes.
+ *   Cloud Functions gen-2: Google's front end appends, then adds its own hop,
+ *   so the trusted entry is second from the end. That is what `callerIp` takes.
  *
- *   Netlify — `x-forwarded-for` arrives with the client's own value FIRST and
- *   is therefore forgeable end to end. What is not forgeable is
- *   `x-nf-client-connection-ip`, which Netlify's edge sets from the TCP peer
- *   and strips from anything inbound. So that header is preferred outright, and
- *   `x-forwarded-for` is consulted only when it is absent — which is the
- *   `next dev` case, where the only caller is the developer's own machine.
+ *   The droplet: Apache's `mod_proxy` APPENDS the connecting address to
+ *   whatever `X-Forwarded-For` the client sent, and nothing sits in front of
+ *   Apache. So the LAST entry is the one the client cannot forge; everything
+ *   before it is client-supplied text. `apps/web/src/lib/checkout-limit.ts`
+ *   reads the same entry.
  *
- * Same posture as `callerIp` on failure: returns `undefined` and lets the
- * caller fail *open* on the IP dimension, because the per-email limit still
- * applies and bricking sign-in for a whole venue over a missing header is the
+ * This used to prefer `x-nf-client-connection-ip` and then the FIRST entry,
+ * which was right on Netlify. Netlify is gone, Apache passes both headers
+ * through untouched, and so any script could pick a new "IP" per request
+ * (T258 #12, T263).
+ *
+ * `next dev` has no proxy and no header, so this returns `undefined` there,
+ * and callers fail open on the IP dimension only: the per-address caps still
+ * apply, and bricking sign-in for a whole venue over a missing header is the
  * worse outcome.
  */
 export function callerIpFromHeaders(headers: {
   get(name: string): string | null;
 }): string | undefined {
-  const netlify = headers.get('x-nf-client-connection-ip')?.trim();
-  if (netlify) return netlify;
-
   const chain = (headers.get('x-forwarded-for') ?? '')
     .split(',')
     .map((part) => part.trim())
     .filter(Boolean);
-  return chain[0] || undefined;
+  return chain[chain.length - 1] || undefined;
+}
+
+// ── The shared abuse limiter ────────────────────────────────────────────────
+//
+// One limiter for every endpoint that mails a code or an email to an address
+// the caller chooses: dashboard sign-in and confirm codes, the www ticket pass,
+// the blog editor, the CFP form and the invoice form (T264). Before it, each of
+// those had only a resend floor on the code document, and that document was
+// deleted when its tries ran out, so a script could ask for a fresh code at
+// once and guess without end (T263 P1).
+//
+// Two pieces:
+//
+//   `takeAllowance` counts requests per address and per caller IP against an
+//   hourly AND a daily cap, in `rateLimits` documents that nothing deletes
+//   (the TTL policy sweeps them a window after their last write).
+//
+//   `recordFailedGuess` / `guessesLocked` count wrong codes per address
+//   ACROSS codes, so asking for a new code does not reset them. Ten wrong in
+//   an hour locks the address for 15 minutes; thirty in a day locks it until
+//   that day's window ends.
+//
+// Every write is a native `Date` (see `WindowCounterWrite`), and the store is
+// passed in, so the same code runs under each app's own `firebase-admin`.
+
+/** One cap: at most `max` per fixed window of `windowMs`. */
+export interface Cap {
+  max: number;
+  windowMs: number;
+}
+
+export const HOUR_MS = 60 * 60_000;
+export const DAY_MS = 24 * HOUR_MS;
+
+/** A cap per hour and a cap per day, the shape every caller here wants. */
+export const perHourAndDay = (hour: number, day: number): Cap[] => [
+  { max: hour, windowMs: HOUR_MS },
+  { max: day, windowMs: DAY_MS },
+];
+
+type Millis = Date | { toMillis(): number };
+
+export interface CapsCounterDoc {
+  kind: string;
+  /** Keyed by `String(windowMs)`, so one document holds the hour and the day. */
+  windows: Record<string, { count: number; start: Millis }>;
+  /** Set by `recordFailedGuess` only. */
+  lockedUntil?: Millis;
+  updatedAt: Millis;
+  /** Read only by the Firestore TTL policy, never by this code. */
+  expiresAt: Millis;
+}
+
+/**
+ * `rateLimits/{id}` for one dimension of one limiter. The value is hashed, as
+ * `ipCounterId` does, so no raw address or IP sits in Firestore, and it is
+ * prefixed `lim_` so it can never collide with the older counter shapes.
+ */
+export function limitId(scope: string, dimension: 'ip' | 'email' | 'fail', value: string): string {
+  const key = createHash('sha256').update(value.trim().toLowerCase()).digest('hex').slice(0, 24);
+  return `lim_${scope}_${dimension}_${key}`;
+}
+
+/**
+ * What a caps document becomes after one more request, or `null` when any cap
+ * is already full or the document is locked. Pure, like `tickWindow`, so the
+ * window edges are testable without an emulator.
+ */
+export function tickCaps(
+  existing: CapsCounterDoc | undefined,
+  kind: string,
+  now: Date,
+  caps: Cap[],
+): CapsCounterDoc | null {
+  if (existing?.lockedUntil && toMillis(existing.lockedUntil) > now.getTime()) return null;
+  const windows: CapsCounterDoc['windows'] = {};
+  for (const cap of caps) {
+    const key = String(cap.windowMs);
+    const prior = existing?.windows?.[key];
+    const within = Boolean(prior) && now.getTime() - toMillis(prior!.start) < cap.windowMs;
+    if (within && prior!.count >= cap.max) return null;
+    windows[key] = within ? { count: prior!.count + 1, start: prior!.start } : { count: 1, start: now };
+  }
+  const longest = Math.max(...caps.map((c) => c.windowMs));
+  return {
+    kind,
+    windows,
+    ...(existing?.lockedUntil ? { lockedUntil: existing.lockedUntil } : {}),
+    updatedAt: now,
+    expiresAt: new Date(now.getTime() + longest),
+  };
+}
+
+/** One dimension to count a request against. An `undefined` id is skipped. */
+export interface AllowanceCheck {
+  id: string | undefined;
+  kind: string;
+  caps: Cap[];
+}
+
+/**
+ * Count one request against every check, all or nothing: if any cap is full,
+ * nothing is written and the answer is false.
+ *
+ * Fails CLOSED on an error (unlike the checkout limiter). Everything behind it
+ * either mails somebody or hands out a sign-in, and the store that would have
+ * recorded the code is the same one that just failed, so refusing costs a
+ * genuine caller one "try again in a minute".
+ */
+export async function takeAllowance(
+  db: Firestore,
+  checks: AllowanceCheck[],
+  now = new Date(),
+): Promise<boolean> {
+  const live = checks.filter((c): c is AllowanceCheck & { id: string } => Boolean(c.id));
+  if (live.length === 0) return true;
+  try {
+    return await db.runTransaction(async (tx) => {
+      const refs = live.map((c) => db.collection(COLLECTIONS.rateLimits).doc(c.id));
+      const snaps = await Promise.all(refs.map((r) => tx.get(r)));
+      const next = live.map((c, i) => tickCaps(snaps[i].data() as CapsCounterDoc | undefined, c.kind, now, c.caps));
+      if (next.some((n) => n === null)) return false;
+      next.forEach((n, i) => tx.set(refs[i], n!));
+      return true;
+    });
+  } catch (err) {
+    console.error('[rate-limit] limiter failed, refusing the request', err);
+    return false;
+  }
+}
+
+/** Wrong codes per address, across codes. */
+export const FAILED_GUESS_HOURLY = 10;
+export const FAILED_GUESS_DAILY = 30;
+export const FAILED_GUESS_LOCK_MS = 15 * 60_000;
+
+/**
+ * The failure document after one more wrong code. Pure.
+ *
+ * The tenth wrong code in an hour sets a 15-minute lock and starts a fresh
+ * hour, so the next ten are counted after it. The thirtieth in a day locks
+ * until the day window ends, which caps a patient attacker at thirty guesses
+ * a day against a million codes.
+ */
+export function tickFailure(existing: CapsCounterDoc | undefined, now: Date): CapsCounterDoc {
+  const hour = String(HOUR_MS);
+  const day = String(DAY_MS);
+  const count = (key: string, windowMs: number) => {
+    const prior = existing?.windows?.[key];
+    const within = Boolean(prior) && now.getTime() - toMillis(prior!.start) < windowMs;
+    return within ? { count: prior!.count + 1, start: prior!.start } : { count: 1, start: now as Millis };
+  };
+  const h = count(hour, HOUR_MS);
+  const d = count(day, DAY_MS);
+  let lockedUntil: Millis | undefined =
+    existing?.lockedUntil && toMillis(existing.lockedUntil) > now.getTime() ? existing.lockedUntil : undefined;
+  let hourWindow = h;
+  if (d.count >= FAILED_GUESS_DAILY) {
+    lockedUntil = new Date(toMillis(d.start) + DAY_MS);
+  } else if (h.count >= FAILED_GUESS_HOURLY) {
+    lockedUntil = new Date(now.getTime() + FAILED_GUESS_LOCK_MS);
+    hourWindow = { count: 0, start: now };
+  }
+  return {
+    kind: 'failed-guess',
+    windows: { [hour]: hourWindow, [day]: d },
+    ...(lockedUntil ? { lockedUntil } : {}),
+    updatedAt: now,
+    expiresAt: new Date(Math.max(now.getTime() + DAY_MS, lockedUntil ? toMillis(lockedUntil) : 0)),
+  };
+}
+
+/** Count one wrong code for this address on this surface. Never throws. */
+export async function recordFailedGuess(db: Firestore, scope: string, email: string, now = new Date()): Promise<void> {
+  const ref = db.collection(COLLECTIONS.rateLimits).doc(limitId(scope, 'fail', email));
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      tx.set(ref, tickFailure(snap.data() as CapsCounterDoc | undefined, now));
+    });
+  } catch (err) {
+    console.error('[rate-limit] could not record a failed code', err);
+  }
+}
+
+/** Is this address locked out of entering codes on this surface? Fails closed. */
+export async function guessesLocked(db: Firestore, scope: string, email: string, now = new Date()): Promise<boolean> {
+  try {
+    const d = (await db.collection(COLLECTIONS.rateLimits).doc(limitId(scope, 'fail', email)).get()).data() as
+      | CapsCounterDoc
+      | undefined;
+    return Boolean(d?.lockedUntil && toMillis(d.lockedUntil) > now.getTime());
+  } catch (err) {
+    console.error('[rate-limit] could not read the lock, refusing', err);
+    return true;
+  }
+}
+
+/**
+ * The limits for a six-digit code surface (dashboard, ticket pass, blog).
+ *
+ * Per address: a few codes an hour and a few more a day, so with five tries a
+ * code an owner address can take at most 100 guesses a day before the failure
+ * lock, and 30 after it. Per IP: loose enough for a venue behind one NAT
+ * address, tight enough that one script cannot mail thousands of addresses.
+ */
+export interface CodeLimits {
+  requestPerEmail: Cap[];
+  requestPerIp: Cap[];
+  verifyPerIp: Cap[];
+}
+
+export const DEFAULT_CODE_LIMITS: CodeLimits = {
+  requestPerEmail: perHourAndDay(5, 20),
+  requestPerIp: perHourAndDay(60, 300),
+  verifyPerIp: perHourAndDay(120, 600),
+};
+
+/** Count one "send me a code". False means do not send. */
+export function codeRequestAllowed(
+  db: Firestore,
+  scope: string,
+  email: string,
+  ip: string | undefined,
+  limits: CodeLimits = DEFAULT_CODE_LIMITS,
+  now = new Date(),
+): Promise<boolean> {
+  return takeAllowance(
+    db,
+    [
+      { id: limitId(scope, 'email', email), kind: `${scope}-email`, caps: limits.requestPerEmail },
+      { id: ip ? limitId(scope, 'ip', ip) : undefined, kind: `${scope}-ip`, caps: limits.requestPerIp },
+    ],
+    now,
+  );
+}
+
+/**
+ * Before checking a code: `locked` when the address has too many wrong codes,
+ * `limited` when this IP has tried too many, else `ok`.
+ */
+export async function codeVerifyGate(
+  db: Firestore,
+  scope: string,
+  email: string,
+  ip: string | undefined,
+  limits: CodeLimits = DEFAULT_CODE_LIMITS,
+  now = new Date(),
+): Promise<'ok' | 'locked' | 'limited'> {
+  if (await guessesLocked(db, scope, email, now)) return 'locked';
+  const ok = await takeAllowance(
+    db,
+    [{ id: ip ? limitId(`${scope}-verify`, 'ip', ip) : undefined, kind: `${scope}-verify-ip`, caps: limits.verifyPerIp }],
+    now,
+  );
+  return ok ? 'ok' : 'limited';
 }

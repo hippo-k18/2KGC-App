@@ -65,3 +65,35 @@ export const COMMUNITY_CATEGORY_LABEL: Record<CommunityCategory, string> =
 export function communityCategoryLabel(id: string): string {
   return COMMUNITY_CATEGORY_LABEL[id as CommunityCategory] ?? id;
 }
+
+/**
+ * Whether a reply should be shown to an attendee.
+ *
+ * ── What enforces this, and what this function is for ───────────────────────
+ *
+ * ⚠️ This block used to say a `list` could not be constrained by rules and that
+ * this function was the only thing taking a hidden reply off the board. Both
+ * halves were wrong, and while they stood the hide was a courtesy. A rules
+ * `list` is evaluated against the fields the QUERY constrains, so
+ * `firestore.rules` can require — and does require — that a reply query carry
+ * `where('status', '==', 'visible')`. A hidden reply is not returned to an
+ * attendee by any query, and `allow get` keeps it from being fetched on its
+ * own. `tests/rules/firestore.test.ts` pins both verbs.
+ *
+ * So this is the second filter, not the only one. It still earns its place:
+ * the dashboard reads the board with the Admin SDK, which bypasses rules
+ * entirely, and a reader that widens its query one day should not start
+ * printing moderated text.
+ *
+ * It tolerates an absent `status` because a reply written before the field
+ * existed is a visible reply, not a hidden one. Such a reply is in no filtered
+ * query at all — Firestore cannot ask for a field that is absent — which is
+ * what `scripts/ops/backfill-reply-status.ts` is for.
+ *
+ * It lives here rather than in the app so there is one sentence deciding it —
+ * the dashboard's moderation screen reasons about the same field, and a second
+ * copy that read `status === 'visible'` would quietly drop the older replies.
+ */
+export function replyIsVisible(reply: { status?: string }): boolean {
+  return !reply.status || reply.status === "visible";
+}

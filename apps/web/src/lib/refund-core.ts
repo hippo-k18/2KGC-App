@@ -37,15 +37,25 @@ export interface RefundDecision {
   fullyRefunded: boolean;
   /** True only on the delivery that actually voided the ticket. The replay guard. */
   newlyRefunded: boolean;
+  /**
+   * The order was still `pending`: never fulfilled, or fulfilment failed part
+   * way. Nothing it lists was counted or issued by it, so the refund touches no
+   * ticket and no seat count, and `lines` is empty (T257 #4).
+   */
+  unfulfilled: boolean;
   status: OrderDoc['status'];
   /** A date only when money actually went back. See below. */
   stampRefundedAt: boolean;
-  /** The seats to give back, one entry per order line that names a tier. */
+  /**
+   * The seats to give back, one entry per order line that names a tier. Seats
+   * an organizer already released by cancelling an attendee are left out, or
+   * the refund would return them a second time.
+   */
   lines: { ticketTypeId: string; quantity: number }[];
 }
 
 export function decideRefund(
-  order: Pick<OrderDoc, 'status' | 'totalCents' | 'items'>,
+  order: Pick<OrderDoc, 'status' | 'totalCents' | 'items' | 'releasedSeats'>,
   input: {
     reason: RefundReason;
     /**
@@ -72,9 +82,23 @@ export function decideRefund(
    */
   const wasVoid = order.status === 'refunded' || order.status === 'cancelled';
 
+  /**
+   * A refund or dispute on an order still `pending`.
+   *
+   * A group cart is written `pending` before payment with no `registrationIds`,
+   * and stays so if fulfilment fails. Treated as fulfilled, its refund fell
+   * back to the buyer's address and the cart's addresses and cancelled tickets
+   * this order never issued (a Speaker ticket, a colleague's import), then
+   * handed back seats it never counted (`quantitySold` went to -3). The money
+   * still goes back and the order still closes; nothing else moves, and the
+   * caller tells a person to check the seats by hand.
+   */
+  const unfulfilled = order.status === 'pending';
+
   return {
     fullyRefunded,
-    newlyRefunded: fullyRefunded && !wasVoid,
+    newlyRefunded: fullyRefunded && !wasVoid && !unfulfilled,
+    unfulfilled,
     status,
     /**
      * `refundedAt` marks a refund and nothing else.
@@ -86,8 +110,32 @@ export function decideRefund(
      * chargeback is money *held*, not money returned, and it may yet come back.
      */
     stampRefundedAt: input.reason === 'refunded',
-    lines: (order.items ?? [])
-      .filter((i) => i.ticketTypeId)
-      .map((i) => ({ ticketTypeId: i.ticketTypeId, quantity: i.quantity ?? 1 })),
+    lines: unfulfilled ? [] : heldLines(order),
   };
+}
+
+/**
+ * The order's lines, less the seats `releasedSeats` says are already back in
+ * stock. Line by line rather than summed per tier, because a group order is one
+ * line per seat and the callers count lines. The same subtraction as
+ * `seatsHeldByOrder` in `@kgc/scripts`, which is what keeps a refund and a
+ * stock reconcile in agreement.
+ */
+function heldLines(
+  order: Pick<OrderDoc, 'items' | 'releasedSeats'>,
+): { ticketTypeId: string; quantity: number }[] {
+  const released = new Map<string, number>();
+  for (const tierId of Object.values(order.releasedSeats ?? {})) {
+    released.set(tierId, (released.get(tierId) ?? 0) + 1);
+  }
+
+  const lines: { ticketTypeId: string; quantity: number }[] = [];
+  for (const i of order.items ?? []) {
+    if (!i.ticketTypeId) continue;
+    const seats = i.quantity ?? 1;
+    const back = Math.min(seats, released.get(i.ticketTypeId) ?? 0);
+    released.set(i.ticketTypeId, (released.get(i.ticketTypeId) ?? 0) - back);
+    if (seats - back > 0) lines.push({ ticketTypeId: i.ticketTypeId, quantity: seats - back });
+  }
+  return lines;
 }

@@ -63,6 +63,10 @@ let db: Firestore;
 let auth: Auth;
 
 beforeAll(() => {
+  // Temporary passwords are opt-in since 2026-09-26. Most of this file tests
+  // them, so it opts in; the switch-off test below sets `0` for itself.
+  process.env.ISSUE_TEMPORARY_PASSWORDS = '1';
+
   /**
    * Refuse to run against anything real.
    *
@@ -267,8 +271,8 @@ describe('provisioning an account from a paid ticket', () => {
   });
 
   it('sets no password at all when the feature is switched off', async () => {
-    // `ISSUE_TEMPORARY_PASSWORDS=0` restores the pre-2026-09-02 behaviour
-    // without a code change, which is the whole point of the switch.
+    // `ISSUE_TEMPORARY_PASSWORDS=0` (or unset, the default) provisions no
+    // password at all.
     //
     // ⚠️ Its own address, deliberately. `beforeEach` clears `users`,
     // `directory`, `ticketTypes` and Auth but NOT `registrations` — and it must

@@ -31,7 +31,13 @@ const titles = (q: string, limit?: number) => find(q, limit).hits.map((h) => h.t
 
 describe('the index itself', () => {
   it('covers the whole nav tree', () => {
-    expect(ENTRIES.length).toBe(215);
+    // Whova's 215, plus Engagement › Community › Reports (T210) and Tools ›
+    // Email Log (T274), which Whova has no screens for.
+    expect(ENTRIES.length).toBe(217);
+  });
+
+  it('finds the Reports queue', () => {
+    expect(titles('reports')).toContain('Reports');
   });
 
   it('gives every entry a path that the catch-all can resolve', () => {
