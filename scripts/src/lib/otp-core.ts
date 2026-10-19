@@ -56,7 +56,7 @@ import { ipCounterId, tickWindow, toMillis, type WindowCounterDoc } from './rate
  * `lib/auth/otp.ts` already knows.
  */
 
-const CODE_TTL_MINUTES = 10;
+export const CODE_TTL_MINUTES = 10;
 const RATE_LIMIT_WINDOW_MINUTES = 60;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 

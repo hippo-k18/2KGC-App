@@ -15,7 +15,7 @@ import {
   type SessionSeatDoc,
   type UserDoc,
 } from '@kgc/shared';
-import { sendBulkMessage } from '@kgc/scripts/src/lib/email';
+import { seatPromotionCopy, sendBulkMessage } from '@kgc/scripts/src/lib/email';
 import { recordError } from './errors';
 import { db } from './firestore';
 
@@ -144,8 +144,7 @@ async function notifyPromoted(
       await sendBulkMessage(db(), {
         to: user.email,
         name: user.name,
-        subject: `You have a seat in ${sessionTitle}`,
-        body: `A seat opened in ${sessionTitle} and you were first on the waitlist, so it is yours.\n\nIt is already in your agenda in the conference app. If you can no longer come, remove it there and the seat goes to the next person waiting.`,
+        ...seatPromotionCopy(sessionTitle),
         campaignId: `seat-promotion_${sessionId}`,
         actor,
       });

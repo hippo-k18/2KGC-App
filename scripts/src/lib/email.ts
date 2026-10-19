@@ -679,6 +679,13 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** One email, built and not sent: what every `…Message` builder returns. */
+export interface EmailMessage {
+  subject: string;
+  html: string;
+  text: string;
+}
+
 export interface PurchaseEmailInput {
   to: string;
   name: string;
@@ -859,6 +866,19 @@ async function sendExtraAdded(
   store: Firestore,
   input: PurchaseEmailInput & { addedExtra: string },
 ): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...extraAddedMessage(input),
+    template: 'extra-added',
+    orderId: input.orderId,
+    registrationId: input.registrationId,
+  });
+}
+
+/** The extra-added confirmation, built and not sent (T292). */
+export function extraAddedMessage(
+  input: Pick<PurchaseEmailInput, 'to' | 'name' | 'ticketType' | 'amountCents' | 'currency' | 'orderUrl'> & { addedExtra: string },
+): EmailMessage {
   const price = formatPrice(input.amountCents, input.currency);
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const extra = esc(input.addedExtra);
@@ -886,15 +906,7 @@ View your ticket: ${input.orderUrl}
 3-7 May 2027, Jay Conference Bryant Park, New York.
 ${REPLY_LINE_TEXT}`;
 
-  return send(store, {
-    to: input.to,
-    subject: `${input.addedExtra} added to your Knowledge Graph Conference ticket`,
-    html,
-    text,
-    template: 'extra-added',
-    orderId: input.orderId,
-    registrationId: input.registrationId,
-  });
+  return { subject: `${input.addedExtra} added to your Knowledge Graph Conference ticket`, html, text };
 }
 
 export interface InvoiceEmailInput {
@@ -918,6 +930,16 @@ export interface InvoiceEmailInput {
  * is left implicit.
  */
 export async function sendInvoiceRaised(store: Firestore, input: InvoiceEmailInput): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...invoiceRaisedMessage(input),
+    template: 'invoice-raised',
+    orderId: input.orderId,
+  });
+}
+
+/** The invoice mail, built and not sent (T292). */
+export function invoiceRaisedMessage(input: InvoiceEmailInput): EmailMessage {
   const total = formatPrice(input.totalCents, input.currency);
   const seats = `${input.seatCount} ${input.seatCount === 1 ? 'seat' : 'seats'}`;
 
@@ -948,14 +970,7 @@ Tickets are issued once the invoice is paid, so nobody is registered yet. When
 payment clears, each attendee on the invoice gets a confirmation email with
 their ticket.`;
 
-  return send(store, {
-    to: input.to,
-    subject: `Knowledge Graph Conference invoice: ${input.companyName} (${seats})`,
-    html,
-    text,
-    template: 'invoice-raised',
-    orderId: input.orderId,
-  });
+  return { subject: `Knowledge Graph Conference invoice: ${input.companyName} (${seats})`, html, text };
 }
 
 export interface RefundEmailInput {
@@ -1007,6 +1022,17 @@ export interface RefundEmailInput {
  * must not claim a badge has stopped working when it has not.
  */
 export async function sendRefundConfirmation(store: Firestore, input: RefundEmailInput): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...refundConfirmationMessage(input),
+    template: 'refund-confirmation',
+    orderId: input.orderId,
+    registrationId: input.registrationId,
+  });
+}
+
+/** The refund receipt, built and not sent (T292). */
+export function refundConfirmationMessage(input: RefundEmailInput): EmailMessage {
   const amount = formatPrice(input.amountCents, input.currency);
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const cancelled = input.ticketCancelled ?? true;
@@ -1046,15 +1072,7 @@ It usually reaches your account in 5-10 working days.
 
 ${ticketText}`;
 
-  return send(store, {
-    to: input.to,
-    subject: 'Your Knowledge Graph Conference ticket has been refunded',
-    html,
-    text,
-    template: 'refund-confirmation',
-    orderId: input.orderId,
-    registrationId: input.registrationId,
-  });
+  return { subject: 'Your Knowledge Graph Conference ticket has been refunded', html, text };
 }
 
 export interface TicketWithdrawnInput {
@@ -1078,6 +1096,17 @@ export interface TicketWithdrawnInput {
  * of them would read as a refund they are owed, which it is not.
  */
 export async function sendTicketWithdrawn(store: Firestore, input: TicketWithdrawnInput): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...ticketWithdrawnMessage(input),
+    template: 'ticket-cancelled',
+    orderId: input.orderId,
+    registrationId: input.registrationId,
+  });
+}
+
+/** The cancelled-ticket notice, built and not sent (T292). */
+export function ticketWithdrawnMessage(input: TicketWithdrawnInput): EmailMessage {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
 
   const html = shell(
@@ -1093,15 +1122,7 @@ Your badge will no longer scan at the door. The money went back to whoever paid
 for the ticket, so there is nothing for you to claim. If you think this is
 wrong, write to ${CONTACT}.`;
 
-  return send(store, {
-    to: input.to,
-    subject: 'Your Knowledge Graph Conference ticket has been cancelled',
-    html,
-    text,
-    template: 'ticket-cancelled',
-    orderId: input.orderId,
-    registrationId: input.registrationId,
-  });
+  return { subject: 'Your Knowledge Graph Conference ticket has been cancelled', html, text };
 }
 
 export interface SignInCodeEmailInput {
@@ -1151,6 +1172,16 @@ export interface SignInCodeEmailInput {
  * `RESEND_API_KEY` is configured.
  */
 export async function sendSignInCode(store: Firestore, input: SignInCodeEmailInput): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...signInCodeMessage(input),
+    template: 'sign-in-code',
+    secrets: [input.code],
+  });
+}
+
+/** The app sign-in code mail, built and not sent (T292). */
+export function signInCodeMessage(input: Pick<SignInCodeEmailInput, 'code' | 'ttlMinutes'>): EmailMessage {
   const html = shell(
     'Your Knowledge Graph Conference sign-in code',
     `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Enter this code in the KGC app to sign in.</p>
@@ -1172,8 +1203,7 @@ to your account without it.
 3-7 May 2027, Jay Conference Bryant Park, New York.
 ${REPLY_LINE_TEXT}`;
 
-  return send(store, {
-    to: input.to,
+  return {
     // Deliberately does not contain the code, and deliberately does not name
     // the recipient or their ticket: this mail goes to any syntactically valid
     // address that asks, so anything specific in it would confirm to a stranger
@@ -1181,9 +1211,7 @@ ${REPLY_LINE_TEXT}`;
     subject: 'Your Knowledge Graph Conference sign-in code',
     html,
     text,
-    template: 'sign-in-code',
-    secrets: [input.code],
-  });
+  };
 }
 
 
@@ -1331,7 +1359,6 @@ async function unsubscribeUrlFor(
  * code cannot keep.
  */
 export async function sendBulkMessage(store: Firestore, input: BulkMessageInput): Promise<SendOutcome> {
-  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const links = await unsubscribeUrlFor(store, input.to, input.issuedAt);
   const unsubscribe = typeof links === 'object' ? links : null;
 
@@ -1355,7 +1382,31 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
     });
     return 'failed';
   }
-  const postal = postalAddress();
+
+  return send(store, {
+    to: input.to,
+    ...bulkMessageMessage(input, unsubscribe?.page ?? null, postalAddress()),
+    template: 'bulk-message',
+    campaignId: input.campaignId,
+    actor: input.actor,
+    idempotencyKey: input.campaignId,
+    // The header gets the POST route, the body got the page. See UnsubscribeLinks.
+    ...(unsubscribe ? { unsubscribeUrl: unsubscribe.oneClick } : {}),
+  });
+}
+
+/**
+ * One bulk message, built and not sent (T292). `unsubscribePage` is the
+ * human `/u/{token}` page, or null for a recipient no contact document
+ * governs; `postal` is `postalAddress()`.
+ */
+export function bulkMessageMessage(
+  input: Pick<BulkMessageInput, 'name' | 'subject' | 'body'>,
+  unsubscribePage: string | null,
+  postal: string | null,
+): EmailMessage {
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
+  const unsubscribe = unsubscribePage ? { page: unsubscribePage } : null;
 
   const paragraphs = input.body
     .split(/\n\s*\n/)
@@ -1397,18 +1448,20 @@ export async function sendBulkMessage(store: Firestore, input: BulkMessageInput)
 
   const text = `${firstNameOf(input.name) ? `Hi ${firstNameOf(input.name)},` : 'Hi,'}\n\n${input.body}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\n${REPLY_LINE_TEXT}${unsubscribeText}${postal ? `\n${postal}` : ''}`;
 
-  return send(store, {
-    to: input.to,
-    subject: input.subject,
-    html,
-    text,
-    template: 'bulk-message',
-    campaignId: input.campaignId,
-    actor: input.actor,
-    idempotencyKey: input.campaignId,
-    // The header gets the POST route, the body got the page. See UnsubscribeLinks.
-    ...(unsubscribe ? { unsubscribeUrl: unsubscribe.oneClick } : {}),
-  });
+  return { subject: input.subject, html, text };
+}
+
+/**
+ * The words of the "you have a seat" mail, sent through `sendBulkMessage`
+ * when a seat in a capped session opens and the first person waiting gets it.
+ * Here rather than in the dashboard so the Email Log's catalogue of formats
+ * shows the same words (T292).
+ */
+export function seatPromotionCopy(sessionTitle: string): { subject: string; body: string } {
+  return {
+    subject: `You have a seat in ${sessionTitle}`,
+    body: `A seat opened in ${sessionTitle} and you were first on the waitlist, so it is yours.\n\nIt is already in your agenda in the conference app. If you can no longer come, remove it there and the seat goes to the next person waiting.`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1477,6 +1530,11 @@ export async function sendSubmissionReceipt(
   store: Firestore,
   input: SubmissionReceiptInput,
 ): Promise<SendOutcome> {
+  return send(store, { to: input.to, ...submissionReceiptMessage(input), template: 'submission-receipt' });
+}
+
+/** The submission receipt for a call without the CFP flow, built and not sent (T292). */
+export function submissionReceiptMessage(input: SubmissionReceiptInput): EmailMessage {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const heading = input.draft
     ? 'Your abstract has been saved as a draft'
@@ -1520,15 +1578,13 @@ Please do not forward this link. Anyone who has it can read your ${input.draft ?
 --
 Knowledge Graph Conference 2027`;
 
-  return send(store, {
-    to: input.to,
+  return {
     subject: input.draft
       ? `Your draft for ${input.callTitle}`
       : `We have your abstract: ${input.title}`,
     html,
     text,
-    template: 'submission-receipt',
-  });
+  };
 }
 
 export interface SubmissionDecisionInput {
@@ -1581,9 +1637,18 @@ export async function sendSubmissionDecision(
   store: Firestore,
   input: SubmissionDecisionInput,
 ): Promise<SendOutcome> {
-  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
+  return send(store, {
+    to: input.to,
+    ...submissionDecisionMessage(input),
+    template: 'submission-decision',
+    actor: input.actor,
+  });
+}
 
-  if (input.waitlisted) return sendWaitlisted(store, input);
+/** Accept, reject or waiting list, built and not sent (T292). */
+export function submissionDecisionMessage(input: Omit<SubmissionDecisionInput, 'to' | 'actor'>): EmailMessage {
+  if (input.waitlisted) return waitlistedMessage(input);
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
 
   const opening = input.accepted
     ? `we are pleased to tell you that <strong>“${esc(input.title)}”</strong> has been accepted for ${esc(input.callTitle)}.`
@@ -1634,16 +1699,13 @@ ${input.link}
 --
 Knowledge Graph Conference 2027`;
 
-  return send(store, {
-    to: input.to,
+  return {
     subject: input.accepted
       ? `Accepted: ${input.title}`
       : `Your submission to ${input.callTitle}`,
     html,
     text,
-    template: 'submission-decision',
-    actor: input.actor,
-  });
+  };
 }
 
 /**
@@ -1654,7 +1716,7 @@ Knowledge Graph Conference 2027`;
  * It promises nothing. A place may open or it may not, and the one thing it has
  * to say clearly is that the author will hear either way.
  */
-async function sendWaitlisted(store: Firestore, input: SubmissionDecisionInput): Promise<SendOutcome> {
+function waitlistedMessage(input: Omit<SubmissionDecisionInput, 'to' | 'actor'>): EmailMessage {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const opening = `thank you for submitting “${input.title}” to ${input.callTitle}. It is on our waiting list.`;
   const next =
@@ -1693,14 +1755,7 @@ ${input.link}
 
 Knowledge Graph Conference 2027`;
 
-  return send(store, {
-    to: input.to,
-    subject: `Your submission to ${input.callTitle}`,
-    html,
-    text,
-    template: 'submission-decision',
-    actor: input.actor,
-  });
+  return { subject: `Your submission to ${input.callTitle}`, html, text };
 }
 
 export interface ReviewerInvitationInput {
@@ -1738,6 +1793,16 @@ export async function sendReviewerInvitation(
   store: Firestore,
   input: ReviewerInvitationInput,
 ): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...reviewerInvitationMessage(input),
+    template: 'reviewer-invitation',
+    actor: input.actor,
+  });
+}
+
+/** The reviewer invitation or reminder, built and not sent (T292). */
+export function reviewerInvitationMessage(input: Omit<ReviewerInvitationInput, 'to' | 'actor'>): EmailMessage {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const waiting =
     input.assigned === 0
@@ -1784,14 +1849,7 @@ six months.
 
 Knowledge Graph Conference 2027`;
 
-  return send(store, {
-    to: input.to,
-    subject: `Reviewing for ${input.callTitle}`,
-    html,
-    text,
-    template: 'reviewer-invitation',
-    actor: input.actor,
-  });
+  return { subject: `Reviewing for ${input.callTitle}`, html, text };
 }
 
 export interface SpeakerProfileRequestInput {
@@ -1829,6 +1887,16 @@ export async function sendSpeakerProfileRequest(
   store: Firestore,
   input: SpeakerProfileRequestInput,
 ): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...speakerProfileRequestMessage(input),
+    template: 'speaker-profile-request',
+    actor: input.actor,
+  });
+}
+
+/** The speaker profile request or reminder, built and not sent (T292). */
+export function speakerProfileRequestMessage(input: Omit<SpeakerProfileRequestInput, 'to' | 'actor'>): EmailMessage {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const talks =
     input.sessionTitles.length === 0
@@ -1877,14 +1945,7 @@ reviewed it. The link stops working after six months.
 
 Knowledge Graph Conference 2027`;
 
-  return send(store, {
-    to: input.to,
-    subject: 'Your speaker profile for the Knowledge Graph Conference',
-    html,
-    text,
-    template: 'speaker-profile-request',
-    actor: input.actor,
-  });
+  return { subject: 'Your speaker profile for the Knowledge Graph Conference', html, text };
 }
 
 export interface TeamInvitationInput {
@@ -1903,6 +1964,11 @@ export interface TeamInvitationInput {
  * up: they sign in with this address and a code we email them each time.
  */
 export async function sendTeamInvitation(store: Firestore, input: TeamInvitationInput): Promise<SendOutcome> {
+  return send(store, { to: input.to, ...teamInvitationMessage(input), template: 'team-invitation', actor: input.actor });
+}
+
+/** The dashboard team invitation, built and not sent (T292). */
+export function teamInvitationMessage(input: Omit<TeamInvitationInput, 'to' | 'actor'>): EmailMessage {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
 
   const html = shell(
@@ -1921,14 +1987,7 @@ Sign in with this email address. We will email you a code each time you sign in.
 
 ${input.link}`;
 
-  return send(store, {
-    to: input.to,
-    subject: 'Your organizer dashboard access',
-    html,
-    text,
-    template: 'team-invitation',
-    actor: input.actor,
-  });
+  return { subject: 'Your organizer dashboard access', html, text };
 }
 
 export interface ConsentRequestInput {
@@ -1974,6 +2033,19 @@ export async function sendConsentRequest(
   store: Firestore,
   input: ConsentRequestInput,
 ): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...consentRequestMessage(input),
+    template: 'consent-request',
+    actor: input.actor,
+    // A consent campaign is one form at one version, so a second press that
+    // reaches somebody the first press already reached is the same mail.
+    ...(input.campaignId ? { campaignId: input.campaignId, idempotencyKey: input.campaignId } : {}),
+  });
+}
+
+/** The request to sign a release, built and not sent (T292). */
+export function consentRequestMessage(input: Omit<ConsentRequestInput, 'to' | 'actor' | 'campaignId'>): EmailMessage {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const opening = input.resigning
     ? `the wording of ${esc(input.formTitle)} has changed since you signed it. Your earlier agreement still stands for what it said, and it does not cover the new text.`
@@ -1999,19 +2071,13 @@ This link is personal to you, so please do not forward it.
 
 Knowledge Graph Conference 2027`;
 
-  return send(store, {
-    to: input.to,
+  return {
     subject: input.resigning
       ? `Please sign ${input.formTitle} again (version ${input.version})`
       : `Please sign ${input.formTitle}`,
     html,
     text,
-    template: 'consent-request',
-    actor: input.actor,
-    // A consent campaign is one form at one version, so a second press that
-    // reaches somebody the first press already reached is the same mail.
-    ...(input.campaignId ? { campaignId: input.campaignId, idempotencyKey: input.campaignId } : {}),
-  });
+  };
 }
 
 export interface ExhibitorLeadLinkInput {
@@ -2046,6 +2112,16 @@ export async function sendExhibitorLeadLink(
   store: Firestore,
   input: ExhibitorLeadLinkInput,
 ): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...exhibitorLeadLinkMessage(input),
+    template: 'exhibitor-lead-link',
+    actor: input.actor,
+  });
+}
+
+/** The stand's lead-scanning link, built and not sent (T292). */
+export function exhibitorLeadLinkMessage(input: Omit<ExhibitorLeadLinkInput, 'to' | 'actor'>): EmailMessage {
   const greeting = firstNameOf(input.contactName) ? `Hi ${esc(firstNameOf(input.contactName))},` : 'Hi,';
   const booth = input.boothNumber
     ? `${esc(input.companyName)} is on stand ${esc(input.boothNumber)} at Knowledge Graph Conference 2027.`
@@ -2092,14 +2168,7 @@ working after four months.
 
 Knowledge Graph Conference 2027`;
 
-  return send(store, {
-    to: input.to,
-    subject: `Scanning badges at the Knowledge Graph Conference: ${input.companyName}`,
-    html,
-    text,
-    template: 'exhibitor-lead-link',
-    actor: input.actor,
-  });
+  return { subject: `Scanning badges at the Knowledge Graph Conference: ${input.companyName}`, html, text };
 }
 
 // ---------------------------------------------------------------------------
@@ -2142,15 +2211,7 @@ const CODE_COPY = {
  */
 export async function sendBlogSignInCode(store: Firestore, input: BlogSignInCodeInput): Promise<SendOutcome> {
   const copy = CODE_COPY[input.surface ?? 'blog'];
-  const html = shell(
-    copy.heading,
-    `<p style="${P}">${copy.lead}</p>
-     <p style="margin:18px 0;font-size:32px;font-weight:700;letter-spacing:.18em;color:${BRAND};">${esc(input.code)}</p>
-     <p style="${SMALL}">It expires in ${esc(input.expiresLabel)}. If you did not ask for it, ignore this email.</p>`,
-  );
-  const text = `${copy.lead} ${input.code}
-
-It expires in ${input.expiresLabel}. If you did not ask for it, ignore this email.`;
+  const { subject, html, text } = accessCodeMessage(input);
   const logged = { to: input.to, subject: copy.log, template: copy.template };
   // The stored copy has the real subject with the code masked, so the preview
   // reads as the inbox did.
@@ -2158,7 +2219,7 @@ It expires in ${input.expiresLabel}. If you did not ask for it, ignore this emai
     from: fromAddress(),
     replyTo: replyTo(),
     to: input.to,
-    subject: `${input.code} ${copy.subject}`,
+    subject,
     html,
     text,
     template: copy.template,
@@ -2179,7 +2240,7 @@ It expires in ${input.expiresLabel}. If you did not ask for it, ignore this emai
         from: fromAddress(),
         to: [input.to],
         reply_to: replyTo(),
-        subject: `${input.code} ${copy.subject}`,
+        subject,
         html,
         text,
       }),
@@ -2199,6 +2260,30 @@ It expires in ${input.expiresLabel}. If you did not ask for it, ignore this emai
   }
 }
 
+/**
+ * A website, dashboard or blog code mail, built and not sent (T292). The
+ * subject is the one the inbox shows, code first; `emailLog` keeps
+ * `accessCodeLogSubject()` instead.
+ */
+export function accessCodeMessage(input: Omit<BlogSignInCodeInput, 'to'>): EmailMessage {
+  const copy = CODE_COPY[input.surface ?? 'blog'];
+  const html = shell(
+    copy.heading,
+    `<p style="${P}">${copy.lead}</p>
+     <p style="margin:18px 0;font-size:32px;font-weight:700;letter-spacing:.18em;color:${BRAND};">${esc(input.code)}</p>
+     <p style="${SMALL}">It expires in ${esc(input.expiresLabel)}. If you did not ask for it, ignore this email.</p>`,
+  );
+  const text = `${copy.lead} ${input.code}
+
+It expires in ${input.expiresLabel}. If you did not ask for it, ignore this email.`;
+  return { subject: `${input.code} ${copy.subject}`, html, text };
+}
+
+/** Which `emailLog` template a code mail is written under, by the door it opens. */
+export function accessCodeTemplate(surface: BlogSignInCodeInput['surface']): EmailLogDoc['template'] {
+  return CODE_COPY[surface ?? 'blog'].template;
+}
+
 /** The same mail, named for the dashboard's callers. */
 export const sendAccessCode = sendBlogSignInCode;
 
@@ -2215,6 +2300,11 @@ export interface BlogInvitationInput {
 }
 
 export async function sendBlogInvitation(store: Firestore, input: BlogInvitationInput): Promise<SendOutcome> {
+  return send(store, { to: input.to, ...blogInvitationMessage(input), template: 'blog-invitation', actor: input.actor });
+}
+
+/** The invitation to write for the blog, built and not sent (T292). */
+export function blogInvitationMessage(input: Omit<BlogInvitationInput, 'to' | 'actor'>): EmailMessage {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const html = shell(
     'Write for the KGC blog',
@@ -2230,7 +2320,7 @@ Sign in with this email address. We will email you a code each time you sign in.
 ${input.link}
 
 Posts you write go to the KGC editors for review before they are published.`;
-  return send(store, { to: input.to, subject: 'Write for the KGC blog', html, text, template: 'blog-invitation', actor: input.actor });
+  return { subject: 'Write for the KGC blog', html, text };
 }
 
 export interface BlogReviewRequestInput {
@@ -2244,6 +2334,16 @@ export interface BlogReviewRequestInput {
 }
 
 export async function sendBlogReviewRequest(store: Firestore, input: BlogReviewRequestInput): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...blogReviewRequestMessage(input),
+    template: 'blog-review-request',
+    actor: input.authorName,
+  });
+}
+
+/** The note to editors that a post is waiting, built and not sent (T292). */
+export function blogReviewRequestMessage(input: Omit<BlogReviewRequestInput, 'to'>): EmailMessage {
   const what = input.isEdit ? 'changes to a published post' : 'a new post';
   const html = shell(
     'A blog post is waiting for review',
@@ -2256,14 +2356,7 @@ export async function sendBlogReviewRequest(store: Firestore, input: BlogReviewR
 ${input.title}
 
 ${input.link}`;
-  return send(store, {
-    to: input.to,
-    subject: `Review: ${input.title}`.slice(0, 180),
-    html,
-    text,
-    template: 'blog-review-request',
-    actor: input.authorName,
-  });
+  return { subject: `Review: ${input.title}`.slice(0, 180), html, text };
 }
 
 export interface BlogReviewDecisionInput {
@@ -2279,6 +2372,16 @@ export interface BlogReviewDecisionInput {
 }
 
 export async function sendBlogReviewDecision(store: Firestore, input: BlogReviewDecisionInput): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...blogReviewDecisionMessage(input),
+    template: 'blog-review-decision',
+    actor: input.actor,
+  });
+}
+
+/** Published, or sent back with changes, built and not sent (T292). */
+export function blogReviewDecisionMessage(input: Omit<BlogReviewDecisionInput, 'to' | 'actor'>): EmailMessage {
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const published = input.decision === 'published';
   const heading = published ? 'Your post is live' : 'Your post needs a few changes';
@@ -2295,14 +2398,11 @@ export async function sendBlogReviewDecision(store: Firestore, input: BlogReview
   const text = `${published ? `${input.title} is now published on the KGC blog.` : `An editor has sent "${input.title}" back to you.`}
 ${input.note ? `\n${input.note}\n` : ''}
 ${input.link}`;
-  return send(store, {
-    to: input.to,
+  return {
     subject: published ? `Published: ${input.title}`.slice(0, 180) : `Changes requested: ${input.title}`.slice(0, 180),
     html,
     text,
-    template: 'blog-review-decision',
-    actor: input.actor,
-  });
+  };
 }
 
 // ---------------------------------------------------------------------------
