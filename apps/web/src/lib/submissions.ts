@@ -15,6 +15,10 @@ import {
   type SubmissionIdentityDoc,
   type SubmissionStatus,
   type TrackDoc,
+  type CallTextDoc,
+  callTextToPlain,
+  fillCallTextPlaceholders,
+  parseCallText,
   publicSiteOrigin,
 } from '@kgc/shared';
 import {
@@ -41,6 +45,7 @@ import {
   fieldsForSessionType,
   fillPlaceholders,
   formatDay,
+  PAGE_TOKENS,
   pageValues,
   sessionTypeLine,
   talkMinutesOf,
@@ -92,7 +97,14 @@ import { db } from './firestore';
 export interface PublicCall {
   id: string;
   title: string;
+  /** Plain text: the whole description when there is no formatted version, else its plain copy. */
   instructions: string;
+  /**
+   * The formatted text (T277), sanitised and with its dates filled in. Absent
+   * on a call whose text has never been formatted, which renders
+   * `instructions` exactly as before.
+   */
+  instructionsDoc?: CallTextDoc;
   fields: CallFormFieldDef[];
   formVersion: number;
   sessionTypes: SessionFormat[];
@@ -182,18 +194,25 @@ export async function loadCall(callId: string): Promise<PublicCall | null> {
 async function toPublic(id: string, call: CallDoc): Promise<PublicCall> {
   const tracks = await trackNames(call.trackIds ?? []);
   const limits = abstractWordLimits(call.cfp);
+  // Sanitised here as well as on save, so a document edited by hand in the
+  // console is held to the same allow-list (`call-text-core.ts`).
+  const stored = parseCallText(call.instructionsDoc);
+  const doc = stored && call.cfp ? fillCallTextPlaceholders(stored, pageValues(call.cfp), PAGE_TOKENS) : stored;
   return {
     id,
     title: call.title,
+    ...(doc ? { instructionsDoc: doc } : {}),
     /*
      * "[CLOSE DATE]" and "[DECISION DATE]" in Min's copy are filled from the
      * settings, and a sentence whose date is not set yet is left out. Only on
      * a call with those settings (T252): a legacy call's description is shown
      * exactly as typed.
      */
-    instructions: call.cfp
-      ? fillPlaceholders(call.instructions ?? '', pageValues(call.cfp))
-      : (call.instructions ?? ''),
+    instructions: doc
+      ? callTextToPlain(doc)
+      : call.cfp
+        ? fillPlaceholders(call.instructions ?? '', pageValues(call.cfp))
+        : (call.instructions ?? ''),
     fields: [...(call.form ?? [])].sort((a, b) => a.order - b.order),
     formVersion: call.formVersion ?? 1,
     sessionTypes: call.sessionTypes ?? [],

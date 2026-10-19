@@ -54,7 +54,7 @@ export default defineConfig({
             { find: /^@\//, replacement: path.resolve(import.meta.dirname, 'apps/web/src') + '/' },
           ],
         },
-        test: { ...shared, name: 'cfa-portal', include: ['tests/cfa/portal.test.ts', 'tests/cfa/rolling-portal.test.ts', 'tests/cfa/other-track-portal.test.ts'] },
+        test: { ...shared, name: 'cfa-portal', include: ['tests/cfa/portal.test.ts', 'tests/cfa/rolling-portal.test.ts', 'tests/cfa/other-track-portal.test.ts', 'tests/cfa/call-text-portal.test.ts'] },
       },
       {
         resolve: {
@@ -74,6 +74,7 @@ export default defineConfig({
             'tests/cfa/review.test.ts',
             'tests/cfa/rolling.test.ts',
             'tests/cfa/other-track.test.ts',
+            'tests/cfa/call-text.test.ts',
           ],
         },
       },

@@ -8,7 +8,7 @@ import { SiteHeader } from '@/components/site-header';
 import { ConsentNotice } from '@/components/consent-notice';
 import { analyticsBootScript, analyticsConfig, consentNoticeOn } from '@/lib/analytics';
 import { brandPalette, isHexColor, mixHex } from '@kgc/shared';
-import { brandingSettings, siteEvent } from '@/lib/data';
+import { brandingSettings, shownCall, siteEvent } from '@/lib/data';
 import { canonicalOrigin } from '@/lib/event-jsonld';
 import { SITE } from '@/lib/site';
 import { openSans, roboto } from '@/fonts';
@@ -156,7 +156,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    * `brandingSettings()` is `cache()`d, so this and `generateMetadata()` above
    * cost one document read between them.
    */
-  const [branding, ev] = await Promise.all([brandingSettings(), siteEvent()]);
+  const [branding, ev, call] = await Promise.all([brandingSettings(), siteEvent(), shownCall()]);
+  // The call with "Show on website" ticked, for Apply to speak (T277).
+  const applyHref = call ? `/submit/${call.id}` : undefined;
   // GA4 + GTM, off unless ANALYTICS_ENABLED=true. See `lib/analytics.ts`.
   const analytics = analyticsConfig();
 
@@ -173,6 +175,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           showAgenda={branding.showAgenda}
           showSpeakers={branding.showSpeakers}
           showTickets={branding.showTickets}
+          applyHref={applyHref}
           blogOrigin={separateBlogOrigin()}
           mainOrigin={mainSiteOrigin()}
         />
@@ -184,6 +187,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           venue={ev.venue}
           showAgenda={branding.showAgenda}
           showSpeakers={branding.showSpeakers}
+          speakHref={applyHref}
           mainOrigin={mainSiteOrigin()}
           blogOrigin={separateBlogOrigin()}
         />

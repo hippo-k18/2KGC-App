@@ -8,6 +8,7 @@ import {
   type AnnouncementDoc,
   type BoothDoc,
   type BrandingSettings,
+  type CallDoc,
   type CallMilestone,
   type DocumentDoc,
   type ExhibitorDoc,
@@ -34,6 +35,7 @@ import {
   tierSize,
   usable,
 } from '@kgc/shared';
+import { pickShownCall } from '@kgc/scripts/src/lib/call-window';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import { db } from './firestore';
@@ -286,6 +288,56 @@ export interface SiteEvent extends EventBasics {
  * organizer saves a venue of their own there is nothing to shorten it to, so the
  * saved venue is used in both places.
  */
+/**
+ * The call the header's "Apply to speak" button links to, or null (T277).
+ *
+ * The call with "Show on website" ticked on the dashboard, while it is
+ * published and has not closed. Before it opens the button still shows: the
+ * page it leads to says when submissions open. The dashboard keeps the flag on
+ * one call at a time; if two ever have it, the one saved last wins.
+ *
+ * Fifteen seconds of shared cache, so a switch flipped on the dashboard shows
+ * on a dynamic page within that and on a statically rendered one within the
+ * layout's minute. Nothing invalidates it on save: the dashboard is a separate
+ * deployment (see `SITE_CONTENT_TAG`).
+ */
+export const shownCall = cache(async function shownCall(): Promise<{ id: string; title: string } | null> {
+  return shared(
+    'shownCall',
+    async () => {
+      const snap = await db().collection(COLLECTIONS.calls).where('showOnWebsite', '==', true).get();
+      // A date that cannot be read counts as zero, which `callWindow` reads as closed.
+      const ms = (t: unknown) => {
+        try {
+          return (t as { toMillis(): number }).toMillis();
+        } catch {
+          return 0;
+        }
+      };
+      const shown = pickShownCall(
+        snap.docs.map((d) => {
+          const call = d.data() as CallDoc;
+          return {
+            id: d.id,
+            title: call.title,
+            eventId: call.eventId,
+            showOnWebsite: call.showOnWebsite,
+            status: call.status,
+            opensAtMs: ms(call.opensAt),
+            closesAtMs: ms(call.closesAt),
+            updatedAtMs: ms(call.updatedAt),
+          };
+        }),
+        EVENT_ID,
+        Date.now(),
+      );
+      return shown ? { id: shown.id, title: shown.title } : null;
+    },
+    null,
+    15,
+  );
+});
+
 export const siteEvent = cache(async function siteEvent(): Promise<SiteEvent> {
   const basics = await eventBasics();
   return {

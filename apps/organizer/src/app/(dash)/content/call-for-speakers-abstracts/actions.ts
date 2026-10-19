@@ -62,6 +62,9 @@ export async function saveCallAction(_prev: FormState, formData: FormData): Prom
       id: id || undefined,
       title: String(formData.get('title') ?? ''),
       instructions: String(formData.get('instructions') ?? ''),
+      // Present only when the editor's text was changed (`instructions-editor.tsx`).
+      instructionsDoc: formData.has('instructionsDoc') ? String(formData.get('instructionsDoc')) : undefined,
+      showOnWebsite: formData.get('showOnWebsite') === '1',
       status,
       opensAtLocal: String(formData.get('opensAtLocal') ?? ''),
       closesAtLocal: String(formData.get('closesAtLocal') ?? ''),

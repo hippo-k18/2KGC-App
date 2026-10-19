@@ -15,6 +15,7 @@ export function SiteFooter({
   venue = SITE.venue,
   showAgenda = false,
   showSpeakers = false,
+  speakHref,
   mainOrigin,
   blogOrigin,
   termsPublished = false,
@@ -27,6 +28,8 @@ export function SiteFooter({
   venue?: string;
   showAgenda?: boolean;
   showSpeakers?: boolean;
+  /** The call shown on the website (T277). Unset keeps Speak at KGC on the sponsor page. */
+  speakHref?: string;
   /** `mainSiteOrigin()` and `BLOG_ORIGIN`: on the blog host the links are absolute. */
   mainOrigin?: string;
   blogOrigin?: string;
@@ -83,7 +86,7 @@ export function SiteFooter({
           <div>
             <h2>Participate</h2>
             <SiteLink href="/sponsor" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Sponsor KGC</SiteLink>
-            <SiteLink href="/sponsor#speak" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Speak at KGC</SiteLink>
+            <SiteLink href={speakHref ?? '/sponsor#speak'} mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Speak at KGC</SiteLink>
             <SiteLink href="/call-for-posters" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Poster track</SiteLink>
             <SiteLink href="/startup-pitch" mainOrigin={mainOrigin} blogOrigin={blogOrigin}>Startup pitch</SiteLink>
           </div>

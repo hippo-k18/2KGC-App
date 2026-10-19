@@ -3103,7 +3103,25 @@ export interface CallDoc extends BaseDoc {
    * are asked to trust.
    */
   instructions: string;
+  /**
+   * The same text with formatting (T277): a TipTap document as a JSON string,
+   * in the shape `call-text-core.ts` allows. Written by the dashboard's editor
+   * together with `instructions`, which then holds its plain-text copy.
+   *
+   * Absent on a call nobody has edited since the editor arrived, and the page
+   * then renders `instructions` exactly as before. A string rather than a map
+   * so Firestore does not index every node, and because the website parses and
+   * sanitises it on every read whatever is stored.
+   */
+  instructionsDoc?: string;
   status: PublishStatus;
+  /**
+   * "Show on website" (T277). While set on a published call that has not
+   * closed, the site header shows an "Apply to speak" button that links to
+   * `/submit/{id}`, and the footer's "Speak at KGC" link points there too. At
+   * most one call has it: saving it on one clears it on the others.
+   */
+  showOnWebsite?: boolean;
 
   /**
    * Local wall time is the authoring truth and the UTC instants are derived from
