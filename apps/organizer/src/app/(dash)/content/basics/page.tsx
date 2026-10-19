@@ -3,7 +3,7 @@ import { COLLECTIONS, EVENT } from '@kgc/shared';
 import { eventBasics } from '@/lib/event';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
 import { requireOrganizer } from '@/lib/auth';
-import { countWhereEvent, listSessions } from '@/lib/data';
+import { countActiveRegistrations, countWhereEvent, listSessions } from '@/lib/data';
 import { targetLabel } from '@/lib/firestore';
 import { ROUTES } from '@/lib/nav';
 import { dayOfInstant } from '@/lib/time';
@@ -48,7 +48,7 @@ export default async function BasicsPage() {
     countWhereEvent(COLLECTIONS.speakers),
     countWhereEvent(COLLECTIONS.sponsors),
     countWhereEvent(COLLECTIONS.tracks),
-    countWhereEvent(COLLECTIONS.registrations),
+    countActiveRegistrations(),
   ]);
 
   const days = [...new Set(sessions.map((s) => s.day))].sort();

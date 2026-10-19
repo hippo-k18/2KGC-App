@@ -22,8 +22,8 @@ export const CHECKOUT_WINDOW_MS = 10 * 60_000;
  *
  * Apache appends the connecting address to `X-Forwarded-For`, so the last
  * entry is the one a client cannot forge; anything before it is whatever the
- * client sent. (`callerIpFromHeaders` in `@kgc/scripts` reads the first entry,
- * which suits a host that overwrites the header.)
+ * client sent. `callerIpFromHeaders` in `@kgc/scripts` reads the last entry
+ * too; this one also falls back to `X-Real-IP` when there is no chain.
  */
 export function checkoutCallerIp(headers: { get(name: string): string | null }): string | undefined {
   const chain = (headers.get('x-forwarded-for') ?? '')

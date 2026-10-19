@@ -1,12 +1,10 @@
 import type { CallCfpSettings } from '@kgc/shared';
 import {
   NUDGE_AFTER_DAYS,
-  closeDecisionDate,
-  closeDecisionOpen,
   closeDecisionPlan,
   dateIn,
   e2RetriesDue,
-  formatDay,
+  holdE2ForClose,
   isOpen,
   reminderDue,
   stillOpenRecipients,
@@ -86,6 +84,8 @@ export interface ScheduledEmail {
   count: number;
   /** Set when it cannot send as things stand, in words. */
   blocked?: string;
+  /** A hint about sending it, not a reason it cannot go. */
+  note?: string;
   /** For `waiting`: where the button is. */
   where?: { label: string; href: string };
   /** The submission or screen it is about. */
@@ -203,13 +203,14 @@ export function callSchedule(call: ScheduleCall, env: ScheduleEnv, nowMs: number
 
   // E4 and E6: sent by a person pressing a button.
   const plan = closeDecisionPlan(call.rows);
-  const e4Day = formatDay(closeDecisionDate(call.cfp));
-  const e4Open = closeDecisionOpen(nowMs, call.cfp, call.timeZone);
-  const e4Blocked = e4Open
+  /*
+   * E4 sends whenever someone presses it (T275); it is never blocked. While
+   * the call is still open the page asks for a second tick, so say that here
+   * rather than send anyone looking for a date the button waits for.
+   */
+  const e4Note = holdE2ForClose(nowMs, call.cfp, call.timeZone)
     ? undefined
-    : e4Day
-      ? `The button opens on ${e4Day}, two weeks after the close.`
-      : 'The close date is not set, so the button cannot open yet.';
+    : 'You can send this now. While the call is still open, the page asks you to tick a second box first.';
   const rolling = { label: 'Call for Speakers › Rolling review › E4', href: `${CFA_BASE}/rolling-review` };
   const declined = plan.declined.filter((r) => r.email);
   const accepted = plan.accepted.filter((r) => r.email);
@@ -222,7 +223,7 @@ export function callSchedule(call: ScheduleCall, env: ScheduleEnv, nowMs: number
       when: 'Waiting for someone to send',
       to: plural(declined.length, 'author'),
       count: declined.length,
-      blocked: e4Blocked,
+      note: e4Note,
       where: rolling,
     });
   }
@@ -235,7 +236,7 @@ export function callSchedule(call: ScheduleCall, env: ScheduleEnv, nowMs: number
       when: 'Waiting for someone to send. E2 with the details link follows each one.',
       to: plural(accepted.length, 'author'),
       count: accepted.length,
-      blocked: e4Blocked,
+      note: e4Note,
       where: rolling,
     });
   }

@@ -163,16 +163,29 @@ describe('waiting for someone to send', () => {
     expect(items.find((i) => i.key === 'e6:call_1')).toMatchObject({ count: 1 });
   });
 
-  it('says when the E4 button opens, and that it cannot before then', () => {
-    const e4d = callSchedule(call({ rows }), OK, NOW).find((i) => i.key === 'e4d:call_1')!;
-    expect(e4d.blocked).toMatch(/opens on .*December 2026/);
+  /*
+   * T280 (gate B#1): since T275 the E4 button sends whenever it is pressed.
+   * The tab must never say it opens on a date or cannot open yet.
+   */
+  it('never blocks E4, before or after the close, with or without a close date', () => {
     const after = Date.parse('2026-12-29T15:00:00Z');
-    expect(callSchedule(call({ rows }), OK, after).find((i) => i.key === 'e4d:call_1')!.blocked).toBeUndefined();
+    const noClose = call({ rows, cfp: { reviewerReminderEmail: 'f@example.com' } });
+    for (const [c, at] of [[call({ rows }), NOW], [call({ rows }), after], [noClose, NOW]] as const) {
+      for (const key of ['e4d:call_1', 'e4a:call_1']) {
+        const item = callSchedule(c, OK, at).find((i) => i.key === key)!;
+        expect(item.kind).toBe('waiting');
+        expect(item.blocked).toBeUndefined();
+        expect(JSON.stringify(item)).not.toMatch(/opens on|cannot open/);
+      }
+    }
   });
 
-  it('says the close date is missing when it is', () => {
-    const c = call({ rows, cfp: { reviewerReminderEmail: 'f@example.com' } });
-    expect(callSchedule(c, OK, NOW).find((i) => i.key === 'e4d:call_1')!.blocked).toMatch(/close date is not set/);
+  it('while the call is open, says it can go now behind a second tick', () => {
+    const e4d = callSchedule(call({ rows }), OK, NOW).find((i) => i.key === 'e4d:call_1')!;
+    expect(e4d.note).toMatch(/send this now/);
+    expect(e4d.note).toMatch(/second box/);
+    const after = Date.parse('2026-12-29T15:00:00Z');
+    expect(callSchedule(call({ rows }), OK, after).find((i) => i.key === 'e4d:call_1')!.note).toBeUndefined();
   });
 
   it('leaves out anyone with no address', () => {

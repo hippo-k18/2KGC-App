@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { requireOrganizer } from '@/lib/auth';
+import { requireAccess } from '@/lib/auth';
+import { ROUTES } from '@/lib/nav';
+import { canOpen } from '@/lib/team-core';
 import { callStillOpen, currentCfpCallId, getCfpCall, listCfpSubmissions } from '@/lib/cfp';
 import {
   closeDecisionDate,
@@ -29,7 +31,9 @@ export default async function RollingReviewPage({
 }: {
   searchParams: Promise<{ call?: string }>;
 }) {
-  await requireOrganizer();
+  const access = await requireAccess();
+  // Only owners can open Tools; a reviewer would be bounced home by the link (T280 B#5).
+  const showEmailLog = canOpen(access.roles, ROUTES.emailLog);
   const sp = await searchParams;
   const callId = sp.call ?? (await currentCfpCallId());
   const call = callId ? await getCfpCall(callId) : null;
@@ -76,12 +80,16 @@ export default async function RollingReviewPage({
           <Link key="s" href={`${CFA_BASE}/submissions?call=${call.id}`}>
             All submissions
           </Link>,
-          <Link key="l" href="/tools/email-log?group=cfp">
-            Email log
-          </Link>,
-          <Link key="q" href="/tools/email-log?tab=scheduled">
-            Scheduled emails
-          </Link>,
+          ...(showEmailLog
+            ? [
+                <Link key="l" href={`${ROUTES.emailLog}?group=cfp`}>
+                  Email log
+                </Link>,
+                <Link key="q" href={`${ROUTES.emailLog}?tab=scheduled`}>
+                  Scheduled emails
+                </Link>,
+              ]
+            : []),
         ]}
       />
 

@@ -716,6 +716,21 @@ export async function adoptionCounts(): Promise<{
   };
 }
 
+/**
+ * Active tickets, by the same rule as the header's Registrations (T262): not
+ * refunded, cancelled or transferred away, and not the demo login. Every
+ * screen that says how many registrations there are reads this, so no two of
+ * them disagree (T280, gate A#6).
+ */
+export async function countActiveRegistrations(): Promise<number> {
+  const snap = await db()
+    .collection(COLLECTIONS.registrations)
+    .where('eventId', '==', EVENT_ID)
+    .select('status', 'demo')
+    .get();
+  return snap.docs.filter((d) => countsAsAttendee(d.data() as RegistrationDoc)).length;
+}
+
 /** The collections the shared demo login (T223) has a document in. */
 const HOLDS_DEMO: ReadonlySet<string> = new Set([COLLECTIONS.registrations, COLLECTIONS.users]);
 

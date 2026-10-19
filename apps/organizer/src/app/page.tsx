@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { COLLECTIONS, EVENT } from '@kgc/shared';
+import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { countWhereEvent, listSessions } from '@/lib/data';
+import { countActiveRegistrations, listSessions } from '@/lib/data';
 import { targetDescription } from '@/lib/firestore';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +29,7 @@ export default async function EventListPage() {
 
   const [sessions, registrations] = await Promise.all([
     listSessions(),
-    countWhereEvent(COLLECTIONS.registrations),
+    countActiveRegistrations(),
   ]);
   const days = [...new Set(sessions.map((s) => s.day))].sort();
 

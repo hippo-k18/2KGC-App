@@ -291,6 +291,24 @@ describe('retries, idempotency and pacing (T258 #3)', () => {
     // Four requests at 10 a second: at least three 100ms gaps.
     expect(Date.now() - started).toBeGreaterThanOrEqual(280);
   });
+
+  /*
+   * T280 (gate A#1/A#2): a clock stepped back must not stall every later send.
+   * The abuse-limits suite fakes `Date` 20 hours ahead; before the clamp every
+   * send after it slept until the real clock caught up.
+   */
+  it('does not stall after the clock steps back', async () => {
+    vi.stubEnv('RESEND_MAX_PER_SECOND', '2');
+    scripted([200]);
+    const real = Date.now;
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => real() + 20 * 3_600_000);
+    await refund('Ada'); // reserves a slot twenty hours "ahead"
+    spy.mockRestore();
+    const started = Date.now();
+    await refund('Ada');
+    // One 500ms gap at most, not twenty hours.
+    expect(Date.now() - started).toBeLessThan(1_500);
+  });
 });
 
 describe('bulk mail and the unsubscribe link (T258 #10, #11)', () => {
