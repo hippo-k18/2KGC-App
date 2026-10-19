@@ -19,7 +19,7 @@ import { DecisionPanel } from '../decision-panel';
 import { liftExclusionAction, undoDecisionAction } from '../actions';
 import { ExcludeReviewerForm } from '../exclude-form';
 import { getCfpCall, getCfpDetail, type CfpDetail } from '@/lib/cfp';
-import { cfpStatus, formatDay, dateIn, sessionTypeLine } from '@kgc/scripts/src/lib/cfp-core';
+import { cfpStatus, formatDay, dateIn, sessionTypeLine, trackLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { cfpStatusReplyText } from '@kgc/scripts/src/lib/email';
 import { CfpStatusTag } from '../../cfp-ui';
 import { CopyBlock } from '../../rolling-review/forms';
@@ -76,9 +76,7 @@ export default async function SubmissionDetailPage({
     .filter((r) => r.status !== 'removed' && !off.has(r.id))
     .map((r) => ({ id: r.id, name: r.name, holds: reviews.some((v) => v.reviewerId === r.id) }));
 
-  const trackName = submission.trackId
-    ? (tracks.find((t) => t.id === submission.trackId)?.name ?? submission.trackId)
-    : undefined;
+  const trackName = trackLabel(submission, (id) => tracks.find((t) => t.id === id)?.name ?? id);
 
   /*
    * `priorVersions` holds `CallFormFieldDef[]`, which is `FormFieldDef` minus

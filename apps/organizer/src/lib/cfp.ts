@@ -9,6 +9,7 @@ import {
   TIME_ZONE,
   publicSiteOrigin,
   type CallCfpSettings,
+  type SessionFormat,
   type CallDoc,
   type SpeakerDoc,
   type SpeakerProfileEditDoc,
@@ -34,6 +35,7 @@ import {
   sessionTypeLine,
   stillOpenRecipients,
   isOpen,
+  trackLabel,
   type CfpRow,
 } from '@kgc/scripts/src/lib/cfp-core';
 import {
@@ -132,7 +134,7 @@ function toCfp(r: SubmissionRow, s: SubmissionDoc | undefined, tracks: Map<strin
     submittedAtMs: r.submittedAtMs,
     title: r.title,
     abstract: r.abstract,
-    trackName: r.trackId ? (tracks.get(r.trackId) ?? r.trackId) : undefined,
+    trackName: trackLabel(r, (id) => tracks.get(id) ?? id),
     durationMinutes: s?.durationMinutes,
     name: r.author?.name,
     email: r.author?.email,
@@ -158,6 +160,8 @@ export interface CfpCall {
   id: string;
   title: string;
   cfp: CallCfpSettings;
+  /** The types ticked in the call editor, in that order. */
+  sessionTypes: SessionFormat[];
   timeZone: string;
   closesAtLocal: string;
   opensAtLocal: string;
@@ -174,6 +178,7 @@ export async function getCfpCall(callId: string): Promise<CfpCall | null> {
     id: snap.id,
     title: c.title,
     cfp: c.cfp ?? {},
+    sessionTypes: c.sessionTypes ?? [],
     timeZone: c.timeZone ?? TIME_ZONE,
     closesAtLocal: c.closesAtLocal,
     opensAtLocal: c.opensAtLocal,
@@ -512,6 +517,7 @@ export async function acceptCfp(input: {
     });
 
     const tracks = before.trackId ? await trackNames() : new Map<string, string>();
+    const track = trackLabel(before, (id) => tracks.get(id) ?? id);
     let notice: SendOutcome | 'unset' = 'unset';
     if (cfp.acceptNoticeEmail) {
       notice = await sendCfpMessage(db(), {
@@ -523,7 +529,7 @@ export async function acceptCfp(input: {
           speakerName: identity.name,
           organisation: identity.affiliation,
           title: before.title,
-          track: before.trackId ? (tracks.get(before.trackId) ?? before.trackId) : undefined,
+          track,
           typeLine,
           acceptedDay: formatDay(dateIn(now, tz)) ?? '',
           link: submissionDashboardUrl(input.submissionId),

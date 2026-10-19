@@ -67,6 +67,7 @@ export async function saveCallAction(_prev: FormState, formData: FormData): Prom
       closesAtLocal: String(formData.get('closesAtLocal') ?? ''),
       sessionTypes,
       trackIds: many(formData, 'trackIds'),
+      allowOtherTrack: formData.get('allowOtherTrack') === '1',
       blindReview,
       reviewsPerSubmission: Number(formData.get('reviewsPerSubmission') ?? 3),
       reminderDaysBefore,

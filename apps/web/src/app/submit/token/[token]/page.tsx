@@ -68,7 +68,7 @@ export default async function SubmissionTokenPage({
 
   return (
     <section>
-      <div className="wrap narrow" style={{ paddingBottom: 48 }}>
+      <div className="wrap narrow cfp-page" style={{ paddingBottom: 48 }}>
         <p className="eyebrow">{own.call.title}</p>
         <h1>{own.title || 'Your submission'}</h1>
 

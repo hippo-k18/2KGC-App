@@ -3141,6 +3141,12 @@ export interface CallDoc extends BaseDoc {
    * still pointing at it, which is the same choice `SessionDoc.trackIds` makes.
    */
   trackIds: string[];
+  /**
+   * Adds "Other" to the end of the public Track list, with a short text box for
+   * the topic (T271). Not a track document, so it never reaches Track Manager,
+   * the agenda or the app. Absent means off.
+   */
+  allowOtherTrack?: boolean;
 
   /** The questions as they stand now. */
   form: CallFormFieldDef[];
@@ -3283,6 +3289,11 @@ export interface SubmissionDoc extends BaseDoc {
   abstract: string;
   /** One of the call's `trackIds`. Absent while the submission is still a draft. */
   trackId?: string;
+  /**
+   * The topic typed under "Other" when the call allows it (T271). Set only
+   * when `trackId` is absent. Shown as "Other: <text>".
+   */
+  trackOther?: string;
   /** One of the call's `sessionTypes`. Absent while still a draft. */
   sessionType?: SessionFormat;
   /** Answers to the call's form, keyed by `CallFormFieldDef.id`. */

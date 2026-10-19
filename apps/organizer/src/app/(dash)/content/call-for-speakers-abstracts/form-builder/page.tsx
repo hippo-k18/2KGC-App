@@ -4,6 +4,7 @@ import { listCalls } from '@/lib/calls';
 import { listSubmissions } from '@/lib/submissions';
 import { Banner, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
 import { ConfirmButton } from '../../../form';
+import { joinWords } from '@kgc/scripts/src/lib/cfp-core';
 import { CFA_BASE } from '../routes';
 import { FieldForm } from './field-form';
 import { deleteFieldAction, moveFieldAction } from './actions';
@@ -233,7 +234,7 @@ export default async function FormBuilderPage({
                       {f.required ? ' · required' : ''}
                       {f.maxLength ? ` · max ${f.maxLength} characters` : ''}
                       {f.options?.length ? ` · ${f.options.join(' / ')}` : ''}
-                      {f.sessionTypes?.length ? ` · ${f.sessionTypes.join(' and ')} only` : ''}
+                      {f.sessionTypes?.length ? ` · ${joinWords(f.sessionTypes, 'and')} only` : ''}
                     </span>
                   </span>,
                   <span key="t">{f.kind}</span>,

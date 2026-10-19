@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { SITE } from '@/lib/site';
 import { queueFor, reviewerFor } from '@/lib/reviews';
+import { trackLabel } from '@kgc/scripts/src/lib/cfp-core';
 
 export const metadata: Metadata = {
   // A capability URL, like `/submit/token/{token}`: kept out of indexes and caches.
@@ -137,7 +138,7 @@ function QueueList({
           <p className="hint" style={{ margin: '2px 0 0' }}>
             {[
               i.callTitle,
-              i.trackId ? (trackName.get(i.trackId) ?? undefined) : undefined,
+              trackLabel(i, (id) => trackName.get(id)),
               i.reviewStatus === 'submitted'
                 ? `your overall ${i.overall?.toFixed(1) ?? ''} of 10${i.closed ? '' : ', can still be changed'}`
                 : i.started

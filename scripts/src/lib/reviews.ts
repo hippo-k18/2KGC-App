@@ -76,6 +76,7 @@ export interface QueueItem {
   callTitle: string;
   title: string;
   trackId?: string;
+  trackOther?: string;
   reviewStatus: ReviewStatus;
   conflict: boolean;
   /** Scores have been saved but the review is not submitted. */
@@ -154,6 +155,7 @@ export async function loadQueue(store: Firestore, reviewerId: string): Promise<Q
       callTitle: callTitle.get(r.callId) ?? '',
       title: sub.title ?? '',
       trackId: sub.trackId,
+      trackOther: sub.trackOther,
       reviewStatus: r.status,
       conflict: r.conflict === true,
       started: r.status === 'assigned' && Object.keys(r.scores ?? {}).length > 0,
@@ -185,6 +187,7 @@ export interface Assignment {
   title: string;
   abstract: string;
   trackId?: string;
+  trackOther?: string;
   sessionType?: SessionFormat;
   /** Questions and answers, already paired. Description blocks are left out. */
   answers: { prompt: string; value: string | string[] | boolean | undefined }[];
@@ -297,6 +300,7 @@ export async function loadAssignment(
     title: gone ? '' : (sub.title ?? ''),
     abstract: gone ? '' : (sub.abstract ?? ''),
     trackId: sub.trackId,
+    trackOther: sub.trackOther,
     sessionType: sub.sessionType,
     answers: gone ? [] : answers,
     author,

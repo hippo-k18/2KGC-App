@@ -2,7 +2,13 @@
 
 import { useActionState, useState } from 'react';
 import type { AnswerValue } from '@kgc/scripts/src/lib/question-forms';
-import { fieldsForSessionType, wordCount } from '@kgc/scripts/src/lib/cfp-core';
+import {
+  OTHER_TRACK,
+  TRACK_OTHER_MAX,
+  fieldsForSessionType,
+  typeLabel,
+  wordCount,
+} from '@kgc/scripts/src/lib/cfp-core';
 import type { OwnSubmission, PublicCall } from '@/lib/submissions';
 import { SubmissionFields } from './submission-fields';
 import { formatDeadline } from '@/lib/site';
@@ -68,12 +74,14 @@ export function SubmissionForm({
     existing?.sessionType ?? (call.sessionTypes.length === 1 ? call.sessionTypes[0] : ''),
   );
   const [words, setWords] = useState(() => wordCount(existing?.abstract ?? ''));
+  const [track, setTrack] = useState<string>(
+    existing?.trackId ?? (existing?.trackOther ? OTHER_TRACK : ''),
+  );
   const cfp = call.cfp;
   const fields = fieldsForSessionType(call.fields, sessionType || undefined);
   const closesLabel = cfp
     ? cfp.closeDay
     : (formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal);
-  const typeLabel = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
   return (
     <form action={action} className="checkout">
@@ -90,7 +98,7 @@ export function SubmissionForm({
 
       {call.sessionTypes.length > 0 && (
         <div className="field">
-          <label htmlFor="sessionType">{cfp ? 'Talk or workshop? *' : 'What are you offering it as? *'}</label>
+          <label htmlFor="sessionType">{cfp ? 'Select your submission *' : 'What are you offering it as? *'}</label>
           <select
             id="sessionType"
             name="sessionType"
@@ -174,20 +182,38 @@ export function SubmissionForm({
         </div>
       )}
 
-      {call.tracks.length > 0 && (
+      {(call.tracks.length > 0 || call.allowOtherTrack) && (
         <div className="field">
           <label htmlFor="trackId">Track *</label>
-          <select id="trackId" name="trackId" defaultValue={existing?.trackId ?? ''}>
+          <select id="trackId" name="trackId" value={track} onChange={(e) => setTrack(e.target.value)}>
             <option value="">Choose one…</option>
             {call.tracks.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
             ))}
+            {call.allowOtherTrack && <option value={OTHER_TRACK}>Other</option>}
           </select>
           {errors.trackId && (
             <p className="hint" style={{ color: '#991b1b' }} role="alert">
               {errors.trackId}
+            </p>
+          )}
+        </div>
+      )}
+
+      {call.allowOtherTrack && track === OTHER_TRACK && (
+        <div className="field">
+          <label htmlFor="trackOther">Which topic? *</label>
+          <input
+            id="trackOther"
+            name="trackOther"
+            maxLength={TRACK_OTHER_MAX}
+            defaultValue={existing?.trackOther}
+          />
+          {errors.trackOther && (
+            <p className="hint" style={{ color: '#991b1b' }} role="alert">
+              {errors.trackOther}
             </p>
           )}
         </div>
@@ -257,7 +283,6 @@ export function SubmissionForm({
           defaultValue={(a?.coAuthors ?? [])
             .map((c) => (c.affiliation ? `${c.name} (${c.affiliation})` : c.name))
             .join('\n')}
-          placeholder={'Ada Lovelace (Analytical Engines Ltd)\nGrace Hopper'}
         />
         <p className="hint">One per line. Put an affiliation in brackets after the name if you want to.</p>
       </div>

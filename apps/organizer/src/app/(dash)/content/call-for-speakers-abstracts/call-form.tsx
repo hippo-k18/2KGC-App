@@ -59,7 +59,6 @@ export function CallForm({
         required
         maxLength={120}
         defaultValue={existing?.title}
-        placeholder="Call for talks and posters. KGC 2027"
         hint="What people read at the top of the public page, and what the acknowledgement email calls it."
         width="xl"
       />
@@ -143,8 +142,8 @@ export function CallForm({
         legend="Tracks"
         hint={
           tracks.length === 0
-            ? 'No tracks have been entered for this event yet, so a submitter cannot be asked to choose one. Add them in Track Manager.'
-            : 'Offered to the submitter, and what reviewer assignment by topic matches on.'
+            ? 'No tracks have been entered for this event yet. Add them in Track Manager, or tick Other so submitters can type a topic.'
+            : 'Offered to the submitter, and what reviewer assignment by topic matches on. Other lets them type a topic of their own.'
         }
         inline
       >
@@ -157,6 +156,12 @@ export function CallForm({
             defaultChecked={existing?.trackIds.includes(t.id) ?? false}
           />
         ))}
+        <CheckboxField
+          name="allowOtherTrack"
+          value="1"
+          label="Other"
+          defaultChecked={existing?.allowOtherTrack ?? false}
+        />
       </FieldSet>
 
       <FormGrid>
@@ -185,7 +190,6 @@ export function CallForm({
         name="notifyEmails"
         rows={3}
         defaultValue={(existing?.notifyEmails ?? []).join('\n')}
-        placeholder={'programme@knowledgegraph.tech\nchair@knowledgegraph.tech'}
         hint="One per line, or separated by commas. Empty means nobody is told."
       />
 

@@ -77,7 +77,7 @@ export default async function SpeakerProfilePage({
 
   return (
     <section>
-      <div className="wrap narrow" style={{ paddingBottom: 48 }}>
+      <div className="wrap narrow cfp-page" style={{ paddingBottom: 48 }}>
         <p className="eyebrow">
           {SITE.shortName} {SITE.year} speakers
         </p>

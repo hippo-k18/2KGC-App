@@ -58,7 +58,6 @@ export function CriterionForm({
               maxLength={80}
               width="lg"
               defaultValue={existing?.label}
-              placeholder="Relevance"
             />
             <Field
               label="Lowest score"

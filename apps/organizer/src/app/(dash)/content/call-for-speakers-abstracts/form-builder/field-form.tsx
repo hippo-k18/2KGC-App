@@ -92,11 +92,6 @@ export function FieldForm({
         required
         rows={isDescription ? 4 : 2}
         defaultValue={existing?.prompt}
-        placeholder={
-          isDescription
-            ? 'Your abstract will be read by three reviewers. Aim for 300 words.'
-            : 'What is the main contribution of this work?'
-        }
         hint={
           isDescription
             ? 'Shown between questions. It asks nothing and stores nothing.'
@@ -111,7 +106,6 @@ export function FieldForm({
           rows={5}
           required
           defaultValue={(existing?.options ?? []).join('\n')}
-          placeholder={'Research\nIndustry case study\nTooling'}
           hint="One per line. At least two, and no two the same."
         />
       )}
