@@ -32,3 +32,34 @@ docker rm -f kgc-zdt
 The script reads three test-only variables, `KGC_PUBLIC_WEB`,
 `KGC_PUBLIC_DASH` and `KGC_PUBLIC_ARCHIVE`, so its public checks hit the
 container's Apache. On the droplet they are unset and the real URLs are used.
+
+## Without Docker: `stub-test.sh`
+
+```bash
+bash scripts/ops/zero-downtime-test/stub-test.sh
+```
+
+This runs `droplet-deploy.sh` in a temp folder against stand-ins for
+`systemctl`, `apache2ctl`, `curl`, `ss` and `flock`. It needs only bash, git
+and python3, with no container, no root and no GUI app, and it runs on a Mac.
+
+The stand-ins track which ports have a process answering and which port
+Apache serves each app from. They fail the run if Apache is ever reloaded onto
+a port with nothing answering, or if the process Apache serves from is stopped.
+
+The steps covered are:
+- setup, run twice;
+- a deploy before setup;
+- deploy both, rollback, restart, status;
+- a release that never answers, a public check that fails, a bad Apache config;
+- a busy idle port, a held lock;
+- the CFP cron's port lookup.
+
+The test was itself checked by breaking the script in three ways, and each
+broken version fails:
+- stopping the old process before the switch;
+- pointing Apache at the new port before the new process starts;
+- dropping the step that switches back when the public check fails.
+
+It checks order and logic only. It does not measure timing, memory or
+Apache's real reload; the Docker run above does that.
