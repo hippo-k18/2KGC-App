@@ -1397,10 +1397,10 @@ export async function sendSubmissionReceipt(
        ${row('Call', esc(input.callTitle))}
        ${closes ? row('Closes', esc(closes)) : ''}
      </table>
-     ${button(input.link, input.draft ? 'Finish your submission' : 'View or edit your submission')}
+     ${button(input.link, input.draft ? 'Finish your submission' : 'View your submission')}
      <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:#6b7280;">
-       Please do not forward this link. Anyone who has it can read your abstract and, while the
-       call is open, edit it. It stops working after twelve months.
+       Please do not forward this link. Anyone who has it can read your
+       ${input.draft ? 'draft and, while the call is open, edit it' : 'submission'}. It stops working after twelve months.
      </p>`,
   );
 
@@ -1413,11 +1413,10 @@ export async function sendSubmissionReceipt(
 Title:  ${input.title}
 Call:   ${input.callTitle}${closes ? `\nCloses: ${closes}` : ''}
 
-${input.draft ? 'Finish your submission' : 'View or edit your submission'}:
+${input.draft ? 'Finish your submission' : 'View your submission'}:
 ${input.link}
 
-Please do not forward this link. Anyone who has it can read your abstract and,
-while the call is open, edit it. It stops working after twelve months.
+Please do not forward this link. Anyone who has it can read your ${input.draft ? 'draft and,\nwhile the call is open, edit it' : 'submission'}. It stops working after twelve months.
 
 --
 Knowledge Graph Conference 2027`;
@@ -2270,7 +2269,7 @@ const when = <T>(value: T | undefined | null | false, block: (v: T) => CfpBlock)
 export interface CfpSubmissionRef {
   name?: string;
   title: string;
-  /** "Talk, 25 minutes" or "Workshop", from `sessionTypeLine`. */
+  /** "Workshops", or "Presentation Talks & Keynotes, 25 minutes", from `sessionTypeLine`. */
   typeLine: string;
 }
 
@@ -2309,10 +2308,10 @@ export function cfpReceivedMessage(
    */
   return {
     ...msg,
-    text: `${msg.text}\n\nView or edit your submission until the call closes:\n${input.link}`,
+    text: `${msg.text}\n\nView your submission and, later, our decision here:\n${input.link}`,
     html: msg.html.replace(
       '</td></tr>\n        <tr><td style="padding:18px 28px;background:#fafbfc;',
-      `<p style="margin:18px 0 0;font-size:13px;line-height:1.6;color:#6b7280;">View or edit your submission until the call closes: <a href="${input.link}" style="color:#6b7280;">your submission</a>. Please do not forward this link.</p></td></tr>\n        <tr><td style="padding:18px 28px;background:#fafbfc;`,
+      `<p style="margin:18px 0 0;font-size:13px;line-height:1.6;color:#6b7280;">View your submission and, later, our decision here: <a href="${input.link}" style="color:#6b7280;">your submission</a>. Please do not forward this link.</p></td></tr>\n        <tr><td style="padding:18px 28px;background:#fafbfc;`,
     ),
   };
 }
@@ -2468,7 +2467,8 @@ export function cfpAcceptNoticeMessage(input: CfpAcceptNoticeInput): CfpMessage 
     ['Speaker', input.speakerName],
     ['Organisation', input.organisation || 'Not given'],
     ['Title', input.title],
-    ['Track', input.track || 'Not given'],
+    // Left out when there is none: the call may not ask for a track (T276).
+    ...(input.track ? [['Track', input.track] as [string, string]] : []),
     ['Type', input.typeLine],
     ['Accepted', input.acceptedDay],
   ];

@@ -27,6 +27,10 @@ import { listOrders, money, type OrderRow } from './commerce';
 import { inCategory } from './attendee-categories-core';
 import { listAttendeeTickets, listAttendees, listSessions, listSpeakers, listSponsors } from './data';
 import type { AttendeeRow, SessionRow, SpeakerRow, SponsorRow } from './data';
+import { listCalls } from './calls';
+import { listSubmissions, type SubmissionRow } from './submissions';
+import { listTrackOptions } from './data';
+import { trackLabel, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 
 /**
  * Every export the dashboard offers, as data.
@@ -62,7 +66,8 @@ export type ExportKind =
   | 'attendance-hours'
   | 'survey-answers'
   | 'registration-answers'
-  | 'sponsor-report';
+  | 'sponsor-report'
+  | 'cfp-submissions';
 
 export interface ExportDef {
   kind: ExportKind;
@@ -447,6 +452,58 @@ export const EXPORTS: ExportDef[] = [
     },
   },
 ];
+
+/*
+ * Call for speakers submissions (T276). Every call's, drafts included and
+ * marked, with the author's contact details: the phone number is asked on the
+ * form and this file and the submission page are the only places it shows.
+ */
+type CfpExportRow = SubmissionRow & { callTitle: string; track: string };
+
+EXPORTS.push(
+  def<CfpExportRow>(
+    'cfp-submissions',
+    'Call for speakers submissions',
+    'Working through the submissions in a spreadsheet, or handing the programme committee a list.',
+    'Title, type, description, link, status, and the author’s name, email, organization and phone.',
+    async () => {
+      const [calls, tracks] = await Promise.all([listCalls(), listTrackOptions()]);
+      const trackNames = new Map(tracks.map((t) => [t.id, t.name]));
+      const perCall = await Promise.all(
+        calls.map(async (c) =>
+          (await listSubmissions(c.id)).map((s) => ({
+            ...s,
+            callTitle: c.title,
+            track: trackLabel(s, (id) => trackNames.get(id) ?? id) ?? '',
+          })),
+        ),
+      );
+      return perCall.flat();
+    },
+    [
+      { header: 'Call', value: (s) => s.callTitle },
+      { header: 'Status', value: (s) => s.status },
+      { header: 'Submitted', value: (s) => (s.submittedAtMs ? new Date(s.submittedAtMs).toISOString().slice(0, 10) : '') },
+      { header: 'Session Type & Format', value: (s) => (s.sessionType ? typeLabel(s.sessionType) : '') },
+      { header: 'Session Title', value: (s) => s.title },
+      { header: 'Session Description', value: (s) => s.abstract },
+      { header: 'Link to Additional Resources', value: (s) => s.resourceLink ?? '' },
+      { header: 'Track', value: (s) => s.track },
+      { header: 'Talk length (minutes)', value: (s) => s.durationMinutes ?? '' },
+      { header: 'Name', value: (s) => s.author?.name ?? '' },
+      { header: 'Email', value: (s) => s.author?.email ?? '' },
+      { header: 'Organization', value: (s) => s.author?.affiliation ?? '' },
+      { header: 'Phone', value: (s) => s.author?.phone ?? '' },
+      {
+        header: 'Co-Speakers or Co-Authors',
+        value: (s) =>
+          (s.author?.coAuthors ?? []).map((c) => (c.affiliation ? `${c.name} (${c.affiliation})` : c.name)).join('; '),
+      },
+      { header: 'Reviews', value: (s) => `${s.reviewsSubmitted}/${s.reviewsAssigned}` },
+      { header: 'Mean score', value: (s) => (s.scoreAverage === undefined ? '' : s.scoreAverage.toFixed(1)) },
+    ],
+  ),
+);
 
 export function exportByKind(kind: string): ExportDef | undefined {
   return EXPORTS.find((e) => e.kind === kind);

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
+import { typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { formatDeadline, SITE } from '@/lib/site';
 import { loadOwnSubmission } from '@/lib/submissions';
 import { SubmissionForm } from '../../submission-form';
@@ -66,16 +67,23 @@ export default async function SubmissionTokenPage({
     ? (own.call.cfp.closeDay ?? 'the call closes')
     : (formatDeadline(own.call.closesAtLocal, own.call.timeZone) ?? own.call.closesAtLocal);
 
+  /*
+   * Submitted and waiting for a decision (T276): the page closes to this. An
+   * untold rejection arrives here as `submitted`, so it reads the same.
+   */
+  const received = own.status === 'submitted' && !own.decided;
+
   return (
     <section>
       <div className="wrap narrow cfp-page" style={{ paddingBottom: 48 }}>
         <p className="eyebrow">{own.call.title}</p>
-        <h1>{own.title || 'Your submission'}</h1>
+        <h1>{received ? 'Submission received' : own.title || 'Your submission'}</h1>
 
-        {r === 'submitted' && (
+        {received && (
           <p className="notice" role="status">
-            <strong>Submitted.</strong> We have emailed you this link. Use it to come back and make
-            changes while the call is open.
+            <strong>Thank you, we have your submission.</strong>{' '}
+            {r === 'submitted' ? 'We have emailed you this link. ' : ''}Keep it to see what you sent
+            and, later, our decision. The submission is final and can no longer be changed.
           </p>
         )}
         {r === 'saved' && (
@@ -160,7 +168,7 @@ export default async function SubmissionTokenPage({
           <ReadOnly own={own} />
         )}
 
-        {(own.editable || own.decided === 'waitlisted') && own.status !== 'withdrawn' && (
+        {own.withdrawable && own.status !== 'withdrawn' && (
           <form action={withdrawAction} style={{ marginTop: 28 }}>
             <input type="hidden" name="token" value={token} />
             <details>
@@ -205,6 +213,21 @@ function ReadOnly({ own }: { own: Awaited<ReturnType<typeof loadOwnSubmission>> 
   return (
     <div className="checkout">
       <h2 style={{ marginTop: 0 }}>{own.title || 'Untitled'}</h2>
+      <dl className="submission-facts">
+        {own.sessionType && (
+          <div>
+            <dt>Session Type &amp; Format</dt>
+            <dd>{typeLabel(own.sessionType)}</dd>
+          </div>
+        )}
+        {own.submittedOn && (
+          <div>
+            <dt>Submitted</dt>
+            <dd>{own.submittedOn}</dd>
+          </div>
+        )}
+      </dl>
+      <h3>Session Description</h3>
       {own.abstract
         .split(/\n\s*\n/)
         .map((para) => para.trim())
@@ -215,13 +238,30 @@ function ReadOnly({ own }: { own: Awaited<ReturnType<typeof loadOwnSubmission>> 
           </p>
         ))}
 
-      <p className="hint">
+      {own.resourceLink && (
+        <>
+          <h3>Additional Resources or Supporting Materials</h3>
+          <p>
+            <a href={own.resourceLink} rel="noopener noreferrer nofollow" target="_blank">
+              {own.resourceLink}
+            </a>
+          </p>
+        </>
+      )}
+
+      <h3>About you</h3>
+      <p>
         {own.author.name}
         {own.author.affiliation ? `, ${own.author.affiliation}` : ''}
-        {own.author.coAuthors.length > 0
-          ? ` · with ${own.author.coAuthors.map((c) => c.name).join(', ')}`
-          : ''}
       </p>
+      {own.author.coAuthors.length > 0 && (
+        <p>
+          Co-Speakers or Co-Authors:{' '}
+          {own.author.coAuthors
+            .map((c) => (c.affiliation ? `${c.name} (${c.affiliation})` : c.name))
+            .join(', ')}
+        </p>
+      )}
 
       {own.fields.filter((f) => f.kind !== 'description').length > 0 && (
         <>

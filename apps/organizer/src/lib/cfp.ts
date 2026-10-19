@@ -9,7 +9,7 @@ import {
   TIME_ZONE,
   publicSiteOrigin,
   type CallCfpSettings,
-  type SessionFormat,
+  type CallSessionType,
   type CallDoc,
   type SpeakerDoc,
   type SpeakerProfileEditDoc,
@@ -161,7 +161,7 @@ export interface CfpCall {
   title: string;
   cfp: CallCfpSettings;
   /** The types ticked in the call editor, in that order. */
-  sessionTypes: SessionFormat[];
+  sessionTypes: CallSessionType[];
   timeZone: string;
   closesAtLocal: string;
   opensAtLocal: string;

@@ -1,7 +1,8 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import type { CallFormFieldDef, SessionFormat } from '@kgc/shared';
+import type { CallFormFieldDef, CallSessionType } from '@kgc/shared';
+import { typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import {
   CheckboxField,
   Field,
@@ -43,7 +44,7 @@ export function FieldForm({
   /** How many submissions already answered this question. Zero for a new one. */
   answered: number;
   /** The call's session types. With two or more, a question can be limited to some. */
-  sessionTypes?: SessionFormat[];
+  sessionTypes?: CallSessionType[];
 }) {
   const [state, action] = useActionState<FormState, FormData>(saveFieldAction, {});
   const [kind, setKind] = useState<CallFormFieldDef['kind']>(existing?.kind ?? 'short-text');
@@ -163,7 +164,7 @@ export function FieldForm({
               key={t}
               name="sessionTypes"
               value={t}
-              label={t.charAt(0).toUpperCase() + t.slice(1)}
+              label={typeLabel(t)}
               defaultChecked={existing?.sessionTypes?.includes(t) ?? false}
             />
           ))}

@@ -16,6 +16,7 @@ import {
   dateTimeValue,
   type FormState,
 } from '../../form';
+import { AGENDA_SESSION_TYPES, CFP_SESSION_TYPES, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { saveCallAction } from './actions';
 
 /**
@@ -122,21 +123,41 @@ export function CallForm({
         />
       </FormGrid>
 
+      {/*
+        A call for speakers offers the owner's six types (T276); any other call
+        offers the agenda's own formats, as before.
+      */}
       <FieldSet
         legend="Session types"
         hint="What a submitter can offer the work as. An accepted submission carries this onto the agenda."
         inline
       >
-        {(['keynote', 'talk', 'panel', 'workshop', 'poster', 'social'] as const).map((f) => (
+        {(existing?.isCfp
+          ? CFP_SESSION_TYPES.map((t) => ({ id: t.id, label: t.label }))
+          : AGENDA_SESSION_TYPES.map((f) => ({ id: f, label: typeLabel(f) }))
+        ).map((t) => (
           <CheckboxField
-            key={f}
+            key={t.id}
             name="sessionTypes"
-            value={f}
-            label={f}
-            defaultChecked={existing ? existing.sessionTypes.includes(f) : f === 'talk' || f === 'poster'}
+            value={t.id}
+            label={t.label}
+            defaultChecked={existing ? existing.sessionTypes.includes(t.id) : t.id === 'talk' || t.id === 'poster'}
           />
         ))}
       </FieldSet>
+
+      {existing?.isCfp && (
+        <FieldSet legend="Questions on the form" inline>
+          <input type="hidden" name="cfpSwitches" value="1" />
+          <CheckboxField name="askTrack" value="1" label="Ask for a track" defaultChecked={existing.askTrack} />
+          <CheckboxField
+            name="askTalkLength"
+            value="1"
+            label="Ask talk length"
+            defaultChecked={existing.askTalkLength}
+          />
+        </FieldSet>
+      )}
 
       <FieldSet
         legend="Tracks"

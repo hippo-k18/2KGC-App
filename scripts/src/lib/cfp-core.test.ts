@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CALL_SESSION_TYPES,
+  CFP_SESSION_TYPES,
   OTHER_TRACK,
   TRACK_OTHER_MAX,
+  agendaFormat,
+  asksTalkLength,
+  asksTrack,
+  phoneChoice,
+  resourceLinkChoice,
   joinWords,
   trackChoice,
   trackLabel,
@@ -64,8 +71,11 @@ describe('questions by session type', () => {
   });
 
   it('writes the type line E2 prints', () => {
-    expect(sessionTypeLine('talk', 25)).toBe('Talk, 25 minutes');
-    expect(sessionTypeLine('workshop', 45)).toBe('Workshop');
+    expect(sessionTypeLine('talk', 25)).toBe('Presentation Talks & Keynotes, 25 minutes');
+    expect(sessionTypeLine('talk')).toBe('Presentation Talks & Keynotes');
+    expect(sessionTypeLine('workshop', 45)).toBe('Workshops');
+    expect(sessionTypeLine('hcls')).toBe('Health Care and Life Sciences (HCLS) Symposium');
+    expect(sessionTypeLine(undefined)).toBe('Session');
   });
 });
 
@@ -304,6 +314,58 @@ describe('the Other track (T271)', () => {
 describe('session-type words (T271)', () => {
   it('joins words and labels a type', () => {
     expect(joinWords(['talk', 'workshop'], 'and')).toBe('talk and workshop');
-    expect(typeLabel('panel')).toBe('Panel');
+    expect(typeLabel('panel')).toBe('Panels & Fireside Chats');
+    expect(typeLabel('keynote')).toBe('Keynote');
+  });
+});
+
+describe('the six CFP session types (T276)', () => {
+  it('lists them in the owner’s order and words, keeping talk and workshop', () => {
+    expect(CFP_SESSION_TYPES.map((t) => [t.id, t.label])).toEqual([
+      ['talk', 'Presentation Talks & Keynotes'],
+      ['workshop', 'Workshops'],
+      ['panel', 'Panels & Fireside Chats'],
+      ['hcls', 'Health Care and Life Sciences (HCLS) Symposium'],
+      ['poster', 'Poster Sessions'],
+      ['demo', 'Tools and Demonstrations'],
+    ]);
+    for (const t of CFP_SESSION_TYPES) expect(CALL_SESSION_TYPES).toContain(t.id);
+  });
+  it('schedules each onto an agenda format', () => {
+    expect(CFP_SESSION_TYPES.map((t) => agendaFormat(t.id))).toEqual(['talk', 'workshop', 'panel', 'talk', 'poster', 'talk']);
+    expect(agendaFormat('keynote')).toBe('keynote');
+    expect(agendaFormat(undefined)).toBe('talk');
+  });
+});
+
+describe('track and talk length switches (T276)', () => {
+  it('a CFP call asks neither unless ticked', () => {
+    expect(asksTrack({ cfp: {} })).toBe(false);
+    expect(asksTalkLength({ cfp: {} })).toBe(false);
+    expect(asksTrack({ cfp: {}, askTrack: true })).toBe(true);
+    expect(asksTalkLength({ cfp: {}, askTalkLength: true })).toBe(true);
+  });
+  it('any other call asks for a track as before and never a length', () => {
+    expect(asksTrack({})).toBe(true);
+    expect(asksTrack({ askTrack: false })).toBe(false);
+    expect(asksTalkLength({ askTalkLength: true })).toBe(false);
+  });
+});
+
+describe('phone and resource link (T276)', () => {
+  it('takes a phone loosely and refuses letters', () => {
+    expect(phoneChoice('')).toEqual({});
+    expect(phoneChoice(' +1 (212) 555-0100 ')).toEqual({ phone: '+1 (212) 555-0100' });
+    expect(phoneChoice('call me').error).toBeTruthy();
+    expect(phoneChoice('12345').error).toBeTruthy();
+    expect(phoneChoice('+1 212 555 0100 ext 4').error).toBeTruthy();
+  });
+  it('takes one web address and adds https when left off', () => {
+    expect(resourceLinkChoice('')).toEqual({});
+    expect(resourceLinkChoice('github.com/acme/repo')).toEqual({ link: 'https://github.com/acme/repo' });
+    expect(resourceLinkChoice('https://example.org/slides.pdf')).toEqual({ link: 'https://example.org/slides.pdf' });
+    expect(resourceLinkChoice('two words').error).toBeTruthy();
+    expect(resourceLinkChoice('javascript:alert(1)').error).toBeTruthy();
+    expect(resourceLinkChoice('localhost').error).toBeTruthy();
   });
 });

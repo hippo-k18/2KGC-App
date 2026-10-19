@@ -24,7 +24,7 @@ import { rankByTrack, OVERALL_MAX } from '@kgc/scripts/src/lib/review-core';
 import { CFA_BASE } from '../routes';
 import { BulkDecisionBar, RowCheckbox, SelectAllCheckbox } from './bulk-decision';
 import { getCfpCall, listCfpSubmissions } from '@/lib/cfp';
-import { OTHER_TRACK, cfpStatus, holdE2ForClose, trackLabel, type CfpStatus } from '@kgc/scripts/src/lib/cfp-core';
+import { OTHER_TRACK, cfpStatus, holdE2ForClose, trackLabel, typeLabel, type CfpStatus } from '@kgc/scripts/src/lib/cfp-core';
 import { CfpSettingsWarning, CfpStatusTag, TypeFilter } from '../cfp-ui';
 
 export const dynamic = 'force-dynamic';
@@ -170,6 +170,9 @@ export default async function SubmissionsPage({
           <Link key="w" href={`${CFA_BASE}/review?call=${callId}`}>
             Weekly review
           </Link>,
+          <a key="x" href="/export/cfp-submissions" download>
+            Download CSV
+          </a>,
           <Link key="d" href={`${CFA_BASE}/rolling-review?call=${callId}`}>
             Dates and emails
           </Link>,
@@ -232,6 +235,7 @@ export default async function SubmissionsPage({
           all={all}
           trackOrder={call.trackIds}
           trackName={trackName}
+          byTrack={call.askTrack}
           hasCriteria={call.rubric.length > 0}
           rolling={Boolean(cfpCall?.enabled)}
           holdsE2={bulkHoldsE2}
@@ -296,9 +300,9 @@ export default async function SubmissionsPage({
               stackSm
               cols={[
                 { key: 'pick', label: <SelectAllCheckbox />, className: 'cell-xs' },
-                { key: 'title', label: 'Abstract' },
+                { key: 'title', label: 'Session' },
                 { key: 'author', label: 'Author', className: 'cell-md' },
-                { key: 'track', label: 'Track / type', className: 'cell-md' },
+                { key: 'track', label: call.askTrack ? 'Track / type' : 'Type', className: 'cell-md' },
                 { key: 'reviews', label: 'Reviews', className: 'cell-sm' },
                 { key: 'status', label: 'Status', className: 'cell-sm' },
               ]}
@@ -318,14 +322,16 @@ export default async function SubmissionsPage({
                     <strong>{s.title || 'Untitled'}</strong>
                   </Link>
                   <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-                    {s.abstract ? `${s.abstract.slice(0, 90)}${s.abstract.length > 90 ? '…' : ''}` : 'No abstract yet'}
+                    {s.abstract ? `${s.abstract.slice(0, 90)}${s.abstract.length > 90 ? '…' : ''}` : 'No description yet'}
                   </span>
                 </span>,
                 <AuthorCell key="a" row={s} />,
                 <span key="k">
-                  {trackLabel(s, (id) => trackName.get(id) ?? id) ?? <span className="muted">no track</span>}
+                  {/* A track only when there is one: the call may not ask (T276). */}
+                  {trackLabel(s, (id) => trackName.get(id) ?? id) ??
+                    (call.askTrack ? <span className="muted">no track</span> : null)}
                   <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-                    {s.sessionType ?? '—'}
+                    {s.sessionType ? typeLabel(s.sessionType) : 'No type yet'}
                   </span>
                 </span>,
                 <span key="r">
@@ -381,6 +387,7 @@ function RankingPanels({
   all,
   trackOrder,
   trackName,
+  byTrack,
   hasCriteria,
   rolling,
   holdsE2,
@@ -388,13 +395,17 @@ function RankingPanels({
   all: SubmissionRow[];
   trackOrder: string[];
   trackName: Map<string, string>;
+  /** False when the call does not ask for a track: one ranking for everything (T276). */
+  byTrack: boolean;
   hasCriteria: boolean;
   rolling?: boolean;
   holdsE2?: boolean;
 }) {
   // Every "Other" submission ranks in one group of its own (T271).
   const groups = rankByTrack(
-    all.map((r) => (!r.trackId && r.trackOther ? { ...r, trackId: OTHER_TRACK } : r)),
+    byTrack
+      ? all.map((r) => (!r.trackId && r.trackOther ? { ...r, trackId: OTHER_TRACK } : r))
+      : all.map((r) => ({ ...r, trackId: undefined })),
     trackOrder,
   );
 
@@ -421,7 +432,9 @@ function RankingPanels({
               ? 'Other'
               : g.trackId
                 ? (trackName.get(g.trackId) ?? g.trackId)
-                : 'No track chosen'}
+                : byTrack
+                  ? 'No track chosen'
+                  : 'All submissions'}
             <span className="muted" style={{ fontWeight: 400, marginLeft: 8 }}>
               {g.rows.length} submission{g.rows.length === 1 ? '' : 's'}
             </span>
@@ -431,7 +444,7 @@ function RankingPanels({
             cols={[
               { key: 'pick', label: '', className: 'cell-xs' },
               { key: 'rank', label: 'Rank', className: 'cell-xs' },
-              { key: 'title', label: 'Abstract' },
+              { key: 'title', label: 'Session' },
               { key: 'mean', label: `Mean score (of ${OVERALL_MAX})`, className: 'cell-sm' },
               { key: 'n', label: 'Reviewers', className: 'cell-sm' },
               { key: 'status', label: 'Status', className: 'cell-sm' },

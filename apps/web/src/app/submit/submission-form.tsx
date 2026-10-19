@@ -4,6 +4,8 @@ import { useActionState, useState } from 'react';
 import type { AnswerValue } from '@kgc/scripts/src/lib/question-forms';
 import {
   OTHER_TRACK,
+  PHONE_MAX,
+  RESOURCE_LINK_MAX,
   TRACK_OTHER_MAX,
   fieldsForSessionType,
   typeLabel,
@@ -94,11 +96,9 @@ export function SubmissionForm({
         </p>
       )}
 
-      <h2 style={{ marginTop: 0 }}>Your submission</h2>
-
       {call.sessionTypes.length > 0 && (
         <div className="field">
-          <label htmlFor="sessionType">{cfp ? 'Select your submission *' : 'What are you offering it as? *'}</label>
+          <label htmlFor="sessionType">Session Type &amp; Format *</label>
           <select
             id="sessionType"
             name="sessionType"
@@ -112,16 +112,12 @@ export function SubmissionForm({
               </option>
             ))}
           </select>
-          {errors.sessionType && (
-            <p className="hint" style={{ color: '#991b1b' }} role="alert">
-              {errors.sessionType}
-            </p>
-          )}
+          <FieldError message={errors.sessionType} />
         </div>
       )}
 
       <div className="field">
-        <label htmlFor="title">Title *</label>
+        <label htmlFor="title">Session Title *</label>
         <input
           id="title"
           name="title"
@@ -129,15 +125,11 @@ export function SubmissionForm({
           maxLength={200}
           defaultValue={existing?.title}
         />
-        {errors.title && (
-          <p className="hint" style={{ color: '#991b1b' }} role="alert">
-            {errors.title}
-          </p>
-        )}
+        <FieldError message={errors.title} />
       </div>
 
       <div className="field">
-        <label htmlFor="abstract">Abstract *</label>
+        <label htmlFor="abstract">Session Description *</label>
         <textarea
           id="abstract"
           name="abstract"
@@ -156,14 +148,10 @@ export function SubmissionForm({
             words.
           </p>
         )}
-        {errors.abstract && (
-          <p className="hint" style={{ color: '#991b1b' }} role="alert">
-            {errors.abstract}
-          </p>
-        )}
+        <FieldError message={errors.abstract} />
       </div>
 
-      {cfp && sessionType === 'talk' && (
+      {cfp && call.askTalkLength && sessionType === 'talk' && (
         <div className="field">
           <label htmlFor="durationMinutes">How long is your talk? *</label>
           <select id="durationMinutes" name="durationMinutes" defaultValue={existing?.durationMinutes ?? ''}>
@@ -174,15 +162,11 @@ export function SubmissionForm({
               </option>
             ))}
           </select>
-          {errors.durationMinutes && (
-            <p className="hint" style={{ color: '#991b1b' }} role="alert">
-              {errors.durationMinutes}
-            </p>
-          )}
+          <FieldError message={errors.durationMinutes} />
         </div>
       )}
 
-      {(call.tracks.length > 0 || call.allowOtherTrack) && (
+      {call.askTrack && (call.tracks.length > 0 || call.allowOtherTrack) && (
         <div className="field">
           <label htmlFor="trackId">Track *</label>
           <select id="trackId" name="trackId" value={track} onChange={(e) => setTrack(e.target.value)}>
@@ -194,15 +178,11 @@ export function SubmissionForm({
             ))}
             {call.allowOtherTrack && <option value={OTHER_TRACK}>Other</option>}
           </select>
-          {errors.trackId && (
-            <p className="hint" style={{ color: '#991b1b' }} role="alert">
-              {errors.trackId}
-            </p>
-          )}
+          <FieldError message={errors.trackId} />
         </div>
       )}
 
-      {call.allowOtherTrack && track === OTHER_TRACK && (
+      {call.askTrack && call.allowOtherTrack && track === OTHER_TRACK && (
         <div className="field">
           <label htmlFor="trackOther">Which topic? *</label>
           <input
@@ -211,30 +191,32 @@ export function SubmissionForm({
             maxLength={TRACK_OTHER_MAX}
             defaultValue={existing?.trackOther}
           />
-          {errors.trackOther && (
-            <p className="hint" style={{ color: '#991b1b' }} role="alert">
-              {errors.trackOther}
-            </p>
-          )}
+          <FieldError message={errors.trackOther} />
         </div>
       )}
 
+      <div className="field">
+        <label htmlFor="resourceLink">Link to Additional Resources or Supporting Materials (Optional)</label>
+        <input
+          id="resourceLink"
+          name="resourceLink"
+          inputMode="url"
+          maxLength={RESOURCE_LINK_MAX}
+          defaultValue={existing?.resourceLink}
+        />
+        <FieldError message={errors.resourceLink} />
+      </div>
+
       <SubmissionFields fields={fields} answers={answers} errors={errors} />
 
-      <h2>About you</h2>
-
       <div className="field">
-        <label htmlFor="authorName">Your name *</label>
+        <label htmlFor="authorName">Your Name *</label>
         <input id="authorName" name="authorName" maxLength={120} autoComplete="name" defaultValue={a?.name} />
-        {errors.authorName && (
-          <p className="hint" style={{ color: '#991b1b' }} role="alert">
-            {errors.authorName}
-          </p>
-        )}
+        <FieldError message={errors.authorName} />
       </div>
 
       <div className="field">
-        <label htmlFor="authorEmail">Your email *</label>
+        <label htmlFor="authorEmail">Your Email *</label>
         <input
           id="authorEmail"
           name="authorEmail"
@@ -244,23 +226,35 @@ export function SubmissionForm({
           defaultValue={a?.email}
         />
         <p className="hint">
-          We send the decision and your link to this submission here.
+          We&apos;ll send submission updates, decisions, and a link to your submission to this email. No
+          password or account required.
         </p>
-        {errors.authorEmail && (
-          <p className="hint" style={{ color: '#991b1b' }} role="alert">
-            {errors.authorEmail}
-          </p>
-        )}
+        <FieldError message={errors.authorEmail} />
       </div>
 
       <div className="field">
-        <label htmlFor="affiliation">{cfp ? 'Organisation *' : 'Affiliation'}</label>
-        <input id="affiliation" name="affiliation" maxLength={120} defaultValue={a?.affiliation} />
-        {errors.affiliation && (
-          <p className="hint" style={{ color: '#991b1b' }} role="alert">
-            {errors.affiliation}
-          </p>
-        )}
+        <label htmlFor="affiliation">{cfp ? 'Organization *' : 'Organization'}</label>
+        <input
+          id="affiliation"
+          name="affiliation"
+          maxLength={120}
+          autoComplete="organization"
+          defaultValue={a?.affiliation}
+        />
+        <FieldError message={errors.affiliation} />
+      </div>
+
+      <div className="field">
+        <label htmlFor="phone">Your Phone Number (Optional)</label>
+        <input
+          id="phone"
+          name="phone"
+          type="tel"
+          autoComplete="tel"
+          maxLength={PHONE_MAX}
+          defaultValue={a?.phone}
+        />
+        <FieldError message={errors.phone} />
       </div>
 
       {/* Min's plan asks for the bio after acceptance, through the speaker's own link. */}
@@ -275,7 +269,7 @@ export function SubmissionForm({
       )}
 
       <div className="field">
-        <label htmlFor="coAuthors">Co-authors</label>
+        <label htmlFor="coAuthors">Co-Speakers or Co-Authors (Optional)</label>
         <textarea
           id="coAuthors"
           name="coAuthors"
@@ -284,26 +278,33 @@ export function SubmissionForm({
             .map((c) => (c.affiliation ? `${c.name} (${c.affiliation})` : c.name))
             .join('\n')}
         />
-        <p className="hint">One per line. Put an affiliation in brackets after the name if you want to.</p>
+        <p className="hint">One per line. Put an organization in brackets after the name if you want to.</p>
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <button type="submit" className="btn btn-primary" name="finish" value="1">
-          {existing && existing.status !== 'draft' ? 'Save changes' : 'Submit'}
+          Submit
         </button>
-        {/* Once submitted there is no going back to a draft (T258 #7). */}
-        {!existing || existing.status === 'draft' ? (
-          <button type="submit" className="btn btn-outline" name="finish" value="">
-            Save as a draft
-          </button>
-        ) : null}
+        {/* Only a draft is ever on this form: a submitted one is read-only (T276). */}
+        <button type="submit" className="btn btn-outline" name="finish" value="">
+          Save as a draft
+        </button>
       </div>
 
       <p className="hint" style={{ marginTop: 14 }}>
         A draft is not submitted and nobody reads it. You can come back to it from the link we
-        email you until the call closes{closesLabel ? ` on ${closesLabel}` : ''}. After that nothing
-        can be changed.
+        email you until the call closes{closesLabel ? ` on ${closesLabel}` : ''}. Once you press
+        Submit, the submission is final and can no longer be changed.
       </p>
     </form>
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p className="hint" style={{ color: '#991b1b' }} role="alert">
+      {message}
+    </p>
   );
 }

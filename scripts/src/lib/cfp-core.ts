@@ -1,4 +1,4 @@
-import type { CallCfpSettings, CallFormFieldDef, SessionFormat, SubmissionStatus } from '@kgc/shared';
+import type { CallCfpSettings, CallFormFieldDef, CallSessionType, SessionFormat, SubmissionStatus } from '@kgc/shared';
 
 /**
  * The KGC 2027 call for papers, as rules with no Firestore in them (T249).
@@ -40,6 +40,87 @@ export function talkMinutesOf(cfp?: CallCfpSettings): number[] {
 // ---------------------------------------------------------------------------
 // The form
 // ---------------------------------------------------------------------------
+
+/**
+ * The six things a submitter can offer on a call for speakers, in the order
+ * the call editor and the form list them, with the names the owner gave them
+ * (T276). The ids `talk` and `workshop` predate this list and stay, so older
+ * submissions and "workshops only" questions keep working.
+ */
+export const CFP_SESSION_TYPES: readonly { id: CallSessionType; label: string }[] = [
+  { id: 'talk', label: 'Presentation Talks & Keynotes' },
+  { id: 'workshop', label: 'Workshops' },
+  { id: 'panel', label: 'Panels & Fireside Chats' },
+  { id: 'hcls', label: 'Health Care and Life Sciences (HCLS) Symposium' },
+  { id: 'poster', label: 'Poster Sessions' },
+  { id: 'demo', label: 'Tools and Demonstrations' },
+];
+
+/** The agenda's formats, for a call that is not run as a call for speakers. */
+export const AGENDA_SESSION_TYPES: readonly SessionFormat[] = ['keynote', 'talk', 'panel', 'workshop', 'poster', 'social'];
+
+/** Every id a call may offer. */
+export const CALL_SESSION_TYPES: readonly CallSessionType[] = [
+  ...AGENDA_SESSION_TYPES,
+  'hcls',
+  'demo',
+];
+
+/**
+ * The agenda format an accepted submission is scheduled as. The symposium
+ * and the demos have no format of their own on the agenda, and both are
+ * someone presenting from the stage, so they go on as talks.
+ */
+export function agendaFormat(type: string | undefined): SessionFormat {
+  return (AGENDA_SESSION_TYPES as readonly string[]).includes(type ?? '') ? (type as SessionFormat) : 'talk';
+}
+
+/** Whether the public form asks for a track. Off on a CFP call unless ticked. */
+export function asksTrack(call: { cfp?: unknown; askTrack?: boolean }): boolean {
+  return call.cfp ? call.askTrack === true : call.askTrack !== false;
+}
+
+/** Whether the public form asks a talk its length. Only a CFP call, and only when ticked. */
+export function asksTalkLength(call: { cfp?: unknown; askTalkLength?: boolean }): boolean {
+  return Boolean(call.cfp) && call.askTalkLength === true;
+}
+
+export const PHONE_MAX = 30;
+
+/**
+ * "Your Phone Number (Optional)", checked loosely: digits with spaces, +, -
+ * and brackets, and enough digits to be a number at all.
+ */
+export function phoneChoice(raw: string | undefined): { phone?: string; error?: string } {
+  const text = (raw ?? '').trim().replace(/\s+/g, ' ');
+  if (!text) return {};
+  const digits = text.replace(/\D/g, '').length;
+  if (text.length > PHONE_MAX || !/^[0-9+\-() ]+$/.test(text) || digits < 6 || digits > 15) {
+    return { error: 'Enter a phone number using digits, spaces, +, - or brackets.' };
+  }
+  return { phone: text };
+}
+
+export const RESOURCE_LINK_MAX = 500;
+
+/**
+ * "Link to Additional Resources or Supporting Materials (Optional)". One web
+ * address; `https://` is added when the author left it off.
+ */
+export function resourceLinkChoice(raw: string | undefined): { link?: string; error?: string } {
+  const text = (raw ?? '').trim();
+  if (!text) return {};
+  const bad = { error: 'Enter one web address.' };
+  if (/\s/.test(text) || text.length > RESOURCE_LINK_MAX) return bad;
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`;
+  try {
+    const url = new URL(withScheme);
+    if ((url.protocol !== 'https:' && url.protocol !== 'http:') || !url.hostname.includes('.')) return bad;
+    return { link: url.toString() };
+  } catch {
+    return bad;
+  }
+}
 
 /**
  * The Track list's "Other" choice (T271). The select posts this value and the
@@ -101,10 +182,10 @@ export function wordCount(text: string): number {
 export function abstractProblem(text: string, limits: { min: number; max: number }): string | null {
   const n = wordCount(text);
   if (n < limits.min) {
-    return `The abstract is ${n} word${n === 1 ? '' : 's'}. It needs ${limits.min} to ${limits.max}.`;
+    return `The description is ${n} word${n === 1 ? '' : 's'}. It needs ${limits.min} to ${limits.max}.`;
   }
   if (n > limits.max) {
-    return `The abstract is ${n} words. Cut it to ${limits.max} or fewer.`;
+    return `The description is ${n} words. Cut it to ${limits.max} or fewer.`;
   }
   return null;
 }
@@ -113,7 +194,7 @@ export function abstractProblem(text: string, limits: { min: number; max: number
 export function askedOf(field: Pick<CallFormFieldDef, 'sessionTypes'>, type: string | undefined): boolean {
   const only = field.sessionTypes ?? [];
   if (only.length === 0) return true;
-  return Boolean(type) && only.includes(type as SessionFormat);
+  return Boolean(type) && only.includes(type as CallSessionType);
 }
 
 /**
@@ -128,8 +209,13 @@ export function fieldsForSessionType<F extends Pick<CallFormFieldDef, 'sessionTy
   return fields.filter((f) => askedOf(f, type));
 }
 
-/** "Talk", "Workshop": a session type as the form and the filters name it. */
-export const typeLabel = (type: string): string => type.charAt(0).toUpperCase() + type.slice(1);
+/**
+ * A session type as people read it: the owner's name for the six CFP types
+ * (T276), and a capitalised id for the agenda's own formats.
+ */
+export function typeLabel(type: string): string {
+  return CFP_SESSION_TYPES.find((t) => t.id === type)?.label ?? type.charAt(0).toUpperCase() + type.slice(1);
+}
 
 /** "a", "a or b", "a, b or c". */
 export function joinWords(words: readonly string[], conjunction: 'or' | 'and'): string {
@@ -137,11 +223,14 @@ export function joinWords(words: readonly string[], conjunction: 'or' | 'and'): 
   return `${words.slice(0, -1).join(', ')} ${conjunction} ${words[words.length - 1]}`;
 }
 
-/** "Talk, 25 minutes" or "Workshop". The line E2 prints under the title. */
+/**
+ * The type line E1, E2 and the notices print under the title: "Workshops",
+ * or "Presentation Talks & Keynotes, 25 minutes" when a length was given.
+ */
 export function sessionTypeLine(type: string | undefined, minutes?: number): string {
-  if (type === 'workshop') return 'Workshop';
-  if (type === 'talk') return minutes ? `Talk, ${minutes} minutes` : 'Talk';
-  return type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Session';
+  if (!type) return 'Session';
+  const label = typeLabel(type);
+  return type === 'talk' && minutes ? `${label}, ${minutes} minutes` : label;
 }
 
 // ---------------------------------------------------------------------------

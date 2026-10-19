@@ -44,6 +44,8 @@ async function wipe() {
     COLLECTIONS.emailLog,
     COLLECTIONS.speakers,
     COLLECTIONS.speakerProfileEdits,
+    // The receipt caps count per address per hour; each test starts fresh.
+    COLLECTIONS.rateLimits,
   ]) {
     const snap = await db().collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
@@ -73,7 +75,12 @@ const FORM: CallFormFieldDef[] = [
   { id: 'workshop-outline', prompt: 'Workshop outline', kind: 'long-text', required: true, order: 10, sessionTypes: ['workshop'] },
 ];
 
-async function seedCall(cfp: CallCfpSettings | null = {}, instructions = 'Plain.'): Promise<void> {
+async function seedCall(
+  cfp: CallCfpSettings | null = {},
+  instructions = 'Plain.',
+  /** Call-level settings on top, e.g. `askTalkLength` (T276). */
+  extra: Record<string, unknown> = {},
+): Promise<void> {
   const now = Date.now();
   await db()
     .collection(COLLECTIONS.calls)
@@ -98,6 +105,7 @@ async function seedCall(cfp: CallCfpSettings | null = {}, instructions = 'Plain.
       reminderDaysBefore: [],
       notifyEmails: [],
       ...(cfp ? { cfp } : {}),
+      ...extra,
     });
   await db().collection(COLLECTIONS.tracks).doc('metadata').set({ eventId: EVENT_ID, name: 'Metadata' });
 }
@@ -124,7 +132,7 @@ const raw = async (id: string) =>
 
 describe('the form changes with talk or workshop', () => {
   it('asks a workshop its outline and does not ask a talk', async () => {
-    await seedCall();
+    await seedCall({}, 'Plain.', { askTalkLength: true });
     const asWorkshop = await saveSubmission(CALL_ID, talk({ sessionType: 'workshop', durationMinutes: undefined }));
     expect(asWorkshop.ok).toBe(false);
     if (!asWorkshop.ok) expect(asWorkshop.fieldErrors?.['workshop-outline']).toBeTruthy();
@@ -139,7 +147,7 @@ describe('the form changes with talk or workshop', () => {
   });
 
   it('needs a talk length from the offered ones, 150 to 300 words, and an organisation', async () => {
-    await seedCall();
+    await seedCall({}, 'Plain.', { askTalkLength: true });
     const r = await saveSubmission(
       CALL_ID,
       talk({ durationMinutes: '30', abstract: words(149), affiliation: '' }),
@@ -170,12 +178,14 @@ describe('E1', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].template).toBe('cfp-received');
     expect(sent[0].subject).toBe('We received your KGC 2027 submission');
-    expect(sent[0].text).toContain('Lineage at scale\nTalk, 25 minutes');
+    // No length: the call does not ask for one (T276).
+    expect(sent[0].text).toContain('Lineage at scale\nPresentation Talks & Keynotes\n');
     expect(sent[0].text).toContain('by Sunday 14 March 2027 at the latest');
     expect(sent[0].text).not.toMatch(/\[|—/);
 
-    // An edit through the author's own link is not acknowledged again.
-    await saveSubmission(CALL_ID, talk({ title: 'Lineage at scale, revised' }), first.submissionId);
+    // A submitted one cannot be edited (T276), so nothing is acknowledged again.
+    const again = await saveSubmission(CALL_ID, talk({ title: 'Lineage at scale, revised' }), first.submissionId);
+    expect(again.ok).toBe(false);
     expect(mail()).toHaveLength(1);
   });
 
@@ -200,7 +210,7 @@ describe('the page copy', () => {
 });
 
 describe('a rejection nobody has been told about', () => {
-  it('reads as open to its author until E4 goes, and stays rejected through an edit', async () => {
+  it('reads as submitted to its author until E4 goes, closed like any other, and stays rejected', async () => {
     await seedCall({});
     const r = await saveSubmission(CALL_ID, talk());
     if (!r.ok) throw new Error(r.error);
@@ -209,17 +219,121 @@ describe('a rejection nobody has been told about', () => {
     const own = await loadOwnSubmission(r.submissionId);
     expect(own?.status).toBe('submitted');
     expect(own?.decided).toBeUndefined();
-    expect(own?.editable).toBe(true);
+    // Exactly what any submitted one shows (T276): closed, still withdrawable.
+    expect(own?.editable).toBe(false);
+    expect(own?.withdrawable).toBe(true);
+    expect(own?.submittedOn).toBeTruthy();
 
     const edit = await saveSubmission(CALL_ID, talk({ title: 'Edited' }), r.submissionId);
-    expect(edit.ok).toBe(true);
+    expect(edit.ok).toBe(false);
+    // Refused with the words any submitted one gets, never a word about a decision.
+    if (!edit.ok) expect(edit.error).not.toMatch(/decision|reject/i);
     expect((await raw(r.submissionId)).status).toBe('rejected');
+    expect((await raw(r.submissionId)).title).toBe('Lineage at scale');
 
     await db()
       .collection(COLLECTIONS.submissions)
       .doc(r.submissionId)
       .update({ closeDecision: { version: 'declined', sentAt: new Date(), by: 'x' } });
     expect((await loadOwnSubmission(r.submissionId))?.decided).toBe('rejected');
+  });
+});
+
+describe('the T276 form', () => {
+  const identity = async (id: string) =>
+    (await db().collection(COLLECTIONS.submissions).doc(id).collection('identity').doc('author').get()).data();
+
+  it('does not ask a CFP call for a track or a length unless ticked, and stores neither', async () => {
+    await seedCall({});
+    const call = await loadCall(CALL_ID);
+    expect(call?.askTrack).toBe(false);
+    expect(call?.askTalkLength).toBe(false);
+    expect(call?.tracks).toEqual([]);
+
+    // Posted anyway, by a stale tab or a script: ignored, not refused.
+    const r = await saveSubmission(CALL_ID, talk({ trackId: 'metadata', durationMinutes: '25' }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const doc = await raw(r.submissionId);
+    expect('trackId' in doc).toBe(false);
+    expect('durationMinutes' in doc).toBe(false);
+
+    // Nothing is required either: no track, no length, still submits.
+    const bare = await saveSubmission(CALL_ID, talk({ trackId: undefined, durationMinutes: undefined, authorEmail: 'b@acme.test' }));
+    expect(bare.ok).toBe(true);
+  });
+
+  it('keeps a track and length given before the questions were dropped', async () => {
+    await seedCall({}, 'Plain.', { askTrack: true, askTalkLength: true });
+    const r = await saveSubmission(CALL_ID, talk({ finish: false }));
+    if (!r.ok) throw new Error(r.error);
+    expect((await raw(r.submissionId)).trackId).toBe('metadata');
+
+    await db().collection(COLLECTIONS.calls).doc(CALL_ID).update({ askTrack: false, askTalkLength: false });
+    const done = await saveSubmission(CALL_ID, talk({ trackId: undefined, durationMinutes: undefined }), r.submissionId);
+    expect(done.ok).toBe(true);
+    const doc = await raw(r.submissionId);
+    expect(doc.trackId).toBe('metadata');
+    expect(doc.durationMinutes).toBe(25);
+  });
+
+  it('asks for a track again when ticked', async () => {
+    await seedCall({}, 'Plain.', { askTrack: true });
+    const r = await saveSubmission(CALL_ID, talk({ trackId: undefined }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.fieldErrors?.trackId).toBeTruthy();
+  });
+
+  it('stores the phone with the author and the link on the submission', async () => {
+    await seedCall({});
+    const r = await saveSubmission(CALL_ID, talk({ phone: ' +1 (212) 555-0100 ', resourceLink: 'github.com/acme/lineage' }));
+    if (!r.ok) throw new Error(r.error);
+    const doc = await raw(r.submissionId);
+    expect(doc.resourceLink).toBe('https://github.com/acme/lineage');
+    // Contact data lives with the email, never on the document reviewers read.
+    expect('phone' in doc).toBe(false);
+    expect((await identity(r.submissionId))?.phone).toBe('+1 (212) 555-0100');
+    expect((await loadOwnSubmission(r.submissionId))?.author.phone).toBe('+1 (212) 555-0100');
+  });
+
+  it('refuses a phone with letters and a link that is not one address', async () => {
+    await seedCall({});
+    const r = await saveSubmission(CALL_ID, talk({ phone: 'call my office', resourceLink: 'see my slides' }));
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.fieldErrors?.phone).toBeTruthy();
+    expect(r.fieldErrors?.resourceLink).toBeTruthy();
+  });
+
+  it('clears a phone and a link the author deleted from a draft', async () => {
+    await seedCall({});
+    const r = await saveSubmission(CALL_ID, talk({ phone: '212 555 0100', resourceLink: 'https://example.org', finish: false }));
+    if (!r.ok) throw new Error(r.error);
+    await saveSubmission(CALL_ID, talk({ finish: false }), r.submissionId);
+    expect('resourceLink' in (await raw(r.submissionId))).toBe(false);
+    expect('phone' in ((await identity(r.submissionId)) ?? {})).toBe(false);
+  });
+
+  it('takes each of the six types the call offers, with the new ones by their ids', async () => {
+    await seedCall({}, 'Plain.', { sessionTypes: ['talk', 'workshop', 'panel', 'hcls', 'poster', 'demo'] });
+    for (const sessionType of ['panel', 'hcls', 'poster', 'demo']) {
+      const r = await saveSubmission(CALL_ID, talk({ sessionType, authorEmail: `${sessionType}@acme.test` }));
+      expect(r.ok).toBe(true);
+      if (r.ok) expect((await raw(r.submissionId)).sessionType).toBe(sessionType);
+    }
+    expect((await loadCall(CALL_ID))?.sessionTypes).toEqual(['talk', 'workshop', 'panel', 'hcls', 'poster', 'demo']);
+
+    // A type the call does not offer is refused.
+    await db().collection(COLLECTIONS.calls).doc(CALL_ID).update({ sessionTypes: ['talk', 'workshop'] });
+    const off = await saveSubmission(CALL_ID, talk({ sessionType: 'hcls', authorEmail: 'x@acme.test' }));
+    expect(off.ok).toBe(false);
+  });
+
+  it('prints the type by its name in E1', async () => {
+    await seedCall({}, 'Plain.', { sessionTypes: ['talk', 'hcls'] });
+    const r = await saveSubmission(CALL_ID, talk({ sessionType: 'hcls', authorEmail: 'hcls-e1@acme.test' }));
+    expect(r.ok).toBe(true);
+    expect(mail()[0].text).toContain('Lineage at scale\nHealth Care and Life Sciences (HCLS) Symposium');
   });
 });
 
