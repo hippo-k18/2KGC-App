@@ -112,8 +112,8 @@ current_root() {
 
 # Answers below 400 within the time given? Polled twice a second.
 wait_ok() { # url seconds
-  local i code
-  for i in $(seq 1 $(( $2 * 2 ))); do
+  local _ code
+  for _ in $(seq 1 $(( $2 * 2 ))); do
     code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "$1" || true)
     [ "${code:-0}" -ge 200 ] && [ "$code" -lt 400 ] && return 0
     sleep 0.5
@@ -208,8 +208,8 @@ EOF
 # build's leftover workers or a process still starting, the tests saw requests
 # queue for a full second (queued, not refused). So the reload waits for quiet.
 wait_cpu_quiet() {
-  local i a b idle total
-  for i in $(seq 1 20); do
+  local _ a b idle total
+  for _ in $(seq 1 20); do
     a=$(awk '/^cpu /{print $5+$6, $2+$3+$4+$5+$6+$7+$8}' /proc/stat)
     sleep 0.5
     b=$(awk '/^cpu /{print $5+$6, $2+$3+$4+$5+$6+$7+$8}' /proc/stat)
@@ -221,8 +221,8 @@ wait_cpu_quiet() {
 
 # Wait until no connection from Apache to `port` is open, then a moment more.
 drain() { # port
-  local i
-  for i in $(seq 1 $(( DRAIN_MAX * 2 ))); do
+  local _
+  for _ in $(seq 1 $(( DRAIN_MAX * 2 ))); do
     ss -Htn state established "( dport = :$1 )" | grep -q . || { sleep 1; return 0; }
     sleep 0.5
   done
@@ -343,7 +343,7 @@ restart() { # app
 # reload is graceful, and the old units keep running until the first swap.
 setup() {
   local stamp; stamp=$(date +%Y%m%d-%H%M%S)
-  local backup=/root/backups/t272-zero-downtime-$stamp
+  local backup=${KGC_BACKUP_DIR:-/root/backups}/t272-zero-downtime-$stamp
   mkdir -p "$backup"
   say "backing up to $backup"
   tar -czf "$backup/etc-apache2.tgz" -C / "${APACHE#/}"
@@ -417,7 +417,7 @@ deploy() { # apps...
   # Build everything first, then swap one app at a time: a build and a swap
   # never share the memory.
   for app in "${apps[@]}"; do
-    local dir=$rel/$(app_dir "$app")
+    local dir; dir=$rel/$(app_dir "$app")
     ln -sfn "$(env_file "$app")" "$dir/.env.production"
 
     if [ ! -f "$dir/.next/BUILD_ID" ]; then
