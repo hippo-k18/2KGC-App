@@ -3,8 +3,8 @@
 Every change to `apps/web` is deployed to the live site at
 <https://www.knowledgegraph.tech> and then run through this gate. There is no
 separate test copy any more: since 2026-09-26 staging.knowledgegraph.tech
-redirects to www. The site is the `kgc-staging` service on the DigitalOcean
-droplet (the unit and the `deploy.sh staging` command kept their old names).
+redirects to www. The site runs on the DigitalOcean droplet as `kgc-web@3200`
+or `kgc-web@3201` (two colours since T272; `deploy.sh staging` kept its name).
 Netlify is no longer used. A failed build or port check leaves the live site
 alone; a failure found by the gate is live until you roll back.
 
@@ -40,10 +40,13 @@ npm run report                                    # open the HTML report
 deployed. If SSH is refused, run `/opt/kgc/deploy.sh staging` from the
 DigitalOcean console and then `publish-web.sh --test`.
 
-### How `deploy.sh` keeps downtime to about a second
+### How `deploy.sh` deploys with no downtime (T272)
 
 Its source is `scripts/ops/droplet-deploy.sh`; copy it to `/opt/kgc/deploy.sh`
-after editing.
+after editing. Run `/opt/kgc/deploy.sh setup` once after installing it.
+
+Each app has two ports ("colours"): 3200 and 3201 for the site, 3100 and 3101
+for the dashboard. One serves, the other is idle.
 
 1. The commit is exported to its own folder, `/opt/kgc/releases/<commit>`.
    The live site keeps running from its own folder the whole time.
@@ -51,22 +54,27 @@ after editing.
    is hard-linked from the live release in seconds. If it changed, `npm ci`
    runs in the new folder only.
 3. `next build` in the new folder, at low priority.
-4. The new build is started on a spare port (3201 for the site, 3101 for the
-   dashboard) and must answer before anything else happens.
-5. `/opt/kgc/live/web` is switched to the new folder in one step and the
-   service restarted. That restart is the downtime.
-6. If the public URL does not come back within 45 seconds, it switches back
-   to the previous release on its own.
+4. The new build starts on the idle colour (`kgc-web@3201`, say) and must
+   answer before anything else happens.
+5. Apache is pointed at the new port (`conf-available/kgc-backends.conf`)
+   with a graceful reload, which keeps it listening and lets requests in
+   flight finish on the old colour.
+6. If the public URL fails, Apache goes straight back to the old colour,
+   which is still running. Otherwise the old colour is stopped once its
+   connections drain.
 
 ```bash
 /opt/kgc/deploy.sh staging            # or dashboard, or both
-/opt/kgc/deploy.sh rollback staging   # previous release, about a second
-/opt/kgc/deploy.sh status             # what is live and what is kept
+/opt/kgc/deploy.sh rollback staging   # previous release, same swap, no downtime
+/opt/kgc/deploy.sh restart staging    # after editing web.env (never systemctl restart)
+/opt/kgc/deploy.sh status             # what is live, on which port, what is kept
 ```
 
 Settings live in `/opt/kgc/shared/web.env` and `organizer.env`. Do not stop
-the service before deploying: nothing needs it stopped, and a stopped service
-is down for the whole build. Only one deploy can run at a time.
+or restart a colour by hand: use `deploy.sh restart`. Only one deploy can run
+at a time. The old units `kgc-staging` and `kgc-dashboard` are retired by the
+first swap after `setup`. Anything on the droplet that calls an app directly
+reads its port from `/opt/kgc/live/<app>.port`.
 
 ⚠️ A failed gate leaves the failing build running. Roll it back with
 `deploy.sh rollback staging`.
