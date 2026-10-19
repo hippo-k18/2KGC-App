@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import type {
   CSSProperties,
+  FormEvent,
+  FormHTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
@@ -702,6 +704,98 @@ export function FormActions({
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
 /**
+ * ── Forms whose result does not wait on the refreshed page (T284, T286) ────
+ *
+ * With `<form action>` and `useActionState`, the pending state and the result
+ * banner commit in the same React transition as the page the server sends
+ * back after `revalidatePath`. React 19.2, as bundled by Next 15.5, can lose
+ * the retry for that transition (a chunk resolving synchronously inside its
+ * ping listener while the render is "suspended with delay"), and then the
+ * button says "Saving…" for ever although the action finished. React 19.3
+ * fixes it; until the dashboard is on it, a form that matters uses this pair:
+ *
+ *   const [state, run] = useFormAction(saveThingAction, {});
+ *   <ActionForm run={run}> … <SubmitButton>Save</SubmitButton> </ActionForm>
+ *
+ * The action is called directly and its result set as ordinary state the
+ * moment it returns. The server still revalidates; the refreshed page commits
+ * when React gets to it and nothing on the form waits for it.
+ *
+ * One difference from a form action: React does not reset the form after the
+ * save. An edit form keeps what was just saved, which is what it showed after
+ * the reset anyway. A form that adds something passes `resetOnSuccess`.
+ */
+export interface FormRun<S> {
+  pending: boolean;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  /** Kept for `ActionForm`; not for callers. */
+  readonly _state?: S;
+}
+
+export function useFormAction<S extends FormState>(
+  action: (prev: S, formData: FormData) => Promise<S>,
+  initial: S,
+  options: { resetOnSuccess?: boolean; onSuccess?: (state: S) => void } = {},
+): [S, FormRun<S>] {
+  const [state, setState] = useState<S>(initial);
+  const [pending, setPending] = useState(false);
+  const busy = useRef(false);
+  const last = useRef(initial);
+  const opts = useRef(options);
+  opts.current = options;
+
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (busy.current) return;
+    const form = e.currentTarget;
+    // The pressed button's name and value, as a form action would send them.
+    const submitter = (e.nativeEvent as SubmitEvent).submitter;
+    const data = new FormData(form, submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement ? submitter : null);
+    busy.current = true;
+    setPending(true);
+    void (async () => {
+      try {
+        const result = await action(last.current, data);
+        last.current = result;
+        setState(result);
+        if (result.ok) {
+          if (opts.current.resetOnSuccess) form.reset();
+          opts.current.onSuccess?.(result);
+        }
+      } catch (err) {
+        // A redirect (an expired session) is the router's to follow.
+        if (String((err as { digest?: unknown })?.digest ?? '').startsWith('NEXT_REDIRECT')) throw err;
+        const failed = { error: 'Could not reach the server. Check your connection and try again.' } as S;
+        last.current = failed;
+        setState(failed);
+      } finally {
+        busy.current = false;
+        setPending(false);
+      }
+    })();
+  };
+
+  return [state, { pending, onSubmit }];
+}
+
+const ActionFormPending = createContext<boolean | undefined>(undefined);
+
+/** A `<form>` driven by `useFormAction`; its `SubmitButton`s show its pending state. */
+export function ActionForm({
+  run,
+  children,
+  ...rest
+}: { run: FormRun<unknown>; children: ReactNode } & Omit<FormHTMLAttributes<HTMLFormElement>, 'action' | 'onSubmit'>) {
+  return (
+    <ActionFormPending.Provider value={run.pending}>
+      <form {...rest} onSubmit={run.onSubmit}>
+        {children}
+      </form>
+    </ActionFormPending.Provider>
+  );
+}
+
+/**
  * Submit, with the pending state the form actually has.
  *
  * `useFormStatus` reports the status of the enclosing `<form>`, and only from a
@@ -736,12 +830,14 @@ export function SubmitButton({
   value?: string;
   /**
    * For a form that submits through `onSubmit` rather than `action`, where
-   * `useFormStatus` never reports pending. `call-form.tsx` says why it does.
+   * `useFormStatus` never reports pending. Inside an `ActionForm` this is
+   * filled in already; `useFormAction` below says why such forms exist.
    */
   pending?: boolean;
 }) {
   const status = useFormStatus();
-  const pending = pendingProp ?? status.pending;
+  const scoped = useContext(ActionFormPending);
+  const pending = pendingProp ?? scoped ?? status.pending;
   return (
     <button
       type="submit"

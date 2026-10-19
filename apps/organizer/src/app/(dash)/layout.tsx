@@ -8,6 +8,7 @@ import { IMPLEMENTED, NAV, allPaths, searchIndex, type NavNode } from '@/lib/nav
 import { canOpen } from '@/lib/team-core';
 import { logoutAction } from '../login/actions';
 import { Sidebar, TopNav, type SlimNode } from './dash-nav';
+import { NavProgress } from './nav-progress';
 import { FeatureSearch } from './feature-search';
 import { LiveStats } from './live-stats';
 import { Dropdown } from './menu';
@@ -234,6 +235,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
         </div>
       </div>
 
+      <NavProgress />
       <TopNav nav={nav} />
 
       <LiveStats

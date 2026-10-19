@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
 import type { TrackOption } from '@/lib/data';
 import type { CallRow } from '@/lib/calls';
 import {
@@ -14,7 +13,8 @@ import {
   SubmitButton,
   Textarea,
   dateTimeValue,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../form';
 import { AGENDA_SESSION_TYPES, CFP_SESSION_TYPES, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { saveCallAction } from './actions';
@@ -49,49 +49,12 @@ export function CallForm({
   existing?: CallRow;
   tracks: TrackOption[];
 }) {
-  const [state, setState] = useState<FormState>({});
-  const [pending, setPending] = useState(false);
-
-  /*
-   * ── Why this form does not use `useActionState` (T284) ─────────────────────
-   *
-   * With `<form action>`, "Saving…" and the result banner are part of the same
-   * React transition as the page the server sends back after `revalidatePath`.
-   * That re-render reads RSC chunks that are still being decoded, and in React
-   * 19.2 (as bundled by Next 15.5) one ordering loses the retry: the chunk
-   * resolves synchronously inside React's ping listener while the render is in
-   * its "suspended with delay" state, the ping is dropped, and the transition
-   * never commits. The save itself had worked, but the button said "Saving…"
-   * for ever. It happened on about a third of saves that changed "Show on
-   * website", more often when link prefetches were in flight at the click.
-   *
-   * So the result is set here, outside any transition, as soon as the action
-   * returns. The server still revalidates, and the refreshed page commits on
-   * its own when React gets to it; nothing on this form waits for it. Without
-   * an `action` prop React also no longer resets the form after a save, so the
-   * fields keep what was just saved rather than the defaults they loaded with.
-   */
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (pending) return;
-    const form = e.currentTarget;
-    setPending(true);
-    try {
-      const result = await saveCallAction({}, new FormData(form));
-      setState(result);
-      // A new call: clear the form, as the reset after a form action used to.
-      if (result.ok && !existing) form.reset();
-    } catch (err) {
-      // A redirect (an expired session) is the router's to follow.
-      if (String((err as { digest?: unknown })?.digest ?? '').startsWith('NEXT_REDIRECT')) throw err;
-      setState({ error: 'Could not save the call. Check your connection and try again.' });
-    } finally {
-      setPending(false);
-    }
-  }
+  // Not `useActionState`: see `useFormAction` in `form.tsx` (T284). A new
+  // call clears the form after "Created", as the reset after a form action did.
+  const [state, run] = useFormAction(saveCallAction, {}, { resetOnSuccess: !existing });
 
   return (
-    <form onSubmit={onSubmit}>
+    <ActionForm run={run}>
       {existing && <input type="hidden" name="id" value={existing.id} />}
       <FormBanner state={state} />
 
@@ -252,9 +215,9 @@ export function CallForm({
       />
 
       <FormActions>
-        <SubmitButton pending={pending}>{existing ? 'Save call' : 'Create call'}</SubmitButton>
+        <SubmitButton>{existing ? 'Save call' : 'Create call'}</SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }
 

@@ -1,13 +1,14 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CheckboxField,
   FormActions,
   FormBanner,
   SubmitButton,
   Textarea,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../../form';
 import { bulkDecideAction } from './actions';
 
@@ -45,7 +46,7 @@ export function BulkDecisionBar({
   /** The call has closed, so an acceptance's email waits for the decision send. */
   holdsE2?: boolean;
 }) {
-  const [state, action] = useActionState<FormState, FormData>(bulkDecideAction, {});
+  const [state, action] = useFormAction(bulkDecideAction, {}, { resetOnSuccess: true });
   const [confirming, setConfirming] = useState<number | null>(null);
   const [nothingTicked, setNothingTicked] = useState(false);
   // A finished press, either way, closes the question.
@@ -56,7 +57,7 @@ export function BulkDecisionBar({
   const people = (n: number) => (n === 1 ? 'author' : 'authors');
 
   return (
-    <form id={BULK_FORM_ID} action={action} style={{ marginTop: 16 }}>
+    <ActionForm id={BULK_FORM_ID} run={action} style={{ marginTop: 16 }}>
       <h3 className="section-header">Decide the ticked submissions</h3>
       <FormBanner state={state} />
       {nothingTicked && confirming === null ? (
@@ -155,7 +156,7 @@ export function BulkDecisionBar({
           Reject ticked
         </SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }
 

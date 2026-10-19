@@ -1,7 +1,11 @@
 'use client';
 
-import { useActionState } from 'react';
-import { FormBanner, SubmitButton, type FormState } from '../../../form';
+import {
+  FormBanner,
+  SubmitButton,
+  ActionForm,
+  useFormAction,
+} from '../../../form';
 import { finishPassAction, reviewDecideAction } from './actions';
 
 /**
@@ -13,12 +17,12 @@ import { finishPassAction, reviewDecideAction } from './actions';
  * François asked for ("when I click accept then it triggers an email, right?").
  */
 export function RowDecision({ submissionId }: { submissionId: string }) {
-  const [state, action] = useActionState<FormState, FormData>(reviewDecideAction, {});
+  const [state, action] = useFormAction(reviewDecideAction, {}, { resetOnSuccess: true });
 
   if (state.ok) return <FormBanner state={state} />;
 
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       <input type="hidden" name="submissionId" value={submissionId} />
       <FormBanner state={state} />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -40,14 +44,14 @@ export function RowDecision({ submissionId }: { submissionId: string }) {
           Left for next week unless you choose
         </span>
       </div>
-    </form>
+    </ActionForm>
   );
 }
 
 export function FinishPass({ callId }: { callId: string }) {
-  const [state, action] = useActionState<FormState, FormData>(finishPassAction, {});
+  const [state, action] = useFormAction(finishPassAction, {});
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       <input type="hidden" name="callId" value={callId} />
       <FormBanner state={state} />
       <SubmitButton variant="secondary" pendingLabel="Saving…">
@@ -57,6 +61,6 @@ export function FinishPass({ callId }: { callId: string }) {
         Marks everything above as seen. What arrives after this shows as new next time. Nothing is
         sent.
       </p>
-    </form>
+    </ActionForm>
   );
 }

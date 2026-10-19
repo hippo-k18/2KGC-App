@@ -1,13 +1,13 @@
 'use client';
 
-import { useActionState } from 'react';
 import {
   CheckboxField,
   FormActions,
   FormBanner,
   SubmitButton,
   Textarea,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../../form';
 import { decideAction } from './actions';
 
@@ -64,10 +64,10 @@ export function DecisionPanel({
   /** The author was emailed the acceptance. */
   told?: boolean;
 }) {
-  const [state, action] = useActionState<FormState, FormData>(decideAction, {});
+  const [state, action] = useFormAction(decideAction, {}, { resetOnSuccess: true });
 
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       {/*
         ⚠️ Never a control named id. React posts the pressed button's name and value by
         inserting a temporary input with `form={form.id}`, and a control named
@@ -135,6 +135,6 @@ export function DecisionPanel({
           {decided ? 'Change to rejected' : 'Reject'}
         </SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }

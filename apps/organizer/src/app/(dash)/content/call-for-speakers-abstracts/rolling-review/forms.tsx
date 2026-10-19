@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useState } from 'react';
 import type { CallCfpSettings } from '@kgc/shared';
 import {
   CheckboxField,
@@ -9,7 +9,8 @@ import {
   FormBanner,
   FormGrid,
   SubmitButton,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../../form';
 import { ConfirmCodeField } from '@/components/confirm-code';
 import {
@@ -20,9 +21,9 @@ import {
 } from './actions';
 
 export function SettingsForm({ callId, cfp }: { callId: string; cfp: CallCfpSettings }) {
-  const [state, action] = useActionState<FormState, FormData>(saveCfpSettingsAction, {});
+  const [state, action] = useFormAction(saveCfpSettingsAction, {});
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       <input type="hidden" name="callId" value={callId} />
       <FormBanner state={state} />
       <FormGrid>
@@ -83,14 +84,14 @@ export function SettingsForm({ callId, cfp }: { callId: string; cfp: CallCfpSett
       <FormActions>
         <SubmitButton>Save</SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }
 
 export function ReasonForm({ submissionId, reason }: { submissionId: string; reason?: string }) {
-  const [state, action] = useActionState<FormState, FormData>(saveDeclineReasonAction, {});
+  const [state, action] = useFormAction(saveDeclineReasonAction, {});
   return (
-    <form action={action} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+    <ActionForm run={action} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
       <input type="hidden" name="submissionId" value={submissionId} />
       <input
         name="reason"
@@ -106,7 +107,7 @@ export function ReasonForm({ submissionId, reason }: { submissionId: string; rea
       <div style={{ flexBasis: '100%' }}>
         <FormBanner state={state} />
       </div>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -130,15 +131,19 @@ export function ConfirmedSend({
    */
   stillOpen?: string;
 }) {
-  const [state, action] = useActionState<FormState, FormData>(
-    kind === 'close' ? sendCloseDecisionsAction : sendStillOpenAction,
-    {},
-  );
   const [ticked, setTicked] = useState(false);
   const [openTicked, setOpenTicked] = useState(false);
+  // A sent batch clears the boxes and the code, so a second press is a new decision.
+  const [state, action] = useFormAction(kind === 'close' ? sendCloseDecisionsAction : sendStillOpenAction, {}, {
+    resetOnSuccess: true,
+    onSuccess: () => {
+      setTicked(false);
+      setOpenTicked(false);
+    },
+  });
   const ready = ticked && count > 0 && (!stillOpen || openTicked);
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       <input type="hidden" name="callId" value={callId} />
       <FormBanner state={state} />
       {stillOpen && (
@@ -170,7 +175,7 @@ export function ConfirmedSend({
           {label}
         </SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useState } from 'react';
 import type { CallFormFieldDef, CallSessionType } from '@kgc/shared';
 import { typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import {
@@ -11,7 +11,8 @@ import {
   Select,
   SubmitButton,
   Textarea,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../../form';
 import { saveFieldAction } from './actions';
 
@@ -46,7 +47,7 @@ export function FieldForm({
   /** The call's session types. With two or more, a question can be limited to some. */
   sessionTypes?: CallSessionType[];
 }) {
-  const [state, action] = useActionState<FormState, FormData>(saveFieldAction, {});
+  const [state, action] = useFormAction(saveFieldAction, {}, { resetOnSuccess: !existing });
   const [kind, setKind] = useState<CallFormFieldDef['kind']>(existing?.kind ?? 'short-text');
 
   const hasOptions = kind === 'choice' || kind === 'multi-choice';
@@ -54,7 +55,7 @@ export function FieldForm({
   const isDescription = kind === 'description';
 
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       <input type="hidden" name="callId" value={callId} />
       {existing && <input type="hidden" name="id" value={existing.id} />}
       <FormBanner state={state} />
@@ -178,6 +179,6 @@ export function FieldForm({
       <FormActions>
         <SubmitButton>{existing ? 'Save question' : 'Add question'}</SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }

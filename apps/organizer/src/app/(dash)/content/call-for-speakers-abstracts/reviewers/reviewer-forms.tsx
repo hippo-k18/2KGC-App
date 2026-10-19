@@ -1,6 +1,5 @@
 'use client';
 
-import { useActionState } from 'react';
 import type { TrackOption } from '@/lib/data';
 import type { ReviewerRow } from '@/lib/reviewers';
 import type { SubmissionRow } from '@/lib/submissions';
@@ -14,7 +13,8 @@ import {
   FieldIdScope,
   Select,
   SubmitButton,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../../form';
 import { assignByTrackAction, assignReviewerAction, inviteReviewerAction } from './actions';
 
@@ -30,11 +30,11 @@ import { assignByTrackAction, assignReviewerAction, inviteReviewerAction } from 
  * expertise.
  */
 export function InviteReviewerForm({ tracks }: { tracks: TrackOption[] }) {
-  const [state, action] = useActionState<FormState, FormData>(inviteReviewerAction, {});
+  const [state, action] = useFormAction(inviteReviewerAction, {}, { resetOnSuccess: true });
 
   return (
     <FieldIdScope scope="reviewer">
-      <form action={action}>
+      <ActionForm run={action}>
         <FormBanner state={state} />
 
         <FormGrid>
@@ -79,7 +79,7 @@ export function InviteReviewerForm({ tracks }: { tracks: TrackOption[] }) {
         <FormActions>
           <SubmitButton>Add reviewer</SubmitButton>
         </FormActions>
-      </form>
+      </ActionForm>
     </FieldIdScope>
   );
 }
@@ -98,11 +98,11 @@ export function AssignForm({
   reviewers: ReviewerRow[];
   submissions: SubmissionRow[];
 }) {
-  const [state, action] = useActionState<FormState, FormData>(assignReviewerAction, {});
+  const [state, action] = useFormAction(assignReviewerAction, {}, { resetOnSuccess: true });
 
   return (
     <FieldIdScope scope="assign">
-      <form action={action}>
+      <ActionForm run={action}>
         <FormBanner state={state} />
         <FormGrid>
           <Select
@@ -131,17 +131,17 @@ export function AssignForm({
         <FormActions>
           <SubmitButton pendingLabel="Assigning…">Assign</SubmitButton>
         </FormActions>
-      </form>
+      </ActionForm>
     </FieldIdScope>
   );
 }
 
 /** The bulk matcher. Runs immediately and reports what it did. */
 export function AssignByTrackForm({ callId, target }: { callId: string; target: number }) {
-  const [state, action] = useActionState<FormState, FormData>(assignByTrackAction, {});
+  const [state, action] = useFormAction(assignByTrackAction, {});
 
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       <FormBanner state={state} />
       <input type="hidden" name="callId" value={callId} />
       <p className="body-2">
@@ -154,6 +154,6 @@ export function AssignByTrackForm({ callId, target }: { callId: string; target: 
           Assign by track
         </SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }

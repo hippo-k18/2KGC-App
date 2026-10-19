@@ -2731,33 +2731,47 @@ html:has(dialog[open]) {
   text-overflow: ellipsis;
 }
 
-/* ─────────────────────── the loading skeleton (ours) ───────────────────── */
+/* ─────────────────────── between screens (T286) ─────────────────────── */
 
-/*
- * `(dash)/loading.tsx` paints a static skeleton that is already correct without
- * this rule — the bars are `--surface-alt` on `--surface`, sized inline. All
- * this adds is the breathing, which is the difference between "the page is
- * empty" and "the page is coming". Kept low-contrast and slow on purpose: it
- * appears on every navigation, and anything livelier becomes the loudest thing
- * in the dashboard within an hour of use.
- */
-.skeleton-pulse {
-  animation: skeleton-pulse 1.4s ease-in-out infinite;
+.nav-progress {
+  /*
+   * Between a click and the next screen (T286): what loading.tsx's skeleton
+   * used to say, without its Suspense boundary. See nav-progress.tsx.
+   */
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--interactive) 20%, transparent);
+  pointer-events: none;
 }
 
-@keyframes skeleton-pulse {
-  0%,
-  100% {
-    opacity: 1;
+.nav-progress::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: var(--interactive);
+  animation: nav-progress 1.1s ease-in-out infinite;
+}
+
+@keyframes nav-progress {
+  0% {
+    transform: translateX(-100%);
   }
-  50% {
-    opacity: 0.55;
+  100% {
+    transform: translateX(250%);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-pulse {
+  .nav-progress::before {
+    width: 100%;
     animation: none;
+    opacity: 0.6;
   }
 }
 

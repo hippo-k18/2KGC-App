@@ -1,6 +1,5 @@
 'use client';
 
-import { useActionState } from 'react';
 import type { RubricCriterionDef } from '@kgc/shared';
 import {
   Field,
@@ -11,7 +10,8 @@ import {
   Select,
   SubmitButton,
   Textarea,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../../form';
 import type { ReviewerRow } from '@/lib/reviewers';
 import {
@@ -37,8 +37,8 @@ export function CriterionForm({
   existing?: RubricCriterionDef;
   locked?: boolean;
 }) {
-  const [state, action] = useActionState<FormState, FormData>(saveCriterionAction, {});
-  const [removed, remove] = useActionState<FormState, FormData>(deleteCriterionAction, {});
+  const [state, action] = useFormAction(saveCriterionAction, {}, { resetOnSuccess: !existing });
+  const [removed, remove] = useFormAction(deleteCriterionAction, {});
 
   return (
     // One scope per criterion: this form is rendered once to add and once
@@ -46,7 +46,7 @@ export function CriterionForm({
     // are on the screen four times over.
     <FieldIdScope scope={`criterion-${existing?.id ?? 'new'}`}>
       <>
-        <form action={action}>
+        <ActionForm run={action}>
           <input type="hidden" name="callId" value={callId} />
           {existing && <input type="hidden" name="id" value={existing.id} />}
           <FormBanner state={state} />
@@ -93,17 +93,17 @@ export function CriterionForm({
               {existing ? 'Save' : 'Add criterion'}
             </SubmitButton>
           </FormActions>
-        </form>
+        </ActionForm>
 
         {existing && !locked && (
-          <form action={remove} style={{ marginTop: 8 }}>
+          <ActionForm run={remove} style={{ marginTop: 8 }}>
             <input type="hidden" name="callId" value={callId} />
             <input type="hidden" name="id" value={existing.id} />
             <FormBanner state={removed} />
             <button type="submit" className="linkish" style={{ color: 'var(--danger)' }}>
               Remove this criterion
             </button>
-          </form>
+          </ActionForm>
         )}
       </>
     </FieldIdScope>
@@ -112,15 +112,15 @@ export function CriterionForm({
 
 /** Offered only on a call with no criteria, so it can never overwrite any. */
 export function DefaultCriteriaForm({ callId }: { callId: string }) {
-  const [state, action] = useActionState<FormState, FormData>(defaultCriteriaAction, {});
+  const [state, action] = useFormAction(defaultCriteriaAction, {});
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       <input type="hidden" name="callId" value={callId} />
       <FormBanner state={state} />
       <FormActions>
         <SubmitButton variant="secondary">Start with Relevance, Originality and Clarity</SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }
 
@@ -134,11 +134,11 @@ export function InvitationForm({
   reviewers: ReviewerRow[];
   emailOn: boolean;
 }) {
-  const [state, action] = useActionState<FormState, FormData>(sendInvitationAction, {});
+  const [state, action] = useFormAction(sendInvitationAction, {}, { resetOnSuccess: true });
 
   return (
     <FieldIdScope scope="invitation">
-      <form action={action}>
+      <ActionForm run={action}>
         <input type="hidden" name="callId" value={callId} />
         <FormBanner state={state} />
         <Select
@@ -171,7 +171,7 @@ export function InvitationForm({
             above and send it yourself.
           </p>
         )}
-      </form>
+      </ActionForm>
     </FieldIdScope>
   );
 }

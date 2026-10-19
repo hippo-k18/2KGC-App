@@ -1,7 +1,15 @@
 'use client';
 
-import { useActionState } from 'react';
-import { Field, FormActions, FormBanner, FormGrid, Select, SubmitButton, type FormState } from '../../../form';
+import {
+  Field,
+  FormActions,
+  FormBanner,
+  FormGrid,
+  Select,
+  SubmitButton,
+  ActionForm,
+  useFormAction,
+} from '../../../form';
 import { excludeReviewerAction } from './actions';
 
 /**
@@ -18,10 +26,10 @@ export function ExcludeReviewerForm({
   submissionId: string;
   reviewers: { id: string; name: string; holds: boolean }[];
 }) {
-  const [state, action] = useActionState<FormState, FormData>(excludeReviewerAction, {});
+  const [state, action] = useFormAction(excludeReviewerAction, {}, { resetOnSuccess: true });
 
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       <input type="hidden" name="submissionId" value={submissionId} />
       <FormBanner state={state} />
       <FormGrid>
@@ -49,6 +57,6 @@ export function ExcludeReviewerForm({
           Exclude from this submission
         </SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }
