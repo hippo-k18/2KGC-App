@@ -1958,6 +1958,8 @@ describe('the money collections are closed to every client', () => {
     ['orders', 'ord_1'],
     ['ticketTypes', 'main-conference'],
     ['emailLog', 'mail_1'],
+    // Every email as sent, links and all (T274). Only the dashboard reads it.
+    ['emailBodies', 'mail_1'],
     ['auditLog', 'audit_1'],
     // Not money, but the same posture for a sharper reason: who may sign in to
     // the dashboard, with what role, and the hash of their passphrase.

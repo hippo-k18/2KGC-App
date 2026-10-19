@@ -2055,7 +2055,53 @@ export interface EmailLogDoc {
   submissionId?: string;
   /** Who pressed send. Absent on automated transactional mail. */
   actor?: string;
+  /**
+   * True when `emailBodies/{this row's id}` holds the message as it was built
+   * (T274). Rows written before the Email Log existed have no body; the
+   * dashboard re-creates a preview for those where the data still exists.
+   */
+  hasBody?: boolean;
   at: Timestamp;
+}
+
+/**
+ * `emailBodies/{emailLogId}` — the message one `emailLog` row recorded, as the
+ * recipient's mail client got it (T274, the dashboard's Email Log).
+ *
+ * Its own collection rather than fields on the row, so the log list stays a
+ * light query: a ticket confirmation is around 15 KB of HTML and the list reads
+ * hundreds of rows at a time. Same id as the row, so the preview is one `get`.
+ *
+ * Written by `send()` in `@kgc/scripts` with the Admin SDK; no client path and
+ * no rules match block, so default-deny covers it. Only owners can open the
+ * screen that reads it.
+ *
+ * ⚠️ Sign-in codes are masked before this is written, never after: the code is
+ * replaced in the subject, the HTML and the text. Capability links (a ticket's
+ * `/order/…`, a speaker's `/speaker/…`) are kept, because the preview should be
+ * the mail that went and only organizers can read it.
+ */
+export interface EmailBodyDoc {
+  eventId: string;
+  from: string;
+  replyTo: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  /** Extra headers sent, e.g. `List-Unsubscribe`. */
+  headers?: Record<string, string>;
+  template: EmailLogDoc["template"];
+  /** Set when the HTML was too large to keep and only the text was stored. */
+  htmlDropped?: boolean;
+  /** True when a sign-in code was found and masked. */
+  masked?: boolean;
+  at: Timestamp;
+  /**
+   * When this may be deleted. A Firestore TTL policy on this field does the
+   * deleting once it is switched on; until then nothing is removed.
+   */
+  expireAt: Timestamp;
 }
 
 /**

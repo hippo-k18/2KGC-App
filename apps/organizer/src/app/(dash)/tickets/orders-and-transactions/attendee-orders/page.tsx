@@ -79,6 +79,8 @@ export default async function AttendeeOrdersPage({
     if (status && o.status !== status) return false;
     if (!q) return true;
     return (
+      // The Email Log links here with `?q=<order id>` (T274).
+      o.id.toLowerCase() === q ||
       o.email.toLowerCase().includes(q) ||
       (o.buyerName ?? '').toLowerCase().includes(q) ||
       (o.companyName ?? '').toLowerCase().includes(q) ||

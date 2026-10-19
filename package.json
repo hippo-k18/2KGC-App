@@ -42,7 +42,8 @@
     "test:prepublish": "cd tests/prepublish && npx playwright test",
     "test:invoice-e2e": "bash tests/prepublish/invoice-e2e/run.sh",
     "publish:web": "bash scripts/publish-web.sh",
-    "test:send-jobs": "firebase emulators:exec --only firestore --config firebase.send-jobs-test.json --project demo-send-jobs \"vitest run --config tests/send-jobs/vitest.config.mts\""
+    "test:send-jobs": "firebase emulators:exec --only firestore --config firebase.send-jobs-test.json --project demo-send-jobs \"vitest run --config tests/send-jobs/vitest.config.mts\"",
+    "test:email-log": "firebase emulators:exec --only firestore --config firebase.email-log-test.json --project demo-email-log \"vitest run --config tests/email-log/vitest.config.mts\""
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",
