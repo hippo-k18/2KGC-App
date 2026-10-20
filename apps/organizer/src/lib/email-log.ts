@@ -79,6 +79,7 @@ function toRow(id: string, d: EmailLogDoc): EmailLogRow {
     campaignId: d.campaignId,
     submissionId: d.submissionId,
     actor: d.actor,
+    from: d.from,
     hasBody: d.hasBody === true,
   };
 }

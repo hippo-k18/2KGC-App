@@ -4,6 +4,7 @@ import { TIME_ZONE } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import {
   EMAIL_LOG_PATH,
+  FROM_NOT_RECORDED,
   formatWhen,
   formatWhenLong,
   relatedLink,
@@ -40,6 +41,10 @@ export default async function EmailPreviewPage({
   const { row } = preview;
   const rel = relatedLink(row);
   const detail = statusDetail(row);
+  // What the row recorded, else what the stored copy of the message says it
+  // went from. Never the address in use today: a re-created preview fills its
+  // header that way, but for an old row that would be a guess (T305).
+  const from = row.from ?? (preview.kind === 'stored' ? preview.from : undefined);
 
   return (
     <>
@@ -64,6 +69,14 @@ export default async function EmailPreviewPage({
                   </Tag>
                   {detail ? <span style={{ marginLeft: 8 }}>{detail}</span> : null}
                 </span>
+              ),
+            },
+            {
+              label: 'From',
+              value: from ? (
+                <span style={{ overflowWrap: 'anywhere' }}>{from}</span>
+              ) : (
+                <span className="muted">{FROM_NOT_RECORDED}</span>
               ),
             },
             { label: 'When (New York)', value: formatWhen(row.atMs, TIME_ZONE) },

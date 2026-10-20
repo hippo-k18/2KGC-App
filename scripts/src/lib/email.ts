@@ -199,7 +199,9 @@ async function log(
     // its own copy of `firebase-admin`, and Firestore checks sentinels with
     // `instanceof` — a sentinel built here is the wrong class for the
     // caller's store and the whole write fails. See `fulfilment.ts`.
-    const row = defined({ ...entry, eventId: EVENT_ID, at });
+    // `from` is stamped here, the one place every row passes through, so no
+    // sender can forget it (T305).
+    const row = defined({ ...entry, from: fromAddress(), eventId: EVENT_ID, at });
     if (body) {
       try {
         await store

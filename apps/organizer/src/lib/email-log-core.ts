@@ -90,8 +90,13 @@ export interface EmailLogRow {
   campaignId?: string;
   submissionId?: string;
   actor?: string;
+  /** The From header, on rows written since T305. */
+  from?: string;
   hasBody: boolean;
 }
+
+/** What a row's From says when the row did not record one. */
+export const FROM_NOT_RECORDED = 'Not recorded';
 
 export interface EmailLogFilters {
   /** `YYYY-MM-DD` in New York, inclusive. */
