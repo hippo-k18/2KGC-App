@@ -1,12 +1,28 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
+import { publicSiteOrigin, type CallFormFieldDef } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { listCalls } from '@/lib/calls';
+import { getCallDoc, listCalls } from '@/lib/calls';
+import { listTracks } from '@/lib/data';
 import { listSubmissions } from '@/lib/submissions';
-import { Banner, NotInputted, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { Banner, NotInputted, PageHeader, Panel, Table, Tabs, Tag } from '../../../ui';
 import { ConfirmButton } from '../../../form';
-import { joinWords, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
+import {
+  abstractWordLimits,
+  cfpWithClose,
+  formatDay,
+  joinWords,
+  talkMinutesOf,
+  typeLabel,
+} from '@kgc/scripts/src/lib/cfp-core';
+import {
+  builtInFields,
+  duplicateWarnings,
+  type BuiltInField,
+} from '@kgc/scripts/src/lib/cfp-form-layout';
 import { CFA_BASE } from '../routes';
 import { FieldForm } from './field-form';
+import { FormPreview } from './form-preview';
 import { deleteFieldAction, moveFieldAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -36,14 +52,24 @@ export const dynamic = 'force-dynamic';
  * already does this for registration questions and this follows it rather than
  * inventing a second scheme — the builder and the validator are literally the
  * same module (`@kgc/scripts/src/lib/question-forms.ts`).
+ *
+ * ── The fields the website always draws are shown too (T301) ──────────────
+ *
+ * Title, description, a resource link and the author's details are on every
+ * submission and are not questions anybody writes. The builder used to list
+ * only the questions, so nothing on this screen said a link was already asked
+ * for, and the live call ended up asking twice. They are now rows in the
+ * list, greyed and locked, in the place the website draws them, and a
+ * question that looks like one of them carries a warning. The Preview tab
+ * draws the whole form.
  */
 export default async function FormBuilderPage({
   searchParams,
 }: {
-  searchParams: Promise<{ call?: string; edit?: string; new?: string }>;
+  searchParams: Promise<{ call?: string; edit?: string; new?: string; view?: string }>;
 }) {
   await requireOrganizer();
-  const { call: callParam, edit, new: creating } = await searchParams;
+  const { call: callParam, edit, new: creating, view } = await searchParams;
 
   const calls = await listCalls();
   if (calls.length === 0) {
@@ -75,13 +101,18 @@ export default async function FormBuilderPage({
   const call = calls.find((c) => c.id === callId)!;
   const editing = edit ? call.form.find((f) => f.id === edit) : undefined;
   const showForm = Boolean(creating) || Boolean(editing);
+  const previewing = !showForm && view === 'preview';
 
   /*
    * How many submissions have answered each question. Real counts, read from
    * the submissions themselves — the warning above an edit is only worth
    * printing if the number in it is true.
    */
-  const submissions = await listSubmissions(callId);
+  const [submissions, doc, tracks] = await Promise.all([
+    listSubmissions(callId),
+    getCallDoc(callId),
+    call.askTrack ? listTracks() : Promise.resolve([]),
+  ]);
   const answeredCount = new Map<string, number>();
   for (const s of submissions) {
     for (const id of Object.keys(s.answers)) {
@@ -100,7 +131,26 @@ export default async function FormBuilderPage({
     .filter(([id]) => !known.has(id))
     .sort((a, b) => b[1] - a[1]);
 
+  /* What the website draws around the questions, worked out from the same settings it reads. */
+  const trackName = new Map(tracks.map((t) => [t.id, t.name]));
+  const layout = builtInFields({
+    cfp: call.isCfp,
+    sessionTypes: call.sessionTypes,
+    askTrack: call.askTrack,
+    askTalkLength: call.askTalkLength,
+    allowOtherTrack: call.allowOtherTrack,
+    trackNames: call.trackIds.map((id) => trackName.get(id)).filter((n): n is string => Boolean(n)),
+    abstractMaxWords: abstractWordLimits(doc?.cfp).max,
+    talkMinutes: talkMinutesOf(doc?.cfp),
+  });
+  const warnings = duplicateWarnings(call.form, layout);
+  const warned = Object.keys(warnings).length;
+  const closeDay = call.isCfp
+    ? formatDay(cfpWithClose(doc?.cfp, call.closesAtLocal).closeDate)
+    : formatDay(call.closesAtLocal.slice(0, 10));
+
   const base = `${CFA_BASE}/form-builder?call=${callId}`;
+  const publicUrl = `${publicSiteOrigin()}/submit/${callId}`;
 
   return (
     <>
@@ -119,7 +169,7 @@ export default async function FormBuilderPage({
           <>
             <Tag color="blue">v{call.formVersion}</Tag>
             <Tag color="grey">
-              {call.form.length} question{call.form.length === 1 ? '' : 's'}
+              {call.form.length} question{call.form.length === 1 ? '' : 's'} of your own
             </Tag>
           </>
         }
@@ -141,12 +191,16 @@ export default async function FormBuilderPage({
           <Link key="s" href={`${CFA_BASE}/submissions?call=${callId}`}>
             Submissions
           </Link>,
+          <a key="p" href={publicUrl} target="_blank" rel="noreferrer">
+            Public page
+          </a>,
         ]}
       />
 
       {calls.length > 1 && (
         <Panel>
           <form method="get" style={{ alignItems: 'flex-end', display: 'flex', gap: 12 }}>
+            {previewing && <input type="hidden" name="view" value="preview" />}
             <div className="whova-form-group" style={{ margin: 0 }}>
               <label className="whova-form-label" htmlFor="call">
                 Call
@@ -181,135 +235,283 @@ export default async function FormBuilderPage({
             existing={editing}
             answered={editing ? (answeredCount.get(editing.id) ?? 0) : 0}
             sessionTypes={call.sessionTypes}
+            layout={layout}
+            questions={call.form.map((f) => ({ id: f.id, prompt: f.prompt, kind: f.kind }))}
           />
         </Panel>
       ) : (
         <>
-          {submissions.length > 0 && (
-            /*
-             * Operational: it changes what the organizer does in the next
-             * minute — whether they are willing to make this edit at all.
-             */
-            <Banner kind="warning">
-              <strong>
-                {submissions.length} submission{submissions.length === 1 ? '' : 's'} already
-                answered this form.
-              </strong>{' '}
-              Adding a question is safe. Changing or removing one publishes version{' '}
-              {call.formVersion + 1}, and every answer already given stays readable under the
-              version it was given to. Nothing is deleted, and nobody has to resubmit.
-            </Banner>
-          )}
+          <div style={{ marginTop: calls.length > 1 ? 16 : 0 }}>
+            <Tabs
+              tabs={[
+                { label: 'Questions', href: base, active: !previewing },
+                { label: 'Preview', href: `${base}&view=preview`, active: previewing },
+              ]}
+            />
+          </div>
 
-          <Panel style={{ marginTop: 16 }}>
-            {call.form.length === 0 ? (
-              <>
-                <NotInputted
-                  what="questions"
-                  action={
-                    <Link className="whova-btn-main secondary" href={`${base}&new=1`}>
-                      Add the first one
-                    </Link>
-                  }
-                />
-                <p className="body-2" style={{ marginBottom: 0 }}>
-                  A call with no questions still collects a title, an abstract, a track, a session
-                  type and the author&rsquo;s details. Those are on every submission and are not
-                  questions you write. Everything here is what you want to ask on top of that.
-                </p>
-              </>
-            ) : (
-              <Table
-                cols={[
-                  { key: 'q', label: 'Question' },
-                  { key: 't', label: 'Type', className: 'cell-sm' },
-                  { key: 'a', label: 'Answered', className: 'cell-sm' },
-                  { key: 'x', label: '', className: 'cell-md' },
-                ]}
-                rows={call.form.map((f, i) => [
-                  <span key="q">
-                    <strong>{f.prompt}</strong>
-                    <span className="muted" style={{ display: 'block', fontSize: 12 }}>
-                      <code>{f.id}</code>
-                      {f.required ? ' · required' : ''}
-                      {f.maxLength ? ` · max ${f.maxLength} characters` : ''}
-                      {f.options?.length ? ` · ${f.options.join(' / ')}` : ''}
-                      {f.sessionTypes?.length ? ` · ${joinWords(f.sessionTypes.map(typeLabel), 'and')} only` : ''}
-                    </span>
-                  </span>,
-                  <span key="t">{f.kind}</span>,
-                  <span key="a">
-                    {f.kind === 'description' ? (
-                      <span className="muted">n/a</span>
-                    ) : (
-                      (answeredCount.get(f.id) ?? 0)
-                    )}
-                  </span>,
-                  <span key="x" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                    <Link href={`${base}&edit=${f.id}`}>Edit</Link>
-                    {i > 0 && (
-                      <form action={moveFieldAction}>
-                        <input type="hidden" name="callId" value={callId} />
-                        <input type="hidden" name="id" value={f.id} />
-                        <input type="hidden" name="direction" value="up" />
-                        <button type="submit" className="linkish">
-                          Up
-                        </button>
-                      </form>
-                    )}
-                    {i < call.form.length - 1 && (
-                      <form action={moveFieldAction}>
-                        <input type="hidden" name="callId" value={callId} />
-                        <input type="hidden" name="id" value={f.id} />
-                        <input type="hidden" name="direction" value="down" />
-                        <button type="submit" className="linkish">
-                          Down
-                        </button>
-                      </form>
-                    )}
-                    <ConfirmButton
-                      action={deleteFieldAction}
-                      hidden={{ callId, id: f.id }}
-                      label="Remove"
-                      confirmLabel="Remove the question"
-                    >
-                      {(answeredCount.get(f.id) ?? 0) > 0 ? (
-                        <>
-                          {answeredCount.get(f.id)} answer
-                          {answeredCount.get(f.id) === 1 ? '' : 's'} have been given to this. They
-                          are <strong>not</strong> deleted and stay on the submissions. Nobody is
-                          asked this question again.
-                        </>
-                      ) : (
-                        <>Nobody has answered this yet.</>
-                      )}
-                    </ConfirmButton>
-                  </span>,
-                ])}
-              />
-            )}
-          </Panel>
-
-          {orphaned.length > 0 && (
+          {previewing ? (
             <Panel style={{ marginTop: 16 }}>
               <h2 className="section-header" style={{ marginTop: 0 }}>
-                Answers to questions that are no longer asked
+                What applicants see
               </h2>
-              <p className="body-2">
-                These were given to questions that have since been removed. They stay on the
-                submissions and in the export.
-              </p>
-              <Table
-                cols={[
-                  { key: 'i', label: 'Field id' },
-                  { key: 'n', label: 'Answers', className: 'cell-sm' },
-                ]}
-                rows={orphaned.map(([id, n]) => [<code key="i">{id}</code>, <span key="n">{n}</span>])}
+              <FormPreview
+                layout={layout}
+                fields={call.form}
+                sessionTypes={call.sessionTypes}
+                closeDay={closeDay}
+                publicUrl={publicUrl}
               />
             </Panel>
+          ) : (
+            <>
+              {submissions.length > 0 && (
+                /*
+                 * Operational: it changes what the organizer does in the next
+                 * minute — whether they are willing to make this edit at all.
+                 */
+                <Banner kind="warning">
+                  <strong>
+                    {submissions.length} submission{submissions.length === 1 ? '' : 's'} already
+                    answered this form.
+                  </strong>{' '}
+                  Adding a question is safe. Changing or removing one publishes version{' '}
+                  {call.formVersion + 1}, and every answer already given stays readable under the
+                  version it was given to. Nothing is deleted, and nobody has to resubmit.
+                </Banner>
+              )}
+
+              {warned > 0 && (
+                <Banner kind="warning">
+                  <strong>
+                    {warned === 1
+                      ? '1 question may ask for something the form already asks for.'
+                      : `${warned} questions may ask for something the form already asks for.`}
+                  </strong>{' '}
+                  Look for the yellow notes below. If it is a different question, you can leave it.
+                </Banner>
+              )}
+
+              <Panel style={{ marginTop: 16 }}>
+                <h2 className="section-header" style={{ marginTop: 0 }}>
+                  The form, from top to bottom
+                </h2>
+                <p className="body-2">
+                  Applicants see these in this order. Grey rows are built in: they are on every
+                  call&rsquo;s form and can&rsquo;t be changed here. Your questions go between them.{' '}
+                  <Link href={`${base}&view=preview`}>See the preview</Link>.
+                </p>
+                <Table
+                  cols={[
+                    { key: 'n', label: '#', className: 'cell-xs' },
+                    { key: 'q', label: 'Question' },
+                    { key: 't', label: 'Answer type', className: 'cell-sm' },
+                    { key: 'a', label: 'Answered', className: 'cell-sm' },
+                    { key: 'x', label: '', className: 'cell-md' },
+                  ]}
+                  rowClassName={(i) =>
+                    i < layout.before.length || i >= layout.before.length + Math.max(call.form.length, 1)
+                      ? 'form-row-builtin'
+                      : call.form.length === 0
+                        ? 'form-row-empty'
+                        : undefined
+                  }
+                  rows={[
+                    ...layout.before.map((f, i) => builtInRow(f, i + 1)),
+                    ...(call.form.length === 0
+                      ? [
+                          [
+                            <span key="n" />,
+                            <span key="q" className="muted">
+                              No questions of your own yet.{' '}
+                              <Link href={`${base}&new=1`}>Add the first one</Link>
+                            </span>,
+                            <span key="t" />,
+                            <span key="a" />,
+                            <span key="x" />,
+                          ],
+                        ]
+                      : call.form.map((f, i) => [
+                          <span key="n" className="muted">
+                            {layout.before.length + i + 1}
+                          </span>,
+                          <QuestionCell key="q" field={f} warnings={warnings[f.id]} />,
+                          <span key="t">{KIND_LABEL[f.kind]}</span>,
+                          <span key="a">
+                            {f.kind === 'description' ? (
+                              <span className="muted">n/a</span>
+                            ) : (
+                              (answeredCount.get(f.id) ?? 0)
+                            )}
+                          </span>,
+                          <span key="x" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                            <Link href={`${base}&edit=${f.id}`}>Edit</Link>
+                            {i > 0 && (
+                              <form action={moveFieldAction}>
+                                <input type="hidden" name="callId" value={callId} />
+                                <input type="hidden" name="id" value={f.id} />
+                                <input type="hidden" name="direction" value="up" />
+                                <button type="submit" className="linkish">
+                                  Up
+                                </button>
+                              </form>
+                            )}
+                            {i < call.form.length - 1 && (
+                              <form action={moveFieldAction}>
+                                <input type="hidden" name="callId" value={callId} />
+                                <input type="hidden" name="id" value={f.id} />
+                                <input type="hidden" name="direction" value="down" />
+                                <button type="submit" className="linkish">
+                                  Down
+                                </button>
+                              </form>
+                            )}
+                            <ConfirmButton
+                              action={deleteFieldAction}
+                              hidden={{ callId, id: f.id }}
+                              label="Remove"
+                              confirmLabel="Remove the question"
+                            >
+                              {(answeredCount.get(f.id) ?? 0) > 0 ? (
+                                <>
+                                  {answeredCount.get(f.id)} answer
+                                  {answeredCount.get(f.id) === 1 ? '' : 's'} have been given to
+                                  this. They are <strong>not</strong> deleted and stay on the
+                                  submissions. Nobody is asked this question again.
+                                </>
+                              ) : (
+                                <>Nobody has answered this yet.</>
+                              )}
+                            </ConfirmButton>
+                          </span>,
+                        ])),
+                    ...layout.after.map((f, i) =>
+                      builtInRow(f, layout.before.length + call.form.length + i + 1),
+                    ),
+                  ]}
+                />
+                <p style={{ margin: '16px 0 0' }}>
+                  <Link href={`${base}&new=1`} className="whova-btn-main secondary">
+                    + Add question
+                  </Link>
+                </p>
+              </Panel>
+
+              {orphaned.length > 0 && (
+                <Panel style={{ marginTop: 16 }}>
+                  <h2 className="section-header" style={{ marginTop: 0 }}>
+                    Answers to questions that are no longer asked
+                  </h2>
+                  <p className="body-2">
+                    These were given to questions that have since been removed. They stay on the
+                    submissions and in the export.
+                  </p>
+                  <Table
+                    cols={[
+                      { key: 'i', label: 'Field id' },
+                      { key: 'n', label: 'Answers', className: 'cell-sm' },
+                    ]}
+                    rows={orphaned.map(([id, n]) => [<code key="i">{id}</code>, <span key="n">{n}</span>])}
+                  />
+                </Panel>
+              )}
+            </>
           )}
         </>
       )}
     </>
+  );
+}
+
+/** The question types in plain words. */
+const KIND_LABEL: Record<CallFormFieldDef['kind'], string> = {
+  'short-text': 'Short answer',
+  'long-text': 'Paragraph',
+  choice: 'Dropdown, pick one',
+  'multi-choice': 'Checkboxes, pick any',
+  checkbox: 'Single checkbox',
+  consent: 'Consent box',
+  description: 'Text only, no answer',
+};
+
+const BUILT_IN_KIND: Record<BuiltInField['input'], string> = {
+  select: 'Dropdown, pick one',
+  text: 'Short answer',
+  'long-text': 'Paragraph',
+  email: 'Email address',
+  tel: 'Phone number',
+};
+
+/** "Workshops only", "Talks and Panels only". */
+function onlyFor(types: readonly string[] | undefined): string | null {
+  if (!types?.length) return null;
+  return `${joinWords(types.map(typeLabel), 'and')} only`;
+}
+
+function builtInRow(f: BuiltInField, n: number): ReactNode[] {
+  const only = onlyFor(f.sessionTypes);
+  return [
+    <span key="n" className="muted">
+      {n}
+    </span>,
+    <span key="q" className="form-row-question">
+      <strong>{f.label}</strong>
+      <span className="form-row-tags">
+        <Tag color="grey" small>
+          Built in
+        </Tag>
+        {f.required && (
+          <Tag color="orange" small>
+            Required
+          </Tag>
+        )}
+        {only && (
+          <Tag color="purple" small>
+            {only}
+          </Tag>
+        )}
+      </span>
+    </span>,
+    <span key="t">{BUILT_IN_KIND[f.input]}</span>,
+    <span key="a" className="muted">
+      Every submission
+    </span>,
+    <span key="x" className="muted">
+      Always on the form
+    </span>,
+  ];
+}
+
+function QuestionCell({ field: f, warnings }: { field: CallFormFieldDef; warnings?: string[] }) {
+  const only = onlyFor(f.sessionTypes);
+  return (
+    <span className="form-row-question">
+      <strong>{f.prompt}</strong>
+      <span className="form-row-tags">
+        {f.required && (
+          <Tag color="orange" small>
+            Required
+          </Tag>
+        )}
+        {only && (
+          <Tag color="purple" small>
+            {only}
+          </Tag>
+        )}
+      </span>
+      {f.helpText && <span className="form-row-help">{f.helpText}</span>}
+      {(f.options?.length || f.maxLength) && (
+        <span className="form-row-help">
+          {f.options?.length ? `Options: ${f.options.join(' / ')}` : ''}
+          {f.options?.length && f.maxLength ? '. ' : ''}
+          {f.maxLength ? `Up to ${f.maxLength} characters` : ''}
+        </span>
+      )}
+      {warnings?.map((w) => (
+        <span key={w} className="form-row-warning" role="note">
+          ⚠️ {w}
+        </span>
+      ))}
+    </span>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { CallFormFieldDef, CallSessionType } from '@kgc/shared';
 import { typeLabel } from '@kgc/scripts/src/lib/cfp-core';
+import { draftWarnings, type BuiltInLayout } from '@kgc/scripts/src/lib/cfp-form-layout';
 import {
   CheckboxField,
   Field,
@@ -33,12 +34,20 @@ import { saveFieldAction } from './actions';
  * The id is what answers are stored under. Rewording is safe and the field keeps
  * its id; *retyping* it is not, and mints a new form version. The distinction is
  * on screen because it is the one an organizer cannot infer.
+ *
+ * ── A question that repeats one is flagged as it is typed (T301) ──────────
+ *
+ * The same check the builder's list runs, against the built-in fields and the
+ * call's other questions. A warning, never a refusal: it is shown above the
+ * save button and saving still works.
  */
 export function FieldForm({
   callId,
   existing,
   answered,
   sessionTypes = [],
+  layout,
+  questions = [],
 }: {
   callId: string;
   existing?: CallFormFieldDef;
@@ -46,9 +55,20 @@ export function FieldForm({
   answered: number;
   /** The call's session types. With two or more, a question can be limited to some. */
   sessionTypes?: CallSessionType[];
+  /** The fields the website always draws, for the duplicate check. */
+  layout?: BuiltInLayout;
+  /** The call's questions as saved, for the duplicate check. */
+  questions?: Pick<CallFormFieldDef, 'id' | 'prompt' | 'kind'>[];
 }) {
-  const [state, action] = useFormAction(saveFieldAction, {}, { resetOnSuccess: !existing });
   const [kind, setKind] = useState<CallFormFieldDef['kind']>(existing?.kind ?? 'short-text');
+  const [prompt, setPrompt] = useState(existing?.prompt ?? '');
+  const [state, action] = useFormAction(
+    saveFieldAction,
+    {},
+    // The form clears after adding a question, and the warning has to clear with it.
+    { resetOnSuccess: !existing, onSuccess: () => !existing && setPrompt('') },
+  );
+  const warnings = layout && prompt.trim() ? draftWarnings({ id: existing?.id, prompt, kind }, questions, layout) : [];
 
   const hasOptions = kind === 'choice' || kind === 'multi-choice';
   const hasLength = kind === 'short-text' || kind === 'long-text';
@@ -94,12 +114,29 @@ export function FieldForm({
         required
         rows={isDescription ? 4 : 2}
         defaultValue={existing?.prompt}
+        onChange={(e) => setPrompt(e.target.value)}
         hint={
           isDescription
             ? 'Shown between questions. It asks nothing and stores nothing.'
             : 'What the submitter reads.'
         }
       />
+
+      {warnings.length > 0 && (
+        <div className="whova-banner warning" role="note" style={{ marginTop: -4 }}>
+          <div>
+            {warnings.map((w) => (
+              <p key={w} style={{ margin: 0 }}>
+                ⚠️ {w}
+              </p>
+            ))}
+            <p style={{ margin: '4px 0 0' }}>
+              Applicants would be asked twice. If this asks for something different, you can still
+              save it.
+            </p>
+          </div>
+        </div>
+      )}
 
       {hasOptions && (
         <Textarea

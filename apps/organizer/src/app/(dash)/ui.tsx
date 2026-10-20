@@ -200,10 +200,13 @@ export function Table({
   empty,
   sort,
   stackSm = true,
+  rowClassName,
 }: {
   cols: Col[];
   rows: ReactNode[][];
   empty?: ReactNode;
+  /** An extra class for one row, by index: the form builder greys out its built-in rows. */
+  rowClassName?: (index: number) => string | undefined;
   /**
    * Under 768px, lay each row out as a card: one cell per line with its column
    * name above it, so nothing in the row waits behind a sideways swipe. Wider
@@ -283,7 +286,7 @@ export function Table({
             </div>
           ) : (
             rows.map((r, i) => (
-              <div className="whova-table-row" role="row" key={i}>
+              <div className={`whova-table-row${rowClassName?.(i) ? ` ${rowClassName(i)}` : ''}`} role="row" key={i}>
                 {r.map((cell, j) => (
                   <div
                     key={cols[j]?.key ?? j}
