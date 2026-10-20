@@ -16,7 +16,7 @@ export interface SpeakerTile {
 }
 
 /** Initials for the fallback portrait. Two at most, so the circle stays legible. */
-function initials(name: string): string {
+export function initials(name: string): string {
   return name
     .split(/\s+/)
     .filter(Boolean)
@@ -145,7 +145,7 @@ const fold = (s: string) =>
     .replace(/[̀-ͯ]/g, '');
 
 /** Name or company, substring, accent-insensitive. Empty query matches all. */
-export function filterSpeakers(speakers: SpeakerTile[], query: string): SpeakerTile[] {
+export function filterSpeakers<T extends SpeakerTile>(speakers: T[], query: string): T[] {
   const needle = fold(query.trim());
   if (!needle) return speakers;
   return speakers.filter(

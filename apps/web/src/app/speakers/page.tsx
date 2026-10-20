@@ -2,13 +2,14 @@ import type { Metadata } from 'next';
 import { FEATURED_2026, REST_2026 } from '@kgc/scripts/src/lib/speakers-2026';
 import { ViewAllSpeakers, type SpeakerTile } from '@/components/speaker-grid';
 import { redirect } from 'next/navigation';
-import { listSpeakers, siteVisibility } from '@/lib/data';
+import { ConfirmedSpeakers, type ConfirmedSpeakerTile } from '@/components/confirmed-speakers';
+import { listConfirmedSpeakers, shownCall, siteVisibility } from '@/lib/data';
 import { SPEAKERS_PAGE_SOURCE } from '@kgc/shared';
 
 export const metadata: Metadata = {
   title: 'Speakers',
   description:
-    'The speakers at the Knowledge Graph Conference, led by the five highlighted on the conference’s own speaker page.',
+    'The confirmed speakers at the Knowledge Graph Conference, with their bios and the talks they give.',
 };
 
 /**
@@ -37,13 +38,9 @@ export const metadata: Metadata = {
  * the `speakers` collection — which is what makes it editable in Speaker
  * Manager, the entire reason the roster was moved out of the bundle.
  *
- * ⚠️ **The people it currently publishes are invented.** The collection holds
- * what `npm run seed` wrote: plausible names, plausible employers, invented.
- * That was chosen knowingly over publishing the real KGC 2026 roster on a site
- * that markets 2027 — an obvious placeholder beats a confident falsehood — but
- * it is a placeholder and it is public. Replace it before the site is
- * announced; `npm run import:whova` and `npm run import:speakers-2026` both
- * overwrite the collection.
+ * Since T304 it publishes confirmed speakers only: listed in Speaker Manager
+ * and named on a published session. A seeded or imported person who is on no
+ * published session no longer appears.
  *
  * `Roster2026` below is the fallback, not dead code: flipping the constant back
  * renders the published 2026 roster from `@kgc/scripts/src/lib/speakers-2026`.
@@ -124,40 +121,27 @@ function Roster2026() {
 }
 
 /**
- * The same page, driven by the `speakers` collection.
+ * The same page, driven by the `speakers` collection: the confirmed speakers
+ * only, each with a bio and the talks they give (T304).
  *
- * ── It renders the same markup as `Roster2026`, and that is the requirement ──
+ * "Confirmed" is `confirmSpeakers()` in `lib/confirmed-speakers.ts`: listed in
+ * Speaker Manager and named on at least one published session. Featured
+ * speakers come first. With nobody confirmed yet the page says speakers will
+ * be announced soon and points at the call for speakers, rather than showing
+ * an empty grid.
  *
- * This function used to be deliberately flatter: one surname-sorted grid under
- * an "Speakers" heading, with no highlighted five. The reason was real —
- * `design.highlight_speakers` was an editorial choice made inside a Whova
- * widget, `SpeakerDoc` had no field for it, and picking the first five of a
- * surname sort would have promoted whoever was alphabetically lucky.
+ * `ViewAllSpeakers` and its "View All" button stay with `Roster2026`: they
+ * page through a 137-person roster, and hide most of it from the HTML until
+ * asked. This list is everyone, server-rendered, so every bio and abstract is
+ * indexable.
  *
- * So the field was added rather than the difference tolerated. `featured` and
- * `displayOrder` are now on the document, `import-speakers-2026.ts` carries
- * both across from the published roster, and an organizer changes either one in
- * Speaker Manager. The heading, the three-then-two block and the "show more"
- * are identical to `Roster2026` above, because the point of moving the roster
- * into the database was to change who can edit the page, not what it looks
- * like.
- *
- * Two behaviours differ, and both only when the data does:
- *
- *   • **No featured speakers** — the five-card block is skipped entirely and
- *     everyone appears in the grid. An organizer who clears every highlight
- *     gets a plain roster, not five arbitrary people.
- *   • **A speaker with no portrait** renders the initials circle `SpeakerCard`
- *     has always had. The roster had a photo for all 137; a person added in the
- *     dashboard may not, and that is not an error state.
- *
- * `listSpeakers()` goes through `safely()`, so an unreachable database renders
- * the same empty state as an unpublished roster rather than a 500.
+ * Both reads go through `safely()`, so an unreachable database renders the
+ * empty state rather than a 500.
  */
 async function LiveRoster() {
-  const speakers = await listSpeakers();
+  const [speakers, call] = await Promise.all([listConfirmedSpeakers(), shownCall()]);
 
-  const tiles: SpeakerTile[] = speakers.map((s) => ({
+  const tiles: ConfirmedSpeakerTile[] = speakers.map((s) => ({
     id: s.id,
     name: s.name,
     company: s.company,
@@ -166,15 +150,16 @@ async function LiveRoster() {
     photoURL: s.photoURL,
     width: s.photoWidth,
     height: s.photoHeight,
+    bio: s.bio,
+    featured: s.featured,
+    talks: s.talks,
   }));
-
-  const featured = tiles.filter((_, i) => speakers[i].featured);
-  const rest = tiles.filter((_, i) => !speakers[i].featured);
 
   return (
     <section style={{ padding: '72px 0 96px' }}>
       <div className="wrap-kgc">
-        <ViewAllSpeakers featured={featured} speakers={rest} />
+        {/* The call shown on the website when there is one, else the speaking section of /sponsor. */}
+        <ConfirmedSpeakers speakers={tiles} applyHref={call ? `/submit/${call.id}` : '/sponsor#speak'} />
       </div>
     </section>
   );

@@ -5665,6 +5665,118 @@ section.tint {
 }
 
 /*
+ * The confirmed-speaker list on `/speakers` (T304): the same pale Whova card,
+ * with the bio and the talks under the name.
+ *
+ * One column on a phone, three at desktop width, all cards in a row as tall as
+ * the tallest. The header of the card stays centred like the widget's; the bio
+ * and talks are left-aligned, because centred paragraphs are hard to read once
+ * "Read more" opens them.
+ */
+.speaker-list {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.speaker-profile {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.speaker-bio,
+.speaker-talks {
+  align-self: stretch;
+  text-align: left;
+}
+
+.speaker-bio {
+  margin-top: 18px;
+  font-size: 15px;
+  color: #333;
+}
+
+.speaker-talks {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+
+.speaker-talk {
+  border-top: 1px solid #e0e0e0;
+  padding: 14px 0 4px;
+}
+
+.speaker-talk-title {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 23px;
+  color: #0d78b3;
+  overflow-wrap: anywhere;
+}
+
+.speaker-talk-meta {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: #5a5a5a;
+}
+
+.speaker-talk-desc {
+  margin-top: 8px;
+  font-size: 15px;
+  color: #333;
+}
+
+/*
+ * Three lines, then "Read more". A height rather than `line-clamp`, because a
+ * bio is several paragraphs and Safari clamps only the first block.
+ */
+.clamp {
+  line-height: 1.55;
+  max-height: calc(3 * 1.55em);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.clamp.is-open {
+  max-height: none;
+}
+
+.clamp p {
+  margin: 0;
+}
+
+.clamp p + p {
+  margin-top: 0.7em;
+}
+
+.clamp-toggle {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0d78b3;
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.clamp-toggle:hover {
+  text-decoration: underline;
+}
+
+.speakers-empty {
+  text-align: center;
+  font-size: 18px;
+  color: #333;
+}
+
+/*
  * The Whova widget's button, in a deeper blue than its own #2dacee, which put
  * the white label at 2.54:1 and failed AA. This keeps the white-on-blue button
  * at 4.82:1. It is deliberately not added to the palette in `:root`.
