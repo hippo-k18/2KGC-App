@@ -39,6 +39,7 @@ import { pickShownCall } from '@kgc/scripts/src/lib/call-window';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import { db } from './firestore';
+import { confirmSpeakers, isPublicSession, type ConfirmedSpeaker } from './confirmed-speakers';
 import { SITE } from './site';
 
 /**
@@ -639,7 +640,7 @@ export async function listAgenda(): Promise<AgendaDay[]> {
 
   const sessions = snap.docs
     .map((d) => ({ id: d.id, ...(d.data() as SessionDoc) }))
-    .filter((s) => s.status === 'published' && !s.deletedAt)
+    .filter(isPublicSession)
     .map(
       (s): AgendaSession => ({
         id: s.id,
@@ -731,6 +732,23 @@ export async function listAgenda(): Promise<AgendaDay[]> {
  * on `listSpeakers()` deliberately: it makes repeat calls within one render
  * free without changing what `/speakers` or the dashboard exports do.
  */
+/**
+ * The speakers `/speakers` lists: listed, and named on at least one published
+ * session, featured first, each with their talks (T304). The rule is
+ * `confirmSpeakers()` in `confirmed-speakers.ts`, where it is tested.
+ *
+ * Built from `listSpeakers()` and `listAgenda()`, both already cached, so it
+ * costs no read of its own. `programmeCounts()` counts this list, so the
+ * homepage number and the page agree.
+ */
+export async function listConfirmedSpeakers(): Promise<ConfirmedSpeaker<SpeakerCard>[]> {
+  const [speakers, days] = await Promise.all([listSpeakers(), listAgenda()]);
+  return confirmSpeakers(
+    speakers,
+    days.flatMap((d) => d.sessions.map((s) => ({ ...s, status: 'published' }))),
+  );
+}
+
 export const agendaSpeakers = cache(async function agendaSpeakers(): Promise<
   Record<string, SpeakerCard>
 > {
@@ -1305,19 +1323,18 @@ export async function listExhibitorsByZone(): Promise<ExhibitorZone[]> {
  * Headline numbers for the home page, counted from the real collections.
  *
  * ⚠️ The speaker count and `/speakers` must stay the same set. The count is
- * now `listSpeakers()`'s own length (T249 added the unlisted filter), so the homepage
- * saying "137 Speakers" and the roster listing 137 people is not a coincidence
- * — it is the *only* reason two public pages of one site agree about how many
- * speakers there are. Adding a filter to `listSpeakers()` (published-only, say)
- * without adding it here makes the homepage overcount, and neither page can
- * tell. Change them together or give them one query.
+ * `listConfirmedSpeakers()`'s own length (T304), the list `/speakers` renders,
+ * so the homepage saying "12 Speakers" and the page listing 12 people is not a
+ * coincidence. It is the *only* reason two public pages of one site agree
+ * about how many speakers there are. Count anything else here and the homepage
+ * overcounts, and neither page can tell.
  */
 export async function programmeCounts(): Promise<{ speakers: number; sessions: number; sponsors: number }> {
   return shared('programmeCounts', async () => {
   const [speakers, sessions, sponsors] = await Promise.all([
-    // `listSpeakers()` itself rather than a count query: unlisted speakers are
-    // filtered there, and a count cannot filter on a field most documents lack.
-    listSpeakers(),
+    // The page's own list rather than a count query: a count cannot filter on
+    // a field most documents lack, nor join speakers to published sessions.
+    listConfirmedSpeakers(),
     db().collection(COLLECTIONS.sessions).where('eventId', '==', EVENT_ID).count().get(),
     db().collection(COLLECTIONS.sponsors).where('eventId', '==', EVENT_ID).count().get(),
   ]);

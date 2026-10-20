@@ -29,6 +29,12 @@ import { defineConfig } from 'vitest/config';
  * Vite's native config loader warns on ESM in a file it has to treat as CommonJS.
  */
 export default defineConfig({
+  /*
+   * `apps/web` sets `"jsx": "preserve"` for Next, which Vite honours and then
+   * cannot parse. Compiling JSX here lets a test render a website component to
+   * HTML (`confirmed-speakers.test.ts`, T304).
+   */
+  oxc: { jsx: { runtime: 'automatic' } },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, 'app/src'),

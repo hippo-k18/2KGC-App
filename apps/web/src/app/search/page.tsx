@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listAgenda, listPublicPages, listSpeakers, siteVisibility } from '@/lib/data';
+import { listAgenda, listConfirmedSpeakers, listPublicPages, siteVisibility } from '@/lib/data';
 import { blogUrl } from '@/lib/blog/paths';
 import { POSTS } from '@/lib/posts';
 import { ABOUT_MENU, formatDayHeading, localTime, NAV, NAV_MORE } from '@/lib/site';
@@ -64,7 +64,7 @@ export default async function SearchPage({
     // A hidden programme is not searched, so no result leads to a page that is not there.
     const [days, people] = await Promise.all([
       show.agenda ? listAgenda() : Promise.resolve([]),
-      show.speakers ? listSpeakers() : Promise.resolve([]),
+      show.speakers ? listConfirmedSpeakers() : Promise.resolve([]),
     ]);
     const hiddenPaths = new Set([
       ...(show.agenda ? [] : ['/agenda']),
