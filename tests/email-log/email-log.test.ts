@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   COLLECTIONS,
@@ -23,7 +23,8 @@ import {
   type CallCfpSettings,
   type SubmissionDoc,
 } from '@kgc/shared';
-import { cfpReceivedMessage, sendCfpMessage, sendSignInCode } from '@kgc/scripts/src/lib/email';
+import { FROM_ADDRESS, cfpReceivedMessage, sendCfpMessage, sendSignInCode } from '@kgc/scripts/src/lib/email';
+import { recordSuppressedRecipients } from '@/lib/campaigns';
 import { db } from '@/lib/firestore';
 import { getEmailPreview, listEmailLog } from '@/lib/email-log';
 import { rangeMs } from '@/lib/email-log-core';
@@ -144,6 +145,59 @@ describe('capture on send', () => {
     const preview = await getEmailPreview(row.id);
     expect(preview?.masked).toBe(true);
     expect(preview?.text).toContain('••••••');
+  });
+});
+
+describe('the From address (T305)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const message = () => cfpReceivedMessage({ name: 'Ada', title: 'Graphs', typeLine: 'Talk, 25 minutes' });
+
+  it('is on every row send() writes: sent, skipped and failed', async () => {
+    process.env.EMAIL_CAPTURE_DIR = mkdtempSync(path.join(tmpdir(), 'kgc-t305-'));
+    expect(await sendCfpMessage(db(), { to: 'sent@example.com', template: 'cfp-received', submissionId: 's1', message: message() })).toBe('sent');
+    delete process.env.EMAIL_CAPTURE_DIR;
+
+    expect(await sendSignInCode(db(), { to: 'skipped@example.com', code: '918273', ttlMinutes: 10 })).toBe('skipped');
+
+    process.env.RESEND_API_KEY = 're_test_not_real';
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ message: 'invalid to' }), { status: 422 })));
+    expect(await sendCfpMessage(db(), { to: 'failed@example.com', template: 'cfp-received', submissionId: 's1', message: message() })).toBe('failed');
+
+    const rows = await allRows();
+    expect(rows.map((r) => [r.get('to'), r.get('status'), r.get('from')]).sort()).toEqual([
+      ['failed@example.com', 'failed', FROM_ADDRESS],
+      ['sent@example.com', 'sent', FROM_ADDRESS],
+      ['skipped@example.com', 'skipped', FROM_ADDRESS],
+    ]);
+    expect(FROM_ADDRESS).toBe('Knowledge Graph Conference <contact@knowledgegraph.tech>');
+
+    const { rows: listed } = await listEmailLog({}, {});
+    expect(listed.map((r) => r.from)).toEqual([FROM_ADDRESS, FROM_ADDRESS, FROM_ADDRESS]);
+    expect((await getEmailPreview(rows[0].id))?.row.from).toBe(FROM_ADDRESS);
+  });
+
+  it('is on the skipped rows a campaign writes for people it will not mail', async () => {
+    const { written } = await recordSuppressedRecipients({
+      campaignId: 'camp_1',
+      subject: 'News',
+      actor: 'min@kgc.test',
+      excluded: [{ contact: { email: 'gone@example.com' } as never, reason: 'unsubscribed' }],
+    });
+    expect(written).toBe(1);
+    const [row] = await allRows();
+    expect(row.data()).toMatchObject({ status: 'skipped', template: 'bulk-message', from: FROM_ADDRESS });
+  });
+
+  it('is absent on older rows, and the list does not invent one', async () => {
+    await oldRow('old', { template: 'cfp-received', at: new Date('2026-10-19T18:00:00Z') });
+    const { rows } = await listEmailLog({}, {});
+    expect(rows[0].id).toBe('old');
+    expect(rows[0].from).toBeUndefined();
+    const preview = await getEmailPreview('old');
+    expect(preview?.row.from).toBeUndefined();
   });
 });
 

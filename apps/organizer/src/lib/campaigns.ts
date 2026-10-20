@@ -10,6 +10,7 @@ import {
   type ContactDoc,
   type EmailLogDoc,
 } from '@kgc/shared';
+import { FROM_ADDRESS } from '@kgc/scripts/src/lib/email';
 import { appendAudit } from './audit';
 import { campaignSkipRows, partitionAudience, suppressionReasonFor, type Excluded } from './campaigns-core';
 import { listOrders, type OrderRow } from './commerce';
@@ -396,6 +397,8 @@ export async function recordSuppressedRecipients(input: {
           // invisible again by a different route.
           template: 'bulk-message',
           subject: input.subject,
+          // The address it would have gone from, as `send()` records (T305).
+          from: FROM_ADDRESS,
           status: 'skipped',
           reason: r.reason,
           campaignId: input.campaignId,

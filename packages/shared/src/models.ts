@@ -2039,6 +2039,15 @@ export interface EmailLogDoc {
     | "cfp-accept-notice"
     | "cfp-weekly-reminder";
   subject: string;
+  /**
+   * The From header the mail went out with, e.g.
+   * `Knowledge Graph Conference <contact@knowledgegraph.tech>` (T305). Written
+   * on every row since T305, skips included, so "which address did that come
+   * from?" has an answer in the log itself. Older rows have none; the Email Log
+   * shows "Not recorded" for them rather than guessing, because the address
+   * changed on 2026-10-19 and not every sender was redeployed at the same time.
+   */
+  from?: string;
   status: "sent" | "failed" | "skipped";
   /** Resend's message id, for correlating with their dashboard. */
   providerId?: string;

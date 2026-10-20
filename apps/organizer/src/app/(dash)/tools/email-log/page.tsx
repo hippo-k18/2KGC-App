@@ -3,6 +3,7 @@ import { TIME_ZONE } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import {
   EMAIL_LOG_PATH,
+  FROM_NOT_RECORDED,
   GROUP_LABEL,
   TEMPLATES,
   TEMPLATE_INFO,
@@ -10,6 +11,7 @@ import {
   parseFilters,
   rangeMs,
   relatedLink,
+  splitAddress,
   statusDetail,
   templateLabel,
   type EmailGroup,
@@ -171,6 +173,9 @@ async function SentTab({ sp }: { sp: Record<string, string | string[] | undefine
       <Table
         cols={[
           { key: 'when', label: 'When (New York)', className: 'cell-sm' },
+          // Narrow, and gone on a phone: it is the same address on every row
+          // written since T305, and the single-email page shows it in full.
+          { key: 'from', label: 'From', className: 'cell-sm hide-sm' },
           { key: 'to', label: 'To', className: 'cell-md' },
           { key: 'what', label: 'Email', className: 'cell-fill' },
           { key: 'status', label: 'Status', className: 'cell-sm' },
@@ -179,10 +184,27 @@ async function SentTab({ sp }: { sp: Record<string, string | string[] | undefine
         rows={rows.map((r) => {
           const detail = statusDetail(r);
           const rel = relatedLink(r);
+          const from = r.from ? splitAddress(r.from).address : undefined;
           return [
             <Link key="w" href={`${EMAIL_LOG_PATH}/${r.id}`} className="row-link" style={{ fontSize: 12 }}>
               {formatWhen(r.atMs, TIME_ZONE)}
             </Link>,
+            from ? (
+              <span key="f" style={{ fontSize: 12 }} title={r.from}>
+                {/* Break after the @ rather than mid-word when the column is too narrow. */}
+                {from.split('@')[0]}
+                {from.includes('@') ? (
+                  <>
+                    @<wbr />
+                    {from.slice(from.indexOf('@') + 1)}
+                  </>
+                ) : null}
+              </span>
+            ) : (
+              <span key="f" className="muted" style={{ fontSize: 12 }}>
+                {FROM_NOT_RECORDED}
+              </span>
+            ),
             <span key="t" style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
               {r.to || 'Address removed'}
             </span>,
