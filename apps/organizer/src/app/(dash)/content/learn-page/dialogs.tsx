@@ -6,8 +6,14 @@ import { summarizeChanges, type Selection, type Warning } from '@/lib/learn-edit
 import { loadLearnVersionAction, restoreLearnVersionAction, type LearnVersionSummary } from './api';
 import { LearnPreview } from './preview';
 
+/**
+ * Open modals, newest last. Only the top one answers Escape and Tab, so the
+ * image editor opened over the media library closes alone (T318).
+ */
+const modalStack: object[] = [];
+
 /** A modal: focus moves in, Tab stays in, Escape closes, focus goes back after. */
-function Modal({
+export function Modal({
   title,
   onClose,
   children,
@@ -22,7 +28,15 @@ function Modal({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  // A ref, so a parent passing a new arrow each render does not re-run the
+  // effect and pull focus back to the first field while someone types.
+  const closeRef = useRef(onClose);
   useEffect(() => {
+    closeRef.current = onClose;
+  });
+  useEffect(() => {
+    const me = {};
+    modalStack.push(me);
     const back = document.activeElement as HTMLElement | null;
     const box = ref.current;
     const focusables = () =>
@@ -33,9 +47,12 @@ function Modal({
       );
     (box?.querySelector<HTMLElement>('[data-autofocus]') ?? focusables()[0])?.focus();
     const onKey = (e: KeyboardEvent) => {
+      if (modalStack[modalStack.length - 1] !== me) return;
       if (e.key === 'Escape') {
+        // A nested popover (a menu, a picker) closes first.
+        if (e.defaultPrevented) return;
         e.preventDefault();
-        onClose();
+        closeRef.current();
       } else if (e.key === 'Tab') {
         const list = focusables();
         if (list.length === 0) return;
@@ -53,12 +70,13 @@ function Modal({
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
+      modalStack.splice(modalStack.indexOf(me), 1);
       back?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return (
-    <div className="le-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="le-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeRef.current()}>
       <div
         className={`le-modal${wide ? ' is-wide' : ''}`}
         role="dialog"

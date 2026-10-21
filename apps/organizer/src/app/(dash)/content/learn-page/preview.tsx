@@ -1,32 +1,38 @@
 'use client';
 
 import {
-  Fragment,
   memo,
   useCallback,
   useEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
+  type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
 } from 'react';
 import { isSafeHref } from '@kgc/shared';
-import type { LearnBlock, LearnSection, LinkButton, PageImage, ImageShape, Person } from '@kgc/shared';
+import type { LearnBlock, LearnSection, Person } from '@kgc/shared';
 import {
+  blockColumnOf,
   blockSummary,
   kindLabel,
-  markdownToDoc,
+  layoutColumns,
   videoEmbedUrl,
   type BlockOf,
   type EditAction,
-  type InlineNode,
   type Selection,
 } from '@/lib/learn-editor-core';
+import { colorHex } from '@/lib/learn-tools-core';
 import { resolveSrc, type Device, type PaneProps } from './editor-types';
+import { ButtonRow, Picture, TextLink } from './preview-parts';
+import { RichBlocks, RichLine } from './preview-rich';
+import { PreviewContentContext, V2Body } from './preview-v2';
 import { RichInlineEditor } from './rich-inline-editor';
 import './preview.css';
+import './preview-v2.css';
 
 /**
  * The Learn page as the website draws it, with the editor's hands on it (T310).
@@ -43,6 +49,11 @@ import './preview.css';
 
 type SelectFn = (sel: Selection) => void;
 type EditFn = (action: EditAction) => void;
+/** A click with Shift or Cmd adds to a multiple selection; true means the shell took it. */
+export type BlockClickFn = (sectionId: string, blockId: string, mods: { shift: boolean; meta: boolean }) => boolean;
+
+/** The drag payload type for moving a block inside the preview, between columns or sections. */
+const DRAG_TYPE = 'application/x-kgc-learn-block';
 
 function selKey(sel: Selection): string | null {
   if (sel.kind === 'block') return `b:${sel.blockId}`;
@@ -58,89 +69,7 @@ function waveUrl(siteOrigin: string, name: string): string {
   return `url(${JSON.stringify(`${siteOrigin}/kgc/${name}`)})`;
 }
 
-// ─── Rich text ──────────────────────────────────────────────────────────────
-
-function renderNodes(nodes: InlineNode[] | undefined): ReactNode[] {
-  return (nodes ?? []).map((n, i) => {
-    if (n.type === 'hardBreak') return <br key={i} />;
-    let out: ReactNode = n.text ?? '';
-    const marks = n.marks ?? [];
-    const link = marks.find((m) => m.type === 'link');
-    if (link?.attrs?.href && isSafeHref(link.attrs.href)) out = <a href={link.attrs.href}>{out}</a>;
-    if (marks.some((m) => m.type === 'italic')) out = <em>{out}</em>;
-    if (marks.some((m) => m.type === 'bold')) out = <strong>{out}</strong>;
-    return <Fragment key={i}>{out}</Fragment>;
-  });
-}
-
-/** Paragraphs, for a text block. */
-function RichParagraphs({ text }: { text: string }) {
-  const doc = markdownToDoc(text);
-  return (
-    <>
-      {doc.content.map((p, i) => (
-        <p key={i}>{renderNodes(p.content)}</p>
-      ))}
-    </>
-  );
-}
-
-/** One line of inline text: paragraphs, if any slipped in, become line breaks. */
-function RichInline({ text }: { text: string }) {
-  const doc = markdownToDoc(text);
-  return (
-    <>
-      {doc.content.map((p, i) => (
-        <Fragment key={i}>
-          {i > 0 && <br />}
-          {renderNodes(p.content)}
-        </Fragment>
-      ))}
-    </>
-  );
-}
-
 // ─── Pieces ─────────────────────────────────────────────────────────────────
-
-function Picture({
-  image,
-  shape,
-  siteOrigin,
-  className,
-}: {
-  image: PageImage;
-  shape: ImageShape;
-  siteOrigin: string;
-  className?: string;
-}) {
-  const crop = shape === 'square' || shape === 'circle';
-  const ratio = image.width > 0 && image.height > 0 ? `${image.width} / ${image.height}` : undefined;
-  if (!image.src) {
-    return (
-      <div className={`lp-img-empty lp-shape-${shape} ${className ?? ''}`} style={{ aspectRatio: crop ? '1 / 1' : ratio ?? '16 / 9' }}>
-        No image yet
-      </div>
-    );
-  }
-  const style: CSSProperties = {
-    objectPosition: `${(image.focusX ?? 0.5) * 100}% ${(image.focusY ?? 0.5) * 100}%`,
-    aspectRatio: crop ? '1 / 1' : ratio,
-  };
-  return (
-    // Site assets and Storage URLs from any origin; next/image would need each host configured.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      className={`lp-img lp-shape-${shape} ${className ?? ''}`}
-      src={resolveSrc(image.src, siteOrigin)}
-      alt={image.alt}
-      width={image.width || undefined}
-      height={image.height || undefined}
-      style={style}
-      loading="lazy"
-      decoding="async"
-    />
-  );
-}
 
 function LinkedInIcon({ href }: { href: string }) {
   return (
@@ -148,14 +77,6 @@ function LinkedInIcon({ href }: { href: string }) {
       <svg width="20" height="20" viewBox="0 0 448 512" fill="currentColor" aria-hidden="true">
         <path d="M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8a53.79 53.79 0 0 1 107.58 0c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.29 0-55.69 37.7-55.69 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.69-48.3 87.88-48.3 94 0 111.28 61.9 111.28 142.3V448z" />
       </svg>
-    </a>
-  );
-}
-
-function TextLink({ link }: { link: LinkButton }) {
-  return (
-    <a className="lp-textlink" href={isSafeHref(link.href) ? link.href : undefined}>
-      {link.label}
     </a>
   );
 }
@@ -190,7 +111,7 @@ function PersonCard({ person, siteOrigin }: { person: Person; siteOrigin: string
       </div>
       {person.bio && (
         <div className="lp-person-bio">
-          <RichParagraphs text={person.bio} />
+          <RichBlocks value={person.bio} />
         </div>
       )}
     </div>
@@ -199,22 +120,22 @@ function PersonCard({ person, siteOrigin }: { person: Person; siteOrigin: string
 
 // ─── Block bodies ───────────────────────────────────────────────────────────
 
-const HEADING_DEFAULT_SIZE = { 1: 'x-large', 2: 'large', 3: 'normal' } as const;
+const HEADING_DEFAULT_SIZE = { 1: 'x-large', 2: 'large', 3: 'normal', 4: 'small' } as const;
 
 function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOrigin: string; selected: boolean }) {
   switch (block.kind) {
     case 'heading': {
-      const Tag = `h${block.level}` as 'h1' | 'h2' | 'h3';
+      const Tag = `h${block.level}` as 'h1' | 'h2' | 'h3' | 'h4';
       return (
         <Tag className={`lp-heading lp-h-${block.size ?? HEADING_DEFAULT_SIZE[block.level]}`}>
-          <RichInline text={block.text} />
+          <RichLine value={block.text} />
         </Tag>
       );
     }
     case 'text':
       return (
         <div className={`lp-text lp-t-${block.size ?? 'normal'}`}>
-          <RichParagraphs text={block.text} />
+          <RichBlocks value={block.text} />
         </div>
       );
     case 'image': {
@@ -227,15 +148,7 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
       );
     }
     case 'buttons':
-      return (
-        <div className="lp-buttons">
-          {block.buttons.map((b, i) => (
-            <a key={i} className={`lp-btn lp-btn-${b.style}`} href={isSafeHref(b.href) ? b.href : undefined}>
-              {b.label}
-            </a>
-          ))}
-        </div>
-      );
+      return <ButtonRow buttons={block.buttons} />;
     case 'people':
       if (block.style === 'list') {
         return (
@@ -268,7 +181,7 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
             <li key={item.id}>
               {item.title && <strong>{item.title}</strong>}
               {item.title && item.text ? ' ' : null}
-              <RichInline text={item.text} />
+              <RichLine value={item.text} />
               {item.link && (
                 <>
                   {' '}
@@ -299,7 +212,7 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
               {item.title && <h3 className="lp-col-title">{item.title}</h3>}
               {item.text && (
                 <div className="lp-col-text">
-                  <RichParagraphs text={item.text} />
+                  <RichBlocks value={item.text} />
                 </div>
               )}
               {item.link && <TextLink link={item.link} />}
@@ -332,7 +245,17 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
       return <hr className="lp-hr" />;
     case 'spacer':
       return <div className={`lp-spacer lp-spacer-${block.size}`} aria-hidden="true" />;
+    default:
+      return <V2Body block={block} siteOrigin={siteOrigin} selected={selected} />;
   }
+}
+
+const VISIBLE_TAG = { desktop: 'Wide screens only', mobile: 'Phones only' } as const;
+
+/** True when the block or section would not show at this preview width. */
+function offscreen(visibleOn: 'all' | 'desktop' | 'mobile' | undefined, device: Device): boolean {
+  if (!visibleOn || visibleOn === 'all') return false;
+  return visibleOn === 'mobile' ? device !== 'phone' : device === 'phone';
 }
 
 // ─── Block shell ────────────────────────────────────────────────────────────
@@ -341,10 +264,14 @@ interface BlockViewProps {
   block: LearnBlock;
   sectionId: string;
   selected: boolean;
+  /** Part of a multiple selection. */
+  multi: boolean;
   warning?: string;
   siteOrigin: string;
+  device: Device;
   onSelect: SelectFn;
   onEdit: EditFn;
+  onBlockClick: BlockClickFn;
   wasLocal: (blockId: string) => boolean;
 }
 
@@ -352,15 +279,20 @@ const BlockView = memo(function BlockView({
   block,
   sectionId,
   selected,
+  multi,
   warning,
   siteOrigin,
+  device,
   onSelect,
   onEdit,
+  onBlockClick,
   wasLocal,
 }: BlockViewProps) {
   const ref = useRef<HTMLDivElement>(null);
   const label = kindLabel(block.kind);
-  const editing = selected && (block.kind === 'heading' || block.kind === 'text');
+  // In place editing covers the v1 Markdown text; a RichDoc is edited in the
+  // panel until T317's inline RichEditor is wired here.
+  const editing = selected && (block.kind === 'heading' || block.kind === 'text') && typeof block.text === 'string';
 
   const select = () => {
     if (!selected) onSelect({ kind: 'block', sectionId, blockId: block.id });
@@ -368,6 +300,7 @@ const BlockView = memo(function BlockView({
 
   const onClick = (e: MouseEvent) => {
     e.stopPropagation();
+    if ((e.shiftKey || e.metaKey || e.ctrlKey) && onBlockClick(sectionId, block.id, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey })) return;
     select();
   };
 
@@ -396,7 +329,7 @@ const BlockView = memo(function BlockView({
   );
 
   const onLevel = useCallback(
-    (level: 1 | 2 | 3) => onEdit({ type: 'updateBlock', sectionId, blockId: block.id, patch: { level } }),
+    (level: 1 | 2 | 3 | 4) => onEdit({ type: 'updateBlock', sectionId, blockId: block.id, patch: { level } }),
     [onEdit, sectionId, block.id],
   );
 
@@ -405,15 +338,15 @@ const BlockView = memo(function BlockView({
     body = (
       <div className={`lp-heading lp-h-${block.size ?? HEADING_DEFAULT_SIZE[block.level]} lp-editing`}>
         <RichInlineEditor
-          text={block.text}
+          text={block.text as string}
           single
           ariaLabel="Heading text"
           onChange={onText}
           onExit={exit}
           shouldFocus={shouldFocus}
-          level={block.level}
+          level={block.level === 4 ? 3 : block.level}
           onLevel={onLevel}
-          fallback={<RichInline text={block.text} />}
+          fallback={<RichLine value={block.text} />}
         />
       </div>
     );
@@ -421,13 +354,13 @@ const BlockView = memo(function BlockView({
     body = (
       <div className={`lp-text lp-t-${(block as BlockOf<'text'>).size ?? 'normal'} lp-editing`}>
         <RichInlineEditor
-          text={block.text}
+          text={block.text as string}
           single={false}
           ariaLabel="Text"
           onChange={onText}
           onExit={exit}
           shouldFocus={shouldFocus}
-          fallback={<RichParagraphs text={block.text} />}
+          fallback={<RichBlocks value={block.text} />}
         />
       </div>
     );
@@ -441,24 +374,63 @@ const BlockView = memo(function BlockView({
     `lp-al-${block.align ?? 'left'}`,
     `lp-sa-${block.spaceAbove ?? 'none'}`,
     block.spaceBelow ? `lp-sb-${block.spaceBelow}` : 'lp-sb-default',
-  ].join(' ');
+    block.maxWidth ? `lp-mw-${block.maxWidth}` : '',
+    block.boxed ? 'lp-boxed' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const color = colorHex(block.textColor);
+  const away = offscreen(block.visibleOn, device);
 
   return (
     <div
       ref={ref}
       className={classes}
+      id={block.anchor ? `lp-anchor-${block.anchor}` : undefined}
       data-lp-block={block.id}
+      data-block-id={block.id}
       data-selected={selected || undefined}
+      data-multi={multi || undefined}
       data-hidden={block.hidden || undefined}
+      data-offscreen={away || undefined}
+      style={color ? ({ ['--lp-text' as string]: color, color } as CSSProperties) : undefined}
       tabIndex={0}
       role="button"
-      aria-pressed={selected}
-      aria-label={`${blockSummary(block)}${block.hidden ? ' (hidden)' : ''}${warning ? ` (warning: ${warning})` : ''}, select to edit`}
+      aria-pressed={selected || multi}
+      aria-label={`${blockSummary(block)}${block.hidden ? ' (hidden)' : ''}${away ? ` (${VISIBLE_TAG[block.visibleOn as 'desktop' | 'mobile'].toLowerCase()})` : ''}${warning ? ` (warning: ${warning})` : ''}, select to edit`}
       onClick={onClick}
       onKeyDown={onKeyDown}
     >
-      {selected && <span className="lp-tag lp-tag-block" aria-hidden="true">{label}</span>}
+      {selected && (
+        <span
+          className="lp-tag lp-tag-block lp-tag-drag"
+          draggable
+          title="Drag to move it to another column or section"
+          onDragStart={(e) => {
+            e.stopPropagation();
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ sectionId, blockId: block.id }));
+            e.dataTransfer.setData('text/plain', block.id);
+          }}
+          aria-hidden="true"
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true">
+            {[4, 8, 12].map((y) => (
+              <g key={y}>
+                <circle cx="5" cy={y} r="1.4" fill="currentColor" />
+                <circle cx="11" cy={y} r="1.4" fill="currentColor" />
+              </g>
+            ))}
+          </svg>
+          {label}
+        </span>
+      )}
       {block.hidden && <span className="lp-tag lp-tag-hidden" aria-hidden="true">Hidden</span>}
+      {block.visibleOn && block.visibleOn !== 'all' && (
+        <span className={`lp-tag lp-tag-device${block.hidden ? ' is-second' : ''}`} aria-hidden="true">
+          {VISIBLE_TAG[block.visibleOn]}
+        </span>
+      )}
       {warning && (
         <span className="lp-warn" title={warning} aria-hidden="true">
           !
@@ -475,46 +447,122 @@ interface SectionViewProps {
   section: LearnSection;
   selected: boolean;
   selectedBlockId: string | null;
+  /** Ids of this section's blocks in a multiple selection, joined with spaces (a string, so memo compares it). */
+  multiKey: string;
   /** Block id to its warnings, joined; `''` for the section's own. */
   warnings: Record<string, string> | undefined;
   siteOrigin: string;
+  device: Device;
   onSelect: SelectFn;
   onEdit: EditFn;
+  onBlockClick: BlockClickFn;
   wasLocal: (blockId: string) => boolean;
+}
+
+/** Where a dropped block lands: before `beforeId`, or at the end of `column`. */
+function dropAction(
+  section: LearnSection,
+  data: string,
+  column: number,
+  beforeId: string | null,
+): EditAction | null {
+  let from: { sectionId: string; blockId: string };
+  try {
+    from = JSON.parse(data) as { sectionId: string; blockId: string };
+  } catch {
+    return null;
+  }
+  if (!from?.blockId || from.blockId === beforeId) return null;
+  const rest = section.blocks.filter((b) => b.id !== from.blockId);
+  let toIndex: number;
+  if (beforeId) toIndex = rest.findIndex((b) => b.id === beforeId);
+  else {
+    // After the last block of that column, so its blocks stay together in source order.
+    let last = -1;
+    rest.forEach((b, i) => {
+      if (blockColumnOf(section, b.id) === column) last = i;
+    });
+    toIndex = last + 1;
+  }
+  if (toIndex < 0) toIndex = rest.length;
+  return { type: 'moveBlock', sectionId: from.sectionId, blockId: from.blockId, toSectionId: section.id, toIndex, toColumn: column };
 }
 
 const SectionView = memo(function SectionView({
   section,
   selected,
   selectedBlockId,
+  multiKey,
   warnings,
   siteOrigin,
+  device,
   onSelect,
   onEdit,
+  onBlockClick,
   wasLocal,
 }: SectionViewProps) {
-  const block = (b: LearnBlock) => (
-    <BlockView
-      key={b.id}
-      block={b}
-      sectionId={section.id}
-      selected={selectedBlockId === b.id}
-      warning={warnings?.[b.id]}
-      siteOrigin={siteOrigin}
-      onSelect={onSelect}
-      onEdit={onEdit}
-      wasLocal={wasLocal}
-    />
+  const [dropAt, setDropAt] = useState<{ column: number; beforeId: string | null } | null>(null);
+  const multi = useMemo(() => new Set(multiKey ? multiKey.split(' ') : []), [multiKey]);
+  const columns = layoutColumns(section.layout);
+
+  const dragHandlers = (column: number, beforeId: string | null) => ({
+    onDragOver: (e: DragEvent) => {
+      if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (dropAt?.column !== column || dropAt.beforeId !== beforeId) setDropAt({ column, beforeId });
+    },
+    onDragLeave: (e: DragEvent) => {
+      if (e.currentTarget === e.target) setDropAt(null);
+    },
+    onDrop: (e: DragEvent) => {
+      const data = e.dataTransfer.getData(DRAG_TYPE);
+      if (!data) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDropAt(null);
+      const action = dropAction(section, data, column, beforeId);
+      if (action) onEdit(action);
+    },
+  });
+
+  const block = (b: LearnBlock, column: number) => (
+    <div key={b.id} className="lp-drop-slot" {...dragHandlers(column, b.id)}>
+      {dropAt?.column === column && dropAt.beforeId === b.id && <div className="lp-drop-line" aria-hidden="true" />}
+      <BlockView
+        block={b}
+        sectionId={section.id}
+        selected={selectedBlockId === b.id}
+        multi={multi.has(b.id)}
+        warning={warnings?.[b.id]}
+        siteOrigin={siteOrigin}
+        device={device}
+        onSelect={onSelect}
+        onEdit={onEdit}
+        onBlockClick={onBlockClick}
+        wasLocal={wasLocal}
+      />
+    </div>
+  );
+
+  const zoneEnd = (column: number) => (
+    <div className="lp-drop-end" {...dragHandlers(column, null)}>
+      {dropAt?.column === column && dropAt.beforeId === null && <div className="lp-drop-line" aria-hidden="true" />}
+    </div>
   );
 
   const wrap = (blocks: LearnBlock[], key: string) => (
     <div key={key} className={`lp-wrap lp-width-${section.width}`}>
-      <div className="lp-measure">{blocks.map(block)}</div>
+      <div className="lp-measure">
+        {blocks.map((b) => block(b, 0))}
+        {zoneEnd(0)}
+      </div>
     </div>
   );
 
   const artIndex =
-    section.background === 'grey-wave' && section.waveBehindFirstImage
+    columns === 1 && section.background === 'grey-wave' && section.waveBehindFirstImage
       ? section.blocks.findIndex((b) => b.kind === 'image')
       : -1;
 
@@ -522,7 +570,26 @@ const SectionView = memo(function SectionView({
   if (section.blocks.length === 0) {
     inner = (
       <div className={`lp-wrap lp-width-${section.width}`}>
-        <div className="lp-measure lp-section-empty">Empty section. Add a block from the panel.</div>
+        <div className="lp-measure lp-section-empty" {...dragHandlers(0, null)}>
+          Empty section. Add a block from the outline, or drag one here.
+        </div>
+      </div>
+    );
+  } else if (columns > 1) {
+    inner = (
+      <div className={`lp-wrap lp-width-${section.width}`}>
+        <div className={`lp-measure lp-layout lp-layout-${section.layout}`}>
+          {Array.from({ length: columns }, (_, c) => {
+            const mine = section.blocks.filter((b) => blockColumnOf(section, b.id) === c);
+            return (
+              <div key={c} className="lp-layout-col" data-column={c + 1}>
+                {mine.map((b) => block(b, c))}
+                {mine.length === 0 && <div className="lp-layout-empty">Column {c + 1} is empty. Drag a block here.</div>}
+                {zoneEnd(c)}
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   } else if (artIndex >= 0) {
@@ -530,7 +597,7 @@ const SectionView = memo(function SectionView({
       <>
         {artIndex > 0 && wrap(section.blocks.slice(0, artIndex), 'before')}
         <div className="lp-art" style={{ backgroundImage: waveUrl(siteOrigin, 'wave-13.png') }}>
-          {block(section.blocks[artIndex])}
+          {block(section.blocks[artIndex], 0)}
         </div>
         {artIndex < section.blocks.length - 1 && wrap(section.blocks.slice(artIndex + 1), 'after')}
       </>
@@ -539,13 +606,30 @@ const SectionView = memo(function SectionView({
     inner = wrap(section.blocks, 'all');
   }
 
-  const bgImage =
-    section.background === 'white-wave' || section.background === 'light-blue-wave'
-      ? waveUrl(siteOrigin, 'wave-3.png')
-      : section.background === 'grey-wave' && artIndex < 0
-        ? waveUrl(siteOrigin, 'wave-13.png')
-        : undefined;
+  const custom = colorHex(section.backgroundColor);
+  const photo = section.backgroundImage?.src ? resolveSrc(section.backgroundImage.src, siteOrigin) : null;
+  const waves =
+    custom || photo
+      ? undefined
+      : section.background === 'white-wave' || section.background === 'light-blue-wave'
+        ? waveUrl(siteOrigin, 'wave-3.png')
+        : section.background === 'grey-wave' && artIndex < 0
+          ? waveUrl(siteOrigin, 'wave-13.png')
+          : undefined;
 
+  const style: CSSProperties = {};
+  if (waves) style.backgroundImage = waves;
+  if (custom) style.backgroundColor = custom;
+  if (photo) {
+    const overlay = Math.max(0, Math.min(0.8, section.overlay ?? 0));
+    const focus = section.backgroundImage
+      ? `${(section.backgroundImage.focusX ?? 0.5) * 100}% ${(section.backgroundImage.focusY ?? 0.5) * 100}%`
+      : 'center';
+    style.backgroundImage = `linear-gradient(rgba(0,0,0,${overlay}), rgba(0,0,0,${overlay})), url(${JSON.stringify(photo)})`;
+    style.backgroundSize = 'cover';
+    style.backgroundPosition = focus;
+  }
+  const away = offscreen(section.visibleOn, device);
   const sectionWarning = warnings?.[''];
 
   return (
@@ -553,6 +637,7 @@ const SectionView = memo(function SectionView({
       className="lp-section-shell"
       data-lp-section={section.id}
       data-selected={selected || undefined}
+      data-offscreen={away || undefined}
       onClick={(e) => {
         e.stopPropagation();
         if (!selected) onSelect({ kind: 'section', sectionId: section.id });
@@ -560,16 +645,22 @@ const SectionView = memo(function SectionView({
     >
       {selected && <span className="lp-tag lp-tag-section" aria-hidden="true">{section.label || 'Section'}</span>}
       {section.hidden && <span className="lp-tag lp-tag-hidden lp-tag-section-hidden" aria-hidden="true">Hidden</span>}
+      {section.visibleOn && section.visibleOn !== 'all' && (
+        <span className="lp-tag lp-tag-device lp-tag-section-device" aria-hidden="true">
+          {VISIBLE_TAG[section.visibleOn]}
+        </span>
+      )}
       {sectionWarning && (
         <span className="lp-warn lp-warn-section" title={sectionWarning} aria-hidden="true">
           !
         </span>
       )}
       <section
-        className={`lp-section lp-bg-${section.background} lp-pt-${section.paddingTop} lp-pb-${section.paddingBottom}`}
+        id={section.anchor ? `lp-anchor-${section.anchor}` : undefined}
+        className={`lp-section lp-bg-${section.background} lp-pt-${section.paddingTop} lp-pb-${section.paddingBottom}${photo ? ' lp-has-photo' : ''}`}
         data-hidden={section.hidden || undefined}
         aria-label={`${section.label || 'Section'}${section.hidden ? ' (hidden)' : ''}`}
-        style={bgImage ? { backgroundImage: bgImage } : undefined}
+        style={Object.keys(style).length ? style : undefined}
       >
         {inner}
       </section>
@@ -579,14 +670,22 @@ const SectionView = memo(function SectionView({
 
 // ─── The pane ───────────────────────────────────────────────────────────────
 
-export function LearnPreview(props: PaneProps & { siteOrigin: string; device: Device }) {
-  const { content, selection, warnings, siteOrigin, device } = props;
+export interface LearnPreviewProps extends PaneProps {
+  siteOrigin: string;
+  device: Device;
+  /** Blocks in a multiple selection (outline or Shift and Cmd clicks here). */
+  multi?: ReadonlySet<string>;
+  onBlockClick?: BlockClickFn;
+}
+
+export function LearnPreview(props: LearnPreviewProps) {
+  const { content, selection, warnings, siteOrigin, device, multi } = props;
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Stable callbacks, so memoised blocks are not re-rendered by a new arrow from the shell.
-  const handlers = useRef({ onSelect: props.onSelect, onEdit: props.onEdit });
+  const handlers = useRef({ onSelect: props.onSelect, onEdit: props.onEdit, onBlockClick: props.onBlockClick });
   useEffect(() => {
-    handlers.current = { onSelect: props.onSelect, onEdit: props.onEdit };
+    handlers.current = { onSelect: props.onSelect, onEdit: props.onEdit, onBlockClick: props.onBlockClick };
   });
 
   /** The last selection made by clicking or typing in this pane, which must not scroll or steal focus. */
@@ -597,6 +696,7 @@ export function LearnPreview(props: PaneProps & { siteOrigin: string; device: De
     handlers.current.onSelect(sel);
   }, []);
   const onEdit = useCallback<EditFn>((action) => handlers.current.onEdit(action), []);
+  const onBlockClick = useCallback<BlockClickFn>((s, b, m) => handlers.current.onBlockClick?.(s, b, m) ?? false, []);
   const wasLocal = useCallback((blockId: string) => localKey.current === `b:${blockId}`, []);
 
   const key = selKey(selection);
@@ -623,29 +723,42 @@ export function LearnPreview(props: PaneProps & { siteOrigin: string; device: De
   const selectedBlockSection = selection.kind === 'block' ? selection.sectionId : null;
 
   return (
-    <div
-      ref={rootRef}
-      className="lp-root"
-      data-device={device}
-      // The preview is a picture of the page: links in it never navigate.
-      onClickCapture={(e) => {
-        if ((e.target as HTMLElement).closest('a')) e.preventDefault();
-      }}
-    >
-      {content.sections.map((s) => (
-        <SectionView
-          key={s.id}
-          section={s}
-          selected={selectedSectionId === s.id}
-          selectedBlockId={selectedBlockSection === s.id ? selectedBlockId : null}
-          warnings={warningsBySection[s.id]}
-          siteOrigin={siteOrigin}
-          onSelect={onSelect}
-          onEdit={onEdit}
-          wasLocal={wasLocal}
-        />
-      ))}
-      {content.sections.length === 0 && <div className="lp-page-empty">This page has no sections yet.</div>}
-    </div>
+    <PreviewContentContext.Provider value={content}>
+      <div
+        ref={rootRef}
+        className="lp-root"
+        data-device={device}
+        // The preview is a picture of the page: links in it never navigate, except
+        // a jump to an anchor on the page, which scrolls the preview like the site.
+        onClickCapture={(e) => {
+          const a = (e.target as HTMLElement).closest('a');
+          if (!a) return;
+          e.preventDefault();
+          const href = a.getAttribute('href') ?? '';
+          if (href.startsWith('#') && href.length > 1)
+            rootRef.current
+              ?.querySelector(`#lp-anchor-${CSS.escape(href.slice(1))}`)
+              ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }}
+      >
+        {content.sections.map((s) => (
+          <SectionView
+            key={s.id}
+            section={s}
+            selected={selectedSectionId === s.id}
+            selectedBlockId={selectedBlockSection === s.id ? selectedBlockId : null}
+            multiKey={multi && multi.size > 0 ? s.blocks.filter((b) => multi.has(b.id)).map((b) => b.id).join(' ') : ''}
+            warnings={warningsBySection[s.id]}
+            siteOrigin={siteOrigin}
+            device={device}
+            onSelect={onSelect}
+            onEdit={onEdit}
+            onBlockClick={onBlockClick}
+            wasLocal={wasLocal}
+          />
+        ))}
+        {content.sections.length === 0 && <div className="lp-page-empty">This page has no sections yet.</div>}
+      </div>
+    </PreviewContentContext.Provider>
   );
 }

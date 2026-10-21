@@ -11,6 +11,8 @@ import {
   type MouseEvent,
 } from 'react';
 import type { PageImage } from '@kgc/shared';
+import { recordLearnMediaAction } from './api';
+import { useEditorServices } from './editor-context';
 import { resolveSrc, type UploadImage } from './editor-types';
 
 /**
@@ -91,6 +93,9 @@ function measure(url: string): Promise<{ width: number; height: number }> {
   });
 }
 
+/** The media library's multi-upload shrinks files by the same rules as this field. */
+export { prepare as prepareImageFile, measure as measureImageUrl };
+
 function round2(n: number): number {
   return Math.round(Math.min(1, Math.max(0, n)) * 100) / 100;
 }
@@ -129,6 +134,8 @@ export function ImageTools({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  // Null outside the editor shell; the library and image editor buttons hide then.
+  const services = useEditorServices();
 
   // An upload takes seconds; the alt text typed meanwhile must survive it.
   const latest = useRef(image);
@@ -170,6 +177,10 @@ export function ImageTools({
         }
         if (dims.width && dims.height) uploaded = { ...uploaded, ...dims };
       }
+      // Stand-in: until T315's upload writes the media row itself, a picture
+      // uploaded here is added to the library too. The library's own uploads
+      // record their row, so this is the only other place. Remove at integration.
+      if (services) void recordLearnMediaAction(uploaded, file.name, prepared.file.size).catch(() => undefined);
       // Replacing keeps the description; the old focal point belonged to the old picture.
       const old = latest.current;
       const next: PageImage = { ...uploaded };
@@ -182,6 +193,23 @@ export function ImageTools({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function chooseFromLibrary() {
+    if (!services) return;
+    setError(null);
+    const picked = await services.pickImage({ title: `Choose ${label.toLowerCase()}` });
+    if (!picked) return;
+    // Same rule as Replace: an image with no description of its own keeps the one typed here.
+    const old = latest.current;
+    onChange(!picked.alt.trim() && old?.alt ? { ...picked, alt: old.alt } : picked);
+  }
+
+  async function openEditor() {
+    if (!services || !latest.current?.src) return;
+    setError(null);
+    const edited = await services.editImage(latest.current);
+    if (edited) onChange(edited);
   }
 
   function onPick() {
@@ -315,6 +343,26 @@ export function ImageTools({
               >
                 Replace
               </button>
+              {services && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-default btn-sm"
+                    disabled={busy}
+                    onClick={() => void chooseFromLibrary()}
+                  >
+                    Choose from library
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-default btn-sm"
+                    disabled={busy}
+                    onClick={() => void openEditor()}
+                  >
+                    Edit image
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 className="btn btn-default btn-sm"
@@ -350,8 +398,13 @@ export function ImageTools({
                 className="btn btn-default btn-sm"
                 onClick={() => fileRef.current?.click()}
               >
-                Choose image
+                {services ? 'Upload image' : 'Choose image'}
               </button>
+              {services && (
+                <button type="button" className="btn btn-default btn-sm" onClick={() => void chooseFromLibrary()}>
+                  Choose from library
+                </button>
+              )}
               {!compact && <span className="le-set-muted">JPEG, PNG, WebP or GIF, up to 10 MB</span>}
             </>
           )}

@@ -14,6 +14,9 @@ import {
 } from '@/lib/learn-editor-core';
 import { resolveSrc, type PaneProps, type UploadImage } from './editor-types';
 import { ImageTools } from './image-tools';
+import { RichField } from './rich-field';
+import { BlockColumnPicker, BlockCommonSettings, PageV2Settings, SectionV2Settings, V2BlockSettings } from './settings-v2';
+import { isEmptyRich } from '@/lib/learn-tools-core';
 import {
   ALIGNS,
   BACKGROUNDS,
@@ -87,6 +90,7 @@ function PageSettings({ content, onEdit }: Pick<PaneProps, 'content' | 'onEdit'>
         </div>
         <p className="le-set-hint">Shown in the browser tab and in search results.</p>
       </Group>
+      <PageV2Settings content={content} onPatch={(patch) => onEdit({ type: 'setPage', patch })} />
       <Group title="How to edit">
         <ul className="le-set-tips">
           <li>Click any part of the preview to edit it.</li>
@@ -181,22 +185,18 @@ function SectionSettings({
           onChange={(paddingBottom) => paddingBottom && upd({ paddingBottom })}
         />
       </Group>
+      <SectionV2Settings section={section} upd={upd} />
     </>
   );
 }
 
 // ─── Blocks ───────────────────────────────────────────────────────────────────
 
-const RICH_HINT = (
-  <>
-    Use **bold**, *italic* and [link text](https://...). Leave a blank line to start a new paragraph.
-  </>
-);
 
 function HeadingSettings({ block, upd }: { block: BlockOf<'heading'> } & Ctx) {
   return (
     <Group title="Heading">
-      <Area
+      <RichField
         label="Text"
         rows={2}
         value={block.text}
@@ -210,6 +210,7 @@ function HeadingSettings({ block, upd }: { block: BlockOf<'heading'> } & Ctx) {
           { value: 1, label: 'Big title (H1)' },
           { value: 2, label: 'Section heading (H2)' },
           { value: 3, label: 'Small heading (H3)' },
+          { value: 4, label: 'Smallest (H4)' },
         ]}
         onChange={(level) => level && upd({ level })}
       />
@@ -221,7 +222,7 @@ function HeadingSettings({ block, upd }: { block: BlockOf<'heading'> } & Ctx) {
 function TextSettings({ block, upd }: { block: BlockOf<'text'> } & Ctx) {
   return (
     <Group title="Text">
-      <Area label="Text" rows={6} value={block.text} onChange={(text) => upd({ text })} hint={RICH_HINT} />
+      <RichField label="Text" rows={6} value={block.text} variant="full" onChange={(text) => upd({ text })} />
       <Segmented legend="Text size" value={block.size} options={TEXT_SIZES} onChange={(size) => upd({ size })} />
     </Group>
   );
@@ -429,12 +430,11 @@ function PeopleSettings({ block, upd, siteOrigin, uploadImage }: { block: BlockO
                     onChange={(v) => setPerson(i, v ? { ...p, linkedin: v } : without(p, 'linkedin'))}
                     warn={linkWarning(p.linkedin ?? '')}
                   />
-                  <Area
+                  <RichField
                     label="Bio (optional)"
                     rows={4}
                     value={p.bio ?? ''}
-                    onChange={(v) => setPerson(i, v ? { ...p, bio: v } : without(p, 'bio'))}
-                    hint={RICH_HINT}
+                    onChange={(v) => setPerson(i, isEmptyRich(v) ? without(p, 'bio') : { ...p, bio: v })}
                   />
                   <div className="le-set-field">
                     <span className="le-set-label">Photo</span>
@@ -505,7 +505,7 @@ function ListSettings({ block, upd }: { block: BlockOf<'list'> } & Ctx) {
               value={it.title ?? ''}
               onChange={(v) => setItem(i, v ? { ...it, title: v } : without(it, 'title'))}
             />
-            <Area label="Text" value={it.text} onChange={(text) => setItem(i, { ...it, text })} />
+            <RichField label="Text" value={it.text} onChange={(text) => setItem(i, { ...it, text })} />
             <Area
               label="Sub-items (optional, one per line)"
               value={(it.children ?? []).join('\n')}
@@ -580,7 +580,7 @@ function ColumnsSettings({ block, upd, siteOrigin, uploadImage }: { block: Block
               value={it.title ?? ''}
               onChange={(v) => setItem(i, v ? { ...it, title: v } : without(it, 'title'))}
             />
-            <Area label="Text" value={it.text} onChange={(text) => setItem(i, { ...it, text })} hint={RICH_HINT} />
+            <RichField label="Text" value={it.text} onChange={(text) => setItem(i, { ...it, text })} />
             <OptionalLink
               link={it.link}
               onChange={(link) => setItem(i, link ? { ...it, link } : without(it, 'link'))}
@@ -671,8 +671,8 @@ function LayoutSettings({
 
 // ─── The panel ────────────────────────────────────────────────────────────────
 
-export function SettingsPanel(props: PaneProps & Extra) {
-  const { content, selection, onEdit, onSelect, warnings, siteOrigin, uploadImage } = props;
+export function SettingsPanel(props: PaneProps & Extra & { onSaveToLibrary?: (sectionId: string) => void }) {
+  const { content, selection, onEdit, onSelect, warnings, siteOrigin, uploadImage, onSaveToLibrary } = props;
 
   const section =
     selection.kind === 'page' ? undefined : content.sections.find((s) => s.id === selection.sectionId);
@@ -748,11 +748,20 @@ export function SettingsPanel(props: PaneProps & Extra) {
       case 'divider':
         specific = <p className="le-set-hint">A thin line across the page. Only the layout below can be changed.</p>;
         break;
+      default:
+        specific = <V2BlockSettings block={block} upd={ctx.upd} />;
+        break;
     }
     body = (
       <>
         {specific}
+        <BlockColumnPicker
+          section={section}
+          blockId={block.id}
+          onChange={(column) => onEdit({ type: 'setBlockColumn', sectionId: section.id, blockId: block.id, column })}
+        />
         <LayoutSettings align={block.align} spaceAbove={block.spaceAbove} spaceBelow={block.spaceBelow} upd={ctx.upd} />
+        <BlockCommonSettings block={block} upd={ctx.upd} />
       </>
     );
   } else if (section && selection.kind === 'section') {
@@ -797,6 +806,11 @@ export function SettingsPanel(props: PaneProps & Extra) {
             <button type="button" className="btn btn-default btn-sm" onClick={duplicate}>
               Duplicate
             </button>
+            {!block && section && onSaveToLibrary && (
+              <button type="button" className="btn btn-default btn-sm" onClick={() => onSaveToLibrary(section.id)}>
+                Save to library
+              </button>
+            )}
             <ConfirmButton
               label="Delete"
               question={block ? 'Delete this block?' : 'Delete this section and everything in it?'}
