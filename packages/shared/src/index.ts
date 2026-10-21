@@ -43,3 +43,4 @@ export * from "./price-phases.js";
 export * from "./ticket-extras.js";
 export * from "./moderation-core.js";
 export * from "./site-path.js";
+export * from "./learn-page.js";
