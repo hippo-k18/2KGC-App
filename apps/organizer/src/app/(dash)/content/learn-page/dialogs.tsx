@@ -1,0 +1,441 @@
+'use client';
+
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import type { LearnPageContent } from '@kgc/shared';
+import { summarizeChanges, type Selection, type Warning } from '@/lib/learn-editor-core';
+import { loadLearnVersionAction, restoreLearnVersionAction, type LearnVersionSummary } from './api';
+import { LearnPreview } from './preview';
+
+/** A modal: focus moves in, Tab stays in, Escape closes, focus goes back after. */
+function Modal({
+  title,
+  onClose,
+  children,
+  footer,
+  wide,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+  wide?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const back = document.activeElement as HTMLElement | null;
+    const box = ref.current;
+    const focusables = () =>
+      Array.from(
+        box?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select, [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+    (box?.querySelector<HTMLElement>('[data-autofocus]') ?? focusables()[0])?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === 'Tab') {
+        const list = focusables();
+        if (list.length === 0) return;
+        const first = list[0];
+        const last = list[list.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      back?.focus?.();
+    };
+  }, [onClose]);
+
+  return (
+    <div className="le-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        className={`le-modal${wide ? ' is-wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        ref={ref}
+      >
+        <div className="le-modal-head">
+          <h2 id={titleId}>{title}</h2>
+          <button type="button" className="le-icon-btn" onClick={onClose} aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M2 2l10 10M12 2 2 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div className="le-modal-body">{children}</div>
+        {footer && <div className="le-modal-foot">{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ChangeGroup({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="le-change-group">
+      <h3>
+        {title} <span className="le-count">{items.length}</span>
+      </h3>
+      <ul>
+        {items.slice(0, 12).map((t, i) => (
+          <li key={`${t}-${i}`}>{t}</li>
+        ))}
+        {items.length > 12 && <li className="le-muted">and {items.length - 12} more</li>}
+      </ul>
+    </div>
+  );
+}
+
+function formatDate(ms: number): string {
+  return new Date(ms).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+export function PublishDialog({
+  before,
+  firstPublish,
+  after,
+  warnings,
+  publishedAt,
+  onPublish,
+  onClose,
+  onShow,
+}: {
+  before: LearnPageContent | null;
+  firstPublish: boolean;
+  after: LearnPageContent;
+  warnings: Warning[];
+  publishedAt?: number;
+  onPublish: (note: string) => Promise<string | null>;
+  onClose: () => void;
+  onShow: (sel: Selection) => void;
+}) {
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const s = summarizeChanges(before, after);
+
+  const go = async () => {
+    setBusy(true);
+    setError(null);
+    const err = await onPublish(note);
+    setBusy(false);
+    if (err) setError(err);
+    else setDone(true);
+  };
+
+  if (done)
+    return (
+      <Modal
+        title="Published"
+        onClose={onClose}
+        footer={
+          <button type="button" className="whova-btn-main small" onClick={onClose} data-autofocus>
+            Done
+          </button>
+        }
+      >
+        <p>The new page is live. Visitors see it within a minute.</p>
+      </Modal>
+    );
+
+  return (
+    <Modal
+      title="Publish the Learn page"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn btn-default" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="whova-btn-main small"
+            onClick={() => void go()}
+            disabled={busy || (s.total === 0 && before !== null)}
+          >
+            {busy ? 'Publishing...' : 'Publish now'}
+          </button>
+        </>
+      }
+    >
+      <p className="le-muted">
+        {firstPublish
+          ? 'This is the first publish from here. Changes are compared with the built-in page the website shows now.'
+          : publishedAt
+            ? `Changes since the last publish on ${formatDate(publishedAt)}.`
+            : 'Changes compared with the live page.'}
+      </p>
+
+      {s.total === 0 && before !== null ? (
+        <p>
+          {firstPublish
+            ? 'The draft is the same as the page the website shows now.'
+            : 'Nothing has changed since the last publish.'}
+        </p>
+      ) : (
+        <div className="le-changes" aria-label="What changed">
+          {s.pageEdited && <ChangeGroup title="Page title or description" items={['Edited']} />}
+          <ChangeGroup title="Sections added" items={s.sectionsAdded} />
+          <ChangeGroup title="Sections removed" items={s.sectionsRemoved} />
+          <ChangeGroup title="Sections changed" items={s.sectionsEdited} />
+          <ChangeGroup title="Sections moved" items={s.sectionsMoved} />
+          <ChangeGroup title="Blocks added" items={s.blocksAdded} />
+          <ChangeGroup title="Blocks removed" items={s.blocksRemoved} />
+          <ChangeGroup title="Blocks changed" items={s.blocksEdited} />
+          <ChangeGroup title="Blocks moved" items={s.blocksMoved} />
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <div className="whova-banner warning" role="note">
+          <div>
+            <strong>Worth fixing first</strong>
+            <ul className="le-problems">
+              {warnings.slice(0, 6).map((w, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    className="linkish"
+                    onClick={() =>
+                      onShow(
+                        w.blockId
+                          ? { kind: 'block', sectionId: w.sectionId, blockId: w.blockId }
+                          : { kind: 'section', sectionId: w.sectionId },
+                      )
+                    }
+                  >
+                    {w.message}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <div className="whova-form-group">
+        <label className="whova-form-label" htmlFor="le-publish-note">
+          Note for the history (optional)
+        </label>
+        <input
+          id="le-publish-note"
+          className="whova-text-input"
+          value={note}
+          maxLength={200}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="For example: added the spring cohort dates"
+          data-autofocus
+        />
+      </div>
+      {error && (
+        <div className="whova-banner danger" role="alert">
+          {error}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+export function DiscardDialog({
+  onDiscard,
+  onClose,
+}: {
+  onDiscard: () => Promise<string | null>;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Modal
+      title="Discard the draft?"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn btn-default" onClick={onClose} disabled={busy} data-autofocus>
+            Keep editing
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              const err = await onDiscard();
+              setBusy(false);
+              if (err) setError(err);
+              else onClose();
+            }}
+          >
+            {busy ? 'Discarding...' : 'Discard draft'}
+          </button>
+        </>
+      }
+    >
+      <p>The draft goes back to what is on the website now. Everything changed since the last publish is thrown away.</p>
+      <p className="le-muted">Changed your mind straight after? Undo brings it back while this window is open.</p>
+      {error && (
+        <div className="whova-banner danger" role="alert">
+          {error}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+export function HistoryDialog({
+  versions,
+  siteOrigin,
+  onRestored,
+  onClose,
+}: {
+  versions: LearnVersionSummary[];
+  siteOrigin: string;
+  onRestored: (draft: LearnPageContent, revision: number) => void;
+  onClose: () => void;
+}) {
+  const [picked, setPicked] = useState<string | null>(versions[0]?.id ?? null);
+  const [content, setContent] = useState<LearnPageContent | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!picked) return;
+    let live = true;
+    setLoading(true);
+    setError(null);
+    loadLearnVersionAction(picked)
+      .then((res) => {
+        if (!live) return;
+        if (res.ok) setContent(res.content);
+        else {
+          setContent(null);
+          setError(res.error);
+        }
+      })
+      .catch(() => live && setError('Could not load that version.'))
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [picked]);
+
+  const restore = async () => {
+    if (!picked) return;
+    setBusy(true);
+    setError(null);
+    const res = await restoreLearnVersionAction(picked);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    onRestored(res.draft, res.revision);
+    onClose();
+  };
+
+  return (
+    <Modal
+      title="Version history"
+      onClose={onClose}
+      wide
+      footer={
+        <>
+          <button type="button" className="btn btn-default" onClick={onClose}>
+            Close
+          </button>
+          <button
+            type="button"
+            className="whova-btn-main small"
+            onClick={() => void restore()}
+            disabled={!picked || busy || loading || !content}
+          >
+            {busy ? 'Restoring...' : 'Restore this version'}
+          </button>
+        </>
+      }
+    >
+      {versions.length === 0 ? (
+        <p>Nothing has been published from here yet. Each publish adds a version you can go back to.</p>
+      ) : (
+        <div className="le-history">
+          <ul className="le-history-list" role="listbox" aria-label="Published versions">
+            {versions.map((v, i) => (
+              <li
+                key={v.id}
+                role="option"
+                aria-selected={picked === v.id}
+                tabIndex={0}
+                className={picked === v.id ? 'is-on' : ''}
+                onClick={() => setPicked(v.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setPicked(v.id);
+                  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    const next = versions[i + (e.key === 'ArrowDown' ? 1 : -1)];
+                    if (next) {
+                      setPicked(next.id);
+                      (e.currentTarget.parentElement?.children[i + (e.key === 'ArrowDown' ? 1 : -1)] as HTMLElement | undefined)?.focus();
+                    }
+                  }
+                }}
+              >
+                <span className="le-history-when">
+                  {formatDate(v.publishedAt)}
+                  {i === 0 && <span className="le-live-tag">Live</span>}
+                </span>
+                <span className="le-history-who">{v.publishedBy}</span>
+                {v.note && <span className="le-history-note">{v.note}</span>}
+              </li>
+            ))}
+          </ul>
+          <div className="le-history-preview" aria-live="polite" aria-busy={loading}>
+            {error && (
+              <div className="whova-banner danger" role="alert">
+                {error}
+              </div>
+            )}
+            {loading && <p className="le-muted">Loading...</p>}
+            {content && !loading && (
+              <div className="le-history-frame" inert>
+                <div style={{ width: 1280, zoom: 0.42 }}>
+                  <LearnPreview
+                    content={content}
+                    selection={{ kind: 'page' }}
+                    onSelect={() => {}}
+                    onEdit={() => {}}
+                    warnings={[]}
+                    siteOrigin={siteOrigin}
+                    device="desktop"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <p className="le-muted le-history-help">Restoring puts the old version in the draft. The website does not change until you publish.</p>
+    </Modal>
+  );
+}

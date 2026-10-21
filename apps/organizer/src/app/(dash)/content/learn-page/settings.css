@@ -1,0 +1,822 @@
+/* Learn page editor: the settings panel and the image tools (le-set-). */
+
+.le-set {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--body);
+  background: var(--surface);
+}
+
+.le-set-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.le-set-head-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.le-set-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.le-set-crumb {
+  font-size: 12px;
+}
+
+.le-set-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.le-set-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 16px 24px;
+}
+
+.le-set-group {
+  padding: 14px 0 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.le-set-group:last-child {
+  border-bottom: 0;
+}
+
+.le-set-group-title {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ── fields ── */
+
+.le-set-field {
+  margin-bottom: 14px;
+}
+
+.le-set-fieldset {
+  border: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  min-width: 0;
+}
+
+.le-set-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.le-set-count {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.le-set-input.whova-text-input {
+  height: 34px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.le-set-input.whova-text-input:focus {
+  outline: 2px solid var(--interactive);
+  outline-offset: -1px;
+  border-color: var(--interactive);
+}
+
+textarea.le-set-area.whova-text-input {
+  height: auto;
+  min-height: 0;
+  resize: vertical;
+  line-height: 19px;
+}
+
+.le-set-hint {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+}
+
+.le-set-muted {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.le-set-warn {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: #7a4a00;
+  background: #fff7e8;
+  border: 1px solid #ffbc57;
+  border-radius: 4px;
+}
+
+.le-set-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--danger);
+}
+
+.le-set-note {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  background: var(--surface-alt);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+}
+
+.le-set-banner {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.le-set-banner ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.le-set-status {
+  margin: -8px 0 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.le-set-status.ok {
+  color: var(--success);
+}
+
+.le-set-status.bad {
+  color: #9a5b00;
+}
+
+.le-set-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.le-set-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--interactive);
+}
+
+.le-set-tips {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* ── link-styled buttons ── */
+
+.le-set-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--link);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.le-set-link:hover {
+  color: var(--interactive-dark);
+}
+
+.le-set-link.danger {
+  color: var(--danger);
+}
+
+.le-set-link:focus-visible,
+.le-set-icon-btn:focus-visible,
+.le-set .btn:focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: 2px;
+}
+
+.le-set-confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.le-set-confirm-q {
+  font-size: 12px;
+  color: var(--danger);
+  font-weight: 500;
+}
+
+/* ── segmented control (radios) ── */
+
+.le-set-seg {
+  display: flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.le-set-seg-opt {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  cursor: pointer;
+}
+
+.le-set-seg-opt + .le-set-seg-opt {
+  border-left: 1px solid var(--line-strong);
+}
+
+.le-set-seg-opt input,
+.le-set-swatch input,
+.le-set-tile input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.le-set-seg-opt > span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 30px;
+  padding: 5px 6px;
+  font-size: 12px;
+  line-height: 15px;
+  text-align: center;
+  color: var(--body);
+}
+
+.le-set-seg-opt:hover > span {
+  background: var(--row-hover);
+}
+
+.le-set-seg-opt input:checked + span {
+  background: var(--interactive);
+  color: #fff;
+}
+
+.le-set-seg-opt input:focus-visible + span {
+  outline: 2px solid var(--interactive);
+  outline-offset: -4px;
+  box-shadow: inset 0 0 0 4px #fff;
+}
+
+.le-set-seg.icons {
+  display: inline-flex;
+}
+
+.le-set-seg.icons .le-set-seg-opt > span {
+  width: 40px;
+}
+
+.le-set-bar {
+  display: block;
+  width: 36px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.le-set-bar > span {
+  display: block;
+  height: 100%;
+  margin: 0 auto;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.75;
+}
+
+/* ── background swatches ── */
+
+.le-set-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.le-set-swatch,
+.le-set-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.le-set-swatch:hover,
+.le-set-tile:hover {
+  background: var(--row-hover);
+}
+
+.le-set-swatch:has(input:checked),
+.le-set-tile:has(input:checked) {
+  border-color: var(--interactive);
+}
+
+.le-set-swatch:has(input:focus-visible),
+.le-set-tile:has(input:focus-visible) {
+  outline: 2px solid var(--interactive);
+  outline-offset: 2px;
+}
+
+.le-set-swatch-chip {
+  display: block;
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background-size: cover;
+  background-position: center;
+}
+
+.le-set-swatch-name,
+.le-set-tile-name {
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+  color: var(--body);
+}
+
+/* ── shape tiles ── */
+
+.le-set-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.le-set-tile-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+  border-radius: 4px;
+  background: var(--surface-alt);
+}
+
+.le-set-tile-shape {
+  display: block;
+  background: linear-gradient(135deg, #8dccee, var(--interactive));
+}
+
+/* ── item lists (buttons, list items, columns) ── */
+
+.le-set-items {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+
+.le-set-item {
+  margin-bottom: 10px;
+  padding: 10px 10px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfcfd;
+}
+
+.le-set-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.le-set-item-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.le-set-rowtools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.le-set-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.le-set-icon-btn:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--row-hover);
+}
+
+.le-set-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.le-set-rowtools .le-set-link {
+  margin-left: 4px;
+}
+
+.le-set-sublink {
+  margin: 0 0 10px;
+  padding: 8px 10px 4px;
+  border-left: 3px solid var(--line-strong);
+  background: var(--surface);
+}
+
+.le-set-item > .le-set-link {
+  margin-bottom: 12px;
+}
+
+/* ── people ── */
+
+.le-set-people {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+
+.le-set-person {
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.le-set-person.open {
+  border-color: var(--line-strong);
+  background: #fbfcfd;
+}
+
+.le-set-person.drop {
+  box-shadow: 0 -3px 0 var(--interactive);
+}
+
+.le-set-person.dragging {
+  opacity: 0.5;
+}
+
+.le-set-person-row {
+  display: flex;
+  align-items: center;
+}
+
+.le-set-grip {
+  flex: none;
+  width: 18px;
+  padding-left: 4px;
+  font-size: 11px;
+  letter-spacing: -2px;
+  color: var(--faint);
+  cursor: grab;
+}
+
+.le-set-person-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.le-set-person-toggle:focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+.le-set-thumb {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-alt);
+}
+
+.le-set-thumb.empty {
+  display: block;
+  border: 1px dashed var(--line-strong);
+}
+
+.le-set-person-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.le-set-person-name,
+.le-set-person-role {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.le-set-person-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.le-set-person-role {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.le-set-caret {
+  flex: none;
+  color: var(--faint);
+}
+
+.le-set-person-body {
+  padding: 8px 10px 2px;
+  border-top: 1px solid var(--line);
+}
+
+.le-set-person-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+/* ── image tools ── */
+
+.le-set-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.le-set-img {
+  margin-bottom: 14px;
+  border-radius: 6px;
+}
+
+.le-set-img.over {
+  outline: 2px dashed var(--interactive);
+  outline-offset: 3px;
+}
+
+.le-set-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  padding: 16px;
+  border: 2px dashed var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-alt);
+  text-align: center;
+}
+
+.le-set-drop:focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: 2px;
+}
+
+.le-set-img.over .le-set-drop {
+  border-color: var(--interactive);
+  background: #e7f1fb;
+}
+
+.le-set-drop-text {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.le-set-img-uploading,
+.le-set-img-busy {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--interactive);
+}
+
+.le-set-img-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.le-set-img-preview-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  background:
+    repeating-conic-gradient(#eef1f4 0 25%, #fff 0 50%) 0 0 / 16px 16px;
+  border: 1px solid var(--line);
+}
+
+.le-set-img-preview {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+  cursor: crosshair;
+}
+
+.le-set-img-preview:focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: 3px;
+}
+
+.le-set-img-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  width: auto;
+  height: auto;
+  user-select: none;
+}
+
+.le-set-img-dot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: rgba(32, 105, 188, 0.85);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.le-set-img-dot::before,
+.le-set-img-dot::after {
+  content: '';
+  position: absolute;
+  background: #fff;
+}
+
+.le-set-img-dot::before {
+  left: 50%;
+  top: -9px;
+  bottom: -9px;
+  width: 1px;
+}
+
+.le-set-img-dot::after {
+  top: 50%;
+  left: -9px;
+  right: -9px;
+  height: 1px;
+}
+
+.le-set-img-dot.unset {
+  opacity: 0.45;
+}
+
+.le-set-img-busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 6px;
+}
+
+.le-set-img-side .le-set-hint {
+  margin: 0 0 6px;
+}
+
+.le-set-img-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.le-set-img-actions .le-set-link {
+  margin-left: 4px;
+}
+
+.le-set-img .le-set-field {
+  margin: 10px 0 0;
+}
+
+/* Compact: a 64px thumbnail beside the buttons, for people and columns. */
+
+.le-set-img.compact .le-set-img-main {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.le-set-img.compact .le-set-img-preview-wrap {
+  flex: none;
+  padding: 4px;
+}
+
+.le-set-img.compact .le-set-img-preview img {
+  max-width: 64px;
+  max-height: 64px;
+}
+
+.le-set-img.compact .le-set-img-dot {
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-width: 1.5px;
+}
+
+.le-set-img.compact .le-set-img-dot::before,
+.le-set-img.compact .le-set-img-dot::after {
+  display: none;
+}
+
+.le-set-img.compact .le-set-drop {
+  flex-direction: row;
+  flex-wrap: wrap;
+  min-height: 0;
+  padding: 10px;
+}
+
+.le-set-img.compact .le-set-img-side {
+  min-width: 0;
+}
