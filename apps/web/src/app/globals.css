@@ -5161,31 +5161,6 @@ section.tint {
   font-size: 0.95rem;
 }
 
-/* ------------------------------------------------------- learn wordmark -- */
-
-.learn-hero {
-  text-align: center;
-}
-
-.learn-hero img {
-  width: 100%;
-  max-width: 700px;
-  height: auto;
-  display: block;
-  margin: 0 auto 22px;
-}
-
-.learn-hero .tagline {
-  margin: 0 auto 6px;
-  font-size: 1.05rem;
-}
-
-.learn-hero .strap {
-  margin: 0 auto;
-  font-style: italic;
-  color: var(--palette-12);
-}
-
 /* ------------------------------------------------------- program list -- */
 
 .programs {
@@ -5991,142 +5966,10 @@ section.tint {
 /* ---------------------------------------------------------------- /learn -- */
 
 /*
- * Measured off the live learning-program page on 2026-08-19. The band colours
- * are sampled from rendered pixels rather than read from CSS, because the wave
- * texture sits over them and the declared colour is not what you see: the
- * continuing-education band computes to #8dccee and *renders* #e3f5fd.
- *
- *   hero              #e0e5ee + wave-13
- *   team              #ffffff + wave-3
- *   continuing ed     #e3f5fd + wave-3
- *   programmes        #8dccee
+ * /learn itself is drawn by `components/learn-page-view.tsx` and styled in
+ * `learn-page-view.css` (T311). What stays here is shared with /team
+ * (`.learn-person`), /community (`.learn-intro`) and every LinkedIn glyph.
  */
-.learn-hero-band {
-  background-color: var(--palette-3);
-  padding: 0 0 112px;
-  text-align: center;
-}
-
-/*
- * The wave is drawn at its own 1920:676 shape across the full width, so none
- * of it is cropped top or bottom and none of it reaches the copy below. On a
- * phone that shape is too short for the wordmark, so the box grows and `cover`
- * trims the sides of the wave instead. The width is set outright because,
- * left to `aspect-ratio`, the minimum height would widen the box past the
- * screen.
- */
-.learn-hero-band .art {
-  width: 100%;
-  aspect-ratio: 1920 / 676;
-  min-height: 190px;
-  background-image: url('/kgc/wave-13.png');
-  background-size: cover;
-  background-position: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 60px; /* the side margin .wrap-kgc gives the copy */
-  position: relative;
-}
-
-/*
- * A wash of the band colour over the wave, under the wordmark, so the mesh
- * reads as a lighter, greyer backdrop and the wordmark stands out (Deb and
- * the owner, 2026-10-13). The wave stays plainly visible.
- */
-.learn-hero-band .art::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-color: var(--palette-3);
-  opacity: 0.65; /* 35% and 50% left the mesh competing with "Learn" */
-  pointer-events: none;
-}
-
-.learn-hero-band .art h1 { position: relative; }
-
-@media (width < 700px) {
-  .learn-hero-band .art { padding: 0 24px; }
-}
-
-.learn-team-band {
-  background-color: var(--white);
-  background-image: url('/kgc/wave-3.png');
-  background-size: cover;
-  background-position: center;
-  padding: 125px 0 137px;
-}
-
-.learn-ce-band {
-  background-color: #e3f5fd;
-  background-image: url('/kgc/wave-3.png');
-  background-size: cover;
-  background-position: center;
-  padding: 128px 0 140px;
-  text-align: center;
-}
-
-.learn-programs-band {
-  background: var(--palette-4);
-  padding: 88px 0 96px;
-}
-
-/* The wordmark is 1000x275 on the live page and dominates the hero. */
-.learn-hero-band h1 {
-  margin: 0;
-  font-size: inherit;
-  line-height: inherit;
-  width: 100%;
-}
-
-.learn-hero-band img {
-  width: 100%;
-  max-width: 1000px;
-  height: auto;
-  display: block;
-  margin: 0 auto;
-}
-
-.learn-hero-band .tagline {
-  font-size: 22px;
-  line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
-  color: var(--heading);
-  margin: 40px auto 22px;
-  max-width: 1070px;
-}
-
-.learn-hero-band .strap {
-  font-size: 22px;
-  line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
-  font-style: italic;
-  color: var(--palette-12);
-  margin: 0 auto;
-}
-
-/*
- * The live headings are one 57px line with two weights inside them — 700 for
- * "Meet the" and "Team", 800 for the "KGC | Learn" in the middle.
- */
-.learn-h2 {
-  /* 2.6rem = 57.2px against the 22px root, which is what the live heading
-     computes to. It was 57px flat, from a capture that rounded. */
-  font-size: 2.6rem;
-  line-height: 2.6rem;
-  /* 800. The comment above describes a 700/800 split inside the line, but the
-     measured weight of the line itself is 800 — the `b` carries no extra step. */
-  font-weight: 800;
-  /* Pure black, measured. Like `.kgc-h2-xl`, the live site uses `rgb(0, 0, 0)`
-     here rather than the `#1f1a11` its other headings take. Matched, not tidied. */
-  color: #000;
-  text-align: center;
-  margin: 0 0 26px;
-  max-width: none;
-}
-
-.learn-h2 b {
-  font-weight: 800;
-}
-
 .learn-intro {
   font-size: 22px;
   line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
@@ -6134,15 +5977,6 @@ section.tint {
   max-width: 880px;
   margin: 0 auto 54px;
   text-align: center;
-}
-
-/* Founder cards: a 191px SQUARE portrait, not the circle this had before. */
-.learn-people {
-  display: grid;
-  gap: 40px;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  max-width: 1000px;
-  margin: 0 auto;
 }
 
 .learn-person {
@@ -6202,98 +6036,10 @@ a.li-icon::after {
   inset: -10px;
 }
 
-/*
- * The continuing-education roster carries no photographs on the live page, so
- * it is a text grid. Four across, then the remaining two centred — which falls
- * out of flex-wrap plus centre justification.
- */
-.learn-roster {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 44px 40px;
-  max-width: 1060px;
-  margin: 0 auto;
-}
-
-.learn-roster > div {
-  flex: 0 1 184px;
-  text-align: center;
-}
-
-.learn-roster .name {
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 30px;
-  color: var(--palette-2);
-  display: block;
-}
-
-.learn-roster .role {
-  font-family: var(--font-roboto), sans-serif;
-  font-size: 17px;
-  font-weight: 500;
-  line-height: 27px;
-  text-transform: uppercase;
-  color: var(--highlight);
-  display: block;
-  margin-top: 4px;
-}
-
-.learn-roster .li-icon {
-  margin-top: 12px;
-  color: var(--highlight);
-}
-
-.learn-programs {
-  max-width: 880px;
-  margin: 0 auto;
-}
-
-.learn-programs p {
-  font-size: 22px;
-  line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
-  color: var(--heading);
-  max-width: none;
-  margin: 0 0 26px;
-}
-
-.learn-programs ul {
-  margin: 0;
-  padding-left: 26px;
-}
-
-.learn-programs > ul > li {
-  font-size: 22px;
-  line-height: 1.6; /* 35.2px — the live value; 35px was a rounded capture */
-  color: var(--heading);
-  margin-bottom: 18px;
-}
-
-.learn-programs ul ul {
-  margin: 10px 0 0;
-}
-
-.learn-programs ul ul li {
-  font-size: 19px;
-  line-height: 31px;
-}
-
-.learn-programs a {
-  color: var(--highlight);
-}
-
 @media (width < 860px) {
-  .learn-h2 { font-size: 34px; line-height: 40px; }
-  .learn-hero-band .tagline,
-  .learn-hero-band .strap,
-  .learn-intro,
-  .learn-programs p,
-  .learn-programs > ul > li { font-size: 18px; line-height: 30px; }
+  .learn-intro { font-size: 18px; line-height: 30px; }
   .learn-person img { width: 100%; height: auto; aspect-ratio: 1; }
   .learn-person .row { max-width: none; }
-  .learn-hero-band { padding-bottom: 72px; }
-  .learn-hero-band .tagline { margin: 28px auto 10px; }
 }
 
 /* -------------------------------------------------- team, community, awards -- */

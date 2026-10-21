@@ -44,3 +44,5 @@ export * from "./ticket-extras.js";
 export * from "./moderation-core.js";
 export * from "./site-path.js";
 export * from "./learn-page.js";
+export * from "./learn-page-view-core.js";
+export * from "./learn-page-sample.js";

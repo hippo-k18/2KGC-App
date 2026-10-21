@@ -104,7 +104,22 @@ const nextConfig: NextConfig = {
    * scrim, where 75 and 50 look the same at about 40% of the bytes); 75 is
    * Next's default, for every other image.
    */
-  images: { formats: ['image/avif', 'image/webp'], qualities: [50, 75] },
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    qualities: [50, 75],
+    /*
+     * Images uploaded through the dashboard's KGC | Learn page editor, served
+     * from this project's Storage bucket by token URL. Only that bucket, so the
+     * optimizer cannot be pointed at an arbitrary host.
+     */
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        pathname: '/v0/b/kgc-conference-app-and-website.firebasestorage.app/o/**',
+      },
+    ],
+  },
 
   /** The workspace packages ship raw `.ts`, so webpack has to compile them. */
   transpilePackages: ['@kgc/shared', '@kgc/scripts'],
