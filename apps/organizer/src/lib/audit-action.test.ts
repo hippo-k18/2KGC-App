@@ -28,5 +28,10 @@ describe('describeAction', () => {
     expect(describeAction('learnPage.revert')).toBe('Discarded the draft of learn page');
     expect(describeAction('learnPage.restore')).toBe('Restored learn page');
     expect(describeAction('learnPage.uploadImage')).toBe('Uploaded an image for learn page');
+    expect(describeAction('learnPage.schedule')).toBe('Scheduled a publish of learn page');
+    expect(describeAction('learnPage.cancelSchedule')).toBe('Cancelled the scheduled publish of learn page');
+    expect(describeAction('learnPage.scheduledPublish')).toBe('Auto-published learn page');
+    expect(describeAction('learnPage.previewLink')).toBe('Changed the preview link for learn page');
+    expect(describeAction('learnPage.editImage')).toBe('Edited an image for learn page');
   });
 });

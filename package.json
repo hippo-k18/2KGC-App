@@ -14,7 +14,7 @@
     "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/rules\"",
     "seed": "npm run seed --workspace=@kgc/scripts --",
     "import:whova": "npm run import:whova --workspace=@kgc/scripts --",
-    "test": "vitest run scripts/src app/src packages/shared apps/organizer/src/lib apps/web/src/lib/blog apps/web/src/lib/account-deletion-core.test.ts apps/web/src/lib/old-site apps/web/src/lib/indexing-core apps/web/src/lib/terms apps/web/src/lib/invoice-core apps/web/src/lib/confirmed-speakers apps/web/src/lib/learn-page-view.test.ts apps/web/src/lib/unsubscribe-outcome apps/web/src/lib/resend-webhook-core tests/qr tests/programme tests/parity tests/referrals tests/expo-go-proxy",
+    "test": "vitest run scripts/src app/src packages/shared apps/organizer/src/lib apps/web/src/lib/blog apps/web/src/lib/account-deletion-core.test.ts apps/web/src/lib/old-site apps/web/src/lib/indexing-core apps/web/src/lib/terms apps/web/src/lib/invoice-core apps/web/src/lib/confirmed-speakers apps/web/src/lib/learn-page-view.test.ts apps/web/src/lib/learn-page-metadata.test.ts apps/web/src/lib/unsubscribe-outcome apps/web/src/lib/resend-webhook-core tests/qr tests/programme tests/parity tests/referrals tests/expo-go-proxy",
     "test:functions": "npm run build --workspace=functions && firebase emulators:exec --only firestore,auth,functions \"npm run seed && vitest run tests/functions --no-file-parallelism\"",
     "claims": "npm run claims --workspace=@kgc/scripts --",
     "reconcile:sold": "npx tsx scripts/ops/reconcile-sold-counts.ts",
@@ -44,7 +44,8 @@
     "publish:web": "bash scripts/publish-web.sh",
     "test:send-jobs": "firebase emulators:exec --only firestore --config firebase.send-jobs-test.json --project demo-send-jobs \"vitest run --config tests/send-jobs/vitest.config.mts\"",
     "test:email-log": "firebase emulators:exec --only firestore --config firebase.email-log-test.json --project demo-email-log \"vitest run --config tests/email-log/vitest.config.mts\"",
-    "test:learn-page": "firebase emulators:exec --only firestore,storage --config firebase.learn-page-test.json --project demo-learn-page \"vitest run --config tests/learn-page/vitest.config.mts\""
+    "test:learn-page": "firebase emulators:exec --only firestore,storage --config firebase.learn-page-test.json --project demo-learn-page \"vitest run --config tests/learn-page/vitest.config.mts\"",
+    "test:learn-ops": "firebase emulators:exec --only firestore,storage --config firebase.learn-ops-test.json --project demo-learn-ops \"vitest run --config tests/learn-ops/vitest.config.mts\""
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.3",

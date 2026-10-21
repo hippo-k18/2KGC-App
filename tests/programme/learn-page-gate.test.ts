@@ -9,7 +9,7 @@ import { canOpen, canRunAction } from '../../apps/organizer/src/lib/team-core';
  * caller may open imports the action. So the gate holds only while (a) every
  * exported action starts with `requireOrganizer()` and (b) no other screen
  * imports them. Both are pinned here, including `version-actions.ts`, which
- * T310 added beside T309's `actions.ts` (T313).
+ * T310 added beside T309's `actions.ts` (T313), and `ops-actions.ts` (T316).
  */
 
 const ORGANIZER = path.resolve(import.meta.dirname, '../../apps/organizer/src');
@@ -31,7 +31,7 @@ const serverFiles = readdirSync(SCREEN)
 
 describe('the Learn page editor’s action gate', () => {
   it('has both action files, and every exported action calls requireOrganizer() first', () => {
-    expect(serverFiles.map((f) => path.basename(f)).sort()).toEqual(['actions.ts', 'version-actions.ts']);
+    expect(serverFiles.map((f) => path.basename(f)).sort()).toEqual(['actions.ts', 'ops-actions.ts', 'version-actions.ts']);
     for (const file of serverFiles) {
       const src = readFileSync(file, 'utf8');
       // Each chunk is one action; its body starts after the `): Promise<…> {` line.
@@ -48,7 +48,7 @@ describe('the Learn page editor’s action gate', () => {
   it('is imported by no screen outside content/learn-page', () => {
     const outside = walk(ORGANIZER).filter((f) => !f.startsWith(SCREEN + path.sep));
     const offenders = outside.filter((f) =>
-      /content\/learn-page\/(actions|version-actions|api)['"]/.test(readFileSync(f, 'utf8')),
+      /content\/learn-page\/(actions|ops-actions|version-actions|api)['"]/.test(readFileSync(f, 'utf8')),
     );
     expect(offenders).toEqual([]);
   });

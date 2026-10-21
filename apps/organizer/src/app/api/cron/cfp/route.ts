@@ -1,10 +1,11 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { runCfpSchedule } from '@/lib/cfp';
 import { COLLECTIONS } from '@kgc/shared';
 import { CRON_STATUS_DOC } from '@/lib/email-schedule';
 import { recordError } from '@/lib/errors';
+import { cronAuthorized } from '@/lib/cron-auth';
 import { db } from '@/lib/firestore';
+import { runLearnPageCronStep } from '@/lib/learn-page-ops';
 
 /**
  * `POST /api/cron/cfp` — the call for papers' clock (T249): E3 five days after
@@ -26,13 +27,14 @@ import { db } from '@/lib/firestore';
  * into mailing people.
  */
 export async function POST(request: NextRequest) {
-  const secret = process.env.CRON_SECRET ?? '';
-  const given = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const a = Buffer.from(given);
-  const b = Buffer.from(secret);
-  if (secret.length < 16 || a.length !== b.length || !timingSafeEqual(a, b)) {
-    return NextResponse.json({ error: 'Not allowed.' }, { status: 401 });
-  }
+  if (!cronAuthorized(request)) return NextResponse.json({ error: 'Not allowed.' }, { status: 401 });
+  /*
+   * The Learn page's scheduled publish rides along (T316), so a droplet that
+   * has only this hourly timer still publishes, at worst an hour late. Its own
+   * timer (`kgc-learn-cron`) runs it every minute. Never allowed to fail the
+   * call for papers run.
+   */
+  await runLearnPageCronStep().catch((err) => recordError('learnPage.cron', err));
   /*
    * `?now=<ISO>` moves the clock for a local run, so E3 and the Thursday
    * reminder can be watched without waiting five days. Ignored in production.

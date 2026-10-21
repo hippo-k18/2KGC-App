@@ -12,4 +12,12 @@ export {
 } from './actions';
 export type { LearnResult } from './actions';
 export { loadLearnVersionAction } from './version-actions';
+export {
+  scheduleLearnPublishAction,
+  cancelLearnScheduleAction,
+  createLearnPreviewLinkAction,
+  revokeLearnPreviewLinkAction,
+  editLearnImageAction,
+} from './ops-actions';
+export type { LearnImageEdit, LearnImageOp } from '@/lib/learn-image-edit-core';
 export type { LearnEditorState, LearnVersionSummary } from '@/lib/learn-page';

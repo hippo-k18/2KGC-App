@@ -184,6 +184,17 @@ const nextConfig: NextConfig = {
         source: '/api/stripe/webhook',
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
+      {
+        // The Learn page draft preview (T316): a bearer link, so never cached,
+        // indexed or sent on as a referrer. Listed after the catch-all so its
+        // Referrer-Policy wins.
+        source: '/learn/preview/:token',
+        headers: [
+          { key: 'Cache-Control', value: 'private, no-store' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+        ],
+      },
     ];
   },
 

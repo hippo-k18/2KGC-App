@@ -198,6 +198,8 @@ export interface LearnPageDoc {
   /** Publish the draft automatically at this time (ms). Cleared on publish or cancel. */
   scheduledPublishAt?: number;
   scheduledBy?: string;
+  /** T316: the draft `revision` when the schedule was set, so the scheduled publish can say whether the draft changed since. */
+  scheduledRevision?: number;
   /** Unguessable token for a read-only draft preview link; rotate to revoke. */
   previewToken?: string;
 }
