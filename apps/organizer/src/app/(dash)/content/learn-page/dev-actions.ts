@@ -46,8 +46,8 @@ export async function saveLearnDraftAction(
   await db()
     .doc(DEV_DOC)
     .set(
-      { draft: content, published: doc?.published ?? null, draftUpdatedAt: savedAt, draftUpdatedBy: who, revision: revision + 1 },
-      { merge: true },
+      // Whole document, not a merge: a merge would keep keys the edit removed.
+      { ...doc, draft: content, published: doc?.published ?? null, draftUpdatedAt: savedAt, draftUpdatedBy: who, revision: revision + 1 },
     );
   return { ok: true, revision: revision + 1, savedAt };
 }
@@ -82,7 +82,7 @@ export async function revertLearnDraftAction(): Promise<LearnResult<{ revision: 
   const doc = await current();
   const draft = (doc?.published as LearnPageContent | null) ?? learnPageDevDefault();
   const revision = ((doc?.revision as number | undefined) ?? 0) + 1;
-  await db().doc(DEV_DOC).set({ draft, revision, draftUpdatedAt: Date.now(), draftUpdatedBy: who }, { merge: true });
+  await db().doc(DEV_DOC).set({ ...doc, draft, revision, draftUpdatedAt: Date.now(), draftUpdatedBy: who });
   return { ok: true, revision, draft };
 }
 
@@ -96,7 +96,7 @@ export async function restoreLearnVersionAction(
   const revision = ((doc?.revision as number | undefined) ?? 0) + 1;
   await db()
     .doc(DEV_DOC)
-    .set({ draft: content, published: doc?.published ?? null, revision, draftUpdatedAt: Date.now(), draftUpdatedBy: who }, { merge: true });
+    .set({ ...doc, draft: content, published: doc?.published ?? null, revision, draftUpdatedAt: Date.now(), draftUpdatedBy: who });
   return { ok: true, revision, draft: content };
 }
 

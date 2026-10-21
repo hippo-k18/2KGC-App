@@ -87,13 +87,22 @@ function mapSection(
   sectionId: string,
   fn: (s: LearnSection) => LearnSection,
 ): LearnPageContent {
-  let hit = false;
+  let changed = false;
   const sections = content.sections.map((s) => {
     if (s.id !== sectionId) return s;
-    hit = true;
-    return fn(s);
+    const next = fn(s);
+    if (next !== s) changed = true;
+    return next;
   });
-  return hit ? { ...content, sections } : content;
+  return changed ? { ...content, sections } : content;
+}
+
+/** True when applying `patch` to `obj` would change something. */
+function patchChanges(obj: object, patch: object): boolean {
+  const rec = obj as Record<string, unknown>;
+  return Object.entries(patch).some(([k, v]) =>
+    typeof v === 'object' && v !== null ? JSON.stringify(rec[k]) !== JSON.stringify(v) : rec[k] !== v,
+  );
 }
 
 /** One edit, applied. An action naming something that is not there returns the content unchanged. */
@@ -102,9 +111,11 @@ export function applyEdit(content: LearnPageContent, action: EditAction): LearnP
     case 'replace':
       return action.content;
     case 'setPage':
-      return { ...content, ...action.patch };
+      return patchChanges(content, action.patch) ? { ...content, ...action.patch } : content;
     case 'updateSection':
-      return mapSection(content, action.sectionId, (s) => ({ ...s, ...action.patch }));
+      return mapSection(content, action.sectionId, (s) =>
+        patchChanges(s, action.patch) ? { ...s, ...action.patch } : s,
+      );
     case 'addSection': {
       const sections = content.sections.slice();
       sections.splice(clamp(action.index, 0, sections.length), 0, action.section);
@@ -118,6 +129,7 @@ export function applyEdit(content: LearnPageContent, action: EditAction): LearnP
       return { ...content, sections };
     }
     case 'removeSection':
+      if (!content.sections.some((s) => s.id === action.sectionId)) return content;
       return { ...content, sections: content.sections.filter((s) => s.id !== action.sectionId) };
     case 'moveSection': {
       const i = content.sections.findIndex((s) => s.id === action.sectionId);
@@ -125,12 +137,14 @@ export function applyEdit(content: LearnPageContent, action: EditAction): LearnP
       return { ...content, sections: moveWithin(content.sections, i, action.toIndex) };
     }
     case 'updateBlock':
-      return mapSection(content, action.sectionId, (s) => ({
-        ...s,
-        blocks: s.blocks.map((b) =>
-          b.id === action.blockId ? ({ ...b, ...action.patch } as LearnBlock) : b,
-        ),
-      }));
+      return mapSection(content, action.sectionId, (s) => {
+        const target = s.blocks.find((b) => b.id === action.blockId);
+        if (!target || !patchChanges(target, action.patch)) return s;
+        return {
+          ...s,
+          blocks: s.blocks.map((b) => (b === target ? ({ ...b, ...action.patch } as LearnBlock) : b)),
+        };
+      });
     case 'insertBlock':
       return mapSection(content, action.sectionId, (s) => {
         const blocks = s.blocks.slice();
@@ -146,10 +160,11 @@ export function applyEdit(content: LearnPageContent, action: EditAction): LearnP
         return { ...s, blocks };
       });
     case 'removeBlock':
-      return mapSection(content, action.sectionId, (s) => ({
-        ...s,
-        blocks: s.blocks.filter((b) => b.id !== action.blockId),
-      }));
+      return mapSection(content, action.sectionId, (s) =>
+        s.blocks.some((b) => b.id === action.blockId)
+          ? { ...s, blocks: s.blocks.filter((b) => b.id !== action.blockId) }
+          : s,
+      );
     case 'moveBlock': {
       const from = content.sections.find((s) => s.id === action.sectionId);
       const block = from?.blocks.find((b) => b.id === action.blockId);
@@ -529,9 +544,7 @@ export function summarizeChanges(
       out.sectionsAdded.push(s.label);
       continue;
     }
-    const { blocks: _a, ...settingsNow } = s;
-    const { blocks: _b, ...settingsThen } = old.s;
-    if (!same(settingsNow, settingsThen)) out.sectionsEdited.push(s.label);
+    if (!same({ ...s, blocks: [] }, { ...old.s, blocks: [] })) out.sectionsEdited.push(s.label);
     if (sharedPrev.indexOf(s.id) !== sharedNext.indexOf(s.id)) out.sectionsMoved.push(s.label);
   }
   for (const s of prev.sections) if (!nextSections.has(s.id)) out.sectionsRemoved.push(s.label);
