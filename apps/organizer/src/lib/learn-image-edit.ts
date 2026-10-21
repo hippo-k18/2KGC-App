@@ -97,6 +97,9 @@ async function toRaw(img: SharpImage): Promise<{ data: Buffer; info: RawInfo }> 
   };
 }
 
+/** About 40 megapixels: 160 MB of raw pixels per step at four channels. */
+const MAX_EDIT_PIXELS = 40_000_000;
+
 export async function editLearnImage(input: {
   src: string;
   edit: unknown;
@@ -149,6 +152,12 @@ export async function editLearnImage(input: {
   const rotated = (meta.orientation ?? 1) >= 5;
   const w0 = meta.width ?? 0;
   const h0 = meta.height ?? 0;
+  // Raw pixels between steps cost width x height x 4 bytes each, so a stored
+  // GIF (kept at full size on upload) or a very tall image is refused here
+  // rather than taking the dashboard's memory with it.
+  if (w0 * h0 > MAX_EDIT_PIXELS) {
+    throw new UploadRejected('That image has too many pixels to edit here. Upload a smaller copy first.');
+  }
   const plan = planLearnImageEdit(input.edit, rotated ? h0 : w0, rotated ? w0 : h0);
   if (!plan.ok) throw new UploadRejected(plan.error);
 
