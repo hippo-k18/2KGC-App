@@ -3,7 +3,9 @@ import type {
   LearnPageContent,
   LearnSection,
   PageImage,
+  RichContent,
 } from '@kgc/shared';
+import { richOneLine } from './learn-rich';
 
 /**
  * The Learn page editor's pure half: every edit, the undo stack and the
@@ -29,8 +31,10 @@ type DistributivePartial<T> = T extends unknown ? Partial<Omit<T, 'id' | 'kind'>
 export type BlockPatch = DistributivePartial<LearnBlock>;
 export type SectionPatch = Partial<Omit<LearnSection, 'id' | 'blocks'>>;
 
+export type PagePatch = Partial<Pick<LearnPageContent, 'seoTitle' | 'seoDescription' | 'ogImage' | 'noindex'>>;
+
 export type EditAction =
-  | { type: 'setPage'; patch: Partial<Pick<LearnPageContent, 'seoTitle' | 'seoDescription'>> }
+  | { type: 'setPage'; patch: PagePatch }
   | { type: 'updateSection'; sectionId: string; patch: SectionPatch }
   | { type: 'addSection'; index: number; section: LearnSection }
   | { type: 'duplicateSection'; sectionId: string }
@@ -40,8 +44,24 @@ export type EditAction =
   | { type: 'insertBlock'; sectionId: string; index: number; block: LearnBlock }
   | { type: 'duplicateBlock'; sectionId: string; blockId: string }
   | { type: 'removeBlock'; sectionId: string; blockId: string }
-  | { type: 'moveBlock'; sectionId: string; blockId: string; toSectionId: string; toIndex: number }
-  | { type: 'replace'; content: LearnPageContent };
+  | {
+      type: 'moveBlock';
+      sectionId: string;
+      blockId: string;
+      toSectionId: string;
+      toIndex: number;
+      /** In a multi-column section, the column it lands in (v2). */
+      toColumn?: number;
+    }
+  | { type: 'replace'; content: LearnPageContent }
+  /* v2 (T318) */
+  /** Paste or insert a template's blocks; ids must already be fresh. */
+  | { type: 'insertBlocks'; sectionId: string; index: number; blocks: LearnBlock[]; column?: number }
+  | { type: 'removeBlocks'; blockIds: string[] }
+  | { type: 'setBlocksHidden'; blockIds: string[]; hidden: boolean }
+  /** Moves several blocks, in page order, to one place. */
+  | { type: 'moveBlocks'; blockIds: string[]; toSectionId: string; toIndex: number; toColumn?: number }
+  | { type: 'setBlockColumn'; sectionId: string; blockId: string; column: number };
 
 /** Matches the server's id rule: `^[A-Za-z0-9_-]{1,64}$`. */
 export function newId(prefix = 'b'): string {
@@ -67,19 +87,87 @@ function moveWithin<T>(list: T[], from: number, to: number): T[] {
 export function cloneBlockWithNewIds(block: LearnBlock): LearnBlock {
   const copy = structuredClone(block);
   copy.id = newId('b');
-  if (copy.kind === 'people') copy.people = copy.people.map((p) => ({ ...p, id: newId('p') }));
-  if (copy.kind === 'list') copy.items = copy.items.map((i) => ({ ...i, id: newId('i') }));
-  if (copy.kind === 'columns') copy.items = copy.items.map((i) => ({ ...i, id: newId('c') }));
+  // An anchor is a link target and must stay unique on the page.
+  delete copy.anchor;
+  switch (copy.kind) {
+    case 'people':
+      copy.people = copy.people.map((p) => ({ ...p, id: newId('p') }));
+      break;
+    case 'list':
+      copy.items = copy.items.map((i) => ({ ...i, id: newId('i') }));
+      break;
+    case 'columns':
+    case 'accordion':
+    case 'tabs':
+    case 'stats':
+    case 'cards':
+    case 'logos':
+      // Each case narrows `copy` on its own; the item shapes differ.
+      (copy as { items: { id: string }[] }).items = copy.items.map((i: { id: string }) => ({ ...i, id: newId('i') }));
+      break;
+    case 'gallery':
+      copy.images = copy.images.map((i) => ({ ...i, id: newId('g') }));
+      break;
+  }
   return copy;
 }
 
-export function cloneSectionWithNewIds(section: LearnSection): LearnSection {
-  return {
-    ...structuredClone(section),
-    id: newId('s'),
-    label: `${section.label} copy`,
-    blocks: section.blocks.map(cloneBlockWithNewIds),
-  };
+/** A section copy with fresh ids everywhere, its column map following its blocks. */
+export function cloneSectionWithNewIds(section: LearnSection, label = `${section.label} copy`): LearnSection {
+  const copy = structuredClone(section);
+  const blocks = section.blocks.map(cloneBlockWithNewIds);
+  const out: LearnSection = { ...copy, id: newId('s'), label, blocks };
+  delete out.anchor;
+  if (section.blockColumn) {
+    const map: Record<string, number> = {};
+    section.blocks.forEach((b, i) => {
+      const col = section.blockColumn?.[b.id];
+      if (col !== undefined) map[blocks[i].id] = col;
+    });
+    out.blockColumn = map;
+  }
+  return out;
+}
+
+/** How many columns a section layout has. */
+export function layoutColumns(layout: LearnSection['layout']): number {
+  if (layout === 'three') return 3;
+  if (layout === 'two-equal' || layout === 'two-wide-left' || layout === 'two-wide-right') return 2;
+  return 1;
+}
+
+/** The column a block sits in, clamped to the layout (a block with no entry is in the first). */
+export function blockColumnOf(section: LearnSection, blockId: string): number {
+  const n = layoutColumns(section.layout);
+  const c = section.blockColumn?.[blockId] ?? 0;
+  return Math.max(0, Math.min(n - 1, c));
+}
+
+/** `section` without column entries for blocks it no longer holds. */
+function pruneColumns(section: LearnSection): LearnSection {
+  if (!section.blockColumn) return section;
+  const ids = new Set(section.blocks.map((b) => b.id));
+  const keys = Object.keys(section.blockColumn);
+  if (keys.every((k) => ids.has(k))) return section;
+  const map: Record<string, number> = {};
+  for (const k of keys) if (ids.has(k)) map[k] = section.blockColumn[k];
+  return { ...section, blockColumn: map };
+}
+
+function withColumn(section: LearnSection, blockId: string, column: number | undefined): LearnSection {
+  if (column === undefined) return section;
+  const n = layoutColumns(section.layout);
+  const col = Math.max(0, Math.min(n - 1, column));
+  if ((section.blockColumn?.[blockId] ?? 0) === col && section.blockColumn?.[blockId] !== undefined) return section;
+  return { ...section, blockColumn: { ...(section.blockColumn ?? {}), [blockId]: col } };
+}
+
+function blockLocation(content: LearnPageContent, blockId: string): { section: LearnSection; index: number } | null {
+  for (const section of content.sections) {
+    const index = section.blocks.findIndex((b) => b.id === blockId);
+    if (index >= 0) return { section, index };
+  }
+  return null;
 }
 
 function mapSection(
@@ -156,14 +244,82 @@ export function applyEdit(content: LearnPageContent, action: EditAction): LearnP
         const i = s.blocks.findIndex((b) => b.id === action.blockId);
         if (i < 0) return s;
         const blocks = s.blocks.slice();
-        blocks.splice(i + 1, 0, cloneBlockWithNewIds(s.blocks[i]));
-        return { ...s, blocks };
+        const copy = cloneBlockWithNewIds(s.blocks[i]);
+        blocks.splice(i + 1, 0, copy);
+        const col = s.blockColumn?.[action.blockId];
+        return withColumn({ ...s, blocks }, copy.id, col);
       });
     case 'removeBlock':
       return mapSection(content, action.sectionId, (s) =>
         s.blocks.some((b) => b.id === action.blockId)
-          ? { ...s, blocks: s.blocks.filter((b) => b.id !== action.blockId) }
+          ? pruneColumns({ ...s, blocks: s.blocks.filter((b) => b.id !== action.blockId) })
           : s,
+      );
+    case 'insertBlocks': {
+      if (action.blocks.length === 0) return content;
+      return mapSection(content, action.sectionId, (s) => {
+        const blocks = s.blocks.slice();
+        blocks.splice(clamp(action.index, 0, blocks.length), 0, ...action.blocks);
+        let next: LearnSection = { ...s, blocks };
+        for (const b of action.blocks) next = withColumn(next, b.id, action.column);
+        return next;
+      });
+    }
+    case 'removeBlocks': {
+      const ids = new Set(action.blockIds);
+      let changed = false;
+      const sections = content.sections.map((s) => {
+        if (!s.blocks.some((b) => ids.has(b.id))) return s;
+        changed = true;
+        return pruneColumns({ ...s, blocks: s.blocks.filter((b) => !ids.has(b.id)) });
+      });
+      return changed ? { ...content, sections } : content;
+    }
+    case 'setBlocksHidden': {
+      const ids = new Set(action.blockIds);
+      let changed = false;
+      const sections = content.sections.map((s) => {
+        let touched = false;
+        const blocks = s.blocks.map((b) => {
+          if (!ids.has(b.id) || !!b.hidden === action.hidden) return b;
+          touched = true;
+          const next = { ...b } as LearnBlock;
+          if (action.hidden) next.hidden = true;
+          else delete next.hidden;
+          return next;
+        });
+        if (!touched) return s;
+        changed = true;
+        return { ...s, blocks };
+      });
+      return changed ? { ...content, sections } : content;
+    }
+    case 'moveBlocks': {
+      const target = content.sections.find((s) => s.id === action.toSectionId);
+      if (!target) return content;
+      const ids = new Set(action.blockIds);
+      // Page order, not click order, so a moved group reads the way it did.
+      const moving: LearnBlock[] = [];
+      for (const s of content.sections) for (const b of s.blocks) if (ids.has(b.id)) moving.push(b);
+      if (moving.length === 0) return content;
+      // The landing index counts only blocks that stay in the target section.
+      const before = target.blocks.slice(0, clamp(action.toIndex, 0, target.blocks.length)).filter((b) => !ids.has(b.id)).length;
+      const stripped = content.sections.map((s) =>
+        s.blocks.some((b) => ids.has(b.id)) ? pruneColumns({ ...s, blocks: s.blocks.filter((b) => !ids.has(b.id)) }) : s,
+      );
+      const sections = stripped.map((s) => {
+        if (s.id !== target.id) return s;
+        const blocks = s.blocks.slice();
+        blocks.splice(before, 0, ...moving);
+        let next: LearnSection = { ...s, blocks };
+        for (const b of moving) next = withColumn(next, b.id, action.toColumn);
+        return next;
+      });
+      return { ...content, sections };
+    }
+    case 'setBlockColumn':
+      return mapSection(content, action.sectionId, (s) =>
+        s.blocks.some((b) => b.id === action.blockId) ? withColumn(s, action.blockId, action.column) : s,
       );
     case 'moveBlock': {
       const from = content.sections.find((s) => s.id === action.sectionId);
@@ -172,19 +328,17 @@ export function applyEdit(content: LearnPageContent, action: EditAction): LearnP
       if (!content.sections.some((s) => s.id === action.toSectionId)) return content;
       if (action.sectionId === action.toSectionId) {
         const i = from.blocks.indexOf(block);
-        return mapSection(content, from.id, (s) => ({
-          ...s,
-          blocks: moveWithin(s.blocks, i, action.toIndex),
-        }));
+        return mapSection(content, from.id, (s) =>
+          withColumn({ ...s, blocks: moveWithin(s.blocks, i, action.toIndex) }, block.id, action.toColumn),
+        );
       }
-      const removed = mapSection(content, from.id, (s) => ({
-        ...s,
-        blocks: s.blocks.filter((b) => b.id !== block.id),
-      }));
+      const removed = mapSection(content, from.id, (s) =>
+        pruneColumns({ ...s, blocks: s.blocks.filter((b) => b.id !== block.id) }),
+      );
       return mapSection(removed, action.toSectionId, (s) => {
         const blocks = s.blocks.slice();
         blocks.splice(clamp(action.toIndex, 0, blocks.length), 0, block);
-        return { ...s, blocks };
+        return withColumn({ ...s, blocks }, block.id, action.toColumn);
       });
     }
   }
@@ -209,6 +363,8 @@ export function repairSelection(content: LearnPageContent, sel: Selection): Sele
   }
   return sel;
 }
+
+export { blockLocation };
 
 export function findBlock(
   content: LearnPageContent,
@@ -247,9 +403,14 @@ export function coalesceKey(action: EditAction): string | undefined {
     case 'setPage':
       return `page:${fields(action.patch)}`;
     case 'updateSection':
-      return 'label' in action.patch ? `section:${action.sectionId}:${fields(action.patch)}` : undefined;
+      return ['label', 'note', 'anchor'].some((k) => k in action.patch)
+        ? `section:${action.sectionId}:${fields(action.patch)}`
+        : undefined;
     case 'updateBlock': {
-      const textual = ['text', 'caption', 'url', 'buttons', 'people', 'items', 'image'];
+      const textual = [
+        'text', 'caption', 'url', 'buttons', 'people', 'items', 'image', 'images', 'title', 'name', 'role',
+        'label', 'doneText', 'doc', 'note', 'anchor', 'height', 'photo',
+      ];
       return Object.keys(action.patch).some((k) => textual.includes(k))
         ? `block:${action.blockId}:${fields(action.patch)}`
         : undefined;
@@ -289,32 +450,53 @@ export function replaceInHistory(h: History, content: LearnPageContent): History
 
 // ─── Labels ───────────────────────────────────────────────────────────────────
 
-export const BLOCK_KINDS: { kind: BlockKind; label: string; hint: string }[] = [
-  { kind: 'heading', label: 'Heading', hint: 'A title for a part of the page' },
-  { kind: 'text', label: 'Text', hint: 'Paragraphs with bold, italic and links' },
-  { kind: 'image', label: 'Image', hint: 'A photo or graphic' },
-  { kind: 'buttons', label: 'Buttons', hint: 'One or more link buttons' },
-  { kind: 'people', label: 'People', hint: 'Cards with photo, name and role' },
-  { kind: 'list', label: 'List', hint: 'Bulleted or numbered items' },
-  { kind: 'columns', label: 'Columns', hint: 'Two to four side by side' },
-  { kind: 'video', label: 'Video', hint: 'YouTube or Vimeo' },
-  { kind: 'divider', label: 'Divider', hint: 'A thin line' },
-  { kind: 'spacer', label: 'Spacer', hint: 'Empty space' },
+export type BlockCategory = 'Text' | 'Media' | 'Layout' | 'People' | 'Interactive' | 'Embed';
+export const BLOCK_CATEGORIES: BlockCategory[] = ['Text', 'Media', 'Layout', 'People', 'Interactive', 'Embed'];
+
+export const BLOCK_KINDS: { kind: BlockKind; label: string; hint: string; category: BlockCategory; keywords?: string }[] = [
+  { kind: 'heading', label: 'Heading', hint: 'A title for a part of the page', category: 'Text', keywords: 'title h1 h2 h3' },
+  { kind: 'text', label: 'Text', hint: 'Paragraphs with bold, italic and links', category: 'Text', keywords: 'paragraph body copy' },
+  { kind: 'list', label: 'List', hint: 'Bulleted or numbered items', category: 'Text', keywords: 'bullets numbered' },
+  { kind: 'quote', label: 'Quote', hint: 'A testimonial or a pull quote', category: 'Text', keywords: 'testimonial review' },
+  { kind: 'callout', label: 'Callout', hint: 'A coloured box for a note or warning', category: 'Text', keywords: 'note alert notice info' },
+  { kind: 'table', label: 'Table', hint: 'Rows and columns of text', category: 'Text', keywords: 'grid schedule prices' },
+  { kind: 'toc', label: 'Contents', hint: 'Links to the headings on this page', category: 'Text', keywords: 'table of contents toc menu' },
+  { kind: 'image', label: 'Image', hint: 'A photo or graphic', category: 'Media', keywords: 'photo picture' },
+  { kind: 'imageText', label: 'Image and text', hint: 'A picture beside a paragraph', category: 'Media', keywords: 'media side' },
+  { kind: 'gallery', label: 'Gallery', hint: 'A grid or slideshow of photos', category: 'Media', keywords: 'photos carousel slideshow' },
+  { kind: 'video', label: 'Video', hint: 'YouTube or Vimeo', category: 'Media', keywords: 'youtube vimeo film' },
+  { kind: 'logos', label: 'Logos', hint: 'A row of partner or sponsor logos', category: 'Media', keywords: 'sponsors partners brands' },
+  { kind: 'columns', label: 'Columns', hint: 'Two to four side by side', category: 'Layout', keywords: 'grid side by side' },
+  { kind: 'cards', label: 'Cards', hint: 'Boxes with a picture, title and link', category: 'Layout', keywords: 'courses tiles' },
+  { kind: 'stats', label: 'Numbers', hint: 'Big figures with a label', category: 'Layout', keywords: 'stats statistics figures counters' },
+  { kind: 'buttons', label: 'Buttons', hint: 'One or more link buttons', category: 'Layout', keywords: 'cta call to action link' },
+  { kind: 'divider', label: 'Divider', hint: 'A thin line', category: 'Layout', keywords: 'line rule separator' },
+  { kind: 'spacer', label: 'Spacer', hint: 'Empty space', category: 'Layout', keywords: 'gap space' },
+  { kind: 'reusable', label: 'Saved section', hint: 'A section from your library, kept in sync', category: 'Layout', keywords: 'library reusable shared' },
+  { kind: 'people', label: 'People', hint: 'Cards with photo, name and role', category: 'People', keywords: 'team staff speakers' },
+  { kind: 'accordion', label: 'Questions', hint: 'Answers that open on a click', category: 'Interactive', keywords: 'faq accordion collapse' },
+  { kind: 'tabs', label: 'Tabs', hint: 'Panels you switch between', category: 'Interactive', keywords: 'tabbed panels' },
+  { kind: 'countdown', label: 'Countdown', hint: 'Days and hours to a date', category: 'Interactive', keywords: 'timer deadline date' },
+  { kind: 'embed', label: 'Embed', hint: 'Maps, forms, docs, calendars and more', category: 'Embed', keywords: 'iframe google maps form calendly typeform loom spotify slides docs' },
 ];
+
+/** Picker search: label, hint, category and keywords, every word must match. */
+export function searchBlockKinds(query: string): typeof BLOCK_KINDS {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return BLOCK_KINDS;
+  return BLOCK_KINDS.filter((k) => {
+    const hay = `${k.label} ${k.hint} ${k.category} ${k.keywords ?? ''} ${k.kind}`.toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
+}
 
 export function kindLabel(kind: BlockKind): string {
   return BLOCK_KINDS.find((k) => k.kind === kind)?.label ?? kind;
 }
 
 /** Rich text as one plain line, for an outline row. */
-export function plainText(md: string): string {
-  return md
-    .replace(/\[([^\]\n]*)\]\([^)\s]+\)/g, '$1')
-    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
-    .replace(/\*([^*\n]+)\*/g, '$1')
-    .replace(/_([^_\n]+)_/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
+export function plainText(c: RichContent): string {
+  return richOneLine(c);
 }
 
 function short(s: string, n = 40): string {
@@ -347,6 +529,46 @@ export function blockSummary(block: LearnBlock): string {
       break;
     case 'video':
       detail = block.caption || block.url;
+      break;
+    case 'imageText':
+      detail = plainText(block.text) || block.image.alt;
+      break;
+    case 'gallery':
+      detail = `${block.images.length} ${block.images.length === 1 ? 'photo' : 'photos'}`;
+      break;
+    case 'quote':
+      detail = plainText(block.text) || block.name || '';
+      break;
+    case 'callout':
+      detail = block.title || plainText(block.text);
+      break;
+    case 'accordion':
+    case 'tabs':
+      detail = block.items.map((i) => i.title).filter(Boolean).join(', ');
+      break;
+    case 'stats':
+      detail = block.items.map((i) => i.value).filter(Boolean).join(', ');
+      break;
+    case 'cards':
+      detail = block.items.map((i) => i.title).filter(Boolean).join(', ');
+      break;
+    case 'logos':
+      detail = `${block.items.length} ${block.items.length === 1 ? 'logo' : 'logos'}`;
+      break;
+    case 'embed':
+      detail = block.title || block.url;
+      break;
+    case 'countdown':
+      detail = block.label || (block.until ? new Date(block.until).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
+      break;
+    case 'table':
+      detail = block.caption || '';
+      break;
+    case 'toc':
+      detail = block.title || '';
+      break;
+    case 'reusable':
+      detail = '';
       break;
   }
   return detail ? `${label}: ${short(detail)}` : label;
@@ -406,6 +628,104 @@ export function createBlock(kind: BlockKind): LearnBlock {
       return { id, kind };
     case 'spacer':
       return { id, kind, size: 'medium' };
+    case 'imageText':
+      return {
+        id,
+        kind,
+        image: { ...EMPTY_IMAGE },
+        imageSide: 'left',
+        imageWidth: 'half',
+        shape: 'rounded',
+        text: '## A short title\n\nA sentence or two about the picture.',
+      };
+    case 'gallery':
+      return { id, kind, layout: 'grid', columns: 3, images: [], lightbox: true };
+    case 'quote':
+      return { id, kind, text: 'What someone said about the course.', name: 'Name', role: 'Role', style: 'card' };
+    case 'callout':
+      return { id, kind, tone: 'info', title: 'Good to know', text: 'A short note for readers.' };
+    case 'accordion':
+      return {
+        id,
+        kind,
+        allowMany: false,
+        items: [
+          { id: newId('i'), title: 'A question people ask', text: 'The answer.' },
+          { id: newId('i'), title: 'Another question', text: 'The answer.' },
+        ],
+      };
+    case 'tabs':
+      return {
+        id,
+        kind,
+        items: [
+          { id: newId('i'), title: 'First tab', text: 'What this tab says.' },
+          { id: newId('i'), title: 'Second tab', text: 'What this tab says.' },
+        ],
+      };
+    case 'stats':
+      return {
+        id,
+        kind,
+        columns: 3,
+        align: 'center',
+        items: [
+          { id: newId('i'), value: '500+', label: 'Learners' },
+          { id: newId('i'), value: '4', label: 'Programmes' },
+          { id: newId('i'), value: '2023', label: 'Founded' },
+        ],
+      };
+    case 'cards':
+      return {
+        id,
+        kind,
+        columns: 3,
+        items: [
+          { id: newId('i'), title: 'First card', text: 'A line about it.' },
+          { id: newId('i'), title: 'Second card', text: 'A line about it.' },
+          { id: newId('i'), title: 'Third card', text: 'A line about it.' },
+        ],
+      };
+    case 'logos':
+      return { id, kind, grayscale: false, items: [], align: 'center' };
+    case 'embed':
+      return { id, kind, provider: 'google-maps', url: '', aspect: '16:9', title: 'Map' };
+    case 'countdown':
+      return { id, kind, until: 0, label: 'Starts in', doneText: 'It has started.', align: 'center' };
+    case 'table':
+      return {
+        id,
+        kind,
+        striped: true,
+        doc: {
+          type: 'doc',
+          content: [
+            {
+              type: 'table',
+              content: [
+                {
+                  type: 'tableRow',
+                  content: [
+                    { type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Heading' }] }] },
+                    { type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Heading' }] }] },
+                  ],
+                },
+                {
+                  type: 'tableRow',
+                  content: [
+                    { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Cell' }] }] },
+                    { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Cell' }] }] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+    case 'toc':
+      return { id, kind, title: 'On this page' };
+    case 'reusable':
+      return { id, kind, libraryId: '' };
   }
 }
 
@@ -453,9 +773,98 @@ export function contentWarnings(content: LearnPageContent): Warning[] {
       }
       if (b.kind === 'video' && b.url && !videoEmbedUrl(b.url))
         out.push({ sectionId: s.id, blockId: b.id, message: 'Video link must be YouTube or Vimeo' });
+      const warn = (message: string) => out.push({ sectionId: s.id, blockId: b.id, message });
+      switch (b.kind) {
+        case 'imageText':
+          if (!b.image.src) warn('Image has no picture yet');
+          else if (!b.image.alt.trim()) warn('Image needs a description (alt text)');
+          break;
+        case 'gallery':
+          if (b.images.length === 0) warn('Gallery has no photos yet');
+          if (b.images.some((i) => !i.alt.trim())) warn('Some gallery photos need a description');
+          break;
+        case 'logos':
+          if (b.items.length === 0) warn('No logos yet');
+          if (b.items.some((i) => !i.alt.trim())) warn('Each logo needs the company name as its description');
+          break;
+        case 'cards':
+          if (b.items.some((i) => i.image?.src && !i.image.alt.trim())) warn('A card image needs a description');
+          break;
+        case 'quote':
+          if (b.photo?.src && !b.photo.alt.trim()) warn('The quote photo needs a description');
+          break;
+        case 'embed':
+          if (!b.url.trim()) warn('Embed has no link yet');
+          else if (!embedSrc(b.provider, b.url)) warn(`That link is not a ${EMBED_PROVIDERS[b.provider].label} link`);
+          if (!b.title.trim()) warn('Embed needs a title for screen readers');
+          break;
+        case 'countdown':
+          if (!b.until) warn('Countdown has no date yet');
+          break;
+        case 'reusable':
+          if (!b.libraryId) warn('Choose a saved section to show here');
+          break;
+      }
     }
   }
   return out;
+}
+
+export type EmbedProvider = BlockOf<'embed'>['provider'];
+
+/** What the editor tells a course lead about each embed, and the hosts it accepts. */
+export const EMBED_PROVIDERS: Record<EmbedProvider, { label: string; hint: string; hosts: string[] }> = {
+  youtube: { label: 'YouTube', hint: 'https://www.youtube.com/watch?v=...', hosts: ['youtube.com', 'youtu.be', 'youtube-nocookie.com'] },
+  vimeo: { label: 'Vimeo', hint: 'https://vimeo.com/123456789', hosts: ['vimeo.com', 'player.vimeo.com'] },
+  'google-maps': { label: 'Google Maps', hint: 'Share > Embed a map > copy the link inside src', hosts: ['google.com', 'maps.google.com'] },
+  'google-forms': { label: 'Google Forms', hint: 'https://docs.google.com/forms/d/e/.../viewform', hosts: ['docs.google.com', 'forms.gle'] },
+  'google-docs': { label: 'Google Docs', hint: 'File > Share > Publish to web, then copy the link', hosts: ['docs.google.com'] },
+  'google-slides': { label: 'Google Slides', hint: 'File > Share > Publish to web, then copy the link', hosts: ['docs.google.com'] },
+  calendly: { label: 'Calendly', hint: 'https://calendly.com/your-name/30min', hosts: ['calendly.com'] },
+  typeform: { label: 'Typeform', hint: 'https://yourname.typeform.com/to/abc123', hosts: ['typeform.com'] },
+  loom: { label: 'Loom', hint: 'https://www.loom.com/share/...', hosts: ['loom.com'] },
+  spotify: { label: 'Spotify', hint: 'https://open.spotify.com/episode/...', hosts: ['open.spotify.com'] },
+};
+
+/** Which provider a pasted link belongs to, so the editor can pick it for the person. */
+export function embedProviderFromUrl(url: string): EmbedProvider | null {
+  let u: URL;
+  try {
+    u = new URL(url.trim());
+  } catch {
+    return null;
+  }
+  const host = u.hostname.replace(/^www\.|^m\./, '');
+  if (host === 'docs.google.com') {
+    if (u.pathname.startsWith('/forms/')) return 'google-forms';
+    if (u.pathname.startsWith('/presentation/')) return 'google-slides';
+    if (u.pathname.startsWith('/document/')) return 'google-docs';
+  }
+  if (host === 'forms.gle') return 'google-forms';
+  if ((host === 'google.com' || host === 'maps.google.com') && u.pathname.startsWith('/maps')) return 'google-maps';
+  for (const [p, info] of Object.entries(EMBED_PROVIDERS) as [EmbedProvider, (typeof EMBED_PROVIDERS)[EmbedProvider]][]) {
+    if (p.startsWith('google-')) continue;
+    if (info.hosts.some((h) => host === h || host.endsWith(`.${h}`))) return p;
+  }
+  return null;
+}
+
+/**
+ * The iframe address for a pasted link, or null when the link is not that
+ * provider's. A courtesy for the editor's status line; T315's server allowlist
+ * decides what is stored, and T319's renderer what is drawn.
+ */
+export function embedSrc(provider: EmbedProvider, url: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(url.trim());
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:') return null;
+  if (provider === 'youtube' || provider === 'vimeo') return videoEmbedUrl(url);
+  if (embedProviderFromUrl(url) !== provider) return null;
+  return u.toString();
 }
 
 /** YouTube or Vimeo page URL to its embed URL, or null for anything else. */
@@ -523,8 +932,12 @@ export function summarizeChanges(
     pageEdited: false,
     total: 0,
   };
-  const prev = before ?? { seoTitle: '', seoDescription: '', sections: [] };
-  out.pageEdited = prev.seoTitle !== after.seoTitle || prev.seoDescription !== after.seoDescription;
+  const prev: LearnPageContent = before ?? { seoTitle: '', seoDescription: '', sections: [] };
+  out.pageEdited =
+    prev.seoTitle !== after.seoTitle ||
+    prev.seoDescription !== after.seoDescription ||
+    !same(prev.ogImage ?? null, after.ogImage ?? null) ||
+    !!prev.noindex !== !!after.noindex;
 
   const prevSections = new Map(prev.sections.map((s, i) => [s.id, { s, i }]));
   const nextSections = new Map(after.sections.map((s, i) => [s.id, { s, i }]));
