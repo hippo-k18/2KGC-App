@@ -11,9 +11,9 @@ export const dynamic = 'force-dynamic';
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ email?: string; invite?: string }>;
+  searchParams: Promise<{ email?: string; invite?: string; signedOut?: string }>;
 }) {
-  const { email, invite } = await searchParams;
+  const { email, invite, signedOut } = await searchParams;
   const initialEmail = typeof email === 'string' ? email.trim().toLowerCase().slice(0, 254) : '';
   // Before the redirect below, so the link counts even in a browser that is
   // already signed in as somebody else.
@@ -34,6 +34,13 @@ export default async function LoginPage({
             {EVENT.name}. {targetLabel()}.
           </p>
 
+          {signedOut === 'all' ? (
+            <p className="body-2">You are signed out on all your devices.</p>
+          ) : signedOut === 'here' ? (
+            <p className="whova-form-error-message">
+              You are signed out here, but your other devices could not be signed out. Try again after signing in.
+            </p>
+          ) : null}
           <LoginForm initialEmail={initialEmail} />
 
 

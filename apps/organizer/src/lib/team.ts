@@ -92,6 +92,30 @@ export async function stampSignIn(memberId: string): Promise<void> {
 }
 
 /**
+ * "Sign out on all devices" for a member: a new `sessionEpoch` ends every
+ * session minted under the old one (T312). Audited, since it is the member
+ * acting on their own record.
+ */
+export async function endMemberSessions(email: string): Promise<boolean> {
+  try {
+    const id = memberIdFor(email);
+    await members().doc(id).update({ sessionEpoch: newNonce(), updatedAt: FieldValue.serverTimestamp() });
+    await appendAudit({
+      actor: email,
+      action: 'team.signOutEverywhere',
+      targetPath: `${COLLECTIONS.teamMembers}/${id}`,
+      targetId: id,
+      before: {},
+      after: { email },
+    });
+    return true;
+  } catch (err) {
+    recordError('team.endMemberSessions', err);
+    return false;
+  }
+}
+
+/**
  * Opening the link in an invitation accepts it: the row on Admin Settings goes
  * from Invited to Active. It grants nothing by itself, since getting in still
  * takes a code sent to the address. Before this the link was a bare `/login`,

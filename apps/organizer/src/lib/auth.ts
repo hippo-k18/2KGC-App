@@ -1,14 +1,23 @@
 import 'server-only';
 
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { checkCode, issueCode, lookupAllowed } from './access-code';
 import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { COLLECTIONS, type TeamRole } from '@kgc/shared';
 import { db } from './firestore';
-import { findMember, stampSignIn } from './team';
-import { SESSION_TTL_MS, canExport, canOpen, canRunAction, homeFor, sessionTtlMs } from './team-core';
+import { endMemberSessions, findMember, stampSignIn } from './team';
+import { canExport, canOpen, canRunAction, homeFor } from './team-core';
+import {
+  SESSION_COOKIE,
+  cookieOptions,
+  decodeSession,
+  encodeSession,
+  judgeSession,
+  newSession,
+  type ConsoleSession,
+} from './session-core';
 
 /**
  * Console auth: an address, then a six-digit code emailed to it.
@@ -35,24 +44,17 @@ import { SESSION_TTL_MS, canExport, canOpen, canRunAction, homeFor, sessionTtlMs
  *
  * Removing an address from the allowlist, or a member from the team, ends that
  * person's live session on their next request: `accessFor()` re-checks both
- * every time rather than trusting the cookie.
+ * every time rather than trusting the cookie. That is what makes the 30-day
+ * "Keep me signed in" session of T312 safe to offer (`session-core.ts`).
  *
  * **Roles are enforced in one place, `requireOrganizer()`**, from the path the
  * request was made to — see `team-core.ts` for why the path, and for the map.
  * No page or action carries a role check of its own and none should grow one.
  */
 
-const COOKIE = 'kgc_console_session';
+const COOKIE = SESSION_COOKIE;
 
-export interface ConsoleSession {
-  email: string;
-  expiresAt: number;
-  /**
-   * `TeamMemberDoc.sessionEpoch` for a member, or the owner's `ownerSessions`
-   * epoch for an owner, as it stood at sign-in.
-   */
-  epoch?: string;
-}
+export type { ConsoleSession };
 
 /** Who is asking, and what they hold. An allowlisted address is an owner. */
 export interface ConsoleAccess {
@@ -92,33 +94,7 @@ function secret(): string {
   return s;
 }
 
-function sign(payload: string): string {
-  return createHmac('sha256', secret()).update(payload).digest('base64url');
-}
-
-function encode(session: ConsoleSession): string {
-  const payload = Buffer.from(JSON.stringify(session)).toString('base64url');
-  return `${payload}.${sign(payload)}`;
-}
-
-function decode(token: string | undefined): ConsoleSession | null {
-  if (!token) return null;
-  const [payload, mac] = token.split('.');
-  if (!payload || !mac) return null;
-
-  const expected = sign(payload);
-  const a = Buffer.from(mac);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-
-  try {
-    const session = JSON.parse(Buffer.from(payload, 'base64url').toString()) as ConsoleSession;
-    if (!session.email || session.expiresAt < Date.now()) return null;
-    return session;
-  } catch {
-    return null;
-  }
-}
+const decode = (token: string | undefined) => decodeSession(secret(), token, Date.now());
 
 /**
  * What a signed cookie is worth right now.
@@ -131,17 +107,12 @@ function decode(token: string | undefined): ConsoleSession | null {
 const accessFor = cache(async (token: string | undefined): Promise<ConsoleAccess | null> => {
   const session = decode(token);
   if (!session) return null;
+  // Owners carry an epoch too (T263): signing out rotates it and ends every
+  // copy of the cookie. For a member, a changed epoch does the same.
   if (isAllowed(session.email)) {
-    // Owners carry an epoch too (T263): signing out rotates it and ends every copy of the cookie.
-    if (!session.epoch || session.epoch !== (await ownerEpoch(session.email))) return null;
-    return { email: session.email, roles: ['owner'] };
+    return judgeSession(session, { owner: true, epoch: await ownerEpoch(session.email) });
   }
-
-  const member = await findMember(session.email);
-  if (!member || member.status !== 'active' || member.roles.length === 0) return null;
-  // A changed epoch ends every session minted before it.
-  if (!session.epoch || session.epoch !== member.sessionEpoch) return null;
-  return { email: member.email, roles: member.roles };
+  return judgeSession(session, { owner: false, member: await findMember(session.email) });
 });
 
 const ownerRef = (email: string) =>
@@ -172,13 +143,7 @@ async function mayEnter(email: string): Promise<boolean> {
 
 async function startSession(session: ConsoleSession): Promise<void> {
   const jar = await cookies();
-  jar.set(COOKIE, encode(session), {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: Math.max(0, Math.round((session.expiresAt - Date.now()) / 1000)),
-  });
+  jar.set(COOKIE, encodeSession(secret(), session), cookieOptions(session, Date.now()));
 }
 
 /**
@@ -207,10 +172,14 @@ export async function requestSignInCode(raw: string): Promise<{ ok: true; email:
   return { ok: true, email };
 }
 
-/** Step two: check the code and open a session. Returns the screen to land on. */
+/**
+ * Step two: check the code and open a session. Returns the screen to land on.
+ * `keep` is the "Keep me signed in on this device" box (T312).
+ */
 export async function signInWithCode(
   raw: string,
   code: string,
+  keep = false,
 ): Promise<{ ok: true; home: string } | { ok: false; error: string }> {
   const email = raw.trim().toLowerCase();
   const checked = await checkCode(email, 'signin', code);
@@ -220,15 +189,14 @@ export async function signInWithCode(
     return { ok: false, error: 'That code is not right, or it has expired.' };
   }
   if (isAllowed(email)) {
-    await startSession({ email, expiresAt: Date.now() + SESSION_TTL_MS, epoch: await ownerEpoch(email, true) });
+    const epoch = await ownerEpoch(email, true);
+    await startSession(newSession({ email, epoch, roles: ['owner'], keep, now: Date.now() }));
     return { ok: true, home: homeFor(['owner']) };
   }
   const member = (await findMember(email))!;
-  await startSession({
-    email: member.email,
-    expiresAt: Date.now() + sessionTtlMs(member.roles),
-    epoch: member.sessionEpoch,
-  });
+  await startSession(
+    newSession({ email: member.email, epoch: member.sessionEpoch, roles: member.roles, keep, now: Date.now() }),
+  );
   await stampSignIn(member.id);
   return { ok: true, home: homeFor(member.roles) };
 }
@@ -250,14 +218,34 @@ export async function signOut(): Promise<void> {
    * shared laptop, a synced browser) stops working too (T263). It signs the
    * owner out everywhere, which is the point for a lost laptop.
    */
-  if (session && isAllowed(session.email)) {
-    try {
-      await ownerRef(session.email).set({ epoch: randomBytes(16).toString('hex'), updatedAt: new Date() }, { merge: true });
-    } catch (err) {
-      console.error('[auth] could not rotate the owner epoch', err);
-    }
-  }
+  if (session && isAllowed(session.email)) await rotateOwnerEpoch(session.email);
   jar.delete(COOKIE);
+}
+
+async function rotateOwnerEpoch(email: string): Promise<boolean> {
+  try {
+    await ownerRef(email).set({ epoch: randomBytes(16).toString('hex'), updatedAt: new Date() }, { merge: true });
+    return true;
+  } catch (err) {
+    console.error('[auth] could not rotate the owner epoch', err);
+    return false;
+  }
+}
+
+/**
+ * "Sign out on all devices" (T312): a new epoch for the signed-in person ends
+ * every session they hold, here and on any other browser, at its next request.
+ * Owners and members each have an epoch of their own, so this touches nobody
+ * else. For an owner it is what plain sign-out already does.
+ */
+export async function signOutEverywhere(): Promise<boolean> {
+  const jar = await cookies();
+  const access = await accessFor(jar.get(COOKIE)?.value);
+  let ended = true;
+  if (access?.roles.includes('owner') && isAllowed(access.email)) ended = await rotateOwnerEpoch(access.email);
+  else if (access) ended = await endMemberSessions(access.email);
+  jar.delete(COOKIE);
+  return ended;
 }
 
 /** Who is signed in and what they hold, or null. Never redirects. */
@@ -362,8 +350,8 @@ export async function exportAccess(kind: string): Promise<'ok' | 'signed-out' | 
 /**
  * Prove it is still you, for an action that cannot be undone.
  *
- * A session lasts eight hours, which is right for editing an agenda and wrong
- * for sending money back: an unattended laptop at a registration desk is the
+ * A session can last 30 days on a remembered device, which is right for
+ * editing an agenda and wrong for sending money back: an unattended laptop at a registration desk is the
  * normal state of a conference. So a refund, an erasure and a mass send each
  * ask for a fresh code from the signed-in person's inbox (`sendConfirmCode`),
  * which a passer-by at the desk does not have.

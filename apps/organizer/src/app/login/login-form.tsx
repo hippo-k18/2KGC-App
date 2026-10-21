@@ -34,6 +34,13 @@ export function LoginForm({ initialEmail = '' }: { initialEmail?: string }) {
           />
           {state.error ? <p className="whova-form-error-message">{state.error}</p> : null}
         </div>
+        <div className="whova-form-group">
+          <label className="whova-checkbox-label">
+            <input className="whova-checkbox-input" type="checkbox" name="keep" defaultChecked />
+            <span>Keep me signed in on this device</span>
+          </label>
+          <div className="whova-checkbox-description">For 30 days. Untick it on a shared computer.</div>
+        </div>
         <button type="submit" className="whova-btn-main primary" disabled={pending}>
           {pending ? 'Signing in…' : 'Sign in'}
         </button>

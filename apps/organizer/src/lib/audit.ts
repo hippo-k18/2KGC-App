@@ -443,6 +443,8 @@ export interface AuditEntry {
     | 'report.resolve'
     | 'team.remove'
     | 'team.setPassphrase'
+    /** A member pressed "Sign out on all devices"; the actor is the member (T312). */
+    | 'team.signOutEverywhere'
     /** An organizer took somebody out of a capped session, from Session Cap. */
     | 'sessionSeat.remove'
     /**
