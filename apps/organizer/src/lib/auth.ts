@@ -107,7 +107,7 @@ const decode = (token: string | undefined) => decodeSession(secret(), token, Dat
 const accessFor = cache(async (token: string | undefined): Promise<ConsoleAccess | null> => {
   const session = decode(token);
   if (!session) return null;
-  // Owners carry an epoch too (T263): signing out rotates it and ends every
+  // Owners carry an epoch too (T263): "Sign out on all devices" rotates it and ends every
   // copy of the cookie. For a member, a changed epoch does the same.
   if (isAllowed(session.email)) {
     return judgeSession(session, { owner: true, epoch: await ownerEpoch(session.email) });
@@ -210,15 +210,17 @@ export function requirePassphrase(): boolean {
   return true;
 }
 
+/**
+ * Signs out this browser only, for owners and members alike.
+ *
+ * From T263 until T312b an owner's sign-out also rotated their epoch, which
+ * signed them out everywhere: the only way to cut off a copied cookie or a lost
+ * laptop. With 30-day sessions that meant signing out on a laptop also signed
+ * out the phone, so the owner asked for it to end only this browser now that
+ * "Sign out on all devices" (`signOutEverywhere()`) does the rest on purpose.
+ */
 export async function signOut(): Promise<void> {
   const jar = await cookies();
-  const session = decode(jar.get(COOKIE)?.value);
-  /*
-   * An owner's sign-out rotates their epoch, so a copy of this cookie (a
-   * shared laptop, a synced browser) stops working too (T263). It signs the
-   * owner out everywhere, which is the point for a lost laptop.
-   */
-  if (session && isAllowed(session.email)) await rotateOwnerEpoch(session.email);
   jar.delete(COOKIE);
 }
 
@@ -236,7 +238,7 @@ async function rotateOwnerEpoch(email: string): Promise<boolean> {
  * "Sign out on all devices" (T312): a new epoch for the signed-in person ends
  * every session they hold, here and on any other browser, at its next request.
  * Owners and members each have an epoch of their own, so this touches nobody
- * else. For an owner it is what plain sign-out already does.
+ * else.
  */
 export async function signOutEverywhere(): Promise<boolean> {
   const jar = await cookies();
