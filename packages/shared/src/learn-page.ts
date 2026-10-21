@@ -119,8 +119,201 @@ export const LEARN_PAGE_DOC = "pageLayouts/learn";
 export const LEARN_PAGE_VERSIONS = "pageLayouts/learn/versions";
 export const LEARN_IMAGE_PREFIX = "pageLayouts/learn/";
 
+const LEARN_BROCHURE = "mailto:contact@knowledgegraph.tech?subject=KGC%20Learn%20brochure";
+
+const brochure = (): LinkButton => ({
+  label: "Learn more and download the brochure.",
+  href: LEARN_BROCHURE,
+  style: "text",
+});
+
+const founder = (id: string, name: string, role: string, src: string, linkedin: string): Person => ({
+  id,
+  name,
+  role,
+  photo: { src, alt: name, width: 200, height: 200 },
+  linkedin,
+});
+
+const rosterMember = (id: string, name: string, role: string): Person => ({ id, name, role });
+
 /**
- * Filled by the website-renderer builder: today's /learn page expressed as
- * blocks, so rendering it gives the same page as the hard-coded version.
+ * Today's /learn page expressed as blocks, so rendering it gives the same page
+ * as the hard-coded version did (pixel-diffed in T311).
+ *
+ * The three founders are a copy of `LEARN_FOUNDERS` in `apps/web/src/lib/people.ts`,
+ * because this package cannot import the website. A website test fails if the
+ * two drift apart. Once someone publishes, the stored copy is what shows.
  */
-export declare const LEARN_PAGE_DEFAULT: LearnPageContent;
+export const LEARN_PAGE_DEFAULT: LearnPageContent = {
+  seoTitle: "The Knowledge Graph Learning Program",
+  seoDescription:
+    "KGC | Learn: the team, the continuing education roster, and the four certificate programmes.",
+  sections: [
+    {
+      id: "hero",
+      label: "Hero",
+      background: "grey-wave",
+      waveBehindFirstImage: true,
+      width: "normal",
+      paddingTop: "none",
+      paddingBottom: "large",
+      blocks: [
+        {
+          id: "hero-wordmark",
+          kind: "image",
+          image: { src: "/kgc/learn-wordmark.png", alt: "KGC | Learn", width: 1000, height: 275 },
+          width: "large",
+          shape: "original",
+          align: "center",
+        },
+        {
+          id: "hero-tagline",
+          kind: "text",
+          text: "Learn how knowledge graphs can shape the future of your business and career.",
+          align: "center",
+          spaceAbove: "medium",
+          spaceBelow: "small",
+        },
+        {
+          id: "hero-strap",
+          kind: "text",
+          text: "*Where peer-learning drives practice.*",
+          align: "center",
+          spaceBelow: "none",
+        },
+      ],
+    },
+    {
+      id: "team",
+      label: "Team",
+      background: "white-wave",
+      width: "normal",
+      paddingTop: "large",
+      paddingBottom: "large",
+      blocks: [
+        { id: "team-heading", kind: "heading", level: 2, text: "Meet the **KGC | Learn** Team", align: "center" },
+        {
+          id: "team-intro",
+          kind: "text",
+          text: "KGC|Learn was established by KGC with a 2023 grant from the National Science Foundation to attract the best of the KGC Community and Conferences.",
+          align: "center",
+          spaceBelow: "large",
+        },
+        {
+          id: "team-founders",
+          kind: "people",
+          style: "cards",
+          columns: 3,
+          spaceBelow: "none",
+          people: [
+            founder("francois-scharffe", "François Scharffe", "Co-Founder", "/kgc/team/francois-scharffe.jpeg", "https://www.linkedin.com/in/francoischarffe/"),
+            founder("thomas-deely", "Thomas Deely", "Co-Founder", "/kgc/team/thomas-deely.jpg", "https://www.linkedin.com/in/thomasdeely/"),
+            founder("maru-willson", "Maru Willson", "Chief Learning Officer", "/kgc/team/maru-willson.jpeg", "https://www.linkedin.com/in/maruwillson/"),
+          ],
+        },
+      ],
+    },
+    {
+      id: "continuing-education",
+      label: "Continuing education",
+      background: "light-blue-wave",
+      width: "normal",
+      paddingTop: "large",
+      paddingBottom: "large",
+      blocks: [
+        {
+          id: "ce-heading",
+          kind: "heading",
+          level: 2,
+          text: "Meet the **KGC|Learn**\nContinuing Education Team",
+          align: "center",
+        },
+        {
+          id: "ce-roster",
+          kind: "people",
+          style: "list",
+          columns: 4,
+          align: "center",
+          spaceBelow: "none",
+          people: [
+            rosterMember("alex-shifrin", "Alex Shifrin", "Subject Matter Lead"),
+            rosterMember("casey-hart", "Casey Hart", "Guest Instructor"),
+            rosterMember("keith-corbett", "Keith Corbett", "Teaching Assistant"),
+            rosterMember("anatoly-scherbakov", "Anatoly Scherbakov", "Teaching Assistant"),
+            rosterMember("adam-shepherd", "Adam Shepherd", "Teaching Assistant"),
+            rosterMember("vinay-chaudhri", "Vinay Chaudhri", "Guest Instructor"),
+          ],
+        },
+      ],
+    },
+    {
+      id: "programmes",
+      label: "Programmes",
+      background: "blue",
+      width: "normal",
+      paddingTop: "medium",
+      paddingBottom: "medium",
+      blocks: [
+        {
+          id: "programmes-heading",
+          kind: "heading",
+          level: 2,
+          text: "Find the program\nthat is right for you",
+          align: "center",
+        },
+        {
+          id: "programmes-intro-1",
+          kind: "text",
+          text: "Our program brings together open content from leading knowledge graph practitioners in a structured and guided environment for learners.",
+          align: "left",
+        },
+        {
+          id: "programmes-intro-2",
+          kind: "text",
+          text: "We use evidence-based adult learning approaches to meet participants where they are in their knowledge graph learning journey.",
+          align: "left",
+        },
+        {
+          id: "programmes-list",
+          kind: "list",
+          ordered: false,
+          align: "left",
+          spaceBelow: "none",
+          items: [
+            {
+              id: "explorer",
+              title: "Explorer Certificate",
+              text: "fully online for individuals without prior experience who learn at their own pace.",
+              link: brochure(),
+            },
+            {
+              id: "builder",
+              title: "Builder Micro-Certificates",
+              text: "part-virtual and part-online for individuals with experience in data science and adjacent fields who benefit from a cohort structure.",
+              link: brochure(),
+              children: [
+                "Builder MC-1 Bricks to Building KGs",
+                "Builder MC-2 Build with Confidence",
+                "Builder MC-3 Build with Nuance",
+                "Builder MC-4 Build Something Real",
+              ],
+            },
+            {
+              id: "team-upskilling",
+              title: "Team Upskilling",
+              text: "for organizations introducing knowledge graphs and AI-readiness to teams of 5 or more.",
+              link: brochure(),
+            },
+            {
+              id: "open-classroom",
+              title: "Open Classroom",
+              text: "free access to our curated content without the structure and rigor of a certificate.",
+              link: brochure(),
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};

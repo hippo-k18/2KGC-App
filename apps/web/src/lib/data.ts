@@ -25,6 +25,10 @@ import {
   type EventType,
   type SponsorTierDef,
   BUYER_FEE_PERCENT,
+  LEARN_PAGE_DEFAULT,
+  LEARN_PAGE_DOC,
+  type LearnPageContent,
+  learnPageOrDefault,
   DEFAULT_SPONSOR_TIERS,
   groupSponsorsByTier,
   resolveEventBasics,
@@ -1345,3 +1349,24 @@ export async function programmeCounts(): Promise<{ speakers: number; sessions: n
   };
   }, { speakers: 0, sessions: 0, sponsors: 0 });
 }
+
+/**
+ * The KGC | Learn page as last published from the dashboard's page editor, or
+ * today's page (`LEARN_PAGE_DEFAULT`) when nothing has been published or what
+ * is stored cannot be read. Never a broken page: a malformed document and an
+ * unreachable database both render the default.
+ *
+ * `cache()` collapses the metadata call and the body call into one read per
+ * request; the shared 30-second cache is what makes a publish appear within a
+ * minute.
+ */
+export const learnPage = cache(async function learnPage(): Promise<LearnPageContent> {
+  return shared(
+    'learnPage',
+    async () => {
+      const snap = await db().doc(LEARN_PAGE_DOC).get();
+      return learnPageOrDefault(snap.data()?.published);
+    },
+    LEARN_PAGE_DEFAULT,
+  );
+});
