@@ -42,6 +42,15 @@ export const COLLECTIONS = {
    */
   pageContent: "pageContent",
   /**
+   * Whole website pages laid out as blocks in the dashboard, one document per
+   * page: `pageLayouts/learn` holds the KGC | Learn page's draft and published
+   * copies, with each publish kept under `versions`. See `learn-page.ts`.
+   *
+   * Server-only like `pageContent`: the website renders it with the Admin SDK,
+   * so it has no `firestore.rules` match block and must not get one.
+   */
+  pageLayouts: "pageLayouts",
+  /**
    * Server-only. Carries the booking contact, the staff-pass allocation and
    * whether the space is confirmed or merely provisional — none of which an
    * attendee may see. The app reads `exhibitorListings` instead.

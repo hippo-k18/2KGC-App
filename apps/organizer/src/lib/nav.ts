@@ -54,6 +54,8 @@ export interface NavNode {
 export const NAV: NavNode[] = [
   { name: "content", title: "Content", slug: "content", widthClass: "small", children: [
     { name: "basics", title: "Basics", slug: "basics" },
+    // Not Whova's: the KGC | Learn page editor, for the website's Learn page (T309).
+    { name: "learn_page", title: "Learn Page", slug: "learn-page" },
     { name: "branding_center", title: "Branding Center", slug: "branding-center", children: [
       { name: "app_branding", title: "App Branding", slug: "app-branding" },
       { name: "customize_resources", title: "Customize Resources", slug: "customize-resources" },
@@ -329,6 +331,7 @@ export const NAV: NavNode[] = [
  */
 export const IMPLEMENTED = new Set<string>([
   'content/basics',
+  'content/learn-page',
   'content/agenda-center/session-manager',
   'content/agenda-center/track-manager',
   'content/speaker-center/speaker-manager',
@@ -560,6 +563,7 @@ export function counts(): { total: number; implemented: number } {
  */
 export const ROUTES = {
   basics: '/content/basics',
+  learnPage: '/content/learn-page',
   sessionManager: '/content/agenda-center/session-manager',
   trackManager: '/content/agenda-center/track-manager',
   speakerManager: '/content/speaker-center/speaker-manager',

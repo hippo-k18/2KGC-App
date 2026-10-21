@@ -55,6 +55,15 @@ const nextConfig: NextConfig = {
     return config;
   },
 
+  /**
+   * Server Action bodies up to 12 MB (Next's default is 1 MB), for the KGC |
+   * Learn page editor's image upload, which takes photographs up to 10 MB and
+   * resizes them on the server (T309). Every other upload still downsizes in
+   * the browser and checks its own 900 KB cap in `upload-limits.ts`, so this
+   * raises a ceiling none of them reach.
+   */
+  experimental: { serverActions: { bodySizeLimit: '12mb' } },
+
   /** No `x-powered-by: Next.js` on every response (T263). */
   poweredByHeader: false,
 

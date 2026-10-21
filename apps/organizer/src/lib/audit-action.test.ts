@@ -21,4 +21,12 @@ describe('describeAction', () => {
     expect(describeAction('questionForm.update')).toBe('Updated question form');
     expect(describeAction('order.refund')).toBe('Refunded order');
   });
+
+  it('reads the Learn page editor’s actions (T309)', () => {
+    expect(describeAction('learnPage.saveDraft')).toBe('Saved a draft of learn page');
+    expect(describeAction('learnPage.publish')).toBe('Published learn page');
+    expect(describeAction('learnPage.revert')).toBe('Discarded the draft of learn page');
+    expect(describeAction('learnPage.restore')).toBe('Restored learn page');
+    expect(describeAction('learnPage.uploadImage')).toBe('Uploaded an image for learn page');
+  });
 });

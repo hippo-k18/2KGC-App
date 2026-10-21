@@ -121,6 +121,19 @@ export interface AuditEntry {
      * and "who changed it, from what, and when" is the only way back.
      */
     | 'pageContent.update'
+    /**
+     * The KGC | Learn page editor (T309). A save is the draft, which nobody
+     * outside the dashboard sees; a publish puts it on www, and revert and
+     * restore replace a draft somebody may have spent an hour on. All five are
+     * logged so "who changed the Learn page, and what did it say before" has
+     * an answer. The page itself is too big to diff into this log, so `after`
+     * carries the revision and version id, and the old copy is in `versions`.
+     */
+    | 'learnPage.saveDraft'
+    | 'learnPage.publish'
+    | 'learnPage.revert'
+    | 'learnPage.restore'
+    | 'learnPage.uploadImage'
     /** The entities the later dashboard screens author. */
     | 'exhibitor.create'
     | 'exhibitor.update'

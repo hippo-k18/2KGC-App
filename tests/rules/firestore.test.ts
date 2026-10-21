@@ -2100,6 +2100,57 @@ describe('the call for abstracts is closed to every client', () => {
 });
 
 
+/**
+ * The KGC | Learn page (T309) is server-only in both directions.
+ *
+ * `pageLayouts/learn` holds the organizers' unpublished draft beside the
+ * published copy, and `versions` every past publish with who did it. The
+ * dashboard writes it and www renders the published half, both through the
+ * Admin SDK, so there is no `match` block and must not be one. As with the
+ * money collections, a test says so, because default deny is a property a
+ * future rule can remove without anybody noticing.
+ */
+describe('the Learn page layout is closed to every client', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'pageLayouts/learn'), {
+        draft: { seoTitle: 'Unpublished draft', sections: [] },
+        published: null, draftUpdatedAt: 1, draftUpdatedBy: 'editor@kgc.test', revision: 1,
+      });
+      await setDoc(doc(db, 'pageLayouts/learn/versions/x'), {
+        content: { seoTitle: 'Old', sections: [] }, publishedAt: 1, publishedBy: 'editor@kgc.test',
+      });
+    });
+  });
+
+  const clients = [
+    ['a signed-out visitor', () => unauth()],
+    ['a ticket holder', () => asA()],
+    ['an organizer', () => asOrg()],
+  ] as const;
+
+  for (const [who, client] of clients) {
+    it(`refuses ${who} a get or list of the layout and its versions`, async () => {
+      await assertFails(getDoc(doc(client(), 'pageLayouts/learn')));
+      await assertFails(getDocs(collection(client(), 'pageLayouts')));
+      await assertFails(getDoc(doc(client(), 'pageLayouts/learn/versions/x')));
+      await assertFails(getDocs(collection(client(), 'pageLayouts/learn/versions')));
+      await assertFails(getDocs(collectionGroup(client(), 'versions')));
+    });
+
+    it(`refuses ${who} a write to the layout and its versions`, async () => {
+      await assertFails(setDoc(doc(client(), 'pageLayouts/learn'), { draft: {}, revision: 99 }));
+      await assertFails(updateDoc(doc(client(), 'pageLayouts/learn'), { revision: 99 }));
+      await assertFails(deleteDoc(doc(client(), 'pageLayouts/learn')));
+      await assertFails(setDoc(doc(client(), 'pageLayouts/learn/versions/x'), { content: {} }));
+      await assertFails(setDoc(doc(client(), 'pageLayouts/learn/versions/y'), { content: {} }));
+      await assertFails(deleteDoc(doc(client(), 'pageLayouts/learn/versions/x')));
+    });
+  }
+});
+
+
 describe('the exhibitor hall', () => {
   // The projection exists because rules filter documents and not fields. Every
   // test below is one half of that argument: the slim listing is readable by a

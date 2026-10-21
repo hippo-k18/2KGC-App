@@ -3882,7 +3882,7 @@ export interface CertificateDoc extends BaseDoc {
  * name one area, and a member may hold several. The path rules behind each one
  * live in `apps/organizer/src/lib/team-core.ts`.
  */
-export type TeamRole = "owner" | "finance" | "agenda" | "sponsors" | "checkin" | "reviews";
+export type TeamRole = "owner" | "finance" | "agenda" | "sponsors" | "checkin" | "reviews" | "learn";
 
 /**
  * `teamMembers/{id}` — one person invited to the organizer dashboard.

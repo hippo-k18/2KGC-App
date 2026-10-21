@@ -164,6 +164,64 @@ describe('the other roles', () => {
   });
 });
 
+describe('a Learn page editor', () => {
+  const LEARN = 'content/learn-page';
+  const LEARN_PAGE = 'app/(dash)/content/learn-page/page';
+
+  it('opens the Learn page editor and anything beneath it', () => {
+    expect(canOpen(['learn'], LEARN)).toBe(true);
+    expect(canOpen(['learn'], `/${LEARN}/`)).toBe(true);
+    expect(canOpen(['learn'], `${LEARN}/preview`)).toBe(true);
+  });
+
+  it('opens nothing else in the tree, so the rail shows Content > Learn Page alone', () => {
+    expect(EVERY_PATH.filter((p) => canOpen(['learn'], p))).toEqual([LEARN]);
+  });
+
+  it('cannot open the Content index, its sibling screens, or anything outside Content', () => {
+    expect(canOpen(['learn'], 'content')).toBe(false);
+    expect(canOpen(['learn'], 'content/basics')).toBe(false);
+    expect(canOpen(['learn'], 'content/agenda-center/session-manager')).toBe(false);
+    expect(canOpen(['learn'], ORDERS)).toBe(false);
+    expect(canOpen(['learn'], 'tickets/ticket-setup/1-1-create-tickets')).toBe(false);
+    expect(canOpen(['learn'], ADMIN_SETTINGS)).toBe(false);
+  });
+
+  it('is not fooled by a path that merely starts with the same letters', () => {
+    expect(canOpen(['learn'], `${LEARN}-archive`)).toBe(false);
+  });
+
+  it('belongs to the Learn role and owners, not to agenda', () => {
+    expect(canOpen(['agenda'], LEARN)).toBe(false);
+    expect(canOpen(['agenda'], `${LEARN}/preview`)).toBe(false);
+    expect(canOpen(['owner'], LEARN)).toBe(true);
+  });
+
+  it('lands on the editor, unless the member also holds agenda', () => {
+    expect(homeFor(['learn'])).toBe(`/${LEARN}`);
+    expect(homeFor(['agenda', 'learn'])).toBe(homeFor(['agenda']));
+    expect(homeFor(['learn', 'checkin'])).toBe(`/${LEARN}`);
+  });
+
+  it('runs the editor\'s own actions and no other screen\'s', () => {
+    expect(canRunAction(['learn'], [LEARN_PAGE])).toBe(true);
+    expect(canRunAction(['learn'], ['app/(dash)/content/basics/page'])).toBe(false);
+    expect(canRunAction(['learn'], ['app/(dash)/tickets/orders-and-transactions/attendee-orders/page'])).toBe(false);
+    expect(canRunAction(['agenda'], [LEARN_PAGE])).toBe(false);
+  });
+
+  it('downloads no exports', () => {
+    for (const kind of ['orders', 'sessions', 'speakers', 'cfp-submissions', 'attendees']) {
+      expect(canExport(['learn'], kind)).toBe(false);
+    }
+  });
+
+  it('survives parseRoles', () => {
+    expect(parseRoles(['learn'])).toEqual(['learn']);
+    expect(parseRoles(['learn', 'agenda', 'learn'])).toEqual(['agenda', 'learn']);
+  });
+});
+
 describe('paths as a request presents them', () => {
   it('ignores the leading slash, a trailing slash and the query string', () => {
     expect(canOpen(['checkin'], `/${CHECK_IN}`)).toBe(true);

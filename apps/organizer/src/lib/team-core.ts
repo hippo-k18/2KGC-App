@@ -31,16 +31,18 @@ export const TEAM_ROLES: readonly TeamRole[] = [
   'sponsors',
   'checkin',
   'reviews',
+  'learn',
 ];
 
 /** The name an owner reads when ticking a box, and what the box opens. */
 export const ROLE_LABELS: Record<TeamRole, { label: string; covers: string }> = {
   owner: { label: 'Owner', covers: 'Everything, including this screen' },
   finance: { label: 'Finance', covers: 'Tickets and Pay' },
-  agenda: { label: 'Agenda', covers: 'Content, except sponsors, exhibitors and the call for speakers' },
+  agenda: { label: 'Agenda', covers: 'Content, except sponsors, exhibitors, the call for speakers and the Learn page' },
   sponsors: { label: 'Sponsors', covers: 'Sponsor and exhibitor screens' },
   checkin: { label: 'Check-in only', covers: 'Check-in & Checkout and nothing else' },
   reviews: { label: 'Reviewer manager', covers: 'Call For Speakers/Abstracts' },
+  learn: { label: 'Learn page editor', covers: 'The KGC | Learn page editor and nothing else' },
 };
 
 interface RoleRule {
@@ -54,6 +56,8 @@ interface RoleRule {
 
 const SPONSOR_BRANCHES = ['content/sponsor-center', 'content/exhibitor-center'];
 const REVIEW_BRANCH = 'content/call-for-speakers-abstracts';
+/** The KGC | Learn page editor. Not Whova's, and not agenda's either (T309). */
+const LEARN_BRANCH = 'content/learn-page';
 
 const RULES: Record<Exclude<TeamRole, 'owner'>, RoleRule> = {
   finance: {
@@ -62,7 +66,7 @@ const RULES: Record<Exclude<TeamRole, 'owner'>, RoleRule> = {
   },
   agenda: {
     allow: ['content'],
-    except: [...SPONSOR_BRANCHES, REVIEW_BRANCH],
+    except: [...SPONSOR_BRANCHES, REVIEW_BRANCH, LEARN_BRANCH],
     home: 'content/agenda-center/session-manager',
   },
   sponsors: {
@@ -83,6 +87,10 @@ const RULES: Record<Exclude<TeamRole, 'owner'>, RoleRule> = {
     allow: [REVIEW_BRANCH],
     home: REVIEW_BRANCH,
   },
+  learn: {
+    allow: [LEARN_BRANCH],
+    home: LEARN_BRANCH,
+  },
 };
 
 /** Where an owner lands, and where sign-in always went before roles existed. */
@@ -94,7 +102,7 @@ const OWNER_HOME = 'content/basics';
  * desk should land on their main job, and somebody who is only on the desk has
  * no other entry to land on.
  */
-const HOME_ORDER: Exclude<TeamRole, 'owner'>[] = ['finance', 'agenda', 'sponsors', 'reviews', 'checkin'];
+const HOME_ORDER: Exclude<TeamRole, 'owner'>[] = ['finance', 'agenda', 'sponsors', 'reviews', 'learn', 'checkin'];
 
 /** Keeps only real role names, once each, in `TEAM_ROLES` order. */
 export function parseRoles(raw: unknown): TeamRole[] {
