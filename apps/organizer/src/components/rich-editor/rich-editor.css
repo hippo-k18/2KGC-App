@@ -1192,3 +1192,8 @@
     display: block;
   }
 }
+
+/* An open menu covers its own trigger's tooltip. */
+.rt [aria-expanded='true'][data-tip]::after {
+  display: none;
+}

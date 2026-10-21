@@ -184,12 +184,15 @@ export function useRovingToolbar(ref: RefObject<HTMLElement | null>) {
   }, [ref]);
 
   const sync = useCallback(() => {
+    ref.current?.querySelectorAll<HTMLElement>('[data-rt-item]').forEach((el) => {
+      el.tabIndex = -1;
+    });
     const list = items();
     if (active.current >= list.length) active.current = 0;
     list.forEach((el, i) => {
       el.tabIndex = i === active.current ? 0 : -1;
     });
-  }, [items]);
+  }, [items, ref]);
 
   useEffect(() => {
     sync();
