@@ -1,5 +1,6 @@
 import {
   LEARN_IMAGE_PREFIX,
+  LEARN_PAGE_DEFAULT,
   isSafeHref,
   type LearnBlock,
   type LearnPageContent,
@@ -61,36 +62,11 @@ export const LEARN_LIMITS = {
 export const LEARN_VERSIONS_KEPT = 50;
 
 /**
- * Stand-in for `LEARN_PAGE_DEFAULT` from `@kgc/shared`, which the website
- * renderer (T311) fills with today's page as blocks. Until that lands this is
- * the page an editor starts from when nothing is stored. Swap the stub for the
- * shared import when T311 merges; the name is the same on purpose.
+ * Today's /learn page as blocks (T311), what an editor starts from when nothing
+ * is stored and what revert falls back to. Re-exported so the editor and the
+ * tests have one import for the rules and the default.
  */
-export const LEARN_PAGE_DEFAULT: LearnPageContent = {
-  seoTitle: 'The Knowledge Graph Learning Program',
-  seoDescription:
-    'KGC | Learn: the team, the continuing education roster, and the four certificate programmes.',
-  sections: [
-    {
-      id: 'hero',
-      label: 'Hero',
-      background: 'plain',
-      waveBehindFirstImage: true,
-      width: 'normal',
-      paddingTop: 'large',
-      paddingBottom: 'large',
-      blocks: [
-        {
-          id: 'hero-wordmark',
-          kind: 'image',
-          image: { src: '/kgc/learn-wordmark.png', alt: 'KGC | Learn', width: 1000, height: 250 },
-          width: 'large',
-          shape: 'original',
-        },
-      ],
-    },
-  ],
-};
+export { LEARN_PAGE_DEFAULT };
 
 // ---------------------------------------------------------------------------
 // Validation

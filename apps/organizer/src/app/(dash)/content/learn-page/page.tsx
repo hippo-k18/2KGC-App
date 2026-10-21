@@ -1,6 +1,6 @@
 import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { loadLearnEditor } from '@/lib/learn-page-dev';
+import { loadLearnEditor } from '@/lib/learn-page';
 import { LearnEditor } from './learn-editor';
 
 export const dynamic = 'force-dynamic';
@@ -14,9 +14,6 @@ export const dynamic = 'force-dynamic';
  * published copy); the website renders the published one. The store and its
  * rules are T309's, the website renderer is T311's, and the contract between
  * all three is `packages/shared/src/learn-page.ts`.
- *
- * ⚠️ `loadLearnEditor` comes from the stand-in `@/lib/learn-page-dev` until
- * T309's `@/lib/learn-page` is merged; swap the import then.
  */
 export default async function LearnPageEditorPage() {
   await requireOrganizer();

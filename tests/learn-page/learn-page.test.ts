@@ -357,3 +357,25 @@ describe('image uploads', () => {
     await expect(uploadLearnImage(file(big, 'big.jpg', 'image/jpeg'))).rejects.toBeInstanceOf(UploadRejected);
   });
 });
+
+describe('clearing a setting (AGENTS gotcha 9, T313)', () => {
+  it('replaces the draft whole, so a setting sent as an absent key is gone after reload', async () => {
+    const withAlign = page('aligned');
+    const block = withAlign.sections[0].blocks[0];
+    block.align = 'center';
+    block.spaceAbove = 'large';
+    await saveLearnDraft(withAlign, 0, ACTOR);
+    expect((await stored())?.draft.sections[0].blocks[0]).toMatchObject({ align: 'center', spaceAbove: 'large' });
+
+    // The editor strips `undefined` keys before sending, so "back to default" arrives as no key at all.
+    const cleared = structuredClone(withAlign);
+    delete cleared.sections[0].blocks[0].align;
+    delete cleared.sections[0].blocks[0].spaceAbove;
+    await saveLearnDraft(cleared, 1, ACTOR);
+
+    const reloaded = (await loadLearnEditor()).doc.draft.sections[0].blocks[0];
+    expect(reloaded).not.toHaveProperty('align');
+    expect(reloaded).not.toHaveProperty('spaceAbove');
+    expect(reloaded).toEqual(cleared.sections[0].blocks[0]);
+  });
+});
