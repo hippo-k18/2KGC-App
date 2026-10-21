@@ -6,7 +6,7 @@ import { eventBasics } from '@/lib/event';
 import { ChevronIcon } from '@/lib/icons';
 import { IMPLEMENTED, NAV, allPaths, searchIndex, type NavNode } from '@/lib/nav';
 import { canOpen } from '@/lib/team-core';
-import { logoutAction } from '../login/actions';
+import { logoutAction, logoutEverywhereAction } from '../login/actions';
 import { Sidebar, TopNav, type SlimNode } from './dash-nav';
 import { NavProgress } from './nav-progress';
 import { FeatureSearch } from './feature-search';
@@ -142,6 +142,9 @@ export default async function DashLayout({ children }: { children: React.ReactNo
             <form action={logoutAction} style={{ display: 'inline-flex' }}>
               <button type="submit" className="header-signout">
                 Sign out
+              </button>
+              <button type="submit" formAction={logoutEverywhereAction} className="header-signout">
+                Sign out on all devices
               </button>
             </form>
           </nav>
