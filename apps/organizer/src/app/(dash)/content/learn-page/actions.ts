@@ -5,9 +5,13 @@ import { LEARN_PAGE_DOC, type LearnPageContent, type PageImage } from '@kgc/shar
 import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { recordError } from '@/lib/errors';
+import { recordLearnMedia } from '@/lib/learn-media';
+import { uploadName } from '@/lib/learn-media-core';
 import {
+  LearnPublishInvalid,
   LearnVersionMissing,
   loadLearnEditor,
+  loadLearnLibrarySections,
   publishLearnPage,
   restoreLearnVersion,
   revertLearnDraft,
@@ -46,6 +50,7 @@ function failure(err: unknown, what: string): LearnResult<never> {
   if (err instanceof LearnConflict) {
     return { ok: false, error: err.message, conflict: true, currentRevision: err.currentRevision };
   }
+  if (err instanceof LearnPublishInvalid) return { ok: false, error: err.message, problems: err.problems };
   if (err instanceof LearnVersionMissing || err instanceof UploadRejected || err instanceof UploadUnavailable) {
     return { ok: false, error: err.message };
   }
@@ -53,8 +58,10 @@ function failure(err: unknown, what: string): LearnResult<never> {
   return { ok: false, error: `Could not ${what}. Nothing was changed. Try again in a moment.` };
 }
 
-function checkContent(content: unknown): { ok: true; content: LearnPageContent } | LearnResult<never> {
-  const v = validateLearnContent(content, { allowEmulator: usingStorageEmulator() });
+/** Validated against the saved sections that exist now, so a reusable block can never point nowhere. */
+async function checkContent(content: unknown): Promise<{ ok: true; content: LearnPageContent } | LearnResult<never>> {
+  const libraryIds = new Set((await loadLearnLibrarySections()).keys());
+  const v = validateLearnContent(content, { allowEmulator: usingStorageEmulator(), libraryIds });
   if (!v.ok) {
     return { ok: false, error: 'Some parts of the page need fixing before it can be saved.', problems: v.problems };
   }
@@ -80,7 +87,7 @@ export async function saveLearnDraftAction(
 ): Promise<LearnResult<{ revision: number; savedAt: number }>> {
   const actor = await requireOrganizer();
   if (!isRevision(baseRevision)) return { ok: false, error: 'The editor sent no revision. Reload the page.' };
-  const checked = checkContent(content);
+  const checked = await checkContent(content);
   if (!checked.ok) return checked;
   try {
     const doc = await saveLearnDraft(checked.content, baseRevision, actor);
@@ -109,7 +116,7 @@ export async function publishLearnPageAction(input: {
   if (!input || !isRevision(input.baseRevision)) return { ok: false, error: 'The editor sent no revision. Reload the page.' };
   let content: LearnPageContent | undefined;
   if (input.content !== undefined) {
-    const checked = checkContent(input.content);
+    const checked = await checkContent(input.content);
     if (!checked.ok) return checked;
     content = checked.content;
   }
@@ -174,12 +181,20 @@ export async function restoreLearnVersionAction(
   }
 }
 
-export async function uploadLearnImageAction(formData: FormData): Promise<LearnResult<{ image: PageImage }>> {
+export async function uploadLearnImageAction(formData: FormData): Promise<LearnResult<{ image: PageImage; mediaId?: string }>> {
   const actor = await requireOrganizer();
   const file = formData.get('file');
   if (!(file instanceof File)) return { ok: false, error: 'Choose an image file.' };
   try {
     const { image, path, bytes, resized } = await uploadLearnImage(file);
+    // The media library row (T315). The file is already stored and usable, so a
+    // failed row write is logged rather than failing the upload; Rescan (backfill) picks it up.
+    let mediaId: string | undefined;
+    try {
+      mediaId = (await recordLearnMedia({ path, image, bytes, fileName: uploadName(file.name), actor })).id;
+    } catch (err) {
+      recordError('learn page media row write failed', err);
+    }
     await appendAudit({
       actor,
       action: 'learnPage.uploadImage',
@@ -187,9 +202,9 @@ export async function uploadLearnImageAction(formData: FormData): Promise<LearnR
       subject: 'KGC | Learn page',
       targetId: 'learn',
       before: {},
-      after: { path, bytes, width: image.width, height: image.height, resized },
+      after: { path, bytes, width: image.width, height: image.height, resized, mediaId: mediaId ?? null },
     });
-    return { ok: true, image };
+    return mediaId ? { ok: true, image, mediaId } : { ok: true, image };
   } catch (err) {
     return failure(err, 'upload that image');
   }

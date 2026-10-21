@@ -47,4 +47,5 @@ export * from "./learn-page.js";
 export * from "./learn-page-view-core.js";
 export * from "./learn-page-sample.js";
 export * from "./rich-doc-core.js";
+export * from "./learn-reusable-core.js";
 export * from "./learn-embed-core.js";
