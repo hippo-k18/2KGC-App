@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { LEARN_EMBED_PROVIDERS, isLearnEmbedProvider, learnEmbedSrc } from "./learn-embed-core.js";
+import {
+  LEARN_EMBED_PROVIDERS,
+  SHORT_MAPS_LINK_MESSAGE,
+  defaultEmbedTitle,
+  isLearnEmbedProvider,
+  learnEmbedLinkProblem,
+  learnEmbedSrc,
+} from "./learn-embed-core.js";
 
 const YT = "dQw4w9WgXcQ";
 const LOOM = "0281766fa2d04bb788eaf19e65135184";
@@ -60,10 +67,41 @@ const CASES: Record<string, { ok: [string, string][]; bad: string[] }> = {
     ],
   },
   "google-maps": {
-    ok: [[`https://www.google.com/maps/embed?pb=${encodeURIComponent(PB)}`, `https://www.google.com/maps/embed?pb=${encodeURIComponent(PB)}`]],
+    ok: [
+      [`https://www.google.com/maps/embed?pb=${encodeURIComponent(PB)}`, `https://www.google.com/maps/embed?pb=${encodeURIComponent(PB)}`],
+      // T325: the links people copy from the address bar, rebuilt into the keyless embed form.
+      [
+        "https://www.google.com/maps/place/Bryant+Park/@40.7535965,-73.9832326,17z/data=!3m1!4b1!4m6!3m5!1s0x89c259",
+        "https://www.google.com/maps?q=Bryant%20Park&z=17&output=embed",
+      ],
+      ["https://www.google.com/maps/place/Bryant+Park", "https://www.google.com/maps?q=Bryant%20Park&output=embed"],
+      [
+        "https://www.google.com/maps/place/Caf%C3%A9+de+Flore,+172+Bd+Saint-Germain/@48.854,2.332,15.5z",
+        "https://www.google.com/maps?q=Caf%C3%A9%20de%20Flore%2C%20172%20Bd%20Saint-Germain&z=16&output=embed",
+      ],
+      ["https://www.google.com/maps/@40.75,-73.98,17z", "https://www.google.com/maps?q=40.75%2C-73.98&z=17&output=embed"],
+      ["https://google.com/maps/@40.75,-73.98,3a,75y,90t", "https://www.google.com/maps?q=40.75%2C-73.98&output=embed"],
+      ["https://www.google.com/maps/search/coffee+near+bryant+park/@40.75,-73.98,15z", "https://www.google.com/maps?q=coffee%20near%20bryant%20park&z=15&output=embed"],
+      ["https://www.google.com/maps/search/?api=1&query=Bryant+Park", "https://www.google.com/maps?q=Bryant%20Park&output=embed"],
+      ["https://maps.google.com/maps?q=Bryant+Park", "https://www.google.com/maps?q=Bryant%20Park&output=embed"],
+      ["https://www.google.com/maps?q=100%25+Coffee", "https://www.google.com/maps?q=100%25%20Coffee&output=embed"],
+      [
+        "https://www.google.com/maps?q=Bryant+Park%22%3E%3Cscript%3E&output=embed",
+        "https://www.google.com/maps?q=Bryant%20Park%22%3E%3Cscript%3E&output=embed",
+      ],
+    ],
     bad: [
-      "https://www.google.com/maps/place/Bryant+Park",
       "https://maps.app.goo.gl/abc",
+      "https://goo.gl/maps/abc",
+      "https://www.google.com/maps",
+      "https://www.google.com/maps/dir/Grand+Central/Bryant+Park",
+      "https://www.google.com/maps/embed/v1/place?key=x&q=Bryant+Park",
+      "https://www.google.com/maps/@91,-73.98,17z",
+      "https://www.google.com/maps/@40.75,-181,17z",
+      `https://www.google.com/maps/place/${"x".repeat(201)}`,
+      "https://www.google.com/maps/place/%E0%A4%A",
+      "https://www.google.com/search?q=Bryant+Park",
+      "https://www.google.com.evil.example/maps/place/Bryant+Park",
       "https://www.google.com/maps/embed",
       "https://www.google.com/maps/embed?pb=%3Cscript%3E",
       "https://www.google.com.evil.example/maps/embed?pb=!1m1",
@@ -195,5 +233,49 @@ describe("learnEmbedSrc", () => {
         expect(src.startsWith("https://")).toBe(true);
       }
     }
+  });
+});
+
+describe("learnEmbedLinkProblem (T325)", () => {
+  it("has nothing to say about a link that works or an empty one", () => {
+    expect(learnEmbedLinkProblem("google-maps", "https://www.google.com/maps/place/Bryant+Park/@40.75,-73.98,17z")).toBeNull();
+    expect(learnEmbedLinkProblem("youtube", `https://youtu.be/${YT}`)).toBeNull();
+    expect(learnEmbedLinkProblem("google-maps", "  ")).toBeNull();
+  });
+
+  it("says plainly why a short Google Maps link cannot be shown", () => {
+    expect(learnEmbedLinkProblem("google-maps", "https://maps.app.goo.gl/AbCdEf123")).toBe(SHORT_MAPS_LINK_MESSAGE);
+    expect(learnEmbedLinkProblem("google-maps", "https://goo.gl/maps/AbCdEf123")).toBe(SHORT_MAPS_LINK_MESSAGE);
+    expect(SHORT_MAPS_LINK_MESSAGE).toBe(
+      "Short Google Maps links can't be shown. Open the link, then copy the address from the browser's address bar.",
+    );
+  });
+
+  it("names half-typed addresses, http, directions, unpublished docs and other services", () => {
+    expect(learnEmbedLinkProblem("google-maps", "www.google.com/maps/place/x")).toMatch(/^That is not a full web address yet\. Paste the whole Google Maps link/);
+    expect(learnEmbedLinkProblem("youtube", "https:/")).toMatch(/^That is not a full web address yet/);
+    expect(learnEmbedLinkProblem("youtube", `http://youtu.be/${YT}`)).toBe("The link must start with https://.");
+    expect(learnEmbedLinkProblem("google-maps", "https://www.google.com/maps/dir/A/B")).toMatch(/^Directions can't be shown\./);
+    expect(learnEmbedLinkProblem("google-docs", `https://docs.google.com/document/d/${GID}/edit`)).toMatch(/^Only published files can be shown\./);
+    expect(learnEmbedLinkProblem("google-forms", "https://forms.gle/abc")).toMatch(/^Short Google Forms links can't be shown\./);
+    expect(learnEmbedLinkProblem("vimeo", `https://youtu.be/${YT}`)).toBe("That is not a Vimeo link this page can show.");
+  });
+
+  it("never says a link is fine when learnEmbedSrc would refuse it", () => {
+    for (const [provider, { ok, bad }] of Object.entries(CASES)) {
+      for (const [input] of ok) expect(learnEmbedLinkProblem(provider, input), input).toBeNull();
+      for (const input of bad) expect(learnEmbedLinkProblem(provider, input), input).not.toBeNull();
+    }
+  });
+});
+
+describe("defaultEmbedTitle (T325)", () => {
+  it("follows the service", () => {
+    expect(defaultEmbedTitle("google-maps")).toBe("Map");
+    expect(defaultEmbedTitle("youtube")).toBe("Video");
+    expect(defaultEmbedTitle("google-forms")).toBe("Form");
+    expect(defaultEmbedTitle("calendly")).toBe("Calendar");
+    expect(defaultEmbedTitle("nope")).toBe("Embedded content");
+    for (const p of LEARN_EMBED_PROVIDERS) expect(defaultEmbedTitle(p).length).toBeGreaterThan(0);
   });
 });

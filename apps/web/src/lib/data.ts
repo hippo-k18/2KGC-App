@@ -28,6 +28,7 @@ import {
   LEARN_PAGE_DEFAULT,
   LEARN_PAGE_DOC,
   LEARN_PAGE_LIBRARY,
+  type LearnImageOptions,
   type LearnPageContent,
   type LearnSection,
   expandReusableBlocks,
@@ -1365,12 +1366,26 @@ export async function programmeCounts(): Promise<{ speakers: number; sessions: n
  * request; the shared 30-second cache is what makes a publish appear within a
  * minute.
  */
+/**
+ * Which images a stored Learn page may show on www (T324 F2): uploads in our
+ * own bucket's `pageLayouts/learn/` folder, and the Storage emulator's only
+ * when this server runs against it. The bucket is worked out exactly as the
+ * dashboard's `storageBucketName()` does, so the two agree on what an upload is.
+ */
+export function learnImageOptions(): LearnImageOptions {
+  const project = process.env.GCLOUD_PROJECT ?? 'kgc-conference-app-and-website';
+  return {
+    bucket: process.env.FIREBASE_STORAGE_BUCKET ?? `${project}.firebasestorage.app`,
+    allowEmulator: Boolean(process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? process.env.STORAGE_EMULATOR_HOST),
+  };
+}
+
 export const learnPage = cache(async function learnPage(): Promise<LearnPageContent> {
   return shared(
     'learnPage',
     async () => {
       const snap = await db().doc(LEARN_PAGE_DOC).get();
-      return readLearnPage(snap.data()?.published) ?? LEARN_PAGE_DEFAULT;
+      return readLearnPage(snap.data()?.published, learnImageOptions()) ?? LEARN_PAGE_DEFAULT;
     },
     LEARN_PAGE_DEFAULT,
   );
@@ -1390,7 +1405,8 @@ export const learnPreview = cache(async function learnPreview(token: string): Pr
     const snap = await db().doc(LEARN_PAGE_DOC).get();
     const data = snap.data();
     if (!data || !previewTokenMatches(data.previewToken, token)) return null;
-    const draft = readLearnPage(data.draft);
+    const images = learnImageOptions();
+    const draft = readLearnPage(data.draft, images);
     if (!draft || !draft.sections.some((s) => s.blocks.some((b) => b.kind === 'reusable'))) return draft;
     // Publish fills saved sections in (T315), so the live copy never holds a
     // reusable block; a draft does, and the preview must show what Publish
@@ -1398,10 +1414,10 @@ export const learnPreview = cache(async function learnPreview(token: string): Pr
     const lib = await db().collection(LEARN_PAGE_LIBRARY).get();
     const sections = new Map<string, LearnSection>();
     for (const d of lib.docs) {
-      const section = parseLearnSection((d.data() as { section?: unknown }).section);
+      const section = parseLearnSection((d.data() as { section?: unknown }).section, images);
       if (section) sections.set(d.id, section);
     }
-    return readLearnPage(expandReusableBlocks(draft, sections));
+    return readLearnPage(expandReusableBlocks(draft, sections), images);
   } catch (err) {
     console.error('[data] learnPreview failed; rendering the published page instead', err);
     return null;

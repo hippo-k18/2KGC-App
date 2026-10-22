@@ -1,5 +1,5 @@
 import type { LearnPageContent, PageImage } from "./learn-page.js";
-import { isLearnImageSrc, parseLearnPageContent } from "./learn-page-view-core.js";
+import { isLearnImageSrc, parseLearnPageContent, type LearnImageOptions } from "./learn-page-view-core.js";
 
 /**
  * The parts of the KGC | Learn page the website needs outside the renderer
@@ -19,14 +19,14 @@ export interface LearnPageMeta {
  * Anything malformed is dropped rather than failing the page: a page with no
  * sharing image is better than no page.
  */
-export function parseLearnPageMeta(value: unknown): LearnPageMeta {
+export function parseLearnPageMeta(value: unknown, o: LearnImageOptions = {}): LearnPageMeta {
   if (typeof value !== "object" || value === null) return {};
   const v = value as Record<string, unknown>;
   const out: LearnPageMeta = {};
   if (v.noindex === true) out.noindex = true;
   const img = v.ogImage as Record<string, unknown> | undefined;
-  if (img && typeof img === "object" && typeof img.src === "string" && isLearnImageSrc(img.src)) {
-    const size = (n: unknown) => (typeof n === "number" && Number.isInteger(n) && n > 0 ? n : undefined);
+  if (img && typeof img === "object" && typeof img.src === "string" && isLearnImageSrc(img.src, o)) {
+    const size = (n: unknown) => (typeof n === "number" && Number.isInteger(n) && n > 0 && n <= 100_000 ? n : undefined);
     const width = size(img.width);
     const height = size(img.height);
     out.ogImage = {
@@ -41,11 +41,13 @@ export function parseLearnPageMeta(value: unknown): LearnPageMeta {
 
 /**
  * A stored `published` or `draft` value as the website renders it, sharing
- * image and noindex included, or `null` when it is not a usable page.
+ * image and noindex included, or `null` when it is not a usable page. The
+ * website passes its bucket (`LearnImageOptions`), so an image from anywhere
+ * else is dropped.
  */
-export function readLearnPage(value: unknown): LearnPageContent | null {
-  const content = parseLearnPageContent(value);
-  return content ? { ...content, ...parseLearnPageMeta(value) } : null;
+export function readLearnPage(value: unknown, o: LearnImageOptions = {}): LearnPageContent | null {
+  const content = parseLearnPageContent(value, o);
+  return content ? { ...content, ...parseLearnPageMeta(value, o) } : null;
 }
 
 /** A preview token as the dashboard mints it: 32 random bytes in base64url (43 characters). */

@@ -6,6 +6,8 @@ import {
   learnEmbedSrc,
   focalPosition,
   hasLearnImage,
+  isLearnImageSrc,
+  learnCountdownUntil,
   tocEntries,
   type LearnBlock,
   type LearnPageContent,
@@ -92,7 +94,8 @@ export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: Blo
       );
 
     case 'gallery': {
-      const images: GalleryImage[] = block.images.map((im) => ({
+      // Checked again here because the lightbox draws a plain `<img>` (T324 F2).
+      const images: GalleryImage[] = block.images.filter((im) => isLearnImageSrc(im.src)).map((im) => ({
         id: im.id,
         src: imageSrc(im, ctx),
         alt: im.alt,
@@ -103,6 +106,7 @@ export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: Blo
         unoptimized: !imageOptimized(im, ctx),
         priority: takePriority(ctx),
       }));
+      if (images.length === 0) return null;
       return (
         <div {...blockAttrs(block, `lp-gallery-${block.layout}-block`)}>
           <LearnGallery images={images} layout={block.layout} columns={block.columns} lightbox={block.lightbox} />
@@ -214,7 +218,7 @@ export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: Blo
     case 'logos':
       return (
         <ul {...blockAttrs(block, block.grayscale ? 'lp-logos-gray' : '')}>
-          {block.items.map((it) => {
+          {block.items.filter((it) => isLearnImageSrc(it.src)).map((it) => {
             const pic = <Picture image={it} ctx={ctx} sizes="200px" />;
             return <li key={it.id}>{it.href ? <SmartLink href={it.href}>{pic}</SmartLink> : pic}</li>;
           })}
@@ -247,15 +251,20 @@ export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: Blo
       );
     }
 
-    case 'countdown':
+    case 'countdown': {
+      // A date outside the editor's range draws nothing: `toISOString()`
+      // throws past year 275760, and that was a 500 on www (T324 F1).
+      const until = learnCountdownUntil(block.until);
+      if (until === undefined) return null;
       return (
         <div {...blockAttrs(block)}>
           {block.label && <p className="lp-countdown-label">{block.label}</p>}
-          <time dateTime={new Date(block.until).toISOString()} className="lp-countdown-time">
-            <LearnCountdown until={block.until} now={ctx.now} doneText={block.doneText} />
+          <time dateTime={new Date(until).toISOString()} className="lp-countdown-time">
+            <LearnCountdown until={until} now={ctx.now} doneText={block.doneText} />
           </time>
         </div>
       );
+    }
 
     case 'table': {
       const table = block.doc.content.find((n) => n.type === 'table');

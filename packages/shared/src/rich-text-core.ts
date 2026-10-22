@@ -58,31 +58,45 @@ export type RichBlock =
 const SAFE_SCHEMES = ["http:", "https:", "mailto:", "tel:"];
 
 /**
- * Whether a link target may become an anchor.
+ * Whether a link target may become an anchor. Every link field on the Learn
+ * page (rich text, buttons, logos, cards, image links, LinkedIn) goes through
+ * this one check, on save and again on render.
  *
  * Relative targets (`/agenda`, `#wifi`) are allowed through unparsed: they
  * cannot carry a scheme, so there is nothing to smuggle, and an organizer
  * linking to another page of their own site should not have to type the origin.
+ *
+ * ⚠️ The browser is more forgiving than `new URL` looks, and every trick below
+ * is a link that leaves the site while a `startsWith` test calls it ours, so
+ * the renderer drops the new tab and `rel` (T324 U2, U3):
+ * - A backslash counts as a slash for http and https: `/\evil.example`,
+ *   `\\evil.example`, `https:/\evil.example` and `https:\\evil.example` all
+ *   open `evil.example`. So a relative target may not start with two of
+ *   either, and an http(s) one must be written `scheme://host` exactly, with
+ *   no backslash or space in the host part.
+ * - `https:evil.example` (no slashes) also opens `evil.example`.
+ * - The URL parser drops leading control characters and spaces, and tab, CR
+ *   and LF anywhere, so `\u0001https://evil.example` and `/\t/evil.example`
+ *   (T321) are off-site too. Tab, CR and LF are removed before the relative
+ *   check, as the browser will; any other control character refuses the link.
  */
 export function isSafeHref(href: string): boolean {
+  if (typeof href !== "string") return false;
   const trimmed = href.trim();
   if (trimmed === "") return false;
-  // A bare `//host` is scheme-relative and inherits the page's scheme, which is
-  // an off-site link wearing the clothes of a relative one. Checked before the
-  // single slash below, which would otherwise let it through.
-  //
-  // ⚠️ A backslash counts as a slash here, and that is not pedantry. The WHATWG
-  // URL parser treats `\` as `/` for http and https, so a browser resolves
-  // `/\evil.example` to `https://evil.example` while every `startsWith("//")`
-  // test in the world says it is relative. `rich-text.tsx` then classifies it
-  // as one of our own pages and drops `rel="noreferrer noopener"` and the new
-  // tab. Same for `\\host` and `\/host`.
-  //
-  // The URL parser also strips ASCII tab, CR and LF anywhere in a link, so
-  // `/\t/host` becomes `//host` in the browser (T321): those are removed
-  // before the check, the same way the browser will.
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(trimmed)) return false;
   if (/^[/\\][/\\]/.test(trimmed.replace(/[\t\n\r]/g, ""))) return false;
   if (trimmed.startsWith("/") || trimmed.startsWith("#")) return true;
+  // The scheme as typed: a tab or space inside `ht tps:` is not a scheme.
+  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(trimmed);
+  if (!scheme || !SAFE_SCHEMES.includes(`${scheme[1].toLowerCase()}:`)) return false;
+  if (/^https?:$/i.test(scheme[0])) {
+    const rest = trimmed.slice(scheme[0].length);
+    if (!rest.startsWith("//")) return false;
+    const authority = /^[^/?#]*/.exec(rest.slice(2))![0];
+    if (authority === "" || /[\\\s]/.test(authority)) return false;
+  }
   try {
     return SAFE_SCHEMES.includes(new URL(trimmed).protocol);
   } catch {
@@ -93,46 +107,100 @@ export function isSafeHref(href: string): boolean {
 /**
  * `[text](href)`, `**strong**`, `*em*`, `_em_` and `` `code` ``, left to right.
  *
- * One pass with one regular expression rather than four nested passes, because
- * the alternative re-parses the output of the previous stage and a literal
- * asterisk inside a link's text then becomes emphasis. Markers are not nested:
- * `**bold with a [link](…)**` renders the whole thing bold and the link as
- * text. That is a real limitation and an acceptable one for venue copy.
+ * One pass rather than four nested passes, because the alternative re-parses
+ * the output of the previous stage and a literal asterisk inside a link's text
+ * then becomes emphasis. Markers are not nested: `**bold with a [link](…)**`
+ * renders the whole thing bold and the link as text. That is a real limitation
+ * and an acceptable one for venue copy.
+ *
+ * The rules are exactly those of this regular expression, tried at each
+ * position in turn, first alternative first:
+ *
+ *   \[([^\]\n]*)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|_([^_\n]+)_|`([^`\n]+)`
+ *
+ * It used to be that regular expression, which is quadratic: at every `[` it
+ * scans ahead for a `]` that is not there, so `'['.repeat(1e5)` took 6.6 s
+ * (T324 U1). Here each "scan ahead" is a lookup in a table built in one pass
+ * from the end, so the whole parse is linear.
  */
-const INLINE =
-  /\[([^\]\n]*)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|_([^_\n]+)_|`([^`\n]+)`/g;
+function nextTable(text: string, stop: (c: string) => boolean): Int32Array {
+  const next = new Int32Array(text.length + 1);
+  next[text.length] = text.length;
+  for (let i = text.length - 1; i >= 0; i--) next[i] = stop(text[i]!) ? i : next[i + 1]!;
+  return next;
+}
+
+type InlineMatch = { end: number; span: InlineSpan };
+
+function inlineMatcher(text: string): (i: number) => InlineMatch | null {
+  const n = text.length;
+  const bracket = nextTable(text, (c) => c === "]" || c === "\n");
+  const paren = nextTable(text, (c) => c === ")" || /\s/.test(c));
+  const star = nextTable(text, (c) => c === "*" || c === "\n");
+  const under = nextTable(text, (c) => c === "_" || c === "\n");
+  const tick = nextTable(text, (c) => c === "`" || c === "\n");
+
+  /** `open` + at least one character up to the next `close` (no newline) + `close`. */
+  const delimited = (i: number, open: number, table: Int32Array, close: string): number => {
+    const j = table[i + open]!;
+    if (j === i + open || j >= n || text[j] !== close) return -1;
+    if (close === "*" && open === 2 && text[j + 1] !== "*") return -1;
+    return j;
+  };
+
+  return (i) => {
+    const c = text[i];
+    if (c === "[") {
+      const j = bracket[i + 1]!;
+      if (j < n && text[j] === "]" && text[j + 1] === "(") {
+        const k = paren[j + 2]!;
+        if (k > j + 2 && k < n && text[k] === ")") {
+          const linkText = text.slice(i + 1, j);
+          const href = text.slice(j + 2, k);
+          // An unsafe or empty target keeps the words and loses the link. The
+          // brackets go with it, because `[click here]` on a page is noise.
+          const label = linkText === "" ? href : linkText;
+          const span: InlineSpan = isSafeHref(href) ? { kind: "link", text: label, href: href.trim() } : { kind: "text", text: label };
+          return { end: k + 1, span };
+        }
+      }
+      return null;
+    }
+    if (c === "*") {
+      if (text[i + 1] === "*") {
+        const j = delimited(i, 2, star, "*");
+        if (j >= 0) return { end: j + 2, span: { kind: "strong", text: text.slice(i + 2, j) } };
+      }
+      const j = delimited(i, 1, star, "*");
+      return j >= 0 ? { end: j + 1, span: { kind: "em", text: text.slice(i + 1, j) } } : null;
+    }
+    if (c === "_") {
+      const j = delimited(i, 1, under, "_");
+      return j >= 0 ? { end: j + 1, span: { kind: "em", text: text.slice(i + 1, j) } } : null;
+    }
+    if (c === "`") {
+      const j = delimited(i, 1, tick, "`");
+      return j >= 0 ? { end: j + 1, span: { kind: "code", text: text.slice(i + 1, j) } } : null;
+    }
+    return null;
+  };
+}
 
 export function parseInline(text: string): InlineSpan[] {
   const spans: InlineSpan[] = [];
+  const match = inlineMatcher(text);
   let last = 0;
-
-  // `exec` in a loop, with `lastIndex` reset first: the regex is a module
-  // constant with the `g` flag, so a previous call leaves its cursor behind and
-  // the second page an app renders would start parsing halfway down.
-  INLINE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = INLINE.exec(text)) !== null) {
-    if (m.index > last) spans.push({ kind: "text", text: text.slice(last, m.index) });
-    last = m.index + m[0].length;
-
-    const [, linkText, href, strong, star, underscore, code] = m;
-    if (href !== undefined) {
-      // An unsafe or empty target keeps the words and loses the link. The
-      // brackets go with it, because `[click here]` on a page is noise.
-      const label = linkText === "" ? href : linkText;
-      if (isSafeHref(href)) spans.push({ kind: "link", text: label, href: href.trim() });
-      else spans.push({ kind: "text", text: label });
-    } else if (strong !== undefined) {
-      spans.push({ kind: "strong", text: strong });
-    } else if (star !== undefined) {
-      spans.push({ kind: "em", text: star });
-    } else if (underscore !== undefined) {
-      spans.push({ kind: "em", text: underscore });
-    } else if (code !== undefined) {
-      spans.push({ kind: "code", text: code });
+  let i = 0;
+  while (i < text.length) {
+    const m = match(i);
+    if (!m) {
+      i++;
+      continue;
     }
+    if (i > last) spans.push({ kind: "text", text: text.slice(last, i) });
+    spans.push(m.span);
+    last = i = m.end;
   }
-
   if (last < text.length) spans.push({ kind: "text", text: text.slice(last) });
   return spans;
 }

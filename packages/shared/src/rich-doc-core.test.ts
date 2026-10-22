@@ -327,3 +327,48 @@ describe("plain text, counts and headings", () => {
     expect(isSafeRichHref(`#${slugifyAnchor("Builder MC-1 Bricks")}`)).toBe(true);
   });
 });
+
+describe("isSafeRichHref shares isSafeHref's rules (T324 U2, U3)", () => {
+  it("refuses backslash and control-character disguises", () => {
+    for (const href of ["https:/\\evil.example", "https:\\\\evil.example", "http:\\\\evil.example", "/\\evil.example", "\\\\evil.example", "//evil.example", "\u0001https://evil.example", "https:evil.example"]) {
+      expect(isSafeRichHref(href), JSON.stringify(href)).toBe(false);
+      const doc = sanitizeRichDoc({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "x", marks: [{ type: "link", href }] }] }] });
+      expect(JSON.stringify(doc)).not.toContain("evil");
+    }
+    expect(isSafeRichHref("https://example.com/a")).toBe(true);
+  });
+
+  it("drops inline handlers, styles and unknown attributes when it reads a stored doc", () => {
+    const doc = sanitizeRichDoc({
+      type: "doc",
+      attrs: { onload: "alert(1)" },
+      content: [
+        {
+          type: "paragraph",
+          style: "background:url(javascript:alert(1))",
+          attrs: { onclick: "alert(1)", class: "x" },
+          onclick: "alert(1)",
+          content: [
+            {
+              type: "text",
+              text: "hi",
+              style: "color:red",
+              onmouseover: "alert(1)",
+              marks: [
+                { type: "link", href: "/a", onclick: "alert(1)", target: "_top", rel: "opener", style: "x" },
+                { type: "color", color: "red;background:url(x)" },
+                { type: "bold", attrs: { style: "x" } },
+              ],
+            },
+          ],
+        },
+        { type: "html", html: "<img src=x onerror=alert(1)>" },
+        { type: "image", attrs: { src: "https://evil.example/a.png" } },
+      ],
+    });
+    expect(doc).toEqual({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "hi", marks: [{ type: "link", href: "/a" }, { type: "bold" }] }] }],
+    });
+  });
+});

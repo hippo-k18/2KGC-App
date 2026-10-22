@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import type { CSSProperties, ReactNode } from 'react';
-import { focalPosition, isStorageImageSrc, type LinkButton, type PageImage } from '@kgc/shared';
+import { focalPosition, isLearnImageSrc, isSafeHref, isStorageImageSrc, type LinkButton, type PageImage } from '@kgc/shared';
 
 /*
  * Learn page v2 blocks (T319), shared by the website (`apps/web/src/components/
@@ -42,6 +42,10 @@ export function takePriority(ctx: BlockCtx): boolean {
 /**
  * An image with its stored width and height, so the browser reserves its box
  * before it loads (no layout shift).
+ *
+ * The parser has already checked where the image comes from; it is checked
+ * again here (`isLearnImageSrc`), so a renderer handed anything else draws
+ * nothing rather than fetching from somebody else's host (T324 F2).
  */
 export function Picture({
   image,
@@ -58,6 +62,7 @@ export function Picture({
   alt?: string;
   priority?: boolean;
 }) {
+  if (!isLearnImageSrc(image.src)) return null;
   const objectPosition = focalPosition(image);
   return (
     <Image
@@ -76,6 +81,7 @@ export function Picture({
 
 /** A photo that fills its box (a section background), cropped at its focal point. */
 export function FillPicture({ image, ctx, className }: { image: PageImage; ctx: BlockCtx; className?: string }) {
+  if (!isLearnImageSrc(image.src)) return null;
   return (
     <Image
       src={imageSrc(image, ctx)}
@@ -90,7 +96,13 @@ export function FillPicture({ image, ctx, className }: { image: PageImage; ctx: 
   );
 }
 
-/** Our own pages, anchors and `mailto:` keep the tab; other sites (or a link set to) open a new one. */
+/**
+ * Our own pages, anchors and `mailto:` keep the tab; other sites (or a link
+ * set to) open a new one, with `rel="noreferrer noopener"`. `isSafeHref` only
+ * passes an off-site link written `http(s)://host`, so the test below sees
+ * every one of them. A link that fails it (written straight to Firestore)
+ * keeps its words and loses the link (T324 U2, U3).
+ */
 export function SmartLink({
   href,
   className,
@@ -104,6 +116,7 @@ export function SmartLink({
   children: ReactNode;
   style?: CSSProperties;
 }) {
+  if (!isSafeHref(href)) return <>{children}</>;
   const external = newTab ?? /^https?:\/\//i.test(href);
   return external ? (
     <a href={href} className={className} style={style} target="_blank" rel="noreferrer noopener">

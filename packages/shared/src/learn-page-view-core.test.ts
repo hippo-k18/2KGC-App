@@ -62,7 +62,7 @@ describe("parseLearnPageContent", () => {
   });
 
   it("falls back to defaults for unknown options instead of failing", () => {
-    const parsed = parseLearnPageContent(page([{ id: "a", kind: "image", image: { src: "/a.png", alt: "", width: 10, height: 10 }, width: "huge", shape: "star" }], { background: "red", width: "giant" }));
+    const parsed = parseLearnPageContent(page([{ id: "a", kind: "image", image: { src: "/kgc/a.png", alt: "", width: 10, height: 10 }, width: "huge", shape: "star" }], { background: "red", width: "giant" }));
     expect(parsed?.sections[0]).toMatchObject({ background: "plain", width: "normal" });
     expect(parsed?.sections[0]?.blocks[0]).toMatchObject({ width: "medium", shape: "original" });
   });
@@ -80,7 +80,7 @@ describe("parseLearnPageContent", () => {
   });
 
   it("clamps a focal point into the image", () => {
-    const [b] = blocksOf(page([{ id: "a", kind: "image", image: { src: "/a.png", alt: "", width: 10, height: 10, focusX: -1, focusY: 3 }, width: "small", shape: "square" }]));
+    const [b] = blocksOf(page([{ id: "a", kind: "image", image: { src: "/kgc/a.png", alt: "", width: 10, height: 10, focusX: -1, focusY: 3 }, width: "small", shape: "square" }]));
     expect(b?.kind === "image" && focalPosition(b.image)).toBe("0% 100%");
   });
 
@@ -121,9 +121,10 @@ describe("learnRichParagraphs and isLearnImageSrc", () => {
     expect(p[0]?.[0]).toEqual([{ kind: "text", text: "Meet the " }, { kind: "strong", text: "KGC" }]);
   });
 
-  it("allows site paths and http(s) only", () => {
+  it("allows site assets and Learn uploads in Storage only", () => {
     expect(isLearnImageSrc("/kgc/a.png")).toBe(true);
-    expect(isLearnImageSrc("https://firebasestorage.googleapis.com/v0/b/x/o/a")).toBe(true);
+    expect(isLearnImageSrc("https://firebasestorage.googleapis.com/v0/b/x/o/pageLayouts%2Flearn%2Fa.png?alt=media&token=t")).toBe(true);
+    expect(isLearnImageSrc("https://firebasestorage.googleapis.com/v0/b/x/o/a")).toBe(false);
     expect(isLearnImageSrc("//evil.example/a.png")).toBe(false);
     expect(isLearnImageSrc("data:image/png;base64,AAAA")).toBe(false);
   });
@@ -488,7 +489,7 @@ describe("v2", () => {
       expect(c).toEqual({ id: "d", kind: "callout", tone: "info", title: "T", text: "" });
       expect(acc).toEqual({ id: "e", kind: "accordion", allowMany: false, items: [{ id: "acc-0", title: "A", text: "" }] });
       expect(st).toMatchObject({ columns: 2, items: [{ id: "stat-0", value: "1", label: "" }, { id: "stat-1", value: "2", label: "" }] });
-      expect(emb).toEqual({ id: "g", kind: "embed", provider: "google-maps", url: "https://www.google.com/maps/embed?pb=!1m2", aspect: "16:9", title: "Embedded content" });
+      expect(emb).toEqual({ id: "g", kind: "embed", provider: "google-maps", url: "https://www.google.com/maps/embed?pb=!1m2", aspect: "16:9", title: "Map" });
     });
   });
 
