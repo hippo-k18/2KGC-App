@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LearnBlock, LearnPageContent, LearnPageDoc, LearnSection } from '@kgc/shared';
+import { readLearnPage, type LearnBlock, type LearnPageContent, type LearnPageDoc, type LearnSection } from '@kgc/shared';
 
 import { LEARN_PAGE_DEFAULT, LearnConflict, planPublish, planReplaceDraft, planSave, readStoredDoc } from './learn-page-core';
 import {
@@ -14,6 +14,7 @@ import {
   planSchedule,
   planScheduledPublish,
 } from './learn-page-ops-core';
+import { startEditFromBlock, startEditFromLibrary } from './learn-library-edit-core';
 
 const NOW = 1_800_000_000_000;
 const HOUR = 3_600_000;
@@ -267,6 +268,48 @@ describe('planScheduledPublish makes the checks a press of Publish makes', () =>
     expect(fixed.scheduleFailure).toEqual(failed.scheduleFailure);
     expect(planSchedule(fixed, NOW + 3 * HOUR, fixed.revision, 'b@x', NOW + 2 * HOUR)).not.toHaveProperty('scheduleFailure');
     expect(planPublish(fixed, 'a@x', NOW + 2 * HOUR).doc).not.toHaveProperty('scheduleFailure');
+  });
+});
+
+describe('a scheduled publish during Edit saved section publishes the link, not the copy (T326 R1)', () => {
+  const SAVED: LearnSection = { ...section('lib', [{ id: 'h', kind: 'heading', text: 'Team', level: 2 }]), label: 'Team band' };
+  const LIB = new Map([['L1', SAVED]]);
+  const linked = (): LearnPageContent => {
+    const p = page('A');
+    p.sections.push(section('bandx', [{ id: 'r1', kind: 'reusable', libraryId: 'L1' }]));
+    return p;
+  };
+  const typed = (c: LearnPageContent, id: string): LearnPageContent => ({
+    ...c,
+    sections: c.sections.map((s) =>
+      s.id === id ? { ...s, blocks: s.blocks.map((b) => (b.kind === 'heading' ? { ...b, text: 'UNSAVED' } : b)) } : s,
+    ),
+  });
+  const scheduledDraft = (draft: LearnPageContent) =>
+    planSchedule(planSave(null, draft, 0, 'a@x', NOW - HOUR), NOW + HOUR, 1, 'b@x', NOW);
+  const liveOf = (draft: LearnPageContent) => due(scheduledDraft(draft), NOW + HOUR, LIB).doc.published;
+
+  it('started from the block', () => {
+    const started = startEditFromBlock(linked(), 'bandx', 'r1', LIB, 'Team band')!;
+    const draft = typed(started.content, 'bandx');
+    const plan = due(scheduledDraft(draft), NOW + HOUR, LIB);
+    expect(plan.doc.published).toEqual(liveOf(linked()));
+    expect(JSON.stringify(plan.doc.published)).not.toContain('UNSAVED');
+    expect(JSON.stringify(plan.version.content)).not.toContain('libraryEdit');
+    // The draft keeps the copy, so the edit goes on after the publish.
+    expect(plan.doc.draft).toEqual(draft);
+  });
+
+  it('started from the library list: the section is on the page once', () => {
+    const started = startEditFromLibrary(linked(), 1, 'L1', SAVED, 'Team band');
+    const plan = due(scheduledDraft(typed(started.content, started.edit.sectionId)), NOW + HOUR, LIB);
+    expect(plan.doc.published).toEqual(liveOf(linked()));
+    expect(plan.doc.published!.sections.filter((s) => s.blocks.some((b) => b.kind === 'heading' && b.text === 'Team'))).toHaveLength(1);
+  });
+
+  it("the website's reader never sees the marker", () => {
+    const started = startEditFromBlock(linked(), 'bandx', 'r1', LIB, 'Team band')!;
+    expect(JSON.stringify(readLearnPage(started.content))).not.toContain('libraryEdit');
   });
 });
 

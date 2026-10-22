@@ -17,6 +17,7 @@ import {
   type LearnLibrarySections,
   type LearnPageContent,
   type LearnPageDoc,
+  type LearnSavedSectionEdit,
   type LearnSection,
   type LinkButton,
   type PageImage,
@@ -1006,6 +1007,68 @@ function section(ctx: Ctx, where: string, v: unknown): LearnSection | null {
   return out;
 }
 
+/** A map of ids to ids or anchors, as a saved-section edit keeps them. */
+function idMap(v: unknown, values: 'id' | 'anchor'): Record<string, string> | null {
+  if (!isObj(v) || Object.keys(v).length > LEARN_LIMITS.blocksPerSection) return null;
+  const out: Record<string, string> = {};
+  for (const [k, x] of Object.entries(v)) {
+    if (!ID.test(k) || typeof x !== 'string') return null;
+    if (values === 'id' ? !ID.test(x) : x === '' || x.length > LEARN_LIMITS.anchor) return null;
+    out[k] = x;
+  }
+  return out;
+}
+
+/**
+ * The marker on the copy that Edit saved section opened (T328), kept in the
+ * stored draft so a reload keeps the edit going. Never rendered: publish puts
+ * the link back from `restore` (`asPublished` in `@kgc/shared`)
+ * and validates the page that results, and the website's reader drops it. A
+ * marker naming another section is a duplicated copy's and is dropped, as is
+ * any after the first, so the page has one edit at most. A marker no editing
+ * step makes is refused. The section and block in `restore` are checked by the
+ * same rules as the page's, with ids counted on their own: they are the
+ * link's section and block as they were, not part of the page until Cancel.
+ */
+function savedSectionEdit(ctx: Ctx, where: string, v: unknown, sectionId: string): LearnSavedSectionEdit | undefined {
+  if (v === undefined || v === null) return undefined;
+  const bad = () => {
+    ctx.p.add(where, 'The saved section being changed is malformed. Cancel the change or reload.');
+    return undefined;
+  };
+  if (!isObj(v) || !isObj(v.restore)) return bad();
+  if (v.sectionId !== sectionId) return undefined;
+  const ids = idMap(v.ids, 'id');
+  const anchors = idMap(v.anchors ?? {}, 'anchor');
+  if (typeof v.libraryId !== 'string' || !ID.test(v.libraryId) || typeof v.name !== 'string' || !ids || !anchors) return bad();
+  const name = v.name.slice(0, LEARN_LIMITS.label);
+  const own: Ctx = { ...ctx, sectionIds: new Set(), blockIds: new Set(), forLibrary: false };
+  const r = v.restore;
+  let restore: LearnSavedSectionEdit['restore'];
+  if (r.kind === 'none') {
+    restore = { kind: 'none' };
+  } else if (r.kind === 'whole') {
+    if (!isObj(r.host) || r.host.id !== sectionId) return bad();
+    const host = section(own, where, r.host);
+    if (!host) return undefined;
+    restore = { kind: 'whole', host };
+  } else if (r.kind === 'inPlace') {
+    const index = r.index;
+    const column = r.column;
+    if (typeof r.hostSectionId !== 'string' || !ID.test(r.hostSectionId)) return bad();
+    if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > LEARN_LIMITS.blocksPerSection) return bad();
+    if (column !== undefined && (typeof column !== 'number' || !Number.isInteger(column) || column < 0 || column > 2)) return bad();
+    if (!isObj(r.block) || r.block.kind !== 'reusable') return bad();
+    const linked = block(own, where, r.block);
+    if (!linked) return undefined;
+    restore = { kind: 'inPlace', hostSectionId: r.hostSectionId, index, block: linked };
+    if (column !== undefined) restore.column = column;
+  } else {
+    return bad();
+  }
+  return { libraryId: v.libraryId, name, sectionId, ids, anchors, restore };
+}
+
 function contentBytes(ctx: Ctx, value: unknown) {
   const bytes = new TextEncoder().encode(JSON.stringify(value)).length;
   if (bytes > LEARN_LIMITS.contentBytes) {
@@ -1033,6 +1096,17 @@ export function validateLearnContent(input: unknown, opts: LearnValidateOptions 
       .map((s, i) => section(ctx, `Section ${i + 1}`, s))
       .filter((s): s is LearnSection => s !== null),
   };
+  // The one saved section being changed on the page, if any (T328).
+  let editing = false;
+  content.sections.forEach((s, i) => {
+    const raw = sections[i];
+    if (editing || !isObj(raw) || raw.libraryEdit === undefined) return;
+    const edit = savedSectionEdit(ctx, `Section ${i + 1}`, raw.libraryEdit, s.id);
+    if (edit) {
+      s.libraryEdit = edit;
+      editing = true;
+    }
+  });
   // An empty page title is refused at publish (`publishBlockers`), not here:
   // clearing the field to type a new one must not stop autosave.
   const og = optImage(ctx, 'Sharing image', input.ogImage);

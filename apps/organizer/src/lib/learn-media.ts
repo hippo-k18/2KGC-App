@@ -6,6 +6,7 @@ import type { File as StorageFile } from '@google-cloud/storage';
 import {
   LEARN_PAGE_LIBRARY,
   LEARN_PAGE_MEDIA,
+  storedDraftAsPublished,
   type LearnLibraryItem,
   type LearnMediaItem,
   type LearnPageContent,
@@ -402,7 +403,12 @@ function libraryUses(
   sources: { draft: LearnPageContent | null; published: LearnPageContent | null; versions: { publishedAt: number; content: LearnPageContent }[] },
 ): string[] {
   const out: string[] = [];
-  for (const w of savedSectionUses(sources.draft, id)) out.push(`Draft: ${w}`);
+  // A saved section being changed from a block still has its link, held aside
+  // until Save or Cancel puts it back, and Publish puts that link live: so the
+  // draft is read as Publish reads it, as well as as it is (T326 R1).
+  const draft = savedSectionUses(storedDraftAsPublished(sources.draft), id);
+  for (const w of savedSectionUses(sources.draft, id)) if (!draft.includes(w)) draft.push(w);
+  for (const w of draft) out.push(`Draft: ${w}`);
   for (const w of savedSectionUses(sources.published, id)) out.push(`Live page: ${w}`);
   for (const v of sources.versions) {
     for (const w of savedSectionUses(v.content, id)) out.push(`${versionLabel(v.publishedAt)}: ${w}`);

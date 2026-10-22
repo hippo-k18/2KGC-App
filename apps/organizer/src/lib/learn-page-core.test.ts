@@ -1137,3 +1137,70 @@ describe('unfinished values save and refuse publish, by name (T325, T324 D1)', (
     ]);
   });
 });
+
+describe('a saved section being changed is stored with the draft (T326 R1)', () => {
+  const sec = (id: string, blocks: LearnBlock[], extra: Partial<LearnSection> = {}): LearnSection => ({
+    id,
+    label: id,
+    background: 'plain',
+    width: 'normal',
+    paddingTop: 'none',
+    paddingBottom: 'none',
+    blocks,
+    ...extra,
+  });
+  const link: LearnBlock = { id: 'r1', kind: 'reusable', libraryId: 'L1' };
+  const copy = (libraryEdit: unknown, id = 'sc'): LearnSection =>
+    ({ ...sec(id, [{ id: `${id}-h`, kind: 'heading', text: 'Team', level: 2 }]), libraryEdit }) as LearnSection;
+  const inPlace = {
+    libraryId: 'L1',
+    name: 'Team band',
+    sectionId: 'sc',
+    ids: { 'r1--h': 'h' },
+    anchors: {},
+    restore: { kind: 'inPlace', hostSectionId: 's1', index: 0, column: 1, block: link },
+  };
+  const withCopy = (...sections: LearnSection[]): LearnPageContent => ({ seoTitle: 'T', seoDescription: '', sections });
+
+  it('keeps each kind of edit as it was', () => {
+    const whole = { ...inPlace, sectionId: 's2', restore: { kind: 'whole', host: sec('s2', [link], { anchor: 'team' }) } };
+    const none = { ...inPlace, restore: { kind: 'none' } };
+    for (const [edit, id] of [
+      [inPlace, 'sc'],
+      [whole, 's2'],
+      [none, 'sc'],
+    ] as const) {
+      const v = validateLearnContent(withCopy(sec('s1', []), copy(edit, id)));
+      if (!v.ok) throw new Error(v.problems.join('; '));
+      expect(v.content.sections[1].libraryEdit).toEqual(edit);
+    }
+  });
+
+  it('drops a marker naming another section (a duplicate) and any after the first', () => {
+    const v = validateLearnContent(withCopy(copy(inPlace), copy(inPlace, 'sdup'), copy({ ...inPlace, sectionId: 'sx' }, 'sx')));
+    if (!v.ok) throw new Error(v.problems.join('; '));
+    expect(v.content.sections.map((s) => s.libraryEdit?.sectionId)).toEqual(['sc', undefined, undefined]);
+  });
+
+  it('refuses a marker no editing step makes, and checks the block it would put back', () => {
+    const bad = [
+      { ...inPlace, libraryId: 'a/b' },
+      { ...inPlace, ids: { 'r1--h': 'no good' } },
+      { ...inPlace, restore: { kind: 'other' } },
+      { ...inPlace, restore: { ...inPlace.restore, block: { id: 'x', kind: 'text', text: 'hi' } } },
+      { ...inPlace, restore: { ...inPlace.restore, block: { id: 'x', kind: 'reusable', libraryId: '../x' } } },
+      { ...inPlace, restore: { ...inPlace.restore, index: -1 } },
+      { ...inPlace, sectionId: 's2', restore: { kind: 'whole', host: sec('s9', [link]) } },
+      { ...inPlace, sectionId: 's2', restore: { kind: 'whole', host: { ...sec('s2', [link]), background: 'neon' } } },
+    ];
+    for (const edit of bad) {
+      expect(validateLearnContent(withCopy(copy(edit, edit.sectionId))).ok, JSON.stringify(edit)).toBe(false);
+    }
+  });
+
+  it('never goes into the library', () => {
+    const v = validateLearnSection(copy(inPlace), { forLibrary: true });
+    if (!v.ok) throw new Error(v.problems.join('; '));
+    expect(v.section.libraryEdit).toBeUndefined();
+  });
+});

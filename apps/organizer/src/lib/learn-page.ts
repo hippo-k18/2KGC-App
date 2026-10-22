@@ -6,6 +6,7 @@ import { getStorage } from 'firebase-admin/storage';
 import {
   COLLECTIONS,
   LEARN_PAGE_LIBRARY,
+  asPublished,
   expandReusableBlocks,
   type LearnLibraryItem,
   type LearnPageContent,
@@ -120,8 +121,9 @@ export async function loadLearnEditor(): Promise<LearnEditorState> {
   const doc = read.doc;
   // The live copy holds saved sections expanded, so the draft is compared the same way:
   // a reusable block is not an unpublished change, and an edit to its saved section is.
-  const asPublished = { ...doc, draft: expandReusableBlocks(doc.draft, library) };
-  return { doc, exists, versions, hasUnpublishedChanges: hasUnpublishedChanges(asPublished, exists) };
+  // A saved section being changed counts as its link, as Publish puts it live (T328).
+  const live = { ...doc, draft: expandReusableBlocks(asPublished(doc.draft), library) };
+  return { doc, exists, versions, hasUnpublishedChanges: hasUnpublishedChanges(live, exists) };
 }
 
 /** Publishing would put a page on www that does not pass validation (a saved section changed under it). */
@@ -182,17 +184,20 @@ export async function publishLearnPage(input: {
     // Saved sections are expanded into the live copy and the kept version, so www
     // and Restore never depend on the library (`learn-reusable-core.ts`). The
     // expanded page is checked again: a saved section can be older than today's rules.
+    // A saved section in the middle of Edit saved section goes live as its
+    // link, never as the copy (T326 R1); the draft keeps the copy.
+    const page = asPublished(base.draft);
     const library = await loadLearnLibrarySections(tx);
-    const expanded = expandReusableBlocks(base.draft, library);
+    const expanded = expandReusableBlocks(page, library);
     const check = validateLearnContent(expanded, learnValidateOptions());
     if (!check.ok) throw new LearnPublishInvalid(check.problems);
     // The draft with the library and the expanded page, in one list: an empty
     // or deleted Saved section block is named alongside every other blocker
     // (T324 N1), and an unfinished block inside a saved section counts too.
-    const blockers = publishProblems(base.draft, library, check.content);
+    const blockers = publishProblems(page, library, check.content);
     if (blockers.length > 0) throw new LearnNotReady(blockers);
-    const planned = planPublish(base, input.actor, now, input.note);
-    const doc: LearnPageDoc = { ...planned.doc, published: check.content };
+    const planned = planPublish({ ...base, draft: page }, input.actor, now, input.note);
+    const doc: LearnPageDoc = { ...planned.doc, draft: base.draft, published: check.content };
     const version = { ...planned.version, content: check.content };
     tx.set(docRef(), doc);
     tx.set(versionRef, version);

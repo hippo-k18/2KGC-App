@@ -1,4 +1,4 @@
-import { expandReusableBlocks, type LearnPageContent, type LearnPageDoc, type LearnSection } from '@kgc/shared';
+import { asPublished, expandReusableBlocks, type LearnPageContent, type LearnPageDoc, type LearnSection } from '@kgc/shared';
 import {
   LearnConflict,
   LearnNotReady,
@@ -159,20 +159,23 @@ export function planScheduledPublish(
   try {
     const checked = validateLearnContent(base.draft, opts);
     if (!checked.ok) return fail('The saved draft has problems:', checked.problems);
-    const expanded = validateLearnContent(expandReusableBlocks(checked.content, library), opts);
+    // A saved section in the middle of Edit saved section goes live as its
+    // link, never as the copy (T326 R1); the draft keeps the copy.
+    const page = asPublished(checked.content);
+    const expanded = validateLearnContent(expandReusableBlocks(page, library), opts);
     if (!expanded.ok) return fail('With its saved sections filled in, the page does not pass the checks:', expanded.problems);
-    const blockers = publishProblems(checked.content, library, expanded.content);
+    const blockers = publishProblems(page, library, expanded.content);
     if (blockers.length > 0) return fail(NOT_READY_LEAD, blockers);
 
     const planned = planPublish(
-      { ...base, draft: checked.content },
+      { ...base, draft: page },
       actor,
       now,
       draftChanged ? SCHEDULED_CHANGED_NOTE : SCHEDULED_NOTE,
     );
     return {
       ok: true,
-      doc: { ...planned.doc, published: expanded.content },
+      doc: { ...planned.doc, draft: checked.content, published: expanded.content },
       version: { ...planned.version, content: expanded.content },
       draftChanged,
     };
