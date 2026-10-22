@@ -23,12 +23,22 @@ async function resetLearn() {
 test.beforeEach(async ({ context }) => {
   await resetLearn();
   // The first-run tour would sit over the panes.
-  await context.addInitScript(() => localStorage.setItem('kgc-learn-tour-v2', '1'));
+  await context.addInitScript(() => {
+    // Embedded iframes have an opaque origin, where localStorage throws.
+    try {
+      localStorage.setItem('kgc-learn-tour-v2', '1');
+    } catch {}
+  });
 });
 
 async function editorAs(browser: import('@playwright/test').Browser, email: string, viewport?: { width: number; height: number }) {
   const ctx = await signedIn(browser, email, viewport);
-  await ctx.addInitScript(() => localStorage.setItem('kgc-learn-tour-v2', '1'));
+  await ctx.addInitScript(() => {
+    // Embedded iframes have an opaque origin, where localStorage throws.
+    try {
+      localStorage.setItem('kgc-learn-tour-v2', '1');
+    } catch {}
+  });
   return { ctx, page: await openEditor(ctx) };
 }
 

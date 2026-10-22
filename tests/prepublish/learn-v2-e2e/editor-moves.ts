@@ -15,6 +15,16 @@ export async function addBlock(page: Page, section: string, label: string) {
 
 /** Selects the text from `a` to the end of `z` (or just `a`) inside the RichEditor under `scope`. */
 export async function selectText(page: Page, scope: string, a: string, z = a) {
+  // Focus first: an editor that gains focus puts back its own last selection a moment later, which would
+  // replace the one set here. A toolbar panel hands focus back to the editor on a delay, so wait for that.
+  await page
+    .waitForFunction((scope) => !!document.activeElement?.closest(`${scope} .rt-content`), scope, { timeout: 1000 })
+    .catch(() => {});
+  await page.evaluate((scope) => {
+    const ed = document.querySelector<HTMLElement>(`${scope} .rt-content`);
+    if (ed && !ed.contains(document.activeElement)) ed.focus();
+  }, scope);
+  await page.waitForTimeout(100);
   await page.evaluate(
     ({ scope, a, z }) => {
       const find = (t: string) => {

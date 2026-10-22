@@ -65,6 +65,8 @@ function argsFor(name: string, revision: number): unknown[] {
     case 'learnMediaUsesAction':
     case 'deleteLearnMediaAction':
       return ['m-gate'];
+    case 'learnImageEditStartAction':
+      return ['/kgc/wave-3.png'];
     case 'updateLearnMediaAction':
       return ['m-gate', { fileName: 'HACKED' }];
     case 'saveLearnLibraryItemAction':
@@ -136,7 +138,7 @@ test('an agenda-only member is refused by every Learn page action, and nothing c
   });
 
   const actions = learnActions();
-  expect([...actions.keys()].sort()).toHaveLength(21);
+  expect([...actions.keys()].sort()).toHaveLength(22);
 
   // The control: the same request shape from a learn-only member runs the action.
   const control = await post(LEARN, '/content/learn-page', actions.get('listLearnLibraryAction')!, []);

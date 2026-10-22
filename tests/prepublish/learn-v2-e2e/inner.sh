@@ -5,7 +5,9 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 pids=()
-trap 'kill "${pids[@]}" 2>/dev/null || true; pkill -f "next.*--port $E2E_PORT" 2>/dev/null || true; pkill -f "next.*--port $WEB_PORT" 2>/dev/null || true' EXIT
+# Stop only the servers this run started (and their workers), never whatever else holds the ports later.
+stop() { for p in "${pids[@]}"; do pkill -P "$p" 2>/dev/null || true; kill "$p" 2>/dev/null || true; done; }
+trap stop EXIT
 
 unset GOOGLE_APPLICATION_CREDENTIALS FIREBASE_SERVICE_ACCOUNT RESEND_API_KEY STRIPE_SECRET_KEY
 export CONSOLE_SESSION_SECRET=learn-v2-e2e-session-secret-0123456789abcdef
@@ -40,7 +42,7 @@ for _ in $(seq 1 240); do
 done
 
 # LEARN_E2E_HOLD=1 keeps the emulators and servers up for writing the spec by hand.
-if [ "${LEARN_E2E_HOLD:-}" = 1 ]; then echo "[hold] servers up on $E2E_URL and $WEB_URL"; sleep 7200; exit 0; fi
+if [ "${LEARN_E2E_HOLD:-}" = 1 ]; then echo "[hold] servers up on $E2E_URL and $WEB_URL"; sleep "${LEARN_E2E_HOLD_SECONDS:-1800}"; exit 0; fi
 
 cd "$ROOT/tests/prepublish"
 npx playwright test --config learn-v2-e2e/playwright.config.ts ${LEARN_E2E_ARGS:-}

@@ -56,12 +56,22 @@ test.beforeEach(async ({ context }) => {
   for (const sub of ['versions', 'library', 'media']) for (const d of await fsList(`pageLayouts/learn/${sub}`)) await fsDelete(`pageLayouts/learn/${sub}/${d.id}`);
   await fsDelete('pageLayouts/learn');
   await storageClear();
-  await context.addInitScript(() => localStorage.setItem('kgc-learn-tour-v2', '1'));
+  await context.addInitScript(() => {
+    // Embedded iframes have an opaque origin, where localStorage throws.
+    try {
+      localStorage.setItem('kgc-learn-tour-v2', '1');
+    } catch {}
+  });
 });
 
 async function signedInNoTour(browser: import('@playwright/test').Browser, email: string, viewport?: { width: number; height: number }) {
   const ctx = await signedIn(browser, email, viewport);
-  await ctx.addInitScript(() => localStorage.setItem('kgc-learn-tour-v2', '1'));
+  await ctx.addInitScript(() => {
+    // Embedded iframes have an opaque origin, where localStorage throws.
+    try {
+      localStorage.setItem('kgc-learn-tour-v2', '1');
+    } catch {}
+  });
   return ctx;
 }
 
