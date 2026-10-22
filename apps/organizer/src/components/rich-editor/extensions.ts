@@ -3,7 +3,9 @@ import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
-import { TableKit } from '@tiptap/extension-table';
+import Blockquote from '@tiptap/extension-blockquote';
+import { ListItem } from '@tiptap/extension-list';
+import { TableCell, TableHeader, TableKit } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -179,6 +181,8 @@ export function richExtensions({ placeholder, handlers }: ExtensionOptions): Any
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4] },
+      blockquote: false,
+      listItem: false,
       trailingNode: false,
       link: {
         openOnClick: false,
@@ -191,7 +195,15 @@ export function richExtensions({ placeholder, handlers }: ExtensionOptions): Any
     TextAlign.configure({ types: ['heading', 'paragraph'], alignments: ['left', 'center', 'right', 'justify'] }),
     Subscript,
     Superscript,
-    TableKit.configure({ table: { resizable: false } }),
+    // Containers hold only what the contract lets them hold (`rich-doc-core.ts`
+    // in @kgc/shared). TipTap's defaults are `block+`, so a table could be put
+    // in a quote or a list item, and the server then refused the whole save.
+    // With these, ProseMirror places a table after the quote instead.
+    Blockquote.extend({ content: '(paragraph | heading | bulletList | orderedList | codeBlock | horizontalRule)+' }),
+    ListItem.extend({ content: 'paragraph (paragraph | heading | bulletList | orderedList | blockquote | codeBlock)*' }),
+    TableKit.configure({ table: { resizable: false }, tableCell: false, tableHeader: false }),
+    TableCell.extend({ content: '(paragraph | heading | bulletList | orderedList | blockquote | codeBlock)+' }),
+    TableHeader.extend({ content: '(paragraph | heading | bulletList | orderedList | blockquote | codeBlock)+' }),
     TextColor,
     Highlight,
     FontSize,

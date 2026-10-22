@@ -31,5 +31,5 @@ export default async function LearnPageEditorPage() {
     const versions = await listLearnVersions();
     return <UnreadableDraft problems={err.problems} versions={versions} siteOrigin={publicSiteOrigin()} />;
   }
-  return <LearnEditor initial={initial} siteOrigin={publicSiteOrigin()} />;
+  return <LearnEditor initial={initial} siteOrigin={publicSiteOrigin()} openedAt={Date.now()} />;
 }

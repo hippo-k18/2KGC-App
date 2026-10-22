@@ -799,6 +799,11 @@ export interface LearnPreviewProps extends PaneProps {
    * blocks as Publish will expand them. Null while it loads.
    */
   library?: ReadonlyMap<string, LearnSection> | null;
+  /**
+   * When the editor page was rendered on the server. The countdown is drawn
+   * from it, so the server's HTML and the first client render agree.
+   */
+  openedAt?: number;
 }
 
 export function LearnPreview(props: LearnPreviewProps) {
@@ -814,11 +819,16 @@ export function LearnPreview(props: LearnPreviewProps) {
   // One render context for the twins. It is rebuilt only when a heading's id
   // changes (or the origin), so typing does not re-render every v2 block;
   // `now` is the moment the preview opened, as a server render would fix it.
-  const [openedAt] = useState(() => Date.now());
+  const [clientOpenedAt] = useState(() => Date.now());
+  const openedAt = props.openedAt ?? clientOpenedAt;
   const idsKey = JSON.stringify([...headingIds(content)]);
   const blockCtx = useMemo(() => {
     const ctx = makeBlockCtx({ seoTitle: '', seoDescription: '', sections: [] }, siteOrigin, openedAt);
-    return { ...ctx, headingIds: new Map<string, string>(JSON.parse(idsKey) as [string, string][]) };
+    // `firstImage` is the website's one-per-request "load the first photo
+    // first" flag. This object lives across renders, so a shared mutable flag
+    // made the server's HTML and the client's first render disagree; the
+    // preview gives no image priority at all.
+    return { ...ctx, firstImage: { used: true }, headingIds: new Map<string, string>(JSON.parse(idsKey) as [string, string][]) };
   }, [idsKey, siteOrigin, openedAt]);
 
   // Stable callbacks, so memoised blocks are not re-rendered by a new arrow from the shell.

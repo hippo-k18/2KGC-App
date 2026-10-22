@@ -39,5 +39,8 @@ for _ in $(seq 1 240); do
   sleep 1
 done
 
+# LEARN_E2E_HOLD=1 keeps the emulators and servers up for writing the spec by hand.
+if [ "${LEARN_E2E_HOLD:-}" = 1 ]; then echo "[hold] servers up on $E2E_URL and $WEB_URL"; sleep 7200; exit 0; fi
+
 cd "$ROOT/tests/prepublish"
 npx playwright test --config learn-v2-e2e/playwright.config.ts ${LEARN_E2E_ARGS:-}

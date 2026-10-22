@@ -757,7 +757,8 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
     case 'embed': {
       const provider = enumField(ctx, where, 'Embed type', v.provider, LEARN_EMBED_PROVIDERS, { required: true })!;
       const url = (str(ctx, where, 'Embed link', v.url, LEARN_LIMITS.href, { required: true }) ?? '').trim();
-      if (oneOf(v.provider, LEARN_EMBED_PROVIDERS) && !learnEmbedSrc(provider, url)) {
+      // An empty link is "not added yet" (refused at publish, `publishBlockers`).
+      if (url !== '' && oneOf(v.provider, LEARN_EMBED_PROVIDERS) && !learnEmbedSrc(provider, url)) {
         ctx.p.add(where, `Embed link is not a ${EMBED_NAMES[provider]} link this page can show.`);
       }
       const title = str(ctx, where, 'Embed title', v.title, LEARN_LIMITS.shortText, { required: true }) ?? '';
@@ -785,7 +786,12 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
     }
     case 'countdown': {
       const until = v.until;
-      if (typeof until !== 'number' || !Number.isInteger(until) || until < LEARN_LIMITS.countdownFrom || until >= LEARN_LIMITS.countdownTo) {
+      // 0 is "no date chosen yet" (refused at publish, `publishBlockers`).
+      const chosen = until !== 0;
+      if (
+        chosen &&
+        (typeof until !== 'number' || !Number.isInteger(until) || until < LEARN_LIMITS.countdownFrom || until >= LEARN_LIMITS.countdownTo)
+      ) {
         ctx.p.add(where, 'Countdown date must be a real date between 2020 and 2099.');
       }
       return compact({
@@ -821,10 +827,13 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       return compact({ ...b, kind: 'toc' as const, title: str(ctx, where, 'Title', v.title, LEARN_LIMITS.heading) || undefined });
     case 'reusable': {
       const libraryId = typeof v.libraryId === 'string' ? v.libraryId : '';
-      if (!ID.test(libraryId)) {
-        ctx.p.add(where, 'Saved section id is missing or malformed.');
-      } else if (ctx.forLibrary) {
+      if (ctx.forLibrary) {
         ctx.p.add(where, 'A saved section cannot hold another saved section.');
+      } else if (libraryId === '') {
+        // Not chosen yet, as an empty Image block is: the draft keeps it so
+        // autosave goes on, and publish refuses it (`publishBlockers`).
+      } else if (!ID.test(libraryId)) {
+        ctx.p.add(where, 'Saved section id is missing or malformed.');
       } else if (ctx.libraryIds && !ctx.libraryIds.has(libraryId)) {
         ctx.p.add(where, 'points to a saved section that no longer exists.');
       }
@@ -1066,7 +1075,8 @@ export function planSave(
 
 /**
  * Blocks that cannot go on the website yet: an Image block with no image
- * chosen, a Video block with no link. The draft may hold them (autosave must
+ * chosen, a Video or Embed block with no link, a Countdown with no date, a
+ * Saved section block with no saved section chosen. The draft may hold them (autosave must
  * not stop while someone is still filling a block in), but publish refuses
  * them with these messages, which name the block and its section.
  */
@@ -1079,6 +1089,12 @@ export function publishBlockers(content: LearnPageContent): string[] {
         out.push(`The Image block in "${name}" has no image yet. Choose one or remove the block.`);
       } else if (b.kind === 'video' && !b.url.trim()) {
         out.push(`The Video block in "${name}" has no video link yet. Add one or remove the block.`);
+      } else if (b.kind === 'embed' && !b.url.trim()) {
+        out.push(`The Embed block in "${name}" has no link yet. Add one or remove the block.`);
+      } else if (b.kind === 'countdown' && !b.until) {
+        out.push(`The Countdown block in "${name}" has no date yet. Choose one or remove the block.`);
+      } else if (b.kind === 'reusable' && !b.libraryId) {
+        out.push(`The Saved section block in "${name}" has no saved section chosen yet. Choose one or remove the block.`);
       }
     }
   });

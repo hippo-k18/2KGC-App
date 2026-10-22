@@ -1,104 +1,38 @@
-import { createHmac } from 'node:crypto';
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { MEMBERS, OWNER, ownerSessionId } from './people';
+import { expect, test, type Page } from '@playwright/test';
+import { LEARN, OWNER } from './people';
+import { fsDelete, fsGet, fsList, openEditor, shot as shotRaw, signedIn, storageClear, waitSaved, type Json } from './helpers';
+import { addBlock as addBlockIn } from './editor-moves';
 
 /**
- * The three blockers the T314 gate found in the Learn page editor (T320).
- * `run.sh` starts a private emulator and a dashboard dev server and seeds the
- * people in `people.ts`; sessions are minted here the way `lib/auth.ts` does.
+ * T320's fixes for the T314 gate, re-run against the merged v2 editor (T323):
+ * an empty Image or Video block saves and blocks publish (F1), Undo after
+ * "Load their version" (F4), sign out for a learn-only member, the phone
+ * preview's scale (F3), and the screen for a draft that cannot be read.
+ * Ported from `learn-editor-e2e/learn-editor.spec.ts` to the v2 shell.
  */
 
-const FS = `${process.env.FIRESTORE_REST ?? 'http://127.0.0.1:8197'}/v1/projects/${
-  process.env.GCLOUD_PROJECT ?? 'demo-learn-editor-e2e'
-}/databases/(default)/documents`;
-const H = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
-const SECRET = process.env.CONSOLE_SESSION_SECRET ?? '';
-const SHOTS = process.env.LEARN_E2E_SHOTS;
-
-type Json = Record<string, unknown>;
-
-function decode(v: Json | undefined): unknown {
-  if (!v) return undefined;
-  if ('stringValue' in v) return v.stringValue;
-  if ('integerValue' in v) return Number(v.integerValue);
-  if ('doubleValue' in v) return v.doubleValue;
-  if ('booleanValue' in v) return v.booleanValue;
-  if ('nullValue' in v) return null;
-  if ('timestampValue' in v) return v.timestampValue;
-  if ('arrayValue' in v) return ((v.arrayValue as Json).values as Json[] | undefined ?? []).map(decode);
-  if ('mapValue' in v) {
-    const fields = ((v.mapValue as Json).fields ?? {}) as Record<string, Json>;
-    return Object.fromEntries(Object.entries(fields).map(([k, x]) => [k, decode(x)]));
-  }
-  return v;
-}
-
-async function fsGet(path: string): Promise<Json | null> {
-  const r = await fetch(`${FS}/${path}`, { headers: H });
-  if (r.status === 404) return null;
-  const j = (await r.json()) as { fields?: Record<string, Json> };
-  return Object.fromEntries(Object.entries(j.fields ?? {}).map(([k, v]) => [k, decode(v)]));
-}
-
-/** Writes raw Firestore REST fields, so a test can store a shape no client could. */
+const MEMBERS = [OWNER, LEARN, LEARN];
+const learnDoc = () => fsGet('pageLayouts/learn');
+const draftText = async () => JSON.stringify((await learnDoc())?.draft ?? null);
+const shot = (page: Page, name: string) => shotRaw(page, `t320-${name}`);
 async function fsSetRaw(path: string, fields: Record<string, Json>) {
-  const r = await fetch(`${FS}/${path}`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields }) });
+  const r = await fetch(`${process.env.FIRESTORE_REST ?? 'http://127.0.0.1:8323'}/v1/projects/${process.env.GCLOUD_PROJECT ?? 'demo-learn-v2-e2e'}/databases/(default)/documents/${path}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+  });
   if (!r.ok) throw new Error(`fsSetRaw ${path}: ${r.status}`);
 }
 
-async function fsDelete(path: string) {
-  await fetch(`${FS}/${path}`, { method: 'DELETE', headers: H });
-}
+/** The v2 shell's save chip reads "Saved", "Unsaved", "Saving" or "Not saved". */
+const status = (page: Page) => page.locator('.le-chips .le-chip').first();
 
-const learnDoc = () => fsGet('pageLayouts/learn');
-const draftText = async () => JSON.stringify((await learnDoc())?.draft ?? null);
-
-function memberId(email: string): string {
-  return `team_${ownerSessionId(email).slice(0, 32)}`;
-}
-
-async function cookieFor(email: string): Promise<string> {
-  const doc = email === OWNER ? await fsGet(`ownerSessions/${ownerSessionId(email)}`) : await fsGet(`teamMembers/${memberId(email)}`);
-  const epoch = (email === OWNER ? doc?.epoch : doc?.sessionEpoch) as string;
-  const now = Date.now();
-  const payload = Buffer.from(
-    JSON.stringify({ email, expiresAt: now + 8 * 3600e3, epoch, keep: false, refreshedAt: now }),
-  ).toString('base64url');
-  return `${payload}.${createHmac('sha256', SECRET).update(payload).digest('base64url')}`;
-}
-
-async function signedIn(browser: Browser, email: string, viewport = { width: 1280, height: 860 }): Promise<BrowserContext> {
-  const ctx = await browser.newContext({ viewport });
-  await ctx.addCookies([
-    { name: 'kgc_console_session', value: await cookieFor(email), domain: 'localhost', path: '/', httpOnly: true, sameSite: 'Lax' },
-  ]);
-  return ctx;
-}
-
-async function openEditor(ctx: BrowserContext): Promise<Page> {
-  const page = await ctx.newPage();
-  page.on('console', (m) => {
-    if (m.type() === 'error') console.log(`[console] ${m.text().slice(0, 300)}`);
-  });
-  page.on('pageerror', (e) => console.log(`[pageerror] ${String(e).slice(0, 300)}`));
-  await page.goto('/content/learn-page');
-  await page.waitForSelector('.le-root');
-  await page.waitForTimeout(800);
-  return page;
-}
-
-async function shot(page: Page, name: string) {
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-${name}.png` });
-}
-
-const status = (page: Page) => page.locator('.le-status');
-
-/** Click into a text block in the preview, type at its end, and leave. */
 async function typeInto(page: Page, needle: string, text: string) {
   await page.locator('.le-pane-preview [data-lp-block]', { hasText: needle }).first().click();
   await page.locator('.le-pane-preview .lp-editing .ProseMirror').waitFor();
   await page.waitForTimeout(250);
   await page.keyboard.press('Meta+ArrowDown');
+  await page.keyboard.press('End');
   await page.keyboard.type(text);
   await page.keyboard.press('Escape');
 }
@@ -111,31 +45,33 @@ const SECTION = 'Continuing education';
 const T1 = 'Learn how knowledge';
 const T2 = 'KGC|Learn was established';
 
-async function addBlock(page: Page, kind: string) {
-  const sectionRow = page.locator('.le-ol-row.is-section', {
-    has: page.locator(`[role=treeitem][aria-label^="Section: ${SECTION}"]`),
-  });
-  await page.locator('li', { has: sectionRow }).getByRole('button', { name: 'Add block', exact: true }).first().click();
-  await page.locator('.le-pick .le-pick-item', { hasText: kind }).first().click();
-  await page.waitForTimeout(200);
-}
+const addBlock = (page: Page, kind: string) => addBlockIn(page, SECTION, kind);
 
 async function lastBlock(): Promise<Json | undefined> {
   const draft = (await learnDoc())?.draft as { sections: { label: string; blocks: Json[] }[] } | undefined;
   return draft?.sections.find((s) => s.label === SECTION)?.blocks.at(-1);
 }
 
-test.beforeEach(async () => {
+test.beforeEach(async ({ context }) => {
+  for (const sub of ['versions', 'library', 'media']) for (const d of await fsList(`pageLayouts/learn/${sub}`)) await fsDelete(`pageLayouts/learn/${sub}/${d.id}`);
   await fsDelete('pageLayouts/learn');
+  await storageClear();
+  await context.addInitScript(() => localStorage.setItem('kgc-learn-tour-v2', '1'));
 });
 
+async function signedInNoTour(browser: import('@playwright/test').Browser, email: string, viewport?: { width: number; height: number }) {
+  const ctx = await signedIn(browser, email, viewport);
+  await ctx.addInitScript(() => localStorage.setItem('kgc-learn-tour-v2', '1'));
+  return ctx;
+}
+
 test('F1: an empty Image or Video block is saved, and publish names it', async ({ browser }) => {
-  const ctx = await signedIn(browser, OWNER);
+  const ctx = await signedInNoTour(browser, OWNER);
   const page = await openEditor(ctx);
 
   await addBlock(page, 'Image');
   await expect.poll(async () => (await lastBlock())?.kind, { timeout: 15_000 }).toBe('image');
-  await expect(status(page)).toHaveText(/^Saved/);
+  await expect(status(page)).toHaveText(/Saved/);
   expect(((await lastBlock())?.image as Json).src).toBe('');
   await expect(page.locator('.le-pane-preview').getByText('Choose an image')).toBeVisible();
   await shot(page, 'f1-empty-image');
@@ -143,11 +79,11 @@ test('F1: an empty Image or Video block is saved, and publish names it', async (
   // Every other edit keeps saving.
   await typeInto(page, T1, ' F1X');
   await waitForDraft((d) => d.includes('F1X'));
-  await expect(status(page)).toHaveText(/^Saved/);
+  await expect(status(page)).toHaveText(/Saved/);
 
   await addBlock(page, 'Video');
   await expect.poll(async () => (await lastBlock())?.kind, { timeout: 15_000 }).toBe('video');
-  await expect(status(page)).toHaveText(/^Saved/);
+  await expect(status(page)).toHaveText(/Saved/);
   await expect(page.locator('.le-banner.warning')).toHaveCount(0);
   await expect(page.locator('.le-set-banner')).toContainText('no video link yet');
 
@@ -167,8 +103,8 @@ test('F1: an empty Image or Video block is saved, and publish names it', async (
 
 test('F4: Undo after "Load their version" does not bring back what their save replaced', async ({ browser }) => {
   const [a, b] = MEMBERS;
-  const ctxA = await signedIn(browser, a);
-  const ctxB = await signedIn(browser, b);
+  const ctxA = await signedInNoTour(browser, a);
+  const ctxB = await signedInNoTour(browser, b);
   const A = await openEditor(ctxA);
   const B = await openEditor(ctxB);
 
@@ -202,11 +138,11 @@ test('F4: Undo after "Load their version" does not bring back what their save re
 
 for (const width of [1280, 390]) {
   test(`a learn-only member can sign out at ${width}`, async ({ browser }) => {
-    const email = MEMBERS[2];
+    const email = LEARN;
     const viewport = { width, height: width === 390 ? 844 : 860 };
-    const ctx = await signedIn(browser, email, viewport);
+    const ctx = await signedInNoTour(browser, email, viewport);
     const page = await openEditor(ctx);
-    const other = await signedIn(browser, email, viewport);
+    const other = await signedInNoTour(browser, email, viewport);
     const otherPage = await openEditor(other);
 
     const menuButton = page.locator('.le-bar').getByRole('button', { name: /account/i });
@@ -236,7 +172,7 @@ for (const width of [1280, 390]) {
 }
 
 test('F3: the phone preview keeps its scale after switching tabs', async ({ browser }) => {
-  const ctx = await signedIn(browser, OWNER, { width: 390, height: 844 });
+  const ctx = await signedInNoTour(browser, OWNER, { width: 390, height: 844 });
   const page = await openEditor(ctx);
   const zoom = () => page.locator('.le-frame').evaluate((el) => Number((el as HTMLElement).style.zoom));
   const before = await zoom();
@@ -255,7 +191,7 @@ test('a draft that cannot be read opens a way out, not an error page', async ({ 
     revision: { integerValue: '3' },
     published: { nullValue: null },
   });
-  const ctx = await signedIn(browser, OWNER);
+  const ctx = await signedInNoTour(browser, OWNER);
   const page = await ctx.newPage();
   const res = await page.goto('/content/learn-page');
   expect(res?.status()).toBe(200);
@@ -263,7 +199,7 @@ test('a draft that cannot be read opens a way out, not an error page', async ({ 
   await shot(page, 'unreadable-draft');
   await page.getByRole('button', { name: 'Discard the draft' }).click();
   await page.waitForSelector('.le-root');
-  await expect(status(page)).toHaveText(/^Saved/);
+  await expect(status(page)).toHaveText(/Saved/);
   expect(typeof (await learnDoc())?.draft).toBe('object');
   await ctx.close();
 });

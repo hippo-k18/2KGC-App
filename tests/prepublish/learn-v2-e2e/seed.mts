@@ -2,7 +2,8 @@
 // the private emulator this suite runs against. Refuses to run without
 // FIRESTORE_EMULATOR_HOST, so it can never touch live.
 import { randomBytes } from 'node:crypto';
-import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
+import { writeFileSync } from 'node:fs';
+import { COLLECTIONS, EVENT_ID, LEARN_LIBRARY_SAMPLE, LEARN_PAGE_KITCHEN_SINK_V2 } from '@kgc/shared';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { memberIdFor } from '../../../apps/organizer/src/lib/team-core.ts';
@@ -36,4 +37,9 @@ for (const [email, roles] of [
     updatedAt: new Date(),
   });
 }
+// The spec cannot import @kgc/shared's TypeScript, so the samples it needs are written beside it.
+writeFileSync(
+  new URL('./.fixtures.json', import.meta.url),
+  JSON.stringify({ sink: LEARN_PAGE_KITCHEN_SINK_V2, library: LEARN_LIBRARY_SAMPLE }),
+);
 console.log('[seed] owner epoch, a learn-only and an agenda-only member');

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Editor, type JSONContent } from '@tiptap/core';
 import { richExtensions, transformPastedHTML } from '../../components/rich-editor/extensions';
 import { richToTiptap, tiptapToRich, toRichDoc } from './convert';
+import { validateRichDoc } from '@kgc/shared';
 import { EVERYTHING } from './fixtures';
 
 /**
@@ -126,5 +127,30 @@ describe('the editor schema', () => {
     } finally {
       e2.destroy();
     }
+  });
+
+  it('cannot make a document the server refuses: no table or divider where the contract has none (T323)', () => {
+    const quote = { type: 'doc', content: [{ type: 'blockquote', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Quoted' }] }] }] };
+    const list = {
+      type: 'doc',
+      content: [{ type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Item' }] }] }] }],
+    };
+    for (const start of [quote, list]) {
+      const e = make(start as JSONContent);
+      e.commands.focus('end');
+      e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
+      e.commands.focus('end');
+      e.commands.setHorizontalRule();
+      const doc = tiptapToRich(e.getJSON());
+      expect(validateRichDoc(doc)).toMatchObject({ ok: true });
+      expect(JSON.stringify(doc)).toContain('"table"');
+      e.destroy();
+      editor = null;
+    }
+    // A table inside a table cell is not allowed either.
+    const e = make({ type: 'doc', content: [] });
+    e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: true });
+    e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
+    expect(validateRichDoc(tiptapToRich(e.getJSON()))).toMatchObject({ ok: true });
   });
 });

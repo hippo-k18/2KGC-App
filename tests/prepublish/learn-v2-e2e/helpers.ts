@@ -117,7 +117,7 @@ export function watch(page: Page): string[] {
     const t = m.text();
     // The website's own port answers some asset requests made from the preview; a refused connection to it is not the editor's fault.
     if (/Failed to load resource/.test(t)) return;
-    errors.push(`[console] ${t.slice(0, 300)}`);
+    errors.push(`[console] ${t.slice(0, 4000)}`);
   });
   page.on('pageerror', (e) => errors.push(`[pageerror] ${String(e).slice(0, 300)}`));
   return errors;
@@ -155,4 +155,19 @@ export async function webLearnHtml(path = '/learn'): Promise<string> {
 
 export async function waitForWeb(pred: (html: string) => boolean, path = '/learn', timeout = 90_000) {
   await expect.poll(async () => pred(await webLearnHtml(path)), { timeout, intervals: [1000, 2000, 3000] }).toBe(true);
+}
+
+const STORAGE = `http://127.0.0.1:9323/v0/b/${BUCKET}/o`;
+
+/** The Learn page's files in the private Storage emulator. */
+export async function storageList(prefix = 'pageLayouts/learn/'): Promise<string[]> {
+  const r = await fetch(`${STORAGE}?prefix=${encodeURIComponent(prefix)}`, { headers: { Authorization: 'Bearer owner' } });
+  const j = (await r.json()) as { items?: { name: string }[] };
+  return (j.items ?? []).map((i) => i.name);
+}
+
+export async function storageClear(prefix = 'pageLayouts/learn/') {
+  for (const name of await storageList(prefix)) {
+    await fetch(`${STORAGE}/${encodeURIComponent(name)}`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
+  }
 }

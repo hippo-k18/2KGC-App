@@ -108,26 +108,9 @@
 .lp-has-photo { color: #fff; }
 .lp-has-photo :is(.lp-heading, .lp-text, .lp-caption) { color: inherit; }
 
-/* ── Rich text nodes ──────────────────────────────────────────────────── */
-
-.lp-root blockquote {
-  margin: 0 0 1em;
-  padding-left: 16px;
-  border-left: 4px solid var(--lp-palette-4);
-}
-.lp-root code { font-family: ui-monospace, Menlo, monospace; font-size: 0.9em; background: #f3f4f6; padding: 0 3px; border-radius: 3px; }
-.lp-root pre { background: #f3f4f6; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 15px; }
-.lp-root pre code { background: none; padding: 0; }
-.lp-rich-h { margin: 0.6em 0 0.3em; font-weight: 700; line-height: 1.25; }
-.lp-rich-h1 { font-size: 1.8em; }
-.lp-rich-h2 { font-size: 1.5em; }
-.lp-rich-h3 { font-size: 1.25em; }
-.lp-rich-h4 { font-size: 1.1em; }
-.lp-rich-table { overflow-x: auto; margin: 0 0 1em; }
-.lp-rich-table table { border-collapse: collapse; width: 100%; font-size: 16px; }
-.lp-rich-table :is(th, td) { border: 1px solid #d1d5db; padding: 8px 10px; text-align: left; vertical-align: top; }
-.lp-rich-table th { background: #f1f5f9; font-weight: 600; }
-.lp-rich-table :is(th, td) p { margin: 0; }
+/* Rich text is drawn by the website's own renderer (preview-blocks/rich.tsx),
+   with its own rules; nothing here may style its elements, or the preview
+   stops matching /learn (a grey code block on a page that draws it navy). */
 .lp-v2-table.is-striped tr:nth-child(even) td { background: #f8fafc; }
 
 /* ── Interim v2 blocks ────────────────────────────────────────────────── */

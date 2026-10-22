@@ -831,6 +831,35 @@ describe('publish refuses unfinished blocks (T314 F1)', () => {
     expect(publishBlockers(page())).toEqual([]);
   });
 
+  it('keeps a Saved section block with none chosen yet in the draft, and refuses it at publish (T323)', () => {
+    const p = sinkWith((q) => (block(q, 'reusable').libraryId = ''));
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual([
+      expect.stringMatching(/^The Saved section block in ".*" has no saved section chosen yet\. Choose one or remove the block\.$/),
+    ]);
+    // Still refused inside a section on its way into the library.
+    const lib = validateLearnSection(
+      { id: 's', label: 'x', background: 'plain', width: 'normal', paddingTop: 'none', paddingBottom: 'none', blocks: [{ id: 'r', kind: 'reusable', libraryId: '' }] },
+      { forLibrary: true },
+    );
+    expect(lib.ok).toBe(false);
+  });
+
+  it('keeps a new Countdown with no date and a new Embed with no link, and refuses them at publish (T323)', () => {
+    const p = sinkWith((q) => {
+      block(q, 'countdown').until = 0;
+      block(q, 'embed').url = '';
+    });
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual([
+      expect.stringMatching(/^The Embed block in ".*" has no link yet\./),
+      expect.stringMatching(/^The Countdown block in ".*" has no date yet\./),
+    ]);
+    // A wrong link or a date out of range is still refused at save.
+    expect(problemsOf(sinkWith((q) => (block(q, 'embed').url = 'https://evil.example/x')))).not.toEqual([]);
+    expect(problemsOf(sinkWith((q) => (block(q, 'countdown').until = 5)))).not.toEqual([]);
+  });
+
   it('names an unlabelled section by its position', () => {
     const p = unfinished();
     p.sections[0].label = '  ';

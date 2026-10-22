@@ -198,9 +198,12 @@ function useFitScale(width: number) {
 export function LearnEditor({
   initial,
   siteOrigin,
+  openedAt,
 }: {
   initial: LearnEditorState;
   siteOrigin: string;
+  /** The server's clock when the page was rendered, for the preview's countdown. */
+  openedAt?: number;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   useInertOutside(rootRef);
@@ -1103,7 +1106,7 @@ export function LearnEditor({
           {show('preview') && (
             <main className="le-pane le-pane-preview" id="le-pane-preview" aria-label="Preview" role={narrow ? 'tabpanel' : undefined} ref={stageRef} data-tour="preview" data-zoomed={zoom !== 1 || undefined}>
               <div className="le-frame" style={{ width, zoom: frameZoom, ['--le-unzoom' as string]: 1 / frameZoom }} data-device={device}>
-                <LearnPreview {...pane} siteOrigin={siteOrigin} device={device} multi={multi} onBlockClick={onBlockClick} library={library} />
+                <LearnPreview {...pane} siteOrigin={siteOrigin} device={device} multi={multi} onBlockClick={onBlockClick} library={library} openedAt={openedAt} />
               </div>
             </main>
           )}
