@@ -20,9 +20,16 @@ const ACTION_FILES = /content\/learn-page\/(actions|media-actions|ops-actions|ve
 const CANARY = 'CANARYW-learn-gate';
 
 function learnActions(): Map<string, string> {
-  const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8')) as { node: Record<string, { workers: Record<string, { moduleId: string }> }> };
+  const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8')) as {
+    node: Record<string, { workers: Record<string, { moduleId: string }>; filename?: string; exportedName?: string }>;
+  };
   const out = new Map<string, string>();
-  for (const entry of Object.values(manifest.node)) {
+  for (const [id, entry] of Object.entries(manifest.node)) {
+    // A production build names each action on its entry; a dev build only inside the loader's query string.
+    if (entry.filename && entry.exportedName) {
+      if (ACTION_FILES.test(entry.filename)) out.set(entry.exportedName, id);
+      continue;
+    }
     for (const w of Object.values(entry.workers)) {
       const query = new URLSearchParams(w.moduleId.split('?')[1]?.replace(/!$/, '') ?? '');
       const list = JSON.parse(query.get('actions') ?? '[]') as [string, { id: string; exportedName: string; filename: string }[]][];
