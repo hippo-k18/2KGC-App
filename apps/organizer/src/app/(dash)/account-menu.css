@@ -1,0 +1,145 @@
+/*
+ * The account menu (T320): an initial and the address with a caret, opening
+ * on the address and the two sign-outs. The panel is Whova's `.whova-menu`;
+ * only the trigger and the address block are styled here.
+ */
+
+.acct-button {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 13px;
+  gap: 7px;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.acct-avatar {
+  align-items: center;
+  background: #fff;
+  border-radius: 50%;
+  color: var(--kgc-navy);
+  display: inline-flex;
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.acct-email {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acct-caret {
+  font-size: 10px;
+}
+
+.acct-menu[hidden] {
+  display: none;
+}
+
+.acct-menu {
+  max-width: calc(100vw - 16px);
+  min-width: 220px;
+}
+
+.acct-who {
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+}
+
+.acct-who-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.acct-who-email {
+  color: var(--body);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.acct-menu .whova-menu-item:focus-visible {
+  background-color: #e9ecf1;
+  outline: 2px solid var(--interactive);
+  outline-offset: -2px;
+}
+
+/* ── in the navy utility bar ── */
+
+.acct-header .acct-button {
+  height: 50px;
+  padding: 0 15px;
+}
+
+.acct-header .acct-button:hover,
+.acct-header .acct-button[aria-expanded='true'] {
+  background: var(--kgc-navy-dark);
+}
+
+.acct-header .acct-button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+/* Between 768 and 1179 the bar has no room for the address; it is in the menu. */
+@media (max-width: 1179px) {
+  .acct-header .acct-email {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .acct-header .acct-button {
+    height: 40px;
+    padding: 0 8px;
+  }
+}
+
+/* ── in the Learn page editor's blue bar ── */
+
+.acct-editor .acct-button {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  height: 30px;
+  padding: 0 8px 0 4px;
+}
+
+.acct-editor .acct-button:hover,
+.acct-editor .acct-button[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.acct-editor .acct-avatar {
+  color: var(--topnav-bg);
+  font-size: 11px;
+  height: 22px;
+  width: 22px;
+}
+
+.acct-editor .acct-email {
+  max-width: 180px;
+}
+
+/* Above the panes and the outline's own popovers, below the dialogs. */
+.acct-editor .acct-menu {
+  z-index: 1040;
+}
+
+@media (max-width: 1279px) {
+  .acct-editor .acct-email {
+    display: none;
+  }
+}

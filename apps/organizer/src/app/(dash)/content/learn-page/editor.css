@@ -344,3 +344,14 @@
   .le-history { grid-template-columns: minmax(0, 1fr); }
   .le-history-list { max-height: 200px; }
 }
+
+/*
+ * The account menu (T320). Once the bar wraps, the second row is full with
+ * undo, the widths, History and Publish, so the menu takes the right end of
+ * the first row instead, beside the title.
+ */
+@media (max-width: 899px) {
+  .le-bar { position: relative; }
+  .le-bar-left { flex-wrap: wrap; padding-right: 44px; }
+  .le-bar .acct-editor { position: absolute; right: 12px; top: 6px; }
+}

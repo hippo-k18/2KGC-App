@@ -85,8 +85,8 @@ function nounWords(part: string): string {
 }
 
 /**
- * The website's own warnings and errors, which are not "a person did X to Y"
- * and read better whole.
+ * Actions that are not "a person did X to Y" and read better whole: the
+ * website's own warnings and errors, and a person acting on their own sign-in.
  */
 const WEBSITE_ACTION: Record<string, string> = {
   // Rows written before T142; new ones go to `stripeIgnored`, not the audit log.
@@ -95,6 +95,8 @@ const WEBSITE_ACTION: Record<string, string> = {
   'invoice.oversold': 'Invoice paid for more seats than were left',
   'invoice.seatWithoutTicket': 'Invoice seat with no ticket type',
   'refund.notFromWebsite': 'Stripe refund not from ticketing (ignored)',
+  // The actor column already names who; "+d" made it "SignOutEverywhered team" (T314).
+  'team.signOutEverywhere': 'Signed out on all devices',
 };
 
 export function describeAction(action: string): string {

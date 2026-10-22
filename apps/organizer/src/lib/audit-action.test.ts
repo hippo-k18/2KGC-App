@@ -29,4 +29,8 @@ describe('describeAction', () => {
     expect(describeAction('learnPage.restore')).toBe('Restored learn page');
     expect(describeAction('learnPage.uploadImage')).toBe('Uploaded an image for learn page');
   });
+
+  it('reads Sign out on all devices as a sentence, not "SignOutEverywhered team" (T314)', () => {
+    expect(describeAction('team.signOutEverywhere')).toBe('Signed out on all devices');
+  });
 });

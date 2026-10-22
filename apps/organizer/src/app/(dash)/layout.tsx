@@ -6,7 +6,7 @@ import { eventBasics } from '@/lib/event';
 import { ChevronIcon } from '@/lib/icons';
 import { IMPLEMENTED, NAV, allPaths, searchIndex, type NavNode } from '@/lib/nav';
 import { canOpen } from '@/lib/team-core';
-import { logoutAction, logoutEverywhereAction } from '../login/actions';
+import { AccountMenu, AccountProvider } from './account-menu';
 import { Sidebar, TopNav, type SlimNode } from './dash-nav';
 import { NavProgress } from './nav-progress';
 import { FeatureSearch } from './feature-search';
@@ -124,7 +124,9 @@ export default async function DashLayout({ children }: { children: React.ReactNo
     : allPaths().filter(open).map((p) => `/${p}`);
 
   return (
-    <>
+    // The provider is for the Learn page editor, which covers this header and
+    // carries its own account menu (T320).
+    <AccountProvider email={actor}>
       <header id="main-header">
         <div className="main-header">
           <Link className="logo" href="/">
@@ -138,15 +140,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
             </a>
             {open('tools') ? <Link href="/tools">Help Center</Link> : null}
             {open('') ? <Link href="/">My Events</Link> : null}
-            <span className="user-name">{actor}</span>
-            <form action={logoutAction} style={{ display: 'inline-flex' }}>
-              <button type="submit" className="header-signout">
-                Sign out
-              </button>
-              <button type="submit" formAction={logoutEverywhereAction} className="header-signout">
-                Sign out on all devices
-              </button>
-            </form>
+            <AccountMenu variant="header" />
           </nav>
           <FeatureSearch entries={searchIndex().filter((e) => open(e.path))} />
         </div>
@@ -267,6 +261,6 @@ export default async function DashLayout({ children }: { children: React.ReactNo
         <strong>{basics.shortName} EMS</strong>. The event management system for{' '}
         {basics.name}.
       </footer>
-    </>
+    </AccountProvider>
   );
 }
