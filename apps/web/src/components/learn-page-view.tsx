@@ -1,22 +1,24 @@
-import Image from 'next/image';
-import { Fragment, type CSSProperties, type ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import {
-  focalPosition,
   hasLearnImage,
+  headingIds,
   isDrawableLearnBlock,
-  isStorageImageSrc,
   learnRichParagraphs,
   videoEmbed,
-  type InlineSpan,
   type LearnBlock,
   type LearnPageContent,
   type LearnSection,
-  type LinkButton,
   type PageImage,
   type Person,
+  type RichContent,
 } from '@kgc/shared';
+import { blockAttrs, HeadingText, isV2Block, LearnV2Block } from './learn-blocks/blocks';
+import { Button, ItemLink, Picture as BlockPicture, SmartLink, type BlockCtx } from './learn-blocks/parts';
+import { MarkdownSpans, RichBlocks, RichInline, richHasText } from './learn-blocks/rich';
+import { SectionBackground, SectionLayout, sectionShell } from './learn-blocks/section';
 import { LinkedIn } from './linkedin-icon';
 import './learn-page-view.css';
+import './learn-blocks/learn-blocks.css';
 
 /**
  * The KGC | Learn page drawn from data (`pageLayouts/learn`), T311.
@@ -30,8 +32,15 @@ import './learn-page-view.css';
  * /learn route does that), but hidden sections and blocks are skipped here too,
  * so the editor can hand it a raw draft.
  *
- * Text goes through `rich-text-core`'s span parser and into text nodes. There
- * is no `dangerouslySetInnerHTML` anywhere on this path.
+ * Text goes through `rich-text-core`'s span parser (v1 Markdown) or the
+ * `RichDoc` node renderer (v2) and into elements and text nodes. There is no
+ * `dangerouslySetInnerHTML` anywhere on this path.
+ *
+ * v2 (T319): the fourteen new block kinds, rich documents, and the new block,
+ * section and page options live in `./learn-blocks/`, which the dashboard
+ * preview copies byte for byte. The page sits in an `lp-page` box that is the
+ * size container every v2 phone rule measures, so the dashboard's narrow
+ * preview frame gets the phone layout without a narrow window.
  */
 export interface LearnPageViewProps {
   content: LearnPageContent;
@@ -46,22 +55,26 @@ export interface LearnPageViewProps {
    * has it). `plain` serves them as they are, for an app without that config.
    */
   remoteImages?: 'optimize' | 'plain';
+  /** Server time for the countdown's first paint (defaults to now). */
+  now?: number;
 }
 
-interface Ctx {
-  assetOrigin: string;
-  remoteImages: 'optimize' | 'plain';
-  /** Mutable: the first image on the page loads with priority. */
-  firstImage: { used: boolean };
-}
+type Ctx = BlockCtx & { content: LearnPageContent };
 
-export function LearnPageView({ content, assetOrigin = '', remoteImages = 'plain' }: LearnPageViewProps) {
+export function LearnPageView({ content, assetOrigin = '', remoteImages = 'plain', now }: LearnPageViewProps) {
   // Hidden blocks, and an Image or Video block not filled in yet, are not drawn.
   const sections = content.sections
     .filter((s) => !s.hidden)
     .map((s) => ({ ...s, blocks: s.blocks.filter(isDrawableLearnBlock) }))
     .filter((s) => s.blocks.length > 0);
-  const ctx: Ctx = { assetOrigin, remoteImages, firstImage: { used: false } };
+  const ctx: Ctx = {
+    assetOrigin,
+    remoteImages,
+    firstImage: { used: false },
+    headingIds: headingIds(content),
+    now: now ?? Date.now(),
+    content,
+  };
 
   // The page needs one h1. A level-1 heading block is it; otherwise the image
   // in the first wave (today's wordmark) is, as on the hand-built page; and
@@ -70,17 +83,18 @@ export function LearnPageView({ content, assetOrigin = '', remoteImages = 'plain
   const artSection = hasH1 ? undefined : sections.find((s) => s.waveBehindFirstImage && artIndex(s) >= 0);
 
   return (
-    <>
+    <div className="lp-page">
       {!hasH1 && !artSection && <h1 className="sr-only">{content.seoTitle}</h1>}
       {sections.map((s) => (
         <Section key={s.id} section={s} ctx={ctx} artIsH1={s === artSection} />
       ))}
-    </>
+    </div>
   );
 }
 
 function artIndex(section: LearnSection): number {
-  if (!section.waveBehindFirstImage) return -1;
+  // A multi-column section has no single "first image" to put the wave behind.
+  if (!section.waveBehindFirstImage || (section.layout && section.layout !== 'single')) return -1;
   return section.blocks.findIndex((b) => !b.hidden && b.kind === 'image');
 }
 
@@ -98,8 +112,9 @@ function Section({ section, ctx, artIsH1 }: { section: LearnSection; ctx: Ctx; a
   const artBlock = art >= 0 ? blocks[art] : undefined;
 
   const wave = WAVES[section.background];
-  const style =
-    wave && ctx.assetOrigin ? ({ '--lp-wave': `url("${ctx.assetOrigin}${wave}")` } as CSSProperties) : undefined;
+  const shell = sectionShell(section);
+  const vars = { ...(wave && ctx.assetOrigin ? { '--lp-wave': `url("${ctx.assetOrigin}${wave}")` } : {}), ...shell.style };
+  const style = Object.keys(vars).length ? (vars as CSSProperties) : undefined;
 
   const className = [
     'lp-band',
@@ -107,21 +122,26 @@ function Section({ section, ctx, artIsH1 }: { section: LearnSection; ctx: Ctx; a
     art >= 0 ? 'lp-wave-art' : '',
     `lp-pt-${section.paddingTop}`,
     `lp-pb-${section.paddingBottom}`,
+    ...shell.classes,
   ]
     .filter(Boolean)
     .join(' ');
 
+  const layered = section.layout && section.layout !== 'single';
   const wrap = (list: LearnBlock[]) =>
     list.length > 0 && (
       <div className={`wrap-kgc lp-width-${section.width}`}>
-        {list.map((b) => (
-          <Block key={b.id} block={b} ctx={ctx} />
-        ))}
+        {layered ? (
+          <SectionLayout section={section} blocks={list} render={(b) => <Block key={b.id} block={b} ctx={ctx} />} />
+        ) : (
+          list.map((b) => <Block key={b.id} block={b} ctx={ctx} />)
+        )}
       </div>
     );
 
   return (
-    <section className={className} style={style} data-section={section.id}>
+    <section className={className} style={style} data-section={section.id} id={section.anchor}>
+      <SectionBackground section={section} ctx={ctx} />
       {wrap(before)}
       {artBlock?.kind === 'image' && (
         <div className="lp-art">
@@ -141,39 +161,23 @@ function Section({ section, ctx, artIsH1 }: { section: LearnSection; ctx: Ctx; a
   );
 }
 
-function blockClass(block: LearnBlock, ...extra: string[]): string {
-  return [
-    'lp-block',
-    `lp-${block.kind}`,
-    block.align ? `lp-a-${block.align}` : '',
-    block.spaceAbove ? `lp-sa-${block.spaceAbove}` : '',
-    block.spaceBelow ? `lp-sb-${block.spaceBelow}` : '',
-    ...extra,
-  ]
-    .filter(Boolean)
-    .join(' ');
-}
-
 function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
+  if (isV2Block(block)) return <LearnV2Block block={block} ctx={ctx} content={ctx.content} />;
   switch (block.kind) {
     case 'heading': {
-      const Tag = `h${block.level}` as 'h1' | 'h2' | 'h3';
+      const Tag = `h${block.level}` as 'h1' | 'h2' | 'h3' | 'h4';
       const size = block.size ?? (block.level === 1 ? 'x-large' : block.level === 2 ? 'large' : 'normal');
       return (
-        <Tag className={blockClass(block, `lp-hs-${size}`)}>
-          <Lines paragraphs={learnRichParagraphs(block.text)} />
+        <Tag {...blockAttrs(block, `lp-hs-${size}`)} id={ctx.headingIds.get(block.id) ?? block.anchor}>
+          <HeadingText block={block} />
         </Tag>
       );
     }
 
     case 'text':
       return (
-        <div className={blockClass(block, `lp-ts-${block.size ?? 'normal'}`)}>
-          {learnRichParagraphs(block.text).map((lines, i) => (
-            <p key={i}>
-              <Lines paragraphs={[lines]} />
-            </p>
-          ))}
+        <div {...blockAttrs(block, `lp-ts-${block.size ?? 'normal'}`, typeof block.text === 'string' ? '' : 'lp-rich')}>
+          <RichBlocks value={block.text} />
         </div>
       );
 
@@ -186,7 +190,7 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
         />
       );
       return (
-        <figure className={blockClass(block, `lp-iw-${block.width}`)}>
+        <figure {...blockAttrs(block, `lp-iw-${block.width}`)}>
           {block.href ? <SmartLink href={block.href}>{picture}</SmartLink> : picture}
           {block.caption && <figcaption>{block.caption}</figcaption>}
         </figure>
@@ -195,7 +199,7 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
 
     case 'buttons':
       return (
-        <div className={blockClass(block)}>
+        <div {...blockAttrs(block)}>
           {block.buttons.map((b, i) => (
             <Button key={i} button={b} />
           ))}
@@ -204,7 +208,7 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
 
     case 'people':
       return block.style === 'list' ? (
-        <div className={blockClass(block, 'lp-people-list', `lp-cols-${block.columns}`)}>
+        <div {...blockAttrs(block, 'lp-people-list', `lp-cols-${block.columns}`)}>
           {block.people.map((p) => (
             <div key={p.id}>
               <span className="name">{p.name}</span>
@@ -215,7 +219,7 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
           ))}
         </div>
       ) : (
-        <div className={blockClass(block, 'lp-people-cards', `lp-cols-${block.columns}`)}>
+        <div {...blockAttrs(block, 'lp-people-cards', `lp-cols-${block.columns}`)}>
           {block.people.map((p) => (
             <PersonCard key={p.id} person={p} ctx={ctx} />
           ))}
@@ -230,22 +234,18 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
               <strong>{it.title}</strong>{' '}
             </>
           )}
-          <Lines paragraphs={learnRichParagraphs(it.text)} />
+          <RichInline value={it.text} />
           {it.link && (
             <>
               {' '}
-              {it.link.style === 'text' ? (
-                <SmartLink href={it.link.href}>{it.link.label}</SmartLink>
-              ) : (
-                <Button button={it.link} />
-              )}
+              <ItemLink link={it.link} />
             </>
           )}
           {it.children && it.children.length > 0 && (
             <ul>
               {it.children.map((c, i) => (
                 <li key={i}>
-                  <Spans spans={learnRichParagraphs(c)[0]?.flat() ?? []} />
+                  <MarkdownSpans spans={learnRichParagraphs(c)[0]?.flat() ?? []} />
                 </li>
               ))}
             </ul>
@@ -253,32 +253,23 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
         </li>
       ));
       return block.ordered ? (
-        <ol className={blockClass(block)}>{items}</ol>
+        <ol {...blockAttrs(block)}>{items}</ol>
       ) : (
-        <ul className={blockClass(block)}>{items}</ul>
+        <ul {...blockAttrs(block)}>{items}</ul>
       );
     }
 
     case 'columns':
       return (
-        <div className={blockClass(block, `lp-cols-${block.columns}`)}>
+        <div {...blockAttrs(block, `lp-cols-${block.columns}`)}>
           {block.items.map((it) => (
             <div key={it.id} className="lp-column">
               {hasLearnImage(it.image) && <Picture image={it.image} ctx={ctx} className="lp-column-image" />}
               {it.title && <h3>{it.title}</h3>}
-              {it.text.trim() !== '' &&
-                learnRichParagraphs(it.text).map((lines, i) => (
-                  <p key={i}>
-                    <Lines paragraphs={[lines]} />
-                  </p>
-                ))}
+              {richHasText(it.text) && <RichBlocks value={it.text} />}
               {it.link && (
                 <p className="lp-column-link">
-                  {it.link.style === 'text' ? (
-                    <SmartLink href={it.link.href}>{it.link.label}</SmartLink>
-                  ) : (
-                    <Button button={it.link} />
-                  )}
+                  <ItemLink link={it.link} />
                 </p>
               )}
             </div>
@@ -290,7 +281,7 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
       const embed = videoEmbed(block.url);
       if (!embed) return null;
       return (
-        <figure className={blockClass(block)}>
+        <figure {...blockAttrs(block)}>
           <div className="lp-video-frame">
             <iframe
               src={embed.src}
@@ -307,10 +298,10 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
     }
 
     case 'divider':
-      return <hr className={blockClass(block)} />;
+      return <hr {...blockAttrs(block)} />;
 
     case 'spacer':
-      return <div className={blockClass(block, `lp-space-${block.size}`)} aria-hidden="true" />;
+      return <div {...blockAttrs(block, `lp-space-${block.size}`)} aria-hidden="true" />;
 
     default:
       return null;
@@ -335,103 +326,14 @@ function PersonCard({ person, ctx }: { person: Person; ctx: Ctx }) {
   );
 }
 
-function Bio({ text }: { text: string }) {
+function Bio({ text }: { text: RichContent }) {
   return (
     <div className="bio">
-      {learnRichParagraphs(text).map((lines, i) => (
-        <p key={i}>
-          <Lines paragraphs={[lines]} />
-        </p>
-      ))}
+      <RichBlocks value={text} />
     </div>
   );
 }
 
 function Picture({ image, ctx, className }: { image: PageImage; ctx: Ctx; className?: string }) {
-  const local = image.src.startsWith('/');
-  const src = local ? `${ctx.assetOrigin}${image.src}` : image.src;
-  const optimized = local ? !ctx.assetOrigin : ctx.remoteImages === 'optimize' && isStorageImageSrc(image.src);
-  const priority = !ctx.firstImage.used;
-  ctx.firstImage.used = true;
-  const objectPosition = focalPosition(image);
-  return (
-    <Image
-      src={src}
-      alt={image.alt}
-      width={image.width}
-      height={image.height}
-      className={className}
-      priority={priority}
-      unoptimized={!optimized}
-      style={objectPosition ? { objectPosition } : undefined}
-    />
-  );
-}
-
-function Button({ button }: { button: LinkButton }) {
-  const cls =
-    button.style === 'primary'
-      ? 'btn btn-primary lp-btn'
-      : button.style === 'secondary'
-        ? 'btn btn-secondary lp-btn'
-        : 'lp-btn-text';
-  return (
-    <SmartLink href={button.href} className={cls}>
-      {button.label}
-    </SmartLink>
-  );
-}
-
-/** Our own pages and `mailto:` keep the tab; other sites open a new one. */
-function SmartLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
-  const external = /^https?:\/\//i.test(href);
-  return external ? (
-    <a href={href} className={className} target="_blank" rel="noreferrer noopener">
-      {children}
-    </a>
-  ) : (
-    <a href={href} className={className}>
-      {children}
-    </a>
-  );
-}
-
-/** Paragraphs of lines, all joined by line breaks (inside one element). */
-function Lines({ paragraphs }: { paragraphs: InlineSpan[][][] }) {
-  const lines = paragraphs.flat();
-  return (
-    <>
-      {lines.map((spans, i) => (
-        <Fragment key={i}>
-          {i > 0 && <br />}
-          <Spans spans={spans} />
-        </Fragment>
-      ))}
-    </>
-  );
-}
-
-function Spans({ spans }: { spans: InlineSpan[] }) {
-  return (
-    <>
-      {spans.map((s, i) => {
-        switch (s.kind) {
-          case 'strong':
-            return <strong key={i}>{s.text}</strong>;
-          case 'em':
-            return <em key={i}>{s.text}</em>;
-          case 'code':
-            return <code key={i}>{s.text}</code>;
-          case 'link':
-            return (
-              <SmartLink key={i} href={s.href}>
-                {s.text}
-              </SmartLink>
-            );
-          default:
-            return s.text;
-        }
-      })}
-    </>
-  );
+  return <BlockPicture image={image} ctx={ctx} className={className} />;
 }

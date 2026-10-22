@@ -50,3 +50,4 @@ export * from "./rich-doc-core.js";
 export * from "./learn-reusable-core.js";
 export * from "./learn-embed-core.js";
 export * from "./learn-page-share.js";
+export * from "./learn-render-core.js";
