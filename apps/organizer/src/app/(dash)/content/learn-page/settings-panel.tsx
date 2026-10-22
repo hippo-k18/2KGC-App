@@ -17,6 +17,8 @@ import { ImageTools } from './image-tools';
 import { RichField } from './rich-field';
 import { BlockColumnPicker, BlockCommonSettings, PageV2Settings, SectionV2Settings, V2BlockSettings } from './settings-v2';
 import { isEmptyRich } from '@/lib/learn-tools-core';
+import { linkedHostBlock } from '@/lib/learn-library-edit-core';
+import { useEditorServices } from './editor-context';
 import {
   ALIGNS,
   BACKGROUNDS,
@@ -116,6 +118,26 @@ function SectionSettings({
 }) {
   const bgName = useId();
   const upd = (patch: SectionPatch) => onEdit({ type: 'updateSection', sectionId: section.id, patch });
+  // A section whose only visible block is a Saved section block is drawn with
+  // the saved section's look; its own look fields would do nothing, so they
+  // show what is drawn and cannot be changed here (T325, E F4).
+  const svc = useEditorServices();
+  const host = linkedHostBlock(section);
+  const saved = host ? svc?.library?.get(host.libraryId) : undefined;
+  const savedName = (host && svc?.libraryNames?.get(host.libraryId)) || 'Saved section';
+  const shown: LearnSection = saved
+    ? {
+        ...saved,
+        id: section.id,
+        label: section.label,
+        anchor: section.anchor,
+        visibleOn: section.visibleOn,
+        hidden: section.hidden,
+        note: section.note,
+        blocks: section.blocks,
+      }
+    : section;
+  const locked = !!saved;
   return (
     <>
       <Group title="Section">
@@ -125,67 +147,74 @@ function SectionSettings({
           onChange={(label) => upd({ label })}
           hint="Only shown here in the editor, to help you find it."
         />
-        <fieldset className="le-set-field le-set-fieldset">
-          <legend className="le-set-label">Background</legend>
-          <div className="le-set-swatches">
-            {BACKGROUNDS.map((b) => (
-              <label key={b.value} className="le-set-swatch">
-                <input
-                  type="radio"
-                  name={bgName}
-                  checked={section.background === b.value}
-                  onChange={() =>
-                    upd(
-                      b.value === 'grey-wave'
-                        ? { background: b.value }
-                        : { background: b.value, waveBehindFirstImage: undefined },
-                    )
-                  }
-                />
-                <span
-                  className="le-set-swatch-chip"
-                  aria-hidden="true"
-                  style={{
-                    backgroundColor: b.color,
-                    backgroundImage: b.wave ? `url(${resolveSrc(`/kgc/${b.wave}`, siteOrigin)})` : undefined,
-                  }}
-                />
-                <span className="le-set-swatch-name">{b.label}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        {section.background === 'grey-wave' && (
-          <Check
-            label="Wave behind the first image"
-            checked={!!section.waveBehindFirstImage}
-            onChange={(v) => upd({ waveBehindFirstImage: v ? true : undefined })}
-          />
+        {locked && (
+          <p className="le-set-note" role="note">
+            This section comes from the saved section &quot;{savedName}&quot;, so its look is set there. Unlink it to change it here.
+          </p>
         )}
-        <Segmented
-          legend="Width"
-          value={section.width}
-          options={[
-            { value: 'narrow', label: 'Narrow' },
-            { value: 'normal', label: 'Normal' },
-            { value: 'wide', label: 'Wide' },
-          ]}
-          onChange={(width) => width && upd({ width })}
-        />
-        <Segmented
-          legend="Padding top"
-          value={section.paddingTop}
-          options={SPACING}
-          onChange={(paddingTop) => paddingTop && upd({ paddingTop })}
-        />
-        <Segmented
-          legend="Padding bottom"
-          value={section.paddingBottom}
-          options={SPACING}
-          onChange={(paddingBottom) => paddingBottom && upd({ paddingBottom })}
-        />
+        <fieldset className="le-set-lockable" disabled={locked}>
+          <fieldset className="le-set-field le-set-fieldset">
+            <legend className="le-set-label">Background</legend>
+            <div className="le-set-swatches">
+              {BACKGROUNDS.map((b) => (
+                <label key={b.value} className="le-set-swatch">
+                  <input
+                    type="radio"
+                    name={bgName}
+                    checked={shown.background === b.value}
+                    onChange={() =>
+                      upd(
+                        b.value === 'grey-wave'
+                          ? { background: b.value }
+                          : { background: b.value, waveBehindFirstImage: undefined },
+                      )
+                    }
+                  />
+                  <span
+                    className="le-set-swatch-chip"
+                    aria-hidden="true"
+                    style={{
+                      backgroundColor: b.color,
+                      backgroundImage: b.wave ? `url(${resolveSrc(`/kgc/${b.wave}`, siteOrigin)})` : undefined,
+                    }}
+                  />
+                  <span className="le-set-swatch-name">{b.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {shown.background === 'grey-wave' && (
+            <Check
+              label="Wave behind the first image"
+              checked={!!shown.waveBehindFirstImage}
+              onChange={(v) => upd({ waveBehindFirstImage: v ? true : undefined })}
+            />
+          )}
+          <Segmented
+            legend="Width"
+            value={shown.width}
+            options={[
+              { value: 'narrow', label: 'Narrow' },
+              { value: 'normal', label: 'Normal' },
+              { value: 'wide', label: 'Wide' },
+            ]}
+            onChange={(width) => width && upd({ width })}
+          />
+          <Segmented
+            legend="Padding top"
+            value={shown.paddingTop}
+            options={SPACING}
+            onChange={(paddingTop) => paddingTop && upd({ paddingTop })}
+          />
+          <Segmented
+            legend="Padding bottom"
+            value={shown.paddingBottom}
+            options={SPACING}
+            onChange={(paddingBottom) => paddingBottom && upd({ paddingBottom })}
+          />
+        </fieldset>
       </Group>
-      <SectionV2Settings section={section} upd={upd} />
+      <SectionV2Settings section={shown} upd={upd} locked={locked} />
     </>
   );
 }
@@ -674,6 +703,8 @@ function LayoutSettings({
 
 export function SettingsPanel(props: PaneProps & Extra & { onSaveToLibrary?: (sectionId: string) => void }) {
   const { content, selection, onEdit, onSelect, warnings, siteOrigin, uploadImage, onSaveToLibrary } = props;
+  const svc = useEditorServices();
+  const libraryNames = svc?.libraryNames;
 
   const section =
     selection.kind === 'page' ? undefined : content.sections.find((s) => s.id === selection.sectionId);
@@ -761,7 +792,16 @@ export function SettingsPanel(props: PaneProps & Extra & { onSaveToLibrary?: (se
           blockId={block.id}
           onChange={(column) => onEdit({ type: 'setBlockColumn', sectionId: section.id, blockId: block.id, column })}
         />
-        <LayoutSettings align={block.align} spaceAbove={block.spaceAbove} spaceBelow={block.spaceBelow} upd={ctx.upd} />
+        {block.kind === 'reusable' ? (
+          block.libraryId && (
+            <p className="le-set-note" role="note">
+              This block shows the saved section &quot;{libraryNames?.get(block.libraryId) || 'Saved section'}&quot;, so its look is
+              set there. Unlink it to change it here.
+            </p>
+          )
+        ) : (
+          <LayoutSettings align={block.align} spaceAbove={block.spaceAbove} spaceBelow={block.spaceBelow} upd={ctx.upd} />
+        )}
         <BlockCommonSettings block={block} upd={ctx.upd} />
       </>
     );

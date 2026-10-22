@@ -3,7 +3,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { LearnPageContent } from '@kgc/shared';
 import { summarizeChanges, type Selection, type Warning } from '@/lib/learn-editor-core';
-import { publishBlockers } from '@/lib/learn-page-core';
+import type { PublishBlocker } from '@/lib/learn-library-edit-core';
+import { fitZoom } from '@/lib/learn-shell-core';
 import { loadLearnVersionAction, restoreLearnVersionAction, type LearnVersionSummary } from './api';
 import { LearnPreview } from './preview';
 
@@ -131,6 +132,7 @@ export function PublishDialog({
   before,
   firstPublish,
   after,
+  blockers,
   warnings,
   publishedAt,
   onPublish,
@@ -139,7 +141,10 @@ export function PublishDialog({
 }: {
   before: LearnPageContent | null;
   firstPublish: boolean;
+  /** The draft with its saved sections expanded, as Publish puts it live. */
   after: LearnPageContent;
+  /** What the server refuses to publish (`draftPublishBlockers`), worked out on the expanded draft. */
+  blockers: PublishBlocker[];
   warnings: Warning[];
   publishedAt?: number;
   onPublish: (note: string) => Promise<string | null>;
@@ -151,8 +156,6 @@ export function PublishDialog({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const s = summarizeChanges(before, after);
-  // The server refuses these too (`planPublish`); saying so here saves a round trip.
-  const blockers = publishBlockers(after);
 
   const go = async () => {
     setBusy(true);
@@ -231,8 +234,26 @@ export function PublishDialog({
           <div>
             <strong>Finish these blocks to publish</strong>
             <ul className="le-problems">
-              {blockers.map((message, i) => (
-                <li key={i}>{message}</li>
+              {blockers.map((b, i) => (
+                <li key={i}>
+                  {b.sectionId ? (
+                    <button
+                      type="button"
+                      className="linkish"
+                      onClick={() =>
+                        onShow(
+                          b.blockId
+                            ? { kind: 'block', sectionId: b.sectionId!, blockId: b.blockId }
+                            : { kind: 'section', sectionId: b.sectionId! },
+                        )
+                      }
+                    >
+                      {b.message}
+                    </button>
+                  ) : (
+                    b.message
+                  )}
+                </li>
               ))}
             </ul>
           </div>
@@ -335,14 +356,33 @@ export function DiscardDialog({
   );
 }
 
+/** The version preview is a desktop page drawn at this zoom, or smaller to fit its box (E F14). */
+const HISTORY_PAGE = 1280;
+const HISTORY_ZOOM = 0.42;
+
+function useBoxZoom(pageWidth: number, max: number) {
+  const [el, ref] = useState<HTMLElement | null>(null);
+  const [zoom, setZoom] = useState(max);
+  useEffect(() => {
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setZoom(fitZoom(entry.contentRect.width, pageWidth, max)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el, pageWidth, max]);
+  return { ref, zoom };
+}
+
 export function HistoryDialog({
   versions,
   siteOrigin,
+  hasUnpublished = false,
   onRestored,
   onClose,
 }: {
   versions: LearnVersionSummary[];
   siteOrigin: string;
+  /** The draft has changes that are not live; restoring replaces them, so it asks first. */
+  hasUnpublished?: boolean;
   onRestored: (draft: LearnPageContent, revision: number) => void;
   onClose: () => void;
 }) {
@@ -351,6 +391,8 @@ export function HistoryDialog({
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const frame = useBoxZoom(HISTORY_PAGE, HISTORY_ZOOM);
 
   useEffect(() => {
     if (!picked) return;
@@ -375,6 +417,11 @@ export function HistoryDialog({
 
   const restore = async () => {
     if (!picked) return;
+    if (hasUnpublished && !confirming) {
+      setConfirming(true);
+      return;
+    }
+    setConfirming(false);
     setBusy(true);
     setError(null);
     const res = await restoreLearnVersionAction(picked);
@@ -393,19 +440,33 @@ export function HistoryDialog({
       onClose={onClose}
       wide
       footer={
-        <>
-          <button type="button" className="btn btn-default" onClick={onClose}>
-            Close
-          </button>
-          <button
-            type="button"
-            className="whova-btn-main small"
-            onClick={() => void restore()}
-            disabled={!picked || busy || loading || !content}
-          >
-            {busy ? 'Restoring...' : 'Restore this version'}
-          </button>
-        </>
+        confirming ? (
+          <div className="le-history-confirm" role="alert">
+            <span>Restore this version? Your unpublished changes will be replaced. You can undo this.</span>
+            <span className="le-history-confirm-actions">
+              <button type="button" className="btn btn-default" onClick={() => setConfirming(false)} autoFocus>
+                Cancel
+              </button>
+              <button type="button" className="whova-btn-main small" onClick={() => void restore()}>
+                Restore
+              </button>
+            </span>
+          </div>
+        ) : (
+          <>
+            <button type="button" className="btn btn-default" onClick={onClose}>
+              Close
+            </button>
+            <button
+              type="button"
+              className="whova-btn-main small"
+              onClick={() => void restore()}
+              disabled={!picked || busy || loading || !content}
+            >
+              {busy ? 'Restoring...' : 'Restore this version'}
+            </button>
+          </>
+        )
       }
     >
       {versions.length === 0 ? (
@@ -420,7 +481,10 @@ export function HistoryDialog({
                 aria-selected={picked === v.id}
                 tabIndex={0}
                 className={picked === v.id ? 'is-on' : ''}
-                onClick={() => setPicked(v.id)}
+                onClick={() => {
+                  setPicked(v.id);
+                  setConfirming(false);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
@@ -444,7 +508,7 @@ export function HistoryDialog({
               </li>
             ))}
           </ul>
-          <div className="le-history-preview" aria-live="polite" aria-busy={loading}>
+          <div className="le-history-preview" aria-live="polite" aria-busy={loading} ref={frame.ref}>
             {error && (
               <div className="whova-banner danger" role="alert">
                 {error}
@@ -453,7 +517,7 @@ export function HistoryDialog({
             {loading && <p className="le-muted">Loading...</p>}
             {content && !loading && (
               <div className="le-history-frame" inert>
-                <div style={{ width: 1280, zoom: 0.42 }}>
+                <div style={{ width: HISTORY_PAGE, zoom: frame.zoom }}>
                   <LearnPreview
                     content={content}
                     selection={{ kind: 'page' }}

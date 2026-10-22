@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext } from 'react';
-import type { LearnPageContent, PageImage } from '@kgc/shared';
+import type { LearnPageContent, LearnSection, PageImage } from '@kgc/shared';
 import type { UploadImage } from './editor-types';
 
 /**
@@ -21,6 +21,15 @@ export interface EditorServices {
   anchors: { anchor: string; label: string }[];
   /** The draft as it is now, for checks such as anchor uniqueness. */
   content: LearnPageContent;
+  /** Saved sections by id, and their names. Null while the library loads. */
+  library?: ReadonlyMap<string, LearnSection> | null;
+  libraryNames?: ReadonlyMap<string, string>;
+  /** Turns a Saved section block into a copy that can be changed here (one undo step). */
+  unlinkBlock?: (sectionId: string, blockId: string) => void;
+  /** Starts changing the saved section a Saved section block shows. */
+  editSavedSection?: (sectionId: string, blockId: string) => void;
+  /** The saved section being changed on the page right now, if any. */
+  editingSavedSection?: { libraryId: string; sectionId: string } | null;
 }
 
 export const EditorServicesContext = createContext<EditorServices | null>(null);

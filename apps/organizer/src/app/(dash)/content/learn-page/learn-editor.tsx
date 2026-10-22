@@ -19,6 +19,19 @@ import {
 } from '@/lib/learn-editor-core';
 import { autosaveStep, historyAfterServerReplace } from '@/lib/learn-autosave-core';
 import {
+  canonicalContent,
+  draftDiffersFromLive,
+  draftPublishBlockers,
+  expandForCompare,
+  finishSavedSectionEdit,
+  savedSectionFromEdit,
+  startEditFromBlock,
+  startEditFromLibrary,
+  unlinkReusable,
+  type SavedSectionEdit,
+} from '@/lib/learn-library-edit-core';
+import { historyAfterRestore, scheduleCheckDelay } from '@/lib/learn-shell-core';
+import {
   blockRange,
   blocksInPageOrder,
   pageAnchors,
@@ -36,6 +49,7 @@ import {
   publishLearnPageAction,
   revertLearnDraftAction,
   saveLearnDraftAction,
+  saveLearnLibraryItemAction,
   uploadLearnImageAction,
   type LearnEditorState,
   type LearnVersionSummary,
@@ -256,10 +270,14 @@ export function LearnEditor({
   // Null until the first answer: the preview shows placeholders meanwhile,
   // and keeps the last good copy if a refresh fails.
   const [library, setLibrary] = useState<ReadonlyMap<string, LearnSection> | null>(null);
+  const [libraryNames, setLibraryNames] = useState<ReadonlyMap<string, string>>(() => new Map());
   const refreshLibrary = useCallback(async () => {
     try {
       const res = await listLearnLibraryAction();
-      if (res.ok) setLibrary(new Map(res.items.map((item) => [item.id, item.section])));
+      if (res.ok) {
+        setLibrary(new Map(res.items.map((item) => [item.id, item.section])));
+        setLibraryNames(new Map(res.items.map((item) => [item.id, item.name])));
+      }
     } catch {
       // Offline or a server hiccup: the placeholders stay until the next refresh.
     }
@@ -267,6 +285,8 @@ export function LearnEditor({
   useEffect(() => {
     void refreshLibrary();
   }, [refreshLibrary]);
+  const libraryRef = useRef(library);
+  libraryRef.current = library;
 
   // What the server holds, so autosave sends only real changes. Refs, not
   // state: the save loop reads them after awaits, when state would be stale.
@@ -286,7 +306,18 @@ export function LearnEditor({
   // built-in page, which is exactly what the editor opened with.
   const [baseline] = useState<LearnPageContent | null>(() => (initial.exists ? null : initial.doc.draft));
   const live = published ?? baseline;
-  const unpublished = !contentEqual(content, live);
+  // The live copy holds saved sections expanded, so the draft is expanded the
+  // same way before the two are compared (T325, E F2). Until the library has
+  // loaded, the server's answer stands for the draft it was given.
+  const expandedDraft = useMemo(() => canonicalContent(expandForCompare(content, library)), [content, library]);
+  const unpublished = draftDiffersFromLive(
+    content,
+    live,
+    library,
+    content === initial.doc.draft ? initial.hasUnpublishedChanges : true,
+  );
+  // What the server refuses to publish, worked out on the expanded draft (C X2).
+  const blockers = useMemo(() => draftPublishBlockers(content, library), [content, library]);
 
   useEffect(() => {
     if (narrow) setDevice((d) => (d === 'desktop' ? 'phone' : d));
@@ -744,20 +775,6 @@ export function LearnEditor({
     }
   }, []);
 
-  // ── Services for forms deep in the panes ───────────────────────────────
-  const anchors = useMemo(() => pageAnchors(content).map((a) => ({ anchor: a.anchor, label: a.label })), [content]);
-  const services = useMemo<EditorServices>(
-    () => ({
-      siteOrigin,
-      uploadImage,
-      anchors,
-      content,
-      pickImage: (opts) => new Promise<PageImage | null>((resolve) => setPicking({ resolve, title: opts?.title })),
-      editImage: (image) => new Promise<PageImage | null>((resolve) => setEditingImage({ image, resolve })),
-    }),
-    [anchors, content, siteOrigin, uploadImage],
-  );
-
   // ── Publish, discard, history ──────────────────────────────────────────
   const onPublish = useCallback(async (note: string): Promise<string | null> => {
     const sending = latest.current;
@@ -772,7 +789,8 @@ export function LearnEditor({
     }
     revision.current = res.revision;
     lastSaved.current = sending;
-    setPublished(sending);
+    // The live copy holds saved sections expanded, as the server stored it.
+    setPublished(canonicalContent(expandForCompare(sending, libraryRef.current)));
     setPublishedAt(res.publishedAt);
     setSavedAt(res.publishedAt);
     setSaveState(contentEqual(latest.current, sending) ? 'saved' : 'unsaved');
@@ -796,12 +814,160 @@ export function LearnEditor({
     return null;
   }, [replaceDraft]);
 
-  const onRestored = useCallback(
-    (draft: LearnPageContent, rev: number) => {
-      replaceDraft(draft, rev);
-      setFlash('Version restored into the draft. Publish to make it live.');
+  /**
+   * A restored version is one undo step (T325, E F5): the draft it replaced
+   * goes onto the undo stack, so Undo brings unpublished work back and
+   * autosave stores it again. A discard or "Load their version" still starts
+   * the history afresh (`replaceDraft`).
+   */
+  const onRestored = useCallback((draft: LearnPageContent, rev: number) => {
+    revision.current = rev;
+    lastSaved.current = draft;
+    refused.current = null;
+    generation.current += 1;
+    setHistory((h) => historyAfterRestore(h, draft));
+    setEpoch((n) => n + 1);
+    setSaveState('saved');
+    setError(null);
+    setChangedSinceSchedule(true);
+    setFlash('Version restored into the draft. Publish to make it live. Undo brings your draft back.');
+  }, []);
+
+  // ── A scheduled publish that came due while the editor was open (E F8) ──
+  /**
+   * The publish state from the server: what is live, the versions and the
+   * schedule. The draft is left alone; if the server's draft moved on, the
+   * next save says so as a conflict, as usual.
+   */
+  const refreshStatus = useCallback(async () => {
+    try {
+      const res = await loadLearnEditorAction();
+      if (!res.ok) return;
+      const d = res.state.doc;
+      const due = scheduledRef.current;
+      if (due && !d.scheduledPublishAt && d.publishedAt && d.publishedAt >= due) setFlash('The scheduled publish is live.');
+      setPublished(d.published);
+      setPublishedAt(d.publishedAt);
+      setVersions(res.state.versions);
+      setScheduledAt(d.scheduledPublishAt);
+      setScheduleFailure(d.scheduleFailure);
+      setChangedSinceSchedule(d.scheduledRevision !== undefined && d.scheduledRevision !== d.revision);
+    } catch {
+      // Offline: the next try or the next focus asks again.
+    }
+  }, []);
+
+  const scheduledRef = useRef(scheduledAt);
+  scheduledRef.current = scheduledAt;
+  const [scheduleTries, setScheduleTries] = useState(0);
+  const [scheduleWake, setScheduleWake] = useState(0);
+  useEffect(() => setScheduleTries(0), [scheduledAt]);
+  useEffect(() => {
+    if (!scheduledAt) return;
+    const delay = scheduleCheckDelay(scheduledAt, Date.now(), scheduleTries);
+    if (delay === null) return;
+    const t = setTimeout(() => {
+      if (Date.now() < scheduledAt) setScheduleWake((n) => n + 1);
+      else void refreshStatus().then(() => setScheduleTries((n) => n + 1));
+    }, delay);
+    return () => clearTimeout(t);
+  }, [scheduledAt, scheduleTries, scheduleWake, refreshStatus]);
+  useEffect(() => {
+    if (!scheduledAt) return;
+    const onFocus = () => {
+      if (Date.now() >= scheduledAt) void refreshStatus();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [scheduledAt, refreshStatus]);
+  // ── Saved sections: Unlink and change them from the page (E F1, F3) ────
+  const [savedEdit, setSavedEdit] = useState<SavedSectionEdit | null>(null);
+  const [savedEditBusy, setSavedEditBusy] = useState(false);
+  const [savedEditError, setSavedEditError] = useState<string | null>(null);
+
+  const unlinkBlock = useCallback(
+    (sectionId: string, blockId: string) => {
+      if (!library) return;
+      const next = unlinkReusable(latest.current, sectionId, blockId, library);
+      if (!next) {
+        setFlash('That saved section is not in the library any more, so there is nothing to unlink.');
+        return;
+      }
+      edit({ type: 'replace', content: next });
+      setSelection({ kind: 'section', sectionId });
+      setFlash('Unlinked. This is now a copy you can change here; the saved section is not changed. Undo links it again.');
     },
-    [replaceDraft],
+    [edit, library],
+  );
+
+  const beginSavedEdit = useCallback(
+    (started: { content: LearnPageContent; edit: SavedSectionEdit } | null) => {
+      if (!started) {
+        setFlash('That saved section is not in the library any more.');
+        return;
+      }
+      edit({ type: 'replace', content: started.content });
+      setSavedEdit(started.edit);
+      setSavedEditError(null);
+      setSelection({ kind: 'section', sectionId: started.edit.sectionId });
+    },
+    [edit],
+  );
+
+  const editSavedSection = useCallback(
+    (sectionId: string, blockId: string) => {
+      if (!library || savedEdit) return;
+      const block = findBlock(latest.current, sectionId, blockId);
+      const id = block?.kind === 'reusable' ? block.libraryId : '';
+      beginSavedEdit(startEditFromBlock(latest.current, sectionId, blockId, library, libraryNames.get(id) ?? 'Saved section'));
+    },
+    [beginSavedEdit, library, libraryNames, savedEdit],
+  );
+
+  // Undo past the start, or deleting the copy, ends the change without saving.
+  useEffect(() => {
+    if (savedEdit && !content.sections.some((s) => s.id === savedEdit.sectionId)) setSavedEdit(null);
+  }, [content, savedEdit]);
+
+  const finishSavedEdit = useCallback(
+    async (keep: boolean) => {
+      if (!savedEdit) return;
+      if (keep) {
+        const saved = library?.get(savedEdit.libraryId);
+        const section = saved && savedSectionFromEdit(latest.current, savedEdit, saved);
+        if (!section) {
+          setSavedEditError('This saved section is not in the library any more. Cancel, then save the section to the library again.');
+          return;
+        }
+        setSavedEditBusy(true);
+        setSavedEditError(null);
+        try {
+          const res = await saveLearnLibraryItemAction({ name: savedEdit.name, section, replaceId: savedEdit.libraryId });
+          if (!res.ok) {
+            setSavedEditError(res.error);
+            return;
+          }
+          // Drawn from the new copy at once; the refresh below confirms it.
+          setLibrary((lib) => new Map(lib ?? []).set(savedEdit.libraryId, section));
+        } catch {
+          setSavedEditError('Could not reach the server. Your changes are still here; try again.');
+          return;
+        } finally {
+          setSavedEditBusy(false);
+        }
+      }
+      edit({ type: 'replace', content: finishSavedSectionEdit(latest.current, savedEdit) });
+      setSelection({ kind: 'page' });
+      setSavedEdit(null);
+      setSavedEditError(null);
+      setFlash(
+        keep
+          ? `Saved "${savedEdit.name}" to the library. Every page that links it shows the change; publish to put it on the website.`
+          : 'No change made to the saved section.',
+      );
+      if (keep) void refreshLibrary();
+    },
+    [edit, library, refreshLibrary, savedEdit],
   );
 
   const cancelSchedule = useCallback(async () => {
@@ -817,6 +983,25 @@ export function LearnEditor({
     const t = setTimeout(() => setFlash(null), 6000);
     return () => clearTimeout(t);
   }, [flash]);
+
+  // ── Services for forms deep in the panes ───────────────────────────────
+  const anchors = useMemo(() => pageAnchors(content).map((a) => ({ anchor: a.anchor, label: a.label })), [content]);
+  const services = useMemo<EditorServices>(
+    () => ({
+      siteOrigin,
+      uploadImage,
+      anchors,
+      content,
+      pickImage: (opts) => new Promise<PageImage | null>((resolve) => setPicking({ resolve, title: opts?.title })),
+      editImage: (image) => new Promise<PageImage | null>((resolve) => setEditingImage({ image, resolve })),
+      library,
+      libraryNames,
+      unlinkBlock,
+      editSavedSection: savedEdit ? undefined : editSavedSection,
+      editingSavedSection: savedEdit ? { libraryId: savedEdit.libraryId, sectionId: savedEdit.sectionId } : null,
+    }),
+    [anchors, content, editSavedSection, library, libraryNames, savedEdit, siteOrigin, unlinkBlock, uploadImage],
+  );
 
   // ── Adding sections ────────────────────────────────────────────────────
   const insertSection = useCallback(
@@ -986,7 +1171,8 @@ export function LearnEditor({
               className="whova-btn-main small"
               data-tour="publish"
               onClick={() => setDialog('publish')}
-              disabled={saveState === 'conflict'}
+              disabled={saveState === 'conflict' || !!savedEdit}
+              title={savedEdit ? 'Save the saved section to the library, or cancel, first.' : undefined}
             >
               Publish
             </button>
@@ -1010,6 +1196,32 @@ export function LearnEditor({
             onReschedule={() => openDialog('schedule')}
             onDismiss={() => setScheduleFailure(undefined)}
           />
+        )}
+        {savedEdit && (
+          <div className="whova-banner info le-banner le-saved-edit" role="status">
+            <div>
+              <strong>You&apos;re changing the saved section &quot;{savedEdit.name}&quot;.</strong> Every page that links it
+              updates when you save it.
+              <div className="le-banner-actions">
+                <button
+                  type="button"
+                  className="whova-btn-main small"
+                  disabled={savedEditBusy}
+                  onClick={() => void finishSavedEdit(true)}
+                >
+                  {savedEditBusy ? 'Saving...' : 'Save to library'}
+                </button>
+                <button type="button" className="btn btn-default btn-sm" disabled={savedEditBusy} onClick={() => void finishSavedEdit(false)}>
+                  Cancel
+                </button>
+              </div>
+              {savedEditError && (
+                <p className="le-saved-edit-error" role="alert">
+                  {savedEditError}
+                </p>
+              )}
+            </div>
+          </div>
         )}
         {saveState === 'conflict' && (
           <div className="whova-banner danger le-banner" role="alert">
@@ -1115,7 +1327,14 @@ export function LearnEditor({
               {side === 'find' ? (
                 <FindReplacePanel content={content} onEdit={edit} onJump={jump} onClose={() => setSide(null)} />
               ) : side ? (
-                <CheckerPanel key={side.tab} content={content} onJump={jump} onClose={() => setSide(null)} initialTab={side.tab} />
+                <CheckerPanel
+                  key={side.tab}
+                  content={content}
+                  blockers={blockers}
+                  onJump={jump}
+                  onClose={() => setSide(null)}
+                  initialTab={side.tab}
+                />
               ) : (
                 <SettingsPanel
                   {...pane}
@@ -1130,9 +1349,10 @@ export function LearnEditor({
 
         {dialog === 'publish' && (
           <PublishDialog
-            before={live}
+            before={live && canonicalContent(live)}
             firstPublish={!published}
-            after={content}
+            after={expandedDraft}
+            blockers={blockers}
             warnings={warnings}
             publishedAt={publishedAt}
             onPublish={onPublish}
@@ -1145,10 +1365,16 @@ export function LearnEditor({
         )}
         {dialog === 'discard' && <DiscardDialog onDiscard={onDiscard} onClose={() => setDialog(null)} />}
         {dialog === 'history' && (
-          <HistoryDialog versions={versions} siteOrigin={siteOrigin} onRestored={onRestored} onClose={() => setDialog(null)} />
+          <HistoryDialog
+            versions={versions}
+            siteOrigin={siteOrigin}
+            hasUnpublished={unpublished}
+            onRestored={onRestored}
+            onClose={() => setDialog(null)}
+          />
         )}
         {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
-        {dialog === 'compare' && <CompareDialog versions={versions} draft={content} siteOrigin={siteOrigin} onClose={() => setDialog(null)} />}
+        {dialog === 'compare' && <CompareDialog versions={versions} draft={expandedDraft} siteOrigin={siteOrigin} onClose={() => setDialog(null)} />}
         {dialog === 'schedule' && (
           <ScheduleDialog
             scheduledAt={scheduledAt ?? null}
@@ -1182,6 +1408,11 @@ export function LearnEditor({
               );
               void refreshLibrary();
             }}
+            onEditSaved={
+              savedEdit
+                ? undefined
+                : (libraryId, name, section) => beginSavedEdit(startEditFromLibrary(latest.current, dialog.index, libraryId, section, name))
+            }
             onClose={() => {
               setDialog(null);
               // Saved sections can be renamed or deleted in the dialog.

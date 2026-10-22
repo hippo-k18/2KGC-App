@@ -299,3 +299,8 @@
 .le-v2-lib-name { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
 .le-v2-lib-meta { flex: none; font-size: 12px; color: var(--body); }
 .le-v2-lib-error p { margin: 0 0 6px; color: var(--danger, #dd4b39); }
+.le-v2-lib-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+
+/* A linked section's look comes from the library (T325, E F4): shown, not changeable. */
+.le-set-lockable { margin: 0; padding: 0; border: 0; min-width: 0; }
+.le-set-lockable:disabled { opacity: 0.6; }

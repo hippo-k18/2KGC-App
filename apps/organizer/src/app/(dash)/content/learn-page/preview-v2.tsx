@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { parseLearnSection, tocEntries, type LearnBlock, type LearnPageContent } from '@kgc/shared';
+import { defaultEmbedTitle, parseLearnSection, tocEntries, type LearnBlock, type LearnPageContent, type LearnSection } from '@kgc/shared';
 import { EMBED_PROVIDERS, embedSrc, type BlockOf } from '@/lib/learn-editor-core';
 import { pageAnchors } from '@/lib/learn-tools-core';
 import { isV2Block, LearnV2Block, type BlockCtx, type V2Block } from './preview-blocks';
@@ -47,6 +47,24 @@ export const PreviewContentContext = createContext<LearnPageContent | null>(null
  * block that reads it.
  */
 export const PreviewBlockCtxContext = createContext<BlockCtx | null>(null);
+
+/**
+ * The saved sections the preview draws from: a map once loaded, null while
+ * loading, undefined where nobody passed one (Compare, History). Lets a
+ * Saved section block that could not be drawn say why (T325, E F7).
+ */
+export const PreviewLibraryContext = createContext<ReadonlyMap<string, LearnSection> | null | undefined>(undefined);
+
+function ReusablePlaceholder({ block }: { block: Extract<LearnBlock, { kind: 'reusable' }> }) {
+  const library = useContext(PreviewLibraryContext);
+  let text = 'Saved section from your library. It shows here as it is in the library.';
+  if (!block.libraryId) text = 'Choose a saved section in the panel.';
+  else if (library === null) text = 'Loading the saved section...';
+  else if (library && !library.has(block.libraryId)) text = 'This saved section was deleted. Remove this block or pick another saved section.';
+  else if (library && block.hidden) text = 'Saved section, hidden.';
+  const missing = !!library && !!block.libraryId && !library.has(block.libraryId);
+  return <div className={`lp-v2-reusable${missing ? ' is-missing' : ''}`}>{text}</div>;
+}
 
 type Bodies = { [K in LearnBlock['kind']]?: (p: V2BodyProps<K>) => ReactNode };
 
@@ -281,7 +299,7 @@ export const V2_BODIES: Bodies = {
       <iframe
         className="lp-v2-embed"
         src={src}
-        title={block.title || EMBED_PROVIDERS[block.provider].label}
+        title={block.title || defaultEmbedTitle(block.provider)}
         loading="lazy"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
         referrerPolicy="strict-origin-when-cross-origin"
@@ -301,11 +319,7 @@ export const V2_BODIES: Bodies = {
     </figure>
   ),
   toc: (p) => <Toc {...p} />,
-  reusable: ({ block }) => (
-    <div className="lp-v2-reusable">
-      {block.libraryId ? 'Saved section from your library. It shows here as it is in the library.' : 'Choose a saved section in the panel.'}
-    </div>
-  ),
+  reusable: ({ block }) => <ReusablePlaceholder block={block} />,
 };
 
 /** The block as the website would draw it, without the options the shell applies; null when the site would not draw it. */

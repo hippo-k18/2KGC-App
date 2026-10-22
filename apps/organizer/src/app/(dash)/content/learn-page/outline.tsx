@@ -24,6 +24,8 @@ import {
 import { blockRange, outlineMatches } from '@/lib/learn-tools-core';
 import { AddBlockPicker } from './add-block-picker';
 import type { PaneProps } from './editor-types';
+import { useEditorServices } from './editor-context';
+import { scrollIntoPane } from './scroll-into-pane';
 import { isMacPlatform, shortcutText } from './shortcuts-dialog';
 import './outline.css';
 
@@ -232,6 +234,13 @@ const I = {
     </>
   ),
   plus: <path d="M8 3v10M3 8h10" />,
+  unlink: (
+    <>
+      <path d="M6.5 9.5 5 11a2.1 2.1 0 0 1-3-3l1.5-1.5M9.5 6.5 11 5a2.1 2.1 0 0 1 3 3l-1.5 1.5" />
+      <path d="M2.5 2.5l2 2M11.5 11.5l2 2" />
+    </>
+  ),
+  pencil: <path d="M10.5 2.5l3 3-8 8H2.5v-3z" />,
   more: (
     <>
       <circle cx="3.5" cy="8" r="1.1" fill="currentColor" stroke="none" />
@@ -471,6 +480,7 @@ export interface OutlineProps extends PaneProps {
 
 export function Outline(props: OutlineProps) {
   const { content, selection, onSelect, onEdit, warnings, multi, onMulti, onAddSection } = props;
+  const services = useEditorServices();
   const sections = content.sections;
   const [query, setQuery] = useState('');
   const matches = useMemo(() => outlineMatches(content, query), [content, query]);
@@ -501,9 +511,27 @@ export function Outline(props: OutlineProps) {
   }
   const closeMenu = useCallback(() => setMenu(null), []);
 
+  // A block chosen elsewhere (the preview, the Checker, Find) opens its
+  // section here and comes into view (T325, E F9).
+  const selectedSectionId = selection.kind === 'block' ? selection.sectionId : null;
+  const scrollPending = useRef(false);
   useEffect(() => {
-    rowRefs.current.get(selectedKey)?.scrollIntoView({ block: 'nearest' });
+    if (selectedSectionId && collapsed.has(selectedSectionId)) {
+      scrollPending.current = true;
+      setCollapsed((prev) => {
+        const next = new Set(prev);
+        next.delete(selectedSectionId);
+        return next;
+      });
+    } else scrollIntoPane(rowRefs.current.get(selectedKey));
+    // Only a new selection scrolls; folding another section must not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey]);
+  useEffect(() => {
+    if (!scrollPending.current) return;
+    scrollPending.current = false;
+    scrollIntoPane(rowRefs.current.get(selectedKey));
+  }, [collapsed, selectedKey]);
 
   // A row moved by keyboard is a moved DOM node, which can drop focus.
   useEffect(() => {
@@ -832,6 +860,19 @@ export function Outline(props: OutlineProps) {
       },
       { label: 'Delete', icon: I.trash, keys: 'Delete', danger: true, run: () => setConfirming(key) },
     ];
+    // A linked saved section can be changed for every page, or turned into a copy for this one (T325).
+    if (block.kind === 'reusable' && block.libraryId && services?.library?.has(block.libraryId)) {
+      const linkActions: RowAction[] = [];
+      if (services.editSavedSection) {
+        const edit = services.editSavedSection;
+        linkActions.push({ label: 'Edit saved section', icon: I.pencil, run: () => edit(section.id, block.id) });
+      }
+      if (services.unlinkBlock) {
+        const unlink = services.unlinkBlock;
+        linkActions.push({ label: 'Unlink', icon: I.unlink, run: () => unlink(section.id, block.id) });
+      }
+      actions.splice(actions.length - 1, 0, ...linkActions);
+    }
 
     return (
       <li key={block.id} role="none">

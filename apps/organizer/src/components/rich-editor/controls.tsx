@@ -240,7 +240,11 @@ export function Dialog({ title, onClose, children, footer, wide }: DialogProps) 
   const box = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useEffect(() => {
-    const first = box.current?.querySelector<HTMLElement>('[data-autofocus], input, select, textarea, button');
+    // A selector list matches in document order, so the head's Close button would win over the field the
+    // dialog marks; look for the marked one first.
+    const first =
+      box.current?.querySelector<HTMLElement>('[data-autofocus]') ??
+      box.current?.querySelector<HTMLElement>('.rt-dialog-body input, .rt-dialog-body select, .rt-dialog-body textarea, button');
     first?.focus();
   }, []);
   const onKeyDown = (e: ReactKeyboardEvent) => {

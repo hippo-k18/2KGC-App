@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { defaultEmbedTitle } from '@kgc/shared';
 import type { ColorValue, ImageShape, LearnBlock, LearnPageContent, LearnSection, LinkButton, PageImage } from '@kgc/shared';
 import {
   EMBED_PROVIDERS,
   EMPTY_IMAGE,
   blockColumnOf,
+  embedLinkPatch,
+  embedProviderPatch,
+  embedStatus,
   blockSummary,
-  embedProviderFromUrl,
-  embedSrc,
   layoutColumns,
   newId,
   plainText,
@@ -76,6 +78,10 @@ function useServices() {
     uploadImage: svc?.uploadImage ?? noUpload,
     pickImage: svc?.pickImage,
     content: svc?.content ?? EMPTY_PAGE,
+    library: svc?.library,
+    libraryNames: svc?.libraryNames,
+    unlinkBlock: svc?.unlinkBlock,
+    editSavedSection: svc?.editSavedSection,
   };
 }
 
@@ -369,17 +375,24 @@ function blockText(block: LearnBlock): string {
 export function BlockCommonSettings({ block, upd }: { block: LearnBlock; upd: Upd }) {
   const { content } = useServices();
   const section = content.sections.find((s) => s.blocks.some((b) => b.id === block.id));
+  // A Saved section block draws the saved section's own blocks, so width, card
+  // and text colour set here would do nothing (T325, E F4).
+  const linked = block.kind === 'reusable';
   return (
-    <Group title="Appearance and visibility">
+    <Group title={linked ? 'Visibility' : 'Appearance and visibility'}>
       <VisibleOnField value={block.visibleOn} onChange={(visibleOn) => upd({ visibleOn })} />
-      <Segmented legend="Width" value={block.maxWidth} options={MAX_WIDTHS} onChange={(maxWidth) => upd({ maxWidth })} />
-      <Check label="Put it in a light card" checked={!!block.boxed} onChange={(v) => upd({ boxed: v ? true : undefined })} />
-      <ColorField
-        legend="Text colour"
-        value={block.textColor}
-        onChange={(textColor) => upd({ textColor })}
-        against={section ? sectionBgHex(section) : undefined}
-      />
+      {!linked && (
+        <>
+          <Segmented legend="Width" value={block.maxWidth} options={MAX_WIDTHS} onChange={(maxWidth) => upd({ maxWidth })} />
+          <Check label="Put it in a light card" checked={!!block.boxed} onChange={(v) => upd({ boxed: v ? true : undefined })} />
+          <ColorField
+            legend="Text colour"
+            value={block.textColor}
+            onChange={(textColor) => upd({ textColor })}
+            against={section ? sectionBgHex(section) : undefined}
+          />
+        </>
+      )}
       <AnchorField value={block.anchor} ownerId={block.id} source={blockText(block)} onChange={(anchor) => upd({ anchor })} />
       <NoteField value={block.note} onChange={(note) => upd({ note })} />
     </Group>
@@ -950,11 +963,9 @@ function EmbedSettings({ block, upd }: { block: BlockOf<'embed'>; upd: Upd }) {
   const selectId = useId();
   const heightId = useId();
   const info = EMBED_PROVIDERS[block.provider];
-  const url = block.url.trim();
-  const found = url ? embedSrc(block.provider, url) : null;
+  const status = embedStatus(block.provider, block.url);
   const height = block.height;
   const heightBad = height !== undefined && (height < MIN_HEIGHT || height > MAX_HEIGHT);
-  const example = info.hint.startsWith('https://') ? `For example: ${info.hint}` : info.hint;
 
   return (
     <Group title="Embed">
@@ -966,7 +977,7 @@ function EmbedSettings({ block, upd }: { block: BlockOf<'embed'>; upd: Upd }) {
           id={selectId}
           className="whova-text-input le-set-input le-v2-select"
           value={block.provider}
-          onChange={(e) => upd({ provider: e.target.value as EmbedProvider })}
+          onChange={(e) => upd(embedProviderPatch(block, e.target.value as EmbedProvider))}
         >
           {PROVIDERS.map(([p, v]) => (
             <option key={p} value={p}>
@@ -980,14 +991,12 @@ function EmbedSettings({ block, upd }: { block: BlockOf<'embed'>; upd: Upd }) {
         type="url"
         value={block.url}
         placeholder="https://"
-        onChange={(next) => {
-          const p = embedProviderFromUrl(next);
-          upd(p && p !== block.provider ? { url: next, provider: p } : { url: next });
-        }}
-        hint={`${example}. Paste any supported link and the service is picked for you.`}
+        // A new service brings its own screen-reader title, unless someone typed one (T325, D2/F6).
+        onChange={(next) => upd(embedLinkPatch(block, next))}
+        hint="Paste the link from your browser's address bar, or a YouTube, Google Forms or Calendly link."
       />
-      <p className={`le-set-status${found ? ' ok' : url ? ' bad' : ''}`} role="status" aria-live="polite">
-        {found ? `${info.label} link found` : url ? `That is not a ${info.label} link` : `Paste a ${info.label} link`}
+      <p className={`le-set-status${status.state === 'ok' ? ' ok' : status.state === 'bad' ? ' bad' : ''}`} role="status" aria-live="polite">
+        {status.message}
       </p>
       <Segmented
         legend="Shape"
@@ -1030,7 +1039,7 @@ function EmbedSettings({ block, upd }: { block: BlockOf<'embed'>; upd: Upd }) {
       <Text
         label="Title for screen readers"
         value={block.title}
-        placeholder="Map of the venue"
+        placeholder={defaultEmbedTitle(block.provider)}
         onChange={(title) => upd({ title })}
         hint="Says what is inside, for people who cannot see it."
         warn={block.title.trim() ? null : 'Add a title. Screen readers need it to describe the embed.'}
@@ -1208,6 +1217,10 @@ function TocSettings({ block, upd }: { block: BlockOf<'toc'>; upd: Upd }) {
  */
 function ReusableSettings({ block, upd }: { block: BlockOf<'reusable'>; upd: Upd }) {
   const listId = useId();
+  const { content, library, unlinkBlock, editSavedSection } = useServices();
+  const sectionId = content.sections.find((s) => s.blocks.some((b) => b.id === block.id))?.id;
+  // Unlink and Edit work on the copy the editor already holds, so they wait for it.
+  const inLibrary = !!block.libraryId && !!library?.has(block.libraryId);
   const [rows, setRows] = useState<LearnLibraryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -1235,15 +1248,33 @@ function ReusableSettings({ block, upd }: { block: BlockOf<'reusable'>; upd: Upd
   if (!block.libraryId) now = 'No saved section chosen yet.';
   else if (!rows) now = error ? 'A saved section is chosen.' : 'Loading...';
   else if (current) now = <>Shows <strong>{current.name}</strong>.</>;
-  else now = 'The saved section this block showed is no longer in the library, so nothing shows here. Choose another one.';
+  else now = 'This saved section was deleted. Remove this block or pick another saved section.';
 
   return (
     <Group title="Saved section">
       <p className="le-set-hint le-v2-lead">
-        Shows a saved section from your library. Change it in the library and every copy updates.
+        Shows a saved section from your library. To change what it shows, choose Edit saved section: every page that
+        links it updates when you save. To change it on this page only, choose Unlink.
       </p>
       <div className="le-set-field">
         <p className="le-v2-lib-now">{now}</p>
+        {sectionId && inLibrary && (editSavedSection || unlinkBlock) && (
+          <div className="le-v2-lib-actions">
+            {editSavedSection && (
+              <button type="button" className="btn btn-default btn-sm" onClick={() => editSavedSection(sectionId, block.id)}>
+                Edit saved section
+              </button>
+            )}
+            {unlinkBlock && (
+              <button type="button" className="btn btn-default btn-sm" onClick={() => unlinkBlock(sectionId, block.id)}>
+                Unlink
+              </button>
+            )}
+          </div>
+        )}
+        {sectionId && inLibrary && unlinkBlock && (
+          <p className="le-set-hint">Unlink makes this a copy you can change here. The saved section stays as it is.</p>
+        )}
         {!choosing && (
           <button type="button" className="btn btn-default btn-sm" onClick={() => setChoosing(true)}>
             Choose a different saved section
@@ -1374,7 +1405,16 @@ const OVERLAY_MAX = 0.8;
 /** Below this the photo shows through enough that text over it is a gamble. */
 const OVERLAY_READABLE = 0.4;
 
-export function SectionV2Settings({ section, upd }: { section: LearnSection; upd: (p: SectionPatch) => void }) {
+export function SectionV2Settings({
+  section,
+  upd,
+  locked,
+}: {
+  section: LearnSection;
+  upd: (p: SectionPatch) => void;
+  /** The look comes from a linked saved section: shown, not changeable here (T325, E F4). */
+  locked?: boolean;
+}) {
   const { siteOrigin, uploadImage } = useServices();
   const overlayId = useId();
   const multi = layoutColumns(section.layout) > 1;
@@ -1390,64 +1430,66 @@ export function SectionV2Settings({ section, upd }: { section: LearnSection; upd
 
   return (
     <>
-      <Group title="Layout">
-        <Segmented
-          legend="Columns"
-          value={section.layout === 'single' ? undefined : section.layout}
-          options={LAYOUTS}
-          onChange={(layout) => upd({ layout })}
-        />
-        {multi && (
-          <p className="le-set-hint le-v2-lead">
-            Drag blocks between columns in the outline or the preview, or choose a column in each block&apos;s settings.
-          </p>
-        )}
-      </Group>
-      <Group title="Background extras">
-        <ColorField
-          legend="Background colour (overrides the style above)"
-          value={section.backgroundColor}
-          onChange={(backgroundColor) => upd({ backgroundColor })}
-          allowClear
-        />
-        <div className="le-set-field">
-          <span className="le-set-label">Background photo (optional)</span>
-          <ImageTools
-            label="Background photo"
-            image={section.backgroundImage}
-            onChange={(img) => upd(img ? { backgroundImage: img } : { backgroundImage: undefined, overlay: undefined })}
-            uploadImage={uploadImage}
-            siteOrigin={siteOrigin}
+      <fieldset className="le-set-lockable" disabled={locked}>
+        <Group title="Layout">
+          <Segmented
+            legend="Columns"
+            value={section.layout === 'single' ? undefined : section.layout}
+            options={LAYOUTS}
+            onChange={(layout) => upd({ layout })}
           />
-        </div>
-        {hasImage && (
+          {multi && (
+            <p className="le-set-hint le-v2-lead">
+              Drag blocks between columns in the outline or the preview, or choose a column in each block&apos;s settings.
+            </p>
+          )}
+        </Group>
+        <Group title="Background extras">
+          <ColorField
+            legend="Background colour (overrides the style above)"
+            value={section.backgroundColor}
+            onChange={(backgroundColor) => upd({ backgroundColor })}
+            allowClear
+          />
           <div className="le-set-field">
-            <label className="le-set-label" htmlFor={overlayId}>
-              Darken the photo
-              <span className="le-set-count">{Math.round(overlay * 100)}%</span>
-            </label>
-            <input
-              id={overlayId}
-              type="range"
-              className="le-v2-range"
-              min={0}
-              max={OVERLAY_MAX}
-              step={0.05}
-              value={overlay}
-              aria-valuetext={`${Math.round(overlay * 100)}%`}
-              onChange={(e) => {
-                const v = Math.round(parseFloat(e.target.value) * 100) / 100;
-                upd({ overlay: v > 0 ? Math.min(OVERLAY_MAX, v) : undefined });
-              }}
+            <span className="le-set-label">Background photo (optional)</span>
+            <ImageTools
+              label="Background photo"
+              image={section.backgroundImage}
+              onChange={(img) => upd(img ? { backgroundImage: img } : { backgroundImage: undefined, overlay: undefined })}
+              uploadImage={uploadImage}
+              siteOrigin={siteOrigin}
             />
           </div>
-        )}
-        {readWarn && (
-          <p className="le-set-warn" role="status">
-            {readWarn}
-          </p>
-        )}
-      </Group>
+          {hasImage && (
+            <div className="le-set-field">
+              <label className="le-set-label" htmlFor={overlayId}>
+                Darken the photo
+                <span className="le-set-count">{Math.round(overlay * 100)}%</span>
+              </label>
+              <input
+                id={overlayId}
+                type="range"
+                className="le-v2-range"
+                min={0}
+                max={OVERLAY_MAX}
+                step={0.05}
+                value={overlay}
+                aria-valuetext={`${Math.round(overlay * 100)}%`}
+                onChange={(e) => {
+                  const v = Math.round(parseFloat(e.target.value) * 100) / 100;
+                  upd({ overlay: v > 0 ? Math.min(OVERLAY_MAX, v) : undefined });
+                }}
+              />
+            </div>
+          )}
+          {readWarn && !locked && (
+            <p className="le-set-warn" role="status">
+              {readWarn}
+            </p>
+          )}
+        </Group>
+      </fieldset>
       <Group title="Visibility and links">
         <VisibleOnField value={section.visibleOn} onChange={(visibleOn) => upd({ visibleOn })} />
         <AnchorField value={section.anchor} ownerId={section.id} source={section.label} onChange={(anchor) => upd({ anchor })} />

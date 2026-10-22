@@ -30,8 +30,8 @@ const ANSWERS: { q: string; a: ReactNode }[] = [
     q: 'How do I move things?',
     a: (
       <p>
-        Drag a section or a block up or down in the list on the left, or use the arrow buttons next to it. With the
-        keyboard, select it in the list and press Alt with the up or down arrow.
+        Drag a section or a block up or down in the list on the left, or select it and choose Move up or Move down in
+        its ⋯ menu. With the keyboard, select it in the list and press Alt with the up or down arrow.
       </p>
     ),
   },

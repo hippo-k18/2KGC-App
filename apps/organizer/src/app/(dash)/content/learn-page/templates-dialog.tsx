@@ -186,10 +186,13 @@ function plural(n: number, one: string): string {
 export function AddSectionDialog({
   onInsert,
   onInsertReusable,
+  onEditSaved,
   onClose,
 }: {
   onInsert: (section: LearnSection) => void;
   onInsertReusable: (libraryId: string, name: string) => void;
+  /** Starts changing a saved section on the page (T325, E F1). Absent while one is already being changed. */
+  onEditSaved?: (libraryId: string, name: string, section: LearnSection) => void;
   onClose: () => void;
 }) {
   const baseId = useId();
@@ -246,6 +249,14 @@ export function AddSectionDialog({
               onInsertReusable(row.id, row.name);
               onClose();
             }}
+            onEdit={
+              onEditSaved
+                ? (row) => {
+                    onEditSaved(row.id, row.name, row.section);
+                    onClose();
+                  }
+                : undefined
+            }
           />
         )}
       </div>
@@ -309,7 +320,15 @@ function ReadyMade({ onPick }: { onPick: (section: LearnSection) => void }) {
   );
 }
 
-function SavedSections({ onCopy, onLinked }: { onCopy: (row: LibraryRow) => void; onLinked: (row: LibraryRow) => void }) {
+function SavedSections({
+  onCopy,
+  onLinked,
+  onEdit,
+}: {
+  onCopy: (row: LibraryRow) => void;
+  onLinked: (row: LibraryRow) => void;
+  onEdit?: (row: LibraryRow) => void;
+}) {
   const [rows, setRows] = useState<LibraryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -355,6 +374,7 @@ function SavedSections({ onCopy, onLinked }: { onCopy: (row: LibraryRow) => void
           row={row}
           onCopy={() => onCopy(row)}
           onLinked={() => onLinked(row)}
+          onEdit={onEdit ? () => onEdit(row) : undefined}
           onRenamed={(name) => setRows((rs) => rs?.map((r) => (r.id === row.id ? { ...r, name } : r)) ?? rs)}
           onDeleted={() => setRows((rs) => rs?.filter((r) => r.id !== row.id) ?? rs)}
         />
@@ -367,12 +387,14 @@ function LibraryItem({
   row,
   onCopy,
   onLinked,
+  onEdit,
   onRenamed,
   onDeleted,
 }: {
   row: LibraryRow;
   onCopy: () => void;
   onLinked: () => void;
+  onEdit?: () => void;
   onRenamed: (name: string) => void;
   onDeleted: () => void;
 }) {
@@ -516,6 +538,11 @@ function LibraryItem({
           </div>
           {mode === 'view' && (
             <div className="le-x-lib-manage">
+              {onEdit && (
+                <button type="button" className="linkish" onClick={onEdit}>
+                  Edit saved section
+                </button>
+              )}
               <button
                 type="button"
                 className="linkish"

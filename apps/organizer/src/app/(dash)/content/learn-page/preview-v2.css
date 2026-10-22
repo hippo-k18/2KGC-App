@@ -110,7 +110,9 @@
 
 /* Rich text is drawn by the website's own renderer (preview-blocks/rich.tsx),
    with its own rules; nothing here may style its elements, or the preview
-   stops matching /learn (a grey code block on a page that draws it navy). */
+   stops matching /learn (a grey code block on a page that draws it navy).
+   The one exception copies a site rule the preview does not load: code, at
+   the end of this file. */
 .lp-v2-table.is-striped tr:nth-child(even) td { background: #f8fafc; }
 
 /* ── Interim v2 blocks ────────────────────────────────────────────────── */
@@ -197,3 +199,28 @@
 .lp-v2-toc ul { margin: 0; padding-left: 18px; }
 
 .lp-v2-reusable { padding: 20px; border: 2px dashed #94a3b8; border-radius: 8px; text-align: center; color: #475569; font-size: 15px; }
+.lp-v2-reusable.is-missing { border-color: #dd4b39; color: #a94442; background: #fdf2f1; }
+
+/* Code as /learn draws it (apps/web learn-page-view.css and learn-blocks.css),
+   at rest and while the block is being edited, where the rich editor's own
+   grey would otherwise show (T325, C X3). */
+.lp-root .lp-block code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.88em;
+  background: rgb(0 0 0 / 6%);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.lp-root .lp-block .lp-rcode code,
+.lp-root .lp-block pre code { background: none; padding: 0; border-radius: 0; font: inherit; color: inherit; }
+.lp-root .lp-block .rt-content pre {
+  margin: 0 0 0.9em;
+  padding: 16px 18px;
+  border-radius: 8px;
+  background: #10243a;
+  color: #f7fafc;
+  font: 15px/1.6 ui-monospace, Menlo, monospace;
+  overflow-x: auto;
+  white-space: pre;
+  text-align: left;
+}

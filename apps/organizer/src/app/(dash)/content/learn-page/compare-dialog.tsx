@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react';
 import type { LearnPageContent } from '@kgc/shared';
 import { summarizeChanges, type EditAction, type Selection } from '@/lib/learn-editor-core';
+import { canonicalContent } from '@/lib/learn-library-edit-core';
 import { loadLearnVersionAction, type LearnVersionSummary } from './api';
 import { Modal } from './dialogs';
 import { DEVICE_WIDTH, type Device } from './editor-types';
@@ -170,7 +171,9 @@ export function CompareDialog({
 
   // Only the picked version counts, so an old load never shows under a new label.
   const version = loaded && loaded.id === picked ? loaded.content : null;
-  const changes = useMemo(() => (version ? summarizeChanges(version, draft) : null), [version, draft]);
+  // The draft comes expanded and in one key order (`canonicalContent`), like the
+  // version, so a linked section is not listed as a change (T325, E F2).
+  const changes = useMemo(() => (version ? summarizeChanges(canonicalContent(version), draft) : null), [version, draft]);
 
   // The two pages differ in length, so scroll by proportion rather than by pixels.
   const follow = useCallback(

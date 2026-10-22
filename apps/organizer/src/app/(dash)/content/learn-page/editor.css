@@ -503,3 +503,18 @@ button.le-chip { cursor: pointer; }
   .le-hide-phone { display: none !important; }
   .le-bar .le-icon-btn { width: 28px; }
 }
+
+/* Restore asks first when the draft has unpublished changes (T325, E F5). */
+.le-history-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  width: 100%;
+}
+.le-history-confirm > span:first-child { flex: 1 1 240px; }
+.le-history-confirm-actions { display: flex; gap: 8px; }
+
+/* Changing a saved section from the page (T325, E F1). */
+.le-saved-edit-error { margin: 8px 0 0; color: #a94442; }

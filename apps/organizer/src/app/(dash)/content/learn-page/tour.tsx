@@ -16,11 +16,23 @@ const STORAGE_KEY = 'kgc-learn-tour-v2';
 
 export type TourAnchor = 'outline' | 'preview' | 'settings' | 'add' | 'publish' | 'help';
 
-const STEPS: { anchor: TourAnchor; title: string; body: string }[] = [
+/**
+ * On a phone the outline and settings panes sit behind tabs and Help sits in More, so a step whose own
+ * target is hidden points at the control that leads there instead, and says so.
+ */
+type Step = { anchor: TourAnchor; title: string; body: string; phone?: { selector: string; body: string } };
+
+const MORE_BUTTON = '.le-menu-wrap > button[aria-haspopup="menu"]';
+
+const STEPS: Step[] = [
   {
     anchor: 'outline',
     title: 'Your page, piece by piece',
     body: 'This list shows each section of the page and what is inside it. Click an item to work on it.',
+    phone: {
+      selector: '#le-tab-outline',
+      body: 'The Outline tab lists each section of the page and what is inside it. Tap an item to work on it.',
+    },
   },
   {
     anchor: 'preview',
@@ -31,11 +43,19 @@ const STEPS: { anchor: TourAnchor; title: string; body: string }[] = [
     anchor: 'settings',
     title: 'Options for what you selected',
     body: 'Change colours, spacing, links and pictures here. The page updates as you go.',
+    phone: {
+      selector: '#le-tab-settings',
+      body: 'The Settings tab has the options for what you selected: colours, spacing, links and pictures.',
+    },
   },
   {
     anchor: 'add',
     title: 'Add something new',
     body: 'Add a ready-made section, such as a team or a list of questions, or a single block like text or a picture.',
+    phone: {
+      selector: '#le-tab-outline',
+      body: 'Add a section at the bottom of the Outline tab: a ready-made one, such as a team or a list of questions, or a blank one.',
+    },
   },
   {
     anchor: 'publish',
@@ -46,6 +66,7 @@ const STEPS: { anchor: TourAnchor; title: string; body: string }[] = [
     anchor: 'help',
     title: 'Help is here',
     body: 'Short answers to common questions, and this tour again whenever you want it.',
+    phone: { selector: MORE_BUTTON, body: 'Help is in the More menu: short answers to common questions, and this tour again.' },
   },
 ];
 
@@ -55,12 +76,19 @@ const RING_PAD = 6;
 
 type Box = { top: number; left: number; width: number; height: number };
 
-function findAnchor(anchor: TourAnchor): HTMLElement | null {
-  const el = document.querySelector<HTMLElement>(`[data-tour="${anchor}"]`);
+function visible(el: HTMLElement | null): HTMLElement | null {
   if (!el) return null;
   const r = el.getBoundingClientRect();
   // display:none or zero-size (a collapsed pane) counts as missing.
   return r.width > 0 && r.height > 0 ? el : null;
+}
+
+/** The step's own target, else its phone stand-in; `phone` says which one was found. */
+function findAnchor(step: Step): { el: HTMLElement; phone: boolean } | null {
+  const own = visible(document.querySelector<HTMLElement>(`[data-tour="${step.anchor}"]`));
+  if (own) return { el: own, phone: false };
+  const alt = step.phone ? visible(document.querySelector<HTMLElement>(step.phone.selector)) : null;
+  return alt ? { el: alt, phone: true } : null;
 }
 
 /** Where the card goes: below the target, else above, else beside, else centred; always inside the window. */
@@ -89,6 +117,7 @@ export function FirstRunTour({ onDone }: { onDone: () => void }) {
   const bodyId = useId();
   const [step, setStep] = useState(0);
   const [ring, setRing] = useState<Box | null>(null);
+  const [onPhone, setOnPhone] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
@@ -107,8 +136,9 @@ export function FirstRunTour({ onDone }: { onDone: () => void }) {
   const back = useCallback(() => setStep((s) => Math.max(0, s - 1)), []);
 
   const measure = useCallback(() => {
-    const el = findAnchor(STEPS[step].anchor);
-    const r = el?.getBoundingClientRect();
+    const found = findAnchor(STEPS[step]);
+    setOnPhone(found?.phone ?? false);
+    const r = found?.el.getBoundingClientRect();
     const box = r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null;
     setRing(box);
     const card = cardRef.current;
@@ -117,9 +147,14 @@ export function FirstRunTour({ onDone }: { onDone: () => void }) {
 
   // Bring the target into view first, then measure, so the ring lands on it.
   useLayoutEffect(() => {
-    findAnchor(STEPS[step].anchor)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    findAnchor(STEPS[step])?.el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     measure();
   }, [step, measure]);
+
+  // The phone text can be a different length, so place the card again once it shows.
+  useLayoutEffect(() => {
+    measure();
+  }, [onPhone, measure]);
 
   useEffect(() => {
     window.addEventListener('resize', measure);
@@ -204,7 +239,7 @@ export function FirstRunTour({ onDone }: { onDone: () => void }) {
           {current.title}
         </h2>
         <p id={bodyId} className="le-x-tour-body">
-          {current.body}
+          {onPhone && current.phone ? current.phone.body : current.body}
         </p>
         <div className="le-x-tour-actions">
           <button type="button" className="linkish le-x-tour-skip" onClick={() => doneRef.current()}>

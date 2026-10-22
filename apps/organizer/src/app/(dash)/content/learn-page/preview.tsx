@@ -16,6 +16,7 @@ import {
 } from 'react';
 import { headingIds, isRichDoc, type LearnBlock, type LearnSection, type Person, type RichContent } from '@kgc/shared';
 import { RichEditor } from '@/components/rich-editor';
+import { scrollIntoPane } from './scroll-into-pane';
 import {
   blockColumnOf,
   BLOCK_KINDS,
@@ -38,7 +39,7 @@ import { resolveSrc, type Device, type PaneProps } from './editor-types';
 import { makeBlockCtx, previewFontClass } from './preview-blocks';
 import { ButtonRow, Picture, TextLink } from './preview-parts';
 import { RichBlocks, RichLine } from './preview-rich';
-import { PreviewBlockCtxContext, PreviewContentContext, V2Body } from './preview-v2';
+import { PreviewBlockCtxContext, PreviewContentContext, PreviewLibraryContext, V2Body } from './preview-v2';
 import { useRichAnchors, useRichChange } from './rich-field';
 import './preview.css';
 import './preview-v2.css';
@@ -855,7 +856,8 @@ export function LearnPreview(props: LearnPreviewProps) {
     const attr = key.startsWith('b:') ? 'data-lp-block' : 'data-lp-section';
     // Several copies of one saved section answer to the same host: the first is scrolled to.
     const el = rootRef.current?.querySelector(`[${attr}="${CSS.escape(key.slice(2))}"]`);
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // Well inside the pane, not on its bottom edge (T325, E F9).
+    scrollIntoPane(el, { smooth: true });
   }, [key]);
 
   const warningsBySection = useMemo(() => {
@@ -876,6 +878,7 @@ export function LearnPreview(props: LearnPreviewProps) {
 
   return (
     <PreviewContentContext.Provider value={content}>
+      <PreviewLibraryContext.Provider value={library}>
       <PreviewBlockCtxContext.Provider value={blockCtx}>
         <div
           ref={rootRef}
@@ -926,6 +929,7 @@ export function LearnPreview(props: LearnPreviewProps) {
           </div>
         </div>
       </PreviewBlockCtxContext.Provider>
+      </PreviewLibraryContext.Provider>
     </PreviewContentContext.Provider>
   );
 }

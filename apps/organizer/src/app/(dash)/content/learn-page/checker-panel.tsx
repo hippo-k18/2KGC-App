@@ -12,6 +12,7 @@ import {
   type PageLink,
   type Where,
 } from '@/lib/learn-tools-core';
+import type { PublishBlocker } from '@/lib/learn-library-edit-core';
 import './tools.css';
 
 /**
@@ -194,6 +195,42 @@ function LinksTab({ content, onJump }: { content: LearnPageContent; onJump: (whe
   );
 }
 
+/**
+ * What the server refuses to publish, the same list the Publish dialog shows
+ * (T325, E F10), so the checks and the dialog never disagree about what
+ * blocks a publish.
+ */
+function Blockers({ blockers, onJump }: { blockers: PublishBlocker[]; onJump: (where: Where) => void }) {
+  if (blockers.length === 0) return null;
+  return (
+    <section className="le-tools-group le-tools-blockers" aria-label={`Needs fixing before you publish, ${blockers.length}`}>
+      <h3 className="le-tools-group-title">
+        <StatusIcon status="error" />
+        Needs fixing before you publish <span className="le-count">{blockers.length}</span>
+      </h3>
+      <ul className="le-tools-list">
+        {blockers.map((b, i) => (
+          <li key={i} className="le-tools-issue">
+            <div className="le-tools-issue-text">
+              <span className="le-tools-sr">Problem: </span>
+              <span className="le-tools-issue-msg">{b.message}</span>
+            </div>
+            {b.sectionId && (
+              <button
+                type="button"
+                className="btn btn-default btn-sm"
+                onClick={() => onJump({ sectionId: b.sectionId, blockId: b.blockId, field: 'Block' })}
+              >
+                Show me
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 const TABS: { id: CheckerTab; label: string }[] = [
   { id: 'accessibility', label: 'Accessibility' },
   { id: 'links', label: 'Links' },
@@ -201,11 +238,14 @@ const TABS: { id: CheckerTab; label: string }[] = [
 
 export function CheckerPanel({
   content,
+  blockers = [],
   onJump,
   onClose,
   initialTab = 'accessibility',
 }: {
   content: LearnPageContent;
+  /** Publish blockers from the shell (`draftPublishBlockers`). */
+  blockers?: PublishBlocker[];
   onJump: (where: Where) => void;
   onClose: () => void;
   initialTab?: CheckerTab;
@@ -257,7 +297,7 @@ export function CheckerPanel({
       </div>
       <div className="le-tools-tabs" role="tablist" aria-label="Checks">
         {TABS.map((t, i) => {
-          const n = t.id === 'accessibility' ? issueCount : linkProblems;
+          const n = t.id === 'accessibility' ? issueCount + blockers.length : linkProblems;
           return (
             <button
               key={t.id}
@@ -295,6 +335,7 @@ export function CheckerPanel({
           tabIndex={0}
           className="le-tools-body"
         >
+          {tab === t.id && t.id === 'accessibility' && <Blockers blockers={blockers} onJump={onJump} />}
           {tab === t.id && (t.id === 'accessibility' ? <AccessibilityTab content={content} onJump={onJump} /> : <LinksTab content={content} onJump={onJump} />)}
         </div>
       ))}
