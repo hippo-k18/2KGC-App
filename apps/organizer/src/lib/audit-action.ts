@@ -26,6 +26,7 @@ export const AUDIT_VERB: Record<string, string> = {
   add: 'Added',
   adjustSold: 'Corrected the sold count for',
   assign: 'Assigned',
+  backfill: 'Indexed the older files of',
   block: 'Blocked',
   cancel: 'Cancelled',
   category: 'Set the category on',

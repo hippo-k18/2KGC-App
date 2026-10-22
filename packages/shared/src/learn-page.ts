@@ -17,6 +17,49 @@
 /** Text with light formatting, stored as the same small Markdown subset as `rich-text-core` (bold, italic, links, line breaks). */
 export type RichText = string;
 
+/* ── v2 (T315): a real rich text document ─────────────────────────────────
+ * Every place that held `RichText` now holds `RichContent`: either the old
+ * Markdown string (still valid, so v1 drafts and LEARN_PAGE_DEFAULT keep
+ * working) or a `RichDoc`, a whitelisted node tree the editor produces.
+ * Never HTML: renderers map each node to a component, and the server rejects
+ * any node, mark or attribute not listed here.
+ */
+export type RichContent = RichText | RichDoc;
+
+/** A brand colour by name, or a custom `#rrggbb` (the editor warns on low contrast). */
+export type ColorValue = "navy" | "blue" | "light-blue" | "teal" | "orange" | "grey" | "dark" | "white" | `#${string}`;
+
+export type RichMark =
+  | { type: "bold" } | { type: "italic" } | { type: "underline" } | { type: "strike" }
+  | { type: "code" } | { type: "superscript" } | { type: "subscript" }
+  | { type: "link"; href: string; newTab?: boolean }
+  | { type: "color"; color: ColorValue }
+  | { type: "highlight"; color: ColorValue }
+  | { type: "fontSize"; size: TextSize };
+
+export type TextAlign = Align | "justify";
+
+export type RichNode =
+  | { type: "text"; text: string; marks?: RichMark[] }
+  | { type: "hardBreak" }
+  | { type: "paragraph"; align?: TextAlign; content?: RichNode[] }
+  | { type: "heading"; level: 1 | 2 | 3 | 4; align?: TextAlign; content?: RichNode[] }
+  | { type: "bulletList"; content: RichNode[] }
+  | { type: "orderedList"; start?: number; content: RichNode[] }
+  | { type: "listItem"; content: RichNode[] }
+  | { type: "blockquote"; content: RichNode[] }
+  | { type: "codeBlock"; content?: RichNode[] }
+  | { type: "horizontalRule" }
+  | { type: "table"; content: RichNode[] }
+  | { type: "tableRow"; content: RichNode[] }
+  | { type: "tableHeader"; colspan?: number; rowspan?: number; content: RichNode[] }
+  | { type: "tableCell"; colspan?: number; rowspan?: number; content: RichNode[] };
+
+export interface RichDoc {
+  type: "doc";
+  content: RichNode[];
+}
+
 /** Fixed choices, not free CSS, so an edit can never break the page or the brand. */
 export type BandBackground = "plain" | "white-wave" | "light-blue-wave" | "blue" | "grey-wave";
 export type Align = "left" | "center" | "right";
@@ -50,7 +93,7 @@ export interface Person {
   role: string;
   photo?: PageImage;
   linkedin?: string;
-  bio?: RichText;
+  bio?: RichContent;
 }
 
 interface BlockBase {
@@ -61,19 +104,46 @@ interface BlockBase {
   align?: Align;
   spaceAbove?: Spacing;
   spaceBelow?: Spacing;
+  /* v2 (T315), all optional */
+  /** Show on every screen, or only on wide or only on narrow ones. */
+  visibleOn?: "all" | "desktop" | "mobile";
+  /** In-page link target (`#anchor`), lower-case letters, digits and dashes. */
+  anchor?: string;
+  /** Narrow a block inside its section. */
+  maxWidth?: "small" | "medium" | "large" | "full";
+  /** A light card behind the block. */
+  boxed?: boolean;
+  textColor?: ColorValue;
+  /** Editor-only note for colleagues; never rendered on the website. */
+  note?: string;
 }
 
 export type LearnBlock =
-  | (BlockBase & { kind: "heading"; text: RichText; level: 1 | 2 | 3; size?: TextSize })
-  | (BlockBase & { kind: "text"; text: RichText; size?: TextSize })
+  | (BlockBase & { kind: "heading"; text: RichContent; level: 1 | 2 | 3 | 4; size?: TextSize })
+  | (BlockBase & { kind: "text"; text: RichContent; size?: TextSize })
   | (BlockBase & { kind: "image"; image: PageImage; width: ImageWidth; shape: ImageShape; caption?: string; href?: string })
   | (BlockBase & { kind: "buttons"; buttons: LinkButton[] })
   | (BlockBase & { kind: "people"; style: "cards" | "list"; columns: Columns; people: Person[] })
-  | (BlockBase & { kind: "list"; ordered: boolean; items: { id: string; title?: string; text: RichText; children?: string[]; link?: LinkButton }[] })
-  | (BlockBase & { kind: "columns"; columns: Columns; items: { id: string; image?: PageImage; title?: string; text: RichText; link?: LinkButton }[] })
+  | (BlockBase & { kind: "list"; ordered: boolean; items: { id: string; title?: string; text: RichContent; children?: string[]; link?: LinkButton }[] })
+  | (BlockBase & { kind: "columns"; columns: Columns; items: { id: string; image?: PageImage; title?: string; text: RichContent; link?: LinkButton }[] })
   | (BlockBase & { kind: "video"; url: string; caption?: string })
   | (BlockBase & { kind: "divider" })
-  | (BlockBase & { kind: "spacer"; size: Spacing });
+  | (BlockBase & { kind: "spacer"; size: Spacing })
+  /* v2 (T315) block kinds, added at the end */
+  | (BlockBase & { kind: "imageText"; image: PageImage; imageSide: "left" | "right"; imageWidth: "third" | "half"; shape: ImageShape; text: RichContent; buttons?: LinkButton[] })
+  | (BlockBase & { kind: "gallery"; layout: "grid" | "carousel" | "masonry"; columns: Columns; images: (PageImage & { id: string; caption?: string })[]; lightbox: boolean })
+  | (BlockBase & { kind: "quote"; text: RichContent; name?: string; role?: string; photo?: PageImage; style: "plain" | "large" | "card" })
+  | (BlockBase & { kind: "callout"; tone: "info" | "success" | "warning" | "brand"; title?: string; text: RichContent })
+  | (BlockBase & { kind: "accordion"; items: { id: string; title: string; text: RichContent; open?: boolean }[]; allowMany: boolean })
+  | (BlockBase & { kind: "tabs"; items: { id: string; title: string; text: RichContent }[] })
+  | (BlockBase & { kind: "stats"; columns: Columns; items: { id: string; value: string; label: string }[] })
+  | (BlockBase & { kind: "cards"; columns: Columns; items: { id: string; image?: PageImage; title: string; text: RichContent; link?: LinkButton; badge?: string }[] })
+  | (BlockBase & { kind: "logos"; grayscale: boolean; items: (PageImage & { id: string; href?: string })[] })
+  | (BlockBase & { kind: "embed"; provider: "youtube" | "vimeo" | "google-maps" | "google-forms" | "google-docs" | "google-slides" | "calendly" | "typeform" | "loom" | "spotify"; url: string; aspect: "16:9" | "4:3" | "1:1" | "auto"; height?: number; title: string })
+  | (BlockBase & { kind: "countdown"; until: number; label?: string; doneText?: string })
+  | (BlockBase & { kind: "table"; doc: RichDoc; striped: boolean; caption?: string })
+  | (BlockBase & { kind: "toc"; title?: string })
+  | (BlockBase & { kind: "reusable"; libraryId: string });
 
 /** A full-width band of the page, holding blocks. Today's page has four. */
 export interface LearnSection {
@@ -88,6 +158,19 @@ export interface LearnSection {
   paddingBottom: Spacing;
   hidden?: boolean;
   blocks: LearnBlock[];
+  /* v2 (T315), all optional */
+  /** Overrides `background` when set. */
+  backgroundColor?: ColorValue;
+  backgroundImage?: PageImage;
+  /** Dark overlay over a background image, 0 to 0.8, so text stays readable. */
+  overlay?: number;
+  anchor?: string;
+  visibleOn?: "all" | "desktop" | "mobile";
+  /** Split the section into side-by-side columns; each block says which column. */
+  layout?: "single" | "two-equal" | "two-wide-left" | "two-wide-right" | "three";
+  /** Per block id, which column (0-based) in a multi-column layout. */
+  blockColumn?: Record<string, number>;
+  note?: string;
 }
 
 export interface LearnPageContent {
@@ -95,6 +178,11 @@ export interface LearnPageContent {
   seoTitle: string;
   seoDescription: string;
   sections: LearnSection[];
+  /* v2 (T315), all optional */
+  /** Image shown when the page is shared on LinkedIn, Slack and so on. */
+  ogImage?: PageImage;
+  /** Hide from search engines (noindex). */
+  noindex?: boolean;
 }
 
 export interface LearnPageDoc {
@@ -106,6 +194,12 @@ export interface LearnPageDoc {
   publishedBy?: string;
   /** Bumped on every draft save; a save carrying an older value is refused (two people editing). */
   revision: number;
+  /* v2 (T315), all optional */
+  /** Publish the draft automatically at this time (ms). Cleared on publish or cancel. */
+  scheduledPublishAt?: number;
+  scheduledBy?: string;
+  /** Unguessable token for a read-only draft preview link; rotate to revoke. */
+  previewToken?: string;
 }
 
 export interface LearnPageVersion {
@@ -118,6 +212,24 @@ export interface LearnPageVersion {
 export const LEARN_PAGE_DOC = "pageLayouts/learn";
 export const LEARN_PAGE_VERSIONS = "pageLayouts/learn/versions";
 export const LEARN_IMAGE_PREFIX = "pageLayouts/learn/";
+/** v2 (T315): saved sections anyone can drop into the page (`reusable` blocks point here). */
+export const LEARN_PAGE_LIBRARY = "pageLayouts/learn/library";
+export interface LearnLibraryItem {
+  name: string;
+  section: LearnSection;
+  createdAt: number;
+  createdBy: string;
+}
+/** v2 (T315): one row per uploaded image, so the media library can list, rename, search and see where each is used. */
+export const LEARN_PAGE_MEDIA = "pageLayouts/learn/media";
+export interface LearnMediaItem {
+  image: PageImage;
+  fileName: string;
+  bytes: number;
+  uploadedAt: number;
+  uploadedBy: string;
+  tags?: string[];
+}
 
 const LEARN_BROCHURE = "mailto:contact@knowledgegraph.tech?subject=KGC%20Learn%20brochure";
 

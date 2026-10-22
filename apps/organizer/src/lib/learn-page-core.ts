@@ -1,8 +1,17 @@
 import {
+  LEARN_EMBED_PROVIDERS,
   LEARN_IMAGE_PREFIX,
   LEARN_PAGE_DEFAULT,
+  RICH_DOC_LIMITS,
+  emptyRichDoc,
+  isColorValue,
+  isRichDoc,
   isSafeHref,
+  learnEmbedSrc,
   learnPageOrDefault,
+  normalizeColor,
+  validateRichDoc,
+  type ColorValue,
   type LearnBlock,
   type LearnPageContent,
   type LearnPageDoc,
@@ -10,6 +19,8 @@ import {
   type LinkButton,
   type PageImage,
   type Person,
+  type RichContent,
+  type RichDoc,
 } from '@kgc/shared';
 
 /**
@@ -30,6 +41,12 @@ import {
  * pass `isSafeHref`, and an image may only point at this page's own uploads or
  * at the site's own `/kgc/` assets. What gets stored is the rebuilt copy, never
  * the input.
+ *
+ * v2 (T315) adds rich text (a `RichDoc` wherever the contract says
+ * `RichContent`, checked by `validateRichDoc` from `@kgc/shared`), fourteen
+ * block kinds, per-block and per-section styling, and anchors that must be
+ * unique across the page. A v1 page is still a valid v2 page: every v2 field
+ * is optional and a Markdown string is still accepted wherever text goes.
  */
 
 export const LEARN_LIMITS = {
@@ -53,6 +70,24 @@ export const LEARN_LIMITS = {
   alt: 300,
   id: 64,
   note: 200,
+  /* v2 (T315) */
+  anchor: 64,
+  galleryImages: 60,
+  logos: 60,
+  accordionItems: 50,
+  tabs: 12,
+  stats: 12,
+  cards: 24,
+  statValue: 40,
+  badge: 40,
+  /** Characters of text in a table block (the rich doc default). */
+  tableChars: RICH_DOC_LIMITS.chars,
+  embedHeightMin: 100,
+  embedHeightMax: 2000,
+  /** Countdown targets, fixed bounds rather than "now" so validation is deterministic. */
+  countdownFrom: Date.UTC(2020, 0, 1),
+  countdownTo: Date.UTC(2100, 0, 1),
+  overlayMax: 0.8,
   imageMaxBytes: 10 * 1024 * 1024,
   imageMaxWidth: 2400,
   /** Firestore's document cap is 1 MiB and the doc holds two copies plus metadata. */
@@ -82,7 +117,25 @@ const IMAGE_SHAPES = ['square', 'rounded', 'circle', 'original'] as const;
 const SECTION_WIDTHS = ['narrow', 'normal', 'wide'] as const;
 const BUTTON_STYLES = ['primary', 'secondary', 'text'] as const;
 const COLUMNS = [1, 2, 3, 4] as const;
+const VISIBLE_ON = ['all', 'desktop', 'mobile'] as const;
+const MAX_WIDTHS = ['small', 'medium', 'large', 'full'] as const;
+const SECTION_LAYOUTS = ['single', 'two-equal', 'two-wide-left', 'two-wide-right', 'three'] as const;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const ANCHOR = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/** Provider names as an organizer reads them, for the embed refusal message. */
+const EMBED_NAMES: Record<(typeof LEARN_EMBED_PROVIDERS)[number], string> = {
+  youtube: 'YouTube',
+  vimeo: 'Vimeo',
+  'google-maps': 'Google Maps embed',
+  'google-forms': 'Google Forms',
+  'google-docs': 'published Google Docs',
+  'google-slides': 'published Google Slides',
+  calendly: 'Calendly',
+  typeform: 'Typeform',
+  loom: 'Loom',
+  spotify: 'Spotify',
+};
 
 /** Hosts a stored image URL may come from: production, and the local Storage emulator. */
 const STORAGE_ORIGINS = ['https://firebasestorage.googleapis.com'];
@@ -106,6 +159,10 @@ export interface LearnValidateOptions {
    * The server always passes it (`learnValidateOptions()` in `learn-page.ts`).
    */
   bucket?: string;
+  /** The saved sections that exist; a `reusable` block naming any other id is refused. */
+  libraryIds?: ReadonlySet<string>;
+  /** Validating a section on its way into the library: it may not hold a `reusable` block. */
+  forLibrary?: boolean;
 }
 
 export function isAllowedLearnImageSrc(src: string, opts: LearnValidateOptions = {}): boolean {
@@ -139,6 +196,8 @@ export type LearnValidation =
   | { ok: true; content: LearnPageContent }
   | { ok: false; problems: string[] };
 
+export type LearnSectionValidation = { ok: true; section: LearnSection } | { ok: false; problems: string[] };
+
 class Problems {
   list: string[] = [];
   add(where: string, what: string) {
@@ -159,6 +218,8 @@ function oneOf<T extends string | number>(v: unknown, allowed: readonly T[]): v 
 /**
  * The validator's working state: where it is in the page, for messages an
  * organizer can follow ("Section 2, block 3"), and the ids already seen.
+ * Section anchors and block anchors share one set because both become `#name`
+ * on the same page.
  */
 interface Ctx {
   p: Problems;
@@ -166,6 +227,22 @@ interface Ctx {
   bucket: string | undefined;
   sectionIds: Set<string>;
   blockIds: Set<string>;
+  anchors: Set<string>;
+  libraryIds?: ReadonlySet<string>;
+  forLibrary: boolean;
+}
+
+function newCtx(opts: LearnValidateOptions): Ctx {
+  return {
+    p: new Problems(),
+    allowEmulator: opts.allowEmulator === true,
+    bucket: opts.bucket,
+    sectionIds: new Set(),
+    blockIds: new Set(),
+    anchors: new Set(),
+    libraryIds: opts.libraryIds,
+    forLibrary: opts.forLibrary === true,
+  };
 }
 
 function str(
@@ -188,6 +265,28 @@ function str(
   return v;
 }
 
+/**
+ * A `RichContent` field: the v1 Markdown string under the same length cap as
+ * before, or a `RichDoc` checked by `validateRichDoc` with that cap on its
+ * characters. The doc stored is the validator's rebuilt copy.
+ */
+function rich(
+  ctx: Ctx,
+  where: string,
+  name: string,
+  v: unknown,
+  max: number,
+  opts: { required?: boolean; inline?: boolean } = {},
+): RichContent | undefined {
+  if (isRichDoc(v)) {
+    const r = validateRichDoc(v, { maxChars: max, inline: opts.inline === true });
+    if (r.ok) return r.doc;
+    for (const problem of r.problems) ctx.p.add(where, problem);
+    return emptyRichDoc();
+  }
+  return str(ctx, where, name, v, max, opts);
+}
+
 function id(ctx: Ctx, where: string, v: unknown, seen?: Set<string>): string {
   if (typeof v !== 'string' || !ID.test(v)) {
     ctx.p.add(where, 'has a missing or malformed id.');
@@ -198,6 +297,27 @@ function id(ctx: Ctx, where: string, v: unknown, seen?: Set<string>): string {
     seen.add(v);
   }
   return v;
+}
+
+/** An in-page link target, unique across the whole page (sections and blocks). */
+function anchor(ctx: Ctx, where: string, v: unknown): string | undefined {
+  if (v === undefined || v === null || v === '') return undefined;
+  if (typeof v !== 'string' || v.length > LEARN_LIMITS.anchor || !ANCHOR.test(v)) {
+    ctx.p.add(where, 'Anchor must be lower-case letters, digits and single dashes, at most 64 characters.');
+    return undefined;
+  }
+  if (ctx.anchors.has(v)) ctx.p.add(where, `uses the anchor "${v}" twice.`);
+  ctx.anchors.add(v);
+  return v;
+}
+
+function color(ctx: Ctx, where: string, name: string, v: unknown): ColorValue | undefined {
+  if (v === undefined || v === null || v === '') return undefined;
+  if (!isColorValue(v)) {
+    ctx.p.add(where, `${name} must be a brand colour or #rrggbb.`);
+    return undefined;
+  }
+  return normalizeColor(v);
 }
 
 function href(ctx: Ctx, where: string, name: string, v: unknown, opts: { required?: boolean } = {}): string | undefined {
@@ -269,6 +389,10 @@ function image(ctx: Ctx, where: string, v: unknown): PageImage {
   return out;
 }
 
+function optImage(ctx: Ctx, where: string, v: unknown): PageImage | undefined {
+  return v === undefined || v === null ? undefined : image(ctx, where, v);
+}
+
 function dimension(ctx: Ctx, where: string, name: string, v: unknown): number {
   if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > 20_000) {
     ctx.p.add(where, `image ${name} must be a whole number of pixels.`);
@@ -298,6 +422,10 @@ function button(ctx: Ctx, where: string, v: unknown): LinkButton {
   };
 }
 
+function optButton(ctx: Ctx, where: string, v: unknown): LinkButton | undefined {
+  return v === undefined || v === null ? undefined : button(ctx, where, v);
+}
+
 function array(ctx: Ctx, where: string, name: string, v: unknown, max: number): unknown[] {
   if (!Array.isArray(v)) {
     ctx.p.add(where, `${name} must be a list.`);
@@ -305,6 +433,39 @@ function array(ctx: Ctx, where: string, name: string, v: unknown, max: number): 
   }
   if (v.length > max) ctx.p.add(where, `has ${v.length} ${name}; the limit is ${max}.`);
   return v.slice(0, max);
+}
+
+/**
+ * The entries of a block's item list, each given its "where" and checked as an
+ * object with a well-formed id unique within the block. `build` sees the item
+ * and its id and returns the rebuilt item.
+ */
+function items<T>(
+  ctx: Ctx,
+  where: string,
+  name: string,
+  v: unknown,
+  max: number,
+  noun: string,
+  build: (x: Obj, w: string, itemId: string) => T,
+): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  array(ctx, where, name, v, max).forEach((x, i) => {
+    const w = `${where}, ${noun} ${i + 1}`;
+    if (!isObj(x)) {
+      ctx.p.add(w, 'is malformed.');
+      return;
+    }
+    out.push(build(x, w, id(ctx, w, x.id, seen)));
+  });
+  return out;
+}
+
+/** Copies the keys whose value is not undefined, so absent stays absent. */
+function compact<T extends object>(o: T): T {
+  for (const k of Object.keys(o) as (keyof T)[]) if (o[k] === undefined) delete o[k];
+  return o;
 }
 
 function person(ctx: Ctx, where: string, v: unknown, seen: Set<string>): Person {
@@ -321,16 +482,16 @@ function person(ctx: Ctx, where: string, v: unknown, seen: Set<string>): Person 
   if (v.photo !== undefined && v.photo !== null && !isEmptyLearnImage(v.photo)) out.photo = image(ctx, where, v.photo);
   const li = href(ctx, where, 'LinkedIn link', v.linkedin);
   if (li !== undefined) out.linkedin = li;
-  const bio = str(ctx, where, 'Bio', v.bio, LEARN_LIMITS.bio);
+  const bio = rich(ctx, where, 'Bio', v.bio, LEARN_LIMITS.bio);
   if (bio !== undefined && bio !== '') out.bio = bio;
   return out;
 }
 
+type BaseFields = Omit<Extract<LearnBlock, { kind: 'divider' }>, 'kind'>;
+
 /** Copies the optional layout fields every block shares, leaving absent ones absent. */
-function base(ctx: Ctx, where: string, v: Obj) {
-  const out: { id: string; hidden?: boolean; align?: (typeof ALIGNS)[number]; spaceAbove?: (typeof SPACINGS)[number]; spaceBelow?: (typeof SPACINGS)[number] } = {
-    id: id(ctx, where, v.id, ctx.blockIds),
-  };
+function base(ctx: Ctx, where: string, v: Obj): BaseFields {
+  const out: BaseFields = { id: id(ctx, where, v.id, ctx.blockIds) };
   if (bool(v.hidden)) out.hidden = true;
   const align = enumField(ctx, where, 'Alignment', v.align, ALIGNS);
   if (align) out.align = align;
@@ -338,6 +499,17 @@ function base(ctx: Ctx, where: string, v: Obj) {
   if (above) out.spaceAbove = above;
   const below = enumField(ctx, where, 'Space below', v.spaceBelow, SPACINGS);
   if (below) out.spaceBelow = below;
+  const visibleOn = enumField(ctx, where, 'Show on', v.visibleOn, VISIBLE_ON);
+  if (visibleOn) out.visibleOn = visibleOn;
+  const a = anchor(ctx, where, v.anchor);
+  if (a) out.anchor = a;
+  const maxWidth = enumField(ctx, where, 'Block width', v.maxWidth, MAX_WIDTHS);
+  if (maxWidth) out.maxWidth = maxWidth;
+  if (bool(v.boxed)) out.boxed = true;
+  const textColor = color(ctx, where, 'Text colour', v.textColor);
+  if (textColor) out.textColor = textColor;
+  const note = str(ctx, where, 'Note', v.note, LEARN_LIMITS.note);
+  if (note) out.note = note;
   return out;
 }
 
@@ -352,8 +524,8 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       const out: LearnBlock = {
         ...b,
         kind: 'heading',
-        text: str(ctx, where, 'Heading', v.text, LEARN_LIMITS.heading, { required: true }) ?? '',
-        level: enumField(ctx, where, 'Heading level', v.level, [1, 2, 3] as const, { required: true })!,
+        text: rich(ctx, where, 'Heading', v.text, LEARN_LIMITS.heading, { required: true, inline: true }) ?? '',
+        level: enumField(ctx, where, 'Heading level', v.level, [1, 2, 3, 4] as const, { required: true })!,
       };
       const size = enumField(ctx, where, 'Text size', v.size, TEXT_SIZES);
       if (size) out.size = size;
@@ -363,7 +535,7 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       const out: LearnBlock = {
         ...b,
         kind: 'text',
-        text: str(ctx, where, 'Text', v.text, LEARN_LIMITS.richText, { required: true }) ?? '',
+        text: rich(ctx, where, 'Text', v.text, LEARN_LIMITS.richText, { required: true }) ?? '',
       };
       const size = enumField(ctx, where, 'Text size', v.size, TEXT_SIZES);
       if (size) out.size = size;
@@ -415,9 +587,9 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
             ctx.p.add(w, 'is malformed.');
             return { id: '', text: '' };
           }
-          const item: { id: string; title?: string; text: string; children?: string[]; link?: LinkButton } = {
+          const item: { id: string; title?: string; text: RichContent; children?: string[]; link?: LinkButton } = {
             id: id(ctx, w, x.id, seen),
-            text: str(ctx, w, 'Text', x.text, LEARN_LIMITS.richText, { required: true }) ?? '',
+            text: rich(ctx, w, 'Text', x.text, LEARN_LIMITS.richText, { required: true }) ?? '',
           };
           const title = str(ctx, w, 'Title', x.title, LEARN_LIMITS.heading);
           if (title) item.title = title;
@@ -443,9 +615,9 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
             ctx.p.add(w, 'is malformed.');
             return { id: '', text: '' };
           }
-          const item: { id: string; image?: PageImage; title?: string; text: string; link?: LinkButton } = {
+          const item: { id: string; image?: PageImage; title?: string; text: RichContent; link?: LinkButton } = {
             id: id(ctx, w, x.id, seen),
-            text: str(ctx, w, 'Text', x.text, LEARN_LIMITS.richText, { required: true }) ?? '',
+            text: rich(ctx, w, 'Text', x.text, LEARN_LIMITS.richText, { required: true }) ?? '',
           };
           if (x.image !== undefined && x.image !== null && !isEmptyLearnImage(x.image)) item.image = image(ctx, w, x.image);
           const title = str(ctx, w, 'Title', x.title, LEARN_LIMITS.heading);
@@ -470,10 +642,247 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       return { ...b, kind: 'divider' };
     case 'spacer':
       return { ...b, kind: 'spacer', size: enumField(ctx, where, 'Spacer size', v.size, SPACINGS, { required: true })! };
+
+    /* ── v2 (T315) ── */
+    case 'imageText': {
+      const out: LearnBlock = {
+        ...b,
+        kind: 'imageText',
+        image: image(ctx, where, v.image),
+        imageSide: enumField(ctx, where, 'Image side', v.imageSide, ['left', 'right'] as const, { required: true })!,
+        imageWidth: enumField(ctx, where, 'Image width', v.imageWidth, ['third', 'half'] as const, { required: true })!,
+        shape: enumField(ctx, where, 'Image shape', v.shape, IMAGE_SHAPES, { required: true })!,
+        text: rich(ctx, where, 'Text', v.text, LEARN_LIMITS.richText, { required: true }) ?? '',
+      };
+      if (v.buttons !== undefined && v.buttons !== null) {
+        out.buttons = array(ctx, where, 'buttons', v.buttons, LEARN_LIMITS.buttons).map((x, i) =>
+          button(ctx, `${where}, button ${i + 1}`, x),
+        );
+      }
+      return out;
+    }
+    case 'gallery':
+      return {
+        ...b,
+        kind: 'gallery',
+        layout: enumField(ctx, where, 'Gallery layout', v.layout, ['grid', 'carousel', 'masonry'] as const, { required: true })!,
+        columns: enumField(ctx, where, 'Columns', v.columns, COLUMNS, { required: true })!,
+        images: items(ctx, where, 'images', v.images, LEARN_LIMITS.galleryImages, 'image', (x, w, itemId) =>
+          compact({
+            ...image(ctx, w, x),
+            id: itemId,
+            caption: str(ctx, w, 'Caption', x.caption, LEARN_LIMITS.caption) || undefined,
+          }),
+        ),
+        lightbox: v.lightbox === true,
+      };
+    case 'quote':
+      return compact({
+        ...b,
+        kind: 'quote' as const,
+        text: rich(ctx, where, 'Quote', v.text, LEARN_LIMITS.richText, { required: true }) ?? '',
+        name: str(ctx, where, 'Name', v.name, LEARN_LIMITS.shortText) || undefined,
+        role: str(ctx, where, 'Role', v.role, LEARN_LIMITS.shortText) || undefined,
+        photo: optImage(ctx, where, v.photo),
+        style: enumField(ctx, where, 'Quote style', v.style, ['plain', 'large', 'card'] as const, { required: true })!,
+      });
+    case 'callout':
+      return compact({
+        ...b,
+        kind: 'callout' as const,
+        tone: enumField(ctx, where, 'Tone', v.tone, ['info', 'success', 'warning', 'brand'] as const, { required: true })!,
+        title: str(ctx, where, 'Title', v.title, LEARN_LIMITS.heading) || undefined,
+        text: rich(ctx, where, 'Text', v.text, LEARN_LIMITS.richText, { required: true }) ?? '',
+      });
+    case 'accordion':
+      return {
+        ...b,
+        kind: 'accordion',
+        items: items(ctx, where, 'items', v.items, LEARN_LIMITS.accordionItems, 'item', (x, w, itemId) =>
+          compact({
+            id: itemId,
+            title: str(ctx, w, 'Title', x.title, LEARN_LIMITS.heading, { required: true }) ?? '',
+            text: rich(ctx, w, 'Text', x.text, LEARN_LIMITS.richText, { required: true }) ?? '',
+            open: bool(x.open),
+          }),
+        ),
+        allowMany: v.allowMany === true,
+      };
+    case 'tabs':
+      return {
+        ...b,
+        kind: 'tabs',
+        items: items(ctx, where, 'tabs', v.items, LEARN_LIMITS.tabs, 'tab', (x, w, itemId) => ({
+          id: itemId,
+          title: str(ctx, w, 'Title', x.title, LEARN_LIMITS.heading, { required: true }) ?? '',
+          text: rich(ctx, w, 'Text', x.text, LEARN_LIMITS.richText, { required: true }) ?? '',
+        })),
+      };
+    case 'stats':
+      return {
+        ...b,
+        kind: 'stats',
+        columns: enumField(ctx, where, 'Columns', v.columns, COLUMNS, { required: true })!,
+        items: items(ctx, where, 'figures', v.items, LEARN_LIMITS.stats, 'figure', (x, w, itemId) => ({
+          id: itemId,
+          value: str(ctx, w, 'Figure', x.value, LEARN_LIMITS.statValue, { required: true }) ?? '',
+          label: str(ctx, w, 'Label', x.label, LEARN_LIMITS.shortText, { required: true }) ?? '',
+        })),
+      };
+    case 'cards':
+      return {
+        ...b,
+        kind: 'cards',
+        columns: enumField(ctx, where, 'Columns', v.columns, COLUMNS, { required: true })!,
+        items: items(ctx, where, 'cards', v.items, LEARN_LIMITS.cards, 'card', (x, w, itemId) =>
+          compact({
+            id: itemId,
+            image: optImage(ctx, w, x.image),
+            title: str(ctx, w, 'Title', x.title, LEARN_LIMITS.heading, { required: true }) ?? '',
+            text: rich(ctx, w, 'Text', x.text, LEARN_LIMITS.richText, { required: true }) ?? '',
+            link: optButton(ctx, w, x.link),
+            badge: str(ctx, w, 'Badge', x.badge, LEARN_LIMITS.badge) || undefined,
+          }),
+        ),
+      };
+    case 'logos':
+      return {
+        ...b,
+        kind: 'logos',
+        grayscale: v.grayscale === true,
+        items: items(ctx, where, 'logos', v.items, LEARN_LIMITS.logos, 'logo', (x, w, itemId) =>
+          compact({ ...image(ctx, w, x), id: itemId, href: href(ctx, w, 'Logo link', x.href) }),
+        ),
+      };
+    case 'embed': {
+      const provider = enumField(ctx, where, 'Embed type', v.provider, LEARN_EMBED_PROVIDERS, { required: true })!;
+      const url = (str(ctx, where, 'Embed link', v.url, LEARN_LIMITS.href, { required: true }) ?? '').trim();
+      if (oneOf(v.provider, LEARN_EMBED_PROVIDERS) && !learnEmbedSrc(provider, url)) {
+        ctx.p.add(where, `Embed link is not a ${EMBED_NAMES[provider]} link this page can show.`);
+      }
+      const title = str(ctx, where, 'Embed title', v.title, LEARN_LIMITS.shortText, { required: true }) ?? '';
+      if (title.trim() === '') ctx.p.add(where, 'Embed title is empty; screen readers announce it.');
+      const out: LearnBlock = {
+        ...b,
+        kind: 'embed',
+        provider,
+        url,
+        aspect: enumField(ctx, where, 'Aspect', v.aspect, ['16:9', '4:3', '1:1', 'auto'] as const, { required: true })!,
+        title,
+      };
+      if (v.height !== undefined && v.height !== null) {
+        const h = v.height;
+        if (typeof h !== 'number' || !Number.isInteger(h) || h < LEARN_LIMITS.embedHeightMin || h > LEARN_LIMITS.embedHeightMax) {
+          ctx.p.add(
+            where,
+            `Embed height must be a whole number of pixels from ${LEARN_LIMITS.embedHeightMin} to ${LEARN_LIMITS.embedHeightMax}.`,
+          );
+        } else {
+          out.height = h;
+        }
+      }
+      return out;
+    }
+    case 'countdown': {
+      const until = v.until;
+      if (typeof until !== 'number' || !Number.isInteger(until) || until < LEARN_LIMITS.countdownFrom || until >= LEARN_LIMITS.countdownTo) {
+        ctx.p.add(where, 'Countdown date must be a real date between 2020 and 2099.');
+      }
+      return compact({
+        ...b,
+        kind: 'countdown' as const,
+        until: typeof until === 'number' ? until : 0,
+        label: str(ctx, where, 'Label', v.label, LEARN_LIMITS.shortText) || undefined,
+        doneText: str(ctx, where, 'Text when done', v.doneText, LEARN_LIMITS.shortText) || undefined,
+      });
+    }
+    case 'table': {
+      let doc: RichDoc = emptyRichDoc();
+      if (!isRichDoc(v.doc)) {
+        ctx.p.add(where, 'Table is missing.');
+      } else {
+        const r = validateRichDoc(v.doc, { maxChars: LEARN_LIMITS.tableChars });
+        if (r.ok) {
+          doc = r.doc;
+          if (!doc.content.some((n) => n.type === 'table')) ctx.p.add(where, 'Table has no rows.');
+        } else {
+          for (const problem of r.problems) ctx.p.add(where, problem);
+        }
+      }
+      return compact({
+        ...b,
+        kind: 'table' as const,
+        doc,
+        striped: v.striped === true,
+        caption: str(ctx, where, 'Caption', v.caption, LEARN_LIMITS.caption) || undefined,
+      });
+    }
+    case 'toc':
+      return compact({ ...b, kind: 'toc' as const, title: str(ctx, where, 'Title', v.title, LEARN_LIMITS.heading) || undefined });
+    case 'reusable': {
+      const libraryId = typeof v.libraryId === 'string' ? v.libraryId : '';
+      if (!ID.test(libraryId)) {
+        ctx.p.add(where, 'Saved section id is missing or malformed.');
+      } else if (ctx.forLibrary) {
+        ctx.p.add(where, 'A saved section cannot hold another saved section.');
+      } else if (ctx.libraryIds && !ctx.libraryIds.has(libraryId)) {
+        ctx.p.add(where, 'points to a saved section that no longer exists.');
+      }
+      return { ...b, kind: 'reusable', libraryId };
+    }
     default:
       ctx.p.add(where, `has an unknown kind "${String(v.kind).slice(0, 40)}".`);
       return null;
   }
+}
+
+/** How many columns each section layout has; absent or `single` is one. */
+const LAYOUT_COLUMNS: Record<(typeof SECTION_LAYOUTS)[number], number> = {
+  single: 1,
+  'two-equal': 2,
+  'two-wide-left': 2,
+  'two-wide-right': 2,
+  three: 3,
+};
+
+/**
+ * Which column each block sits in. Only a multi-column layout may have one;
+ * every key must be a block of this section and every value a column it has.
+ * Blocks with no entry sit in the first column. An empty map is dropped.
+ */
+function blockColumn(
+  ctx: Ctx,
+  where: string,
+  v: unknown,
+  layout: LearnSection['layout'],
+  blocks: readonly LearnBlock[],
+): Record<string, number> | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (!isObj(v)) {
+    ctx.p.add(where, 'Block columns are malformed.');
+    return undefined;
+  }
+  const keys = Object.keys(v);
+  if (keys.length === 0) return undefined;
+  const columns = LAYOUT_COLUMNS[layout ?? 'single'];
+  if (columns < 2) {
+    ctx.p.add(where, 'places blocks in columns but the section has one column. Choose a column layout first.');
+    return undefined;
+  }
+  const ids = new Set(blocks.map((b) => b.id));
+  const out: Record<string, number> = {};
+  for (const key of keys.slice(0, LEARN_LIMITS.blocksPerSection)) {
+    const col = v[key];
+    if (!ids.has(key)) {
+      ctx.p.add(where, `places "${key.slice(0, 64)}" in a column but no block in this section has that id.`);
+    } else if (typeof col !== 'number' || !Number.isInteger(col) || col < 0 || col >= columns) {
+      ctx.p.add(where, `places "${key}" in column ${String(col).slice(0, 20)}; this layout has columns 0 to ${columns - 1}.`);
+    } else {
+      out[key] = col;
+    }
+  }
+  if (keys.length > LEARN_LIMITS.blocksPerSection) ctx.p.add(where, 'Block columns name more blocks than a section holds.');
+  return out;
 }
 
 function section(ctx: Ctx, where: string, v: unknown): LearnSection | null {
@@ -482,37 +891,61 @@ function section(ctx: Ctx, where: string, v: unknown): LearnSection | null {
     return null;
   }
   const blocks = array(ctx, where, 'blocks', v.blocks, LEARN_LIMITS.blocksPerSection);
+  const sectionId = id(ctx, where, v.id, ctx.sectionIds);
   const out: LearnSection = {
-    id: id(ctx, where, v.id, ctx.sectionIds),
+    id: sectionId,
     label: str(ctx, where, 'Section name', v.label ?? '', LEARN_LIMITS.label) ?? '',
     background: enumField(ctx, where, 'Background', v.background, BAND_BACKGROUNDS, { required: true })!,
     width: enumField(ctx, where, 'Width', v.width, SECTION_WIDTHS, { required: true })!,
     paddingTop: enumField(ctx, where, 'Padding above', v.paddingTop, SPACINGS, { required: true })!,
     paddingBottom: enumField(ctx, where, 'Padding below', v.paddingBottom, SPACINGS, { required: true })!,
-    blocks: blocks
-      .map((b, i) => block(ctx, `${where}, block ${i + 1}`, b))
-      .filter((b): b is LearnBlock => b !== null),
+    blocks: [],
   };
   if (bool(v.waveBehindFirstImage)) out.waveBehindFirstImage = true;
   if (bool(v.hidden)) out.hidden = true;
+  const bg = color(ctx, where, 'Background colour', v.backgroundColor);
+  if (bg) out.backgroundColor = bg;
+  const bgImage = optImage(ctx, where, v.backgroundImage);
+  if (bgImage) out.backgroundImage = bgImage;
+  if (v.overlay !== undefined && v.overlay !== null) {
+    const o = v.overlay;
+    if (typeof o !== 'number' || !Number.isFinite(o) || o < 0 || o > LEARN_LIMITS.overlayMax) {
+      ctx.p.add(where, `Overlay must be between 0 and ${LEARN_LIMITS.overlayMax}.`);
+    } else {
+      out.overlay = o;
+    }
+  }
+  const a = anchor(ctx, where, v.anchor);
+  if (a) out.anchor = a;
+  const visibleOn = enumField(ctx, where, 'Show on', v.visibleOn, VISIBLE_ON);
+  if (visibleOn) out.visibleOn = visibleOn;
+  const layout = enumField(ctx, where, 'Layout', v.layout, SECTION_LAYOUTS);
+  if (layout) out.layout = layout;
+  const note = str(ctx, where, 'Note', v.note, LEARN_LIMITS.note);
+  if (note) out.note = note;
+
+  out.blocks = blocks.map((b, i) => block(ctx, `${where}, block ${i + 1}`, b)).filter((b): b is LearnBlock => b !== null);
+  const cols = blockColumn(ctx, where, v.blockColumn, out.layout, out.blocks);
+  if (cols && Object.keys(cols).length > 0) out.blockColumn = cols;
   return out;
+}
+
+function contentBytes(ctx: Ctx, value: unknown) {
+  const bytes = new TextEncoder().encode(JSON.stringify(value)).length;
+  if (bytes > LEARN_LIMITS.contentBytes) {
+    ctx.p.add('', `The page is ${Math.round(bytes / 1024)} KB of text; the limit is ${LEARN_LIMITS.contentBytes / 1024} KB.`);
+  }
 }
 
 /**
  * Rebuild `input` as a `LearnPageContent`, or say what is wrong with it.
  *
  * `allowEmulator` accepts image URLs from a local Storage emulator; the server
- * passes it only when the emulator is configured. `bucket` pins uploaded
- * images to the project's own bucket.
+ * passes it only when the emulator is configured. `libraryIds`, when given,
+ * is the set of saved sections a `reusable` block may point at.
  */
 export function validateLearnContent(input: unknown, opts: LearnValidateOptions = {}): LearnValidation {
-  const ctx: Ctx = {
-    p: new Problems(),
-    allowEmulator: opts.allowEmulator === true,
-    bucket: opts.bucket,
-    sectionIds: new Set(),
-    blockIds: new Set(),
-  };
+  const ctx = newCtx(opts);
   if (!isObj(input)) return { ok: false, problems: ['The page content is missing or malformed.'] };
 
   const sections = array(ctx, '', 'sections', input.sections, LEARN_LIMITS.sections);
@@ -525,17 +958,31 @@ export function validateLearnContent(input: unknown, opts: LearnValidateOptions 
       .filter((s): s is LearnSection => s !== null),
   };
   if (content.seoTitle.trim() === '') ctx.p.add('Search settings', 'Page title is empty.');
+  const og = optImage(ctx, 'Sharing image', input.ogImage);
+  if (og) content.ogImage = og;
+  if (bool(input.noindex)) content.noindex = true;
 
   const total = content.sections.reduce((n, s) => n + s.blocks.length, 0);
   if (total > LEARN_LIMITS.totalBlocks) {
     ctx.p.add('', `The page has ${total} blocks; the limit is ${LEARN_LIMITS.totalBlocks}.`);
   }
-  const bytes = new TextEncoder().encode(JSON.stringify(content)).length;
-  if (bytes > LEARN_LIMITS.contentBytes) {
-    ctx.p.add('', `The page is ${Math.round(bytes / 1024)} KB of text; the limit is ${LEARN_LIMITS.contentBytes / 1024} KB.`);
-  }
+  contentBytes(ctx, content);
 
   return ctx.p.list.length > 0 ? { ok: false, problems: ctx.p.list } : { ok: true, content };
+}
+
+/**
+ * Rebuild one section on its own, by the same rules as a section of the page,
+ * for the saved-section library. Ids and anchors are checked within the
+ * section only. With `forLibrary`, a `reusable` block inside is refused,
+ * because a saved section may not point at another one.
+ */
+export function validateLearnSection(input: unknown, opts: LearnValidateOptions = {}): LearnSectionValidation {
+  const ctx = newCtx(opts);
+  if (!isObj(input)) return { ok: false, problems: ['The section is missing or malformed.'] };
+  const out = section(ctx, 'Section', input);
+  if (out) contentBytes(ctx, out);
+  return ctx.p.list.length > 0 || !out ? { ok: false, problems: ctx.p.list } : { ok: true, section: out };
 }
 
 // ---------------------------------------------------------------------------
