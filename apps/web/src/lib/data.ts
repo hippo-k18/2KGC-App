@@ -27,8 +27,12 @@ import {
   BUYER_FEE_PERCENT,
   LEARN_PAGE_DEFAULT,
   LEARN_PAGE_DOC,
+  LEARN_PAGE_LIBRARY,
   type LearnPageContent,
+  expandReusableBlocks,
   learnPageOrDefault,
+  parseLearnSection,
+  reusableIds,
   DEFAULT_SPONSOR_TIERS,
   groupSponsorsByTier,
   resolveEventBasics,
@@ -1365,8 +1369,23 @@ export const learnPage = cache(async function learnPage(): Promise<LearnPageCont
     'learnPage',
     async () => {
       const snap = await db().doc(LEARN_PAGE_DOC).get();
-      return learnPageOrDefault(snap.data()?.published);
+      return withLibrarySections(learnPageOrDefault(snap.data()?.published));
     },
     LEARN_PAGE_DEFAULT,
   );
 });
+
+/**
+ * v2 (T319): a `reusable` block points at a saved section in
+ * `pageLayouts/learn/library/{id}`. The server swaps in that section's blocks
+ * before the page renders, so visitors get plain blocks and a library entry
+ * that has since been deleted simply drops out.
+ */
+async function withLibrarySections(page: LearnPageContent): Promise<LearnPageContent> {
+  const ids = reusableIds(page);
+  if (ids.length === 0) return page;
+  const refs = ids.map((id) => db().collection(LEARN_PAGE_LIBRARY).doc(id));
+  const snaps = await db().getAll(...refs);
+  const library = new Map(snaps.map((s) => [s.id, s.exists ? parseLearnSection(s.data()?.section) : undefined]));
+  return expandReusableBlocks(page, library);
+}

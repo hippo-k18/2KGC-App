@@ -2,11 +2,16 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  expandReusableBlocks,
+  LEARN_LIBRARY_SAMPLE,
   LEARN_PAGE_DEFAULT,
   LEARN_PAGE_KITCHEN_SINK,
+  LEARN_PAGE_KITCHEN_SINK_V2,
   learnPageOrDefault,
+  parseLearnSection,
   type LearnBlock,
 } from '@kgc/shared';
+import { V2_BLOCK_KINDS } from '../components/learn-blocks/blocks';
 import { LearnPageView } from '../components/learn-page-view';
 import { LEARN_FOUNDERS } from './people';
 
@@ -54,5 +59,117 @@ describe('LearnPageView', () => {
     expect(cards.people.map((p) => ({ name: p.name, role: p.role, img: p.photo?.src, li: p.linkedin }))).toEqual(
       LEARN_FOUNDERS.map((p) => ({ name: p.name, role: p.role, img: p.img, li: p.li })),
     );
+  });
+});
+
+describe('LearnPageView, v2 (T319)', () => {
+  const NOW = Date.UTC(2027, 3, 1, 12, 0, 0);
+  const sink = () => {
+    const page = learnPageOrDefault(LEARN_PAGE_KITCHEN_SINK_V2);
+    const library = new Map(Object.entries(LEARN_LIBRARY_SAMPLE).map(([id, s]) => [id, parseLearnSection(s)]));
+    return expandReusableBlocks(page, library);
+  };
+  const html = renderToStaticMarkup(createElement(LearnPageView, { content: sink(), now: NOW }));
+
+  it('draws every v2 block kind, with its id for the editor', () => {
+    for (const kind of V2_BLOCK_KINDS) expect(html).toContain(`lp-${kind}`);
+    for (const id of ['v2-it-left', 'v2-gal-grid', 'v2-acc', 'v2-tabs', 'v2-count', 'v2-table', 'v2-toc']) {
+      expect(html).toContain(`data-block-id="${id}"`);
+    }
+    expect(html).not.toContain('must never appear');
+    expect(html).not.toContain('evil.example');
+    expect(html).not.toContain('Never rendered');
+  });
+
+  it('draws every rich node and mark as an element, never as markup', () => {
+    for (const tag of ['<strong>', '<em>', '<u>', '<s>', '<code>', '<sup>', '<sub>', '<mark', '<br/>', '<blockquote', '<pre', '<hr', '<table', '<th', '<td', '<ol class="lp-rlist" start="3"']) {
+      expect(html).toContain(tag);
+    }
+    expect(html).toContain('class="lp-tc-navy"');
+    expect(html).toContain('style="color:#b82105"');
+    expect(html).toContain('lp-hl lp-hl-light-blue');
+    expect(html).toContain('class="lp-fs-large"');
+    expect(html).toContain('class="lp-ta-justify"');
+    expect(html).toContain('<td colSpan="2">');
+    expect(html).toMatch(/<a href="https:\/\/www.knowledgegraph.tech" target="_blank" rel="noreferrer noopener">a new tab link<\/a>/);
+  });
+
+  it('keeps a single h1, drawing a level 1 heading inside running text as an h2', () => {
+    expect(html.match(/<h1/g)).toHaveLength(1);
+  });
+
+  it('links the table of contents to the ids the headings carry', () => {
+    const links = [...html.matchAll(/<li class="lp-toc-l\d"><a href="#([^"]+)"/g)].map((m) => m[1]);
+    expect(links.length).toBeGreaterThan(5);
+    for (const id of links) expect(html).toMatch(new RegExp(`<h[2-4][^>]* id="${id}"`));
+    expect(links).toContain('rich-text');
+  });
+
+  it('expands a reusable block into the library section, server side', () => {
+    expect(html).toContain('From the library: ready to start?');
+    expect(html).toContain('data-block-id="v2-reuse--cta-h"');
+    expect(html).not.toContain('lp-reusable');
+  });
+
+  it('applies section and block options as classes', () => {
+    expect(html).toMatch(/<section class="[^"]*lp-bgc lp-bgc-navy lp-on-dark"[^>]*id="numbers"/);
+    expect(html).toMatch(/lp-has-bgimg lp-on-dark lp-has-layout/);
+    expect(html).toContain('lp-band-overlay" style="opacity:0.55"');
+    expect(html).toContain('--lp-band:#eef6fc');
+    expect(html).toContain('lp-layout lp-layout-two-equal');
+    expect(html).toContain('lp-layout lp-layout-three');
+    expect(html).toMatch(/data-block-id="v2-desktop"/);
+    expect(html).toContain('lp-vis-desktop');
+    expect(html).toContain('lp-vis-mobile lp-tc" style="color:#b82105"');
+    expect(html).toContain('lp-mw-small lp-boxed');
+  });
+
+  it('frames embeds sandboxed, lazy and titled, and only from their provider', () => {
+    const frames = [...html.matchAll(/<iframe [^>]*>/g)].map((m) => m[0]);
+    const embeds = frames.filter((f) => f.includes('sandbox='));
+    expect(embeds).toHaveLength(2);
+    for (const f of embeds) {
+      expect(f).toContain('loading="lazy"');
+      expect(f).toMatch(/title="[^"]+"/);
+      expect(f).not.toContain('allow-top-navigation');
+    }
+    expect(html).toContain('src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"');
+    expect(html).toContain('style="height:360px"');
+  });
+
+  it('draws the countdown from the server clock, and the done text after', () => {
+    expect(html).toMatch(/<time dateTime="2027-05-04T13:00:00.000Z"/);
+    expect(html).toContain('<span class="lp-countdown-n">33</span>');
+    const after = renderToStaticMarkup(createElement(LearnPageView, { content: sink(), now: Date.UTC(2028, 0, 1) }));
+    expect(after).toContain('The cohort has started.');
+  });
+
+  it('renders accordions as details, exclusive unless allowMany, and tabs with ARIA', () => {
+    expect(html).toMatch(/<details class="lp-acc-item" name="lp-acc-v2-acc" open="">/);
+    expect(html.match(/<details/g)).toHaveLength(3);
+    expect(html).toContain('role="tablist"');
+    expect(html.match(/role="tab"/g)).toHaveLength(3);
+    expect(html).toContain('aria-selected="true"');
+    expect(html.match(/role="tabpanel"/g)).toHaveLength(3);
+  });
+
+  it('wraps tables in a focusable, named scroll box', () => {
+    expect(html).toContain('<div class="lp-table-scroll" role="region" aria-label="Builder MC-1, spring cohort" tabindex="0">');
+    expect(html).toContain('lp-rtable lp-striped');
+  });
+
+  it('reserves every image box with its stored size', () => {
+    for (const img of html.match(/<img [^>]*>/g) ?? []) {
+      if (img.includes('data-nimg="fill"')) continue;
+      expect(img).toMatch(/width="\d+"/);
+      expect(img).toMatch(/height="\d+"/);
+    }
+  });
+
+  it('leaves the default page as it was: no v2 classes, one wrapper', () => {
+    const v1 = render();
+    expect(v1.match(/<div class="lp-page">/g)).toHaveLength(1);
+    expect(v1.replace(/^<link [^>]*>/, '').startsWith('<div class="lp-page">')).toBe(true);
+    expect(v1).not.toMatch(/lp-(vis|mw|tc|bgc|on-dark|layout)/);
   });
 });
