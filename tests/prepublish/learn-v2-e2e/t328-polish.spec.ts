@@ -16,7 +16,7 @@ import { SETTINGS, addBlock, moreMenu } from './editor-moves';
 const DASH = process.env.E2E_URL ?? 'http://localhost:3323';
 type Json = Record<string, unknown>;
 type Section = { blocks: Json[] } & Json;
-const FIXTURES = JSON.parse(readFileSync(path.join(__dirname, '.fixtures.json'), 'utf8')) as { library: Record<string, Section> };
+const FIXTURES = JSON.parse(readFileSync(path.join(__dirname, '.fixtures.json'), 'utf8')) as { library: Record<string, Section>; sink24: Json };
 
 async function resetLearn() {
   for (const sub of ['versions', 'library', 'media']) {
@@ -202,7 +202,8 @@ test('F13: a preview link that no longer works says so', async () => {
 });
 
 test('D5b: tour step 4 at 1280 points at "Add a section", not the bar over it', async ({ browser }) => {
-  await seedLinkedPage();
+  // A long outline, so "Add a section" starts below the fold and has to be scrolled to.
+  await fsSet('pageLayouts/learn', { draft: FIXTURES.sink24, published: null, revision: 1, draftUpdatedAt: Date.now(), draftUpdatedBy: OWNER });
   const { ctx, page } = await editor(browser, { tour: true });
   const card = page.locator('.le-x-tour');
   await expect(card).toBeVisible();
