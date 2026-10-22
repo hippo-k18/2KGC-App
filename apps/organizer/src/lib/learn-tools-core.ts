@@ -1,4 +1,4 @@
-import { isSafeHref } from '@kgc/shared';
+import { isSafeHref, slugifyAnchor } from '@kgc/shared';
 import type {
   BandBackground,
   ColorValue,
@@ -99,17 +99,8 @@ export const MIN_CONTRAST = 4.5;
 
 export const ANCHOR_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** "Our Team!" to "our-team". */
-export function slugifyAnchor(s: string): string {
-  return s
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64)
-    .replace(/-+$/, '');
-}
+/** "Our Team!" to "our-team", by the same rule as the server. */
+export { slugifyAnchor };
 
 /** Every anchor on the page, with who holds it. */
 export function pageAnchors(content: LearnPageContent): { anchor: string; sectionId: string; blockId?: string; label: string }[] {

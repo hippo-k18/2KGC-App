@@ -1,3 +1,9 @@
+import {
+  isRichDoc as sharedIsRichDoc,
+  markdownToRichDoc as sharedMarkdownToRichDoc,
+  richContentToPlainText,
+  richContentWordCount,
+} from '@kgc/shared';
 import type { RichContent, RichDoc, RichMark, RichNode } from '@kgc/shared';
 
 /**
@@ -5,17 +11,13 @@ import type { RichContent, RichDoc, RichMark, RichNode } from '@kgc/shared';
  * and checks, and a walk over every text run so find and replace can reach
  * inside a `RichDoc` as easily as inside a v1 Markdown string.
  *
- * ── Stand-in ─────────────────────────────────────────────────────────────────
- * `packages/shared/src/rich-doc-core.ts` (T315) owns validation, Markdown to
- * RichDoc and plain text. Until it lands, `richToPlainText` and
- * `markdownToRichDoc` here carry the same names so the swap at integration is
- * an import change. `mapRichText` and `richTextRuns` are the editor's own and
- * stay.
+ * Plain text, word count and Markdown to RichDoc come from T315's
+ * `rich-doc-core` in `@kgc/shared`, so the editor, the server and the website
+ * agree. `mapRichText`, `richTextRuns`, `richLinks` and `richColors` are the
+ * editor's own walks for find and replace and the checks.
  */
 
-export function isRichDoc(v: unknown): v is RichDoc {
-  return typeof v === 'object' && v !== null && (v as { type?: unknown }).type === 'doc';
-}
+export const isRichDoc = sharedIsRichDoc;
 
 const BLOCK_NODES = new Set([
   'paragraph',
@@ -51,11 +53,7 @@ function nodeText(n: RichNode, out: string[]): void {
 
 /** Rich content as plain text, paragraphs on their own lines. */
 export function richToPlainText(c: RichContent | undefined | null): string {
-  if (c === undefined || c === null) return '';
-  if (typeof c === 'string') return markdownToPlain(c);
-  const out: string[] = [];
-  for (const n of c.content ?? []) nodeText(n, out);
-  return out.join('').replace(/\n{3,}/g, '\n\n').trim();
+  return richContentToPlainText(c);
 }
 
 /** One line, for an outline row. */
@@ -64,54 +62,12 @@ export function richOneLine(c: RichContent | undefined | null): string {
 }
 
 export function richWordCount(c: RichContent | undefined | null): number {
-  const t = richOneLine(c);
-  return t ? t.split(' ').length : 0;
+  return richContentWordCount(c);
 }
 
-// ─── Markdown to RichDoc (the v1 subset only) ───────────────────────────────
-
-const INLINE = /\[([^\]\n]*)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|_([^_\n]+)_/g;
-
-function inline(line: string): RichNode[] {
-  const out: RichNode[] = [];
-  let last = 0;
-  INLINE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = INLINE.exec(line)) !== null) {
-    if (m.index > last) out.push({ type: 'text', text: line.slice(last, m.index) });
-    last = m.index + m[0].length;
-    const [, linkText, href, strong, star, under] = m;
-    if (href !== undefined) {
-      out.push({ type: 'text', text: linkText || href, marks: [{ type: 'link', href }] });
-      continue;
-    }
-    const text = strong ?? star ?? under ?? '';
-    const mark: RichMark = { type: strong !== undefined ? 'bold' : 'italic' };
-    const inner = /^\[([^\]\n]*)\]\(([^)\s]+)\)$/.exec(text);
-    out.push(
-      inner
-        ? { type: 'text', text: inner[1] || inner[2], marks: [mark, { type: 'link', href: inner[2] }] }
-        : { type: 'text', text, marks: [mark] },
-    );
-  }
-  if (last < line.length) out.push({ type: 'text', text: line.slice(last) });
-  return out.filter((n) => n.type !== 'text' || n.text !== '');
-}
-
-/** v1 Markdown (paragraphs, line breaks, bold, italic, links) as a RichDoc. */
+/** v1 Markdown as a RichDoc, by the server's rules. */
 export function markdownToRichDoc(md: string): RichDoc {
-  const paras = md.replace(/\r\n?/g, '\n').split(/\n{2,}/);
-  return {
-    type: 'doc',
-    content: paras.map((p) => {
-      const content: RichNode[] = [];
-      p.split('\n').forEach((line, i) => {
-        if (i > 0) content.push({ type: 'hardBreak' });
-        content.push(...inline(line));
-      });
-      return content.length ? { type: 'paragraph', content } : { type: 'paragraph' };
-    }),
-  };
+  return sharedMarkdownToRichDoc(md);
 }
 
 export function toRichDoc(c: RichContent): RichDoc {
