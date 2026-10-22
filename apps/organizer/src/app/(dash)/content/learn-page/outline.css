@@ -407,3 +407,63 @@
   opacity: 0;
   pointer-events: none;
 }
+
+/* ── Picker v2: search and categories (T318) ── */
+.le-pick-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 2px 8px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.le-pick-search:focus-within { border-color: var(--interactive); box-shadow: 0 0 0 2px rgba(32, 105, 188, 0.2); }
+.le-pick-search input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+}
+.le-pick-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 2px 8px;
+}
+.le-pick-cat {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.le-pick-cat:hover { border-color: var(--interactive); }
+.le-pick-cat.is-on { background: var(--interactive); border-color: var(--interactive); color: #fff; }
+.le-pick-cat:focus-visible { outline: 2px solid var(--interactive); outline-offset: 1px; }
+.le-pick-cats[aria-disabled] .le-pick-cat { opacity: 0.6; }
+.le-pick-grid { max-height: min(56vh, 420px); overflow-y: auto; padding: 2px; }
+.le-pick-none { margin: 12px 2px; color: var(--muted); }
+.le-pick { width: 520px; }
+@media (max-width: 560px) {
+  .le-pick { width: calc(100vw - 24px); max-height: calc(100vh - 24px); overflow-y: auto; }
+  .le-pick-grid { grid-template-columns: 1fr; max-height: 52vh; }
+}
+
+/* ── Outline v2: search, several selected, column badges (T318) ── */
+.le-ol-search { position: sticky; top: 0; z-index: 2; padding: 8px 8px 6px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.le-ol-search-box { display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--muted); background: var(--surface); }
+.le-ol-search-box:focus-within { border-color: var(--interactive); box-shadow: 0 0 0 2px rgba(32, 105, 188, 0.2); }
+.le-ol-search-box input { flex: 1; min-width: 0; height: 30px; border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink); }
+.le-ol-multi { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--interactive); }
+.le-ol-link { border: 0; background: none; padding: 0; font: inherit; color: var(--interactive); text-decoration: underline; cursor: pointer; }
+.le-ol-col { flex: none; margin-left: 4px; padding: 0 5px; font-size: 10px; font-weight: 600; line-height: 16px; border-radius: 8px; background: #eef2f7; color: var(--muted); }

@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent,
@@ -10,13 +11,15 @@ import {
 } from 'react';
 import type { BandBackground, LearnBlock, LearnSection } from '@kgc/shared';
 import {
+  blockColumnOf,
   blockSummary,
   createBlock,
-  createSection,
   kindLabel,
+  layoutColumns,
   type BlockKind,
   type Selection,
 } from '@/lib/learn-editor-core';
+import { blockRange, outlineMatches } from '@/lib/learn-tools-core';
 import { AddBlockPicker } from './add-block-picker';
 import type { PaneProps } from './editor-types';
 import './outline.css';
@@ -110,6 +113,75 @@ const KIND_ICON: Record<BlockKind, ReactNode> = {
   ),
   divider: <path d="M1.5 8h13" />,
   spacer: <path d="M3 2.5h10M3 13.5h10M8 5v6M6.3 6.7L8 5l1.7 1.7M6.3 9.3L8 11l1.7-1.7" />,
+  imageText: (
+    <>
+      <rect x="1.5" y="3.5" width="6" height="9" rx="1" />
+      <path d="M9.5 5h5M9.5 8h5M9.5 11h3.5" />
+    </>
+  ),
+  gallery: (
+    <>
+      <rect x="1.5" y="2.5" width="5.5" height="5" rx="1" />
+      <rect x="9" y="2.5" width="5.5" height="5" rx="1" />
+      <rect x="1.5" y="9" width="5.5" height="5" rx="1" />
+      <rect x="9" y="9" width="5.5" height="5" rx="1" />
+    </>
+  ),
+  quote: <path d="M3 5h3.5v3.5L5 12H3.5L5 8.5H3zM9.5 5H13v3.5L11.5 12H10l1.5-3.5h-2z" />,
+  callout: (
+    <>
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+      <path d="M8 5.5v3.5M8 11.2v.1" />
+    </>
+  ),
+  accordion: (
+    <>
+      <rect x="1.5" y="2" width="13" height="3.5" rx="1" />
+      <rect x="1.5" y="6.5" width="13" height="3.5" rx="1" />
+      <rect x="1.5" y="11" width="13" height="3.5" rx="1" />
+    </>
+  ),
+  tabs: (
+    <>
+      <path d="M1.5 6V3.5h5V6" />
+      <rect x="1.5" y="6" width="13" height="8" rx="1" />
+      <path d="M7.5 6V4h4v2" />
+    </>
+  ),
+  stats: <path d="M2.5 13.5v-4M6.2 13.5V6M9.8 13.5V8M13.5 13.5V3" />,
+  cards: (
+    <>
+      <rect x="1.5" y="3" width="5.5" height="10" rx="1" />
+      <rect x="9" y="3" width="5.5" height="10" rx="1" />
+      <path d="M1.5 7h5.5M9 7h5.5" />
+    </>
+  ),
+  logos: (
+    <>
+      <circle cx="4" cy="8" r="2.5" />
+      <rect x="9" y="5.5" width="5.5" height="5" rx="1" />
+    </>
+  ),
+  embed: <path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5M9 3l-2 10" />,
+  countdown: (
+    <>
+      <circle cx="8" cy="9" r="5.5" />
+      <path d="M8 6v3l2 1.5M6.5 1.5h3" />
+    </>
+  ),
+  table: (
+    <>
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1" />
+      <path d="M1.5 6.2h13M1.5 9.8h13M6 2.5v11M10.5 2.5v11" />
+    </>
+  ),
+  toc: <path d="M2.5 3.5h1M6 3.5h7.5M2.5 8h1M6 8h7.5M2.5 12.5h1M6 12.5h7.5" />,
+  reusable: (
+    <>
+      <path d="M12.5 6.5A5 5 0 0 0 3.6 5M3.5 9.5a5 5 0 0 0 8.9 1.5" />
+      <path d="M12.8 3v3.5H9.3M3.2 13V9.5h3.5" />
+    </>
+  ),
 };
 
 const I = {
@@ -223,9 +295,22 @@ function gapToIndex(gap: number, from: number): number {
 
 // ─── Outline ──────────────────────────────────────────────────────────────────
 
-export function Outline(props: PaneProps) {
-  const { content, selection, onSelect, onEdit, warnings } = props;
+export interface OutlineProps extends PaneProps {
+  /** Blocks in a multiple selection, kept by the shell so the preview and bulk actions share it. */
+  multi: ReadonlySet<string>;
+  onMulti: (ids: Set<string>) => void;
+  /** Opens the templates dialog; the shell inserts at `index`. */
+  onAddSection: (index: number) => void;
+}
+
+export function Outline(props: OutlineProps) {
+  const { content, selection, onSelect, onEdit, warnings, multi, onMulti, onAddSection } = props;
   const sections = content.sections;
+  const [query, setQuery] = useState('');
+  const matches = useMemo(() => outlineMatches(content, query), [content, query]);
+  /** Where a Shift-click range starts: the last block clicked or selected. */
+  const rangeFrom = useRef<string | null>(null);
+  if (selection.kind === 'block' && multi.size === 0) rangeFrom.current = selection.blockId;
 
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -331,10 +416,24 @@ export function Outline(props: PaneProps) {
     setPicker(null);
   };
 
-  const addSection = () => {
-    const section = createSection();
-    onEdit({ type: 'addSection', index: sections.length, section });
-    onSelect({ kind: 'section', sectionId: section.id });
+  /** Shift-click adds a range, Cmd or Ctrl click adds or removes one; a plain click selects one. */
+  const clickBlock = (e: React.MouseEvent, sectionId: string, blockId: string) => {
+    if (e.shiftKey && rangeFrom.current) {
+      onMulti(new Set([...multi, ...blockRange(content, rangeFrom.current, blockId)]));
+      return;
+    }
+    if (e.metaKey || e.ctrlKey) {
+      const next = new Set(multi);
+      if (next.size === 0 && selection.kind === 'block') next.add(selection.blockId);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      rangeFrom.current = blockId;
+      onMulti(next);
+      return;
+    }
+    if (multi.size > 0) onMulti(new Set());
+    rangeFrom.current = blockId;
+    onSelect({ kind: 'block', sectionId, blockId });
   };
 
   // ── Drag and drop ──
@@ -476,8 +575,10 @@ export function Outline(props: PaneProps) {
   );
 
   const renderBlock = (section: LearnSection, sectionIndex: number, block: LearnBlock, index: number) => {
+    if (matches && !matches.blocks.has(block.id)) return null;
     const key = rowKey.block(block.id);
-    const selected = selectedKey === key;
+    const selected = selectedKey === key || multi.has(block.id);
+    const columns = layoutColumns(section.layout);
     const warning = warningFor.get(block.id);
     const isDragging = dragging?.type === 'block' && dragging.blockId === block.id;
     const isFirstAnywhere = sectionIndex === 0 && index === 0;
@@ -485,6 +586,17 @@ export function Outline(props: PaneProps) {
     const summary = blockSummary(block);
 
     const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        openPicker(section.id, index + 1, key, e.currentTarget);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        e.stopPropagation();
+        onMulti(new Set(section.blocks.map((b) => b.id)));
+        return;
+      }
       if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
       e.preventDefault();
       focusAfterRender.current = key;
@@ -511,13 +623,23 @@ export function Outline(props: PaneProps) {
             aria-selected={selected}
             aria-label={`${summary}${block.hidden ? ', hidden' : ''}${warning ? `, needs attention: ${warning}` : ''}`}
             title={`${summary}. Alt and arrow keys move it.`}
-            onClick={() => onSelect({ kind: 'block', sectionId: section.id, blockId: block.id })}
+            onClick={(e) => clickBlock(e, section.id, block.id)}
             onKeyDown={onKeyDown}
           >
             <span className="le-ol-kind" title={kindLabel(block.kind)}>
               <Svg>{KIND_ICON[block.kind]}</Svg>
             </span>
             <span className="le-ol-text">{summary}</span>
+            {columns > 1 && (
+              <span className="le-ol-col" title={`In column ${blockColumnOf(section, block.id) + 1}`}>
+                {blockColumnOf(section, block.id) + 1}
+              </span>
+            )}
+            {block.visibleOn && block.visibleOn !== 'all' && (
+              <span className="le-ol-col" title={block.visibleOn === 'mobile' ? 'Phones only' : 'Wide screens only'}>
+                {block.visibleOn === 'mobile' ? 'Phone' : 'Wide'}
+              </span>
+            )}
             {warning && <span className="le-ol-warn" title={warning} />}
             {block.hidden && (
               <span className="le-ol-flag" title="Hidden">
@@ -584,9 +706,10 @@ export function Outline(props: PaneProps) {
   };
 
   const renderSection = (section: LearnSection, index: number) => {
+    if (matches && !matches.sections.has(section.id)) return null;
     const key = rowKey.section(section.id);
     const selected = selectedKey === key;
-    const open = !collapsed.has(section.id);
+    const open = !collapsed.has(section.id) || !!matches;
     const isDragging = dragging?.type === 'section' && dragging.sectionId === section.id;
     const label = section.label.trim() || 'Untitled section';
     const groupId = `le-ol-group-${section.id}`;
@@ -704,7 +827,7 @@ export function Outline(props: PaneProps) {
                 aria-expanded={picker?.anchor === endKey}
               >
                 <Svg size={12}>{I.plus}</Svg>
-                Add block
+                Add a block
               </button>
               {picker?.anchor === endKey && <AddBlockPicker onPick={pickBlock} onClose={closePicker} />}
             </div>
@@ -718,7 +841,37 @@ export function Outline(props: PaneProps) {
 
   return (
     <nav ref={navRef} className="le-ol" aria-label="Page outline">
-      <ul role="tree" aria-label="Page outline">
+      <div className="le-ol-search">
+        <label className="le-ol-search-box">
+          <span className="sr-only">Search the outline</span>
+          <Svg size={13}>
+            <circle cx="7" cy="7" r="4.5" />
+            <path d="M10.5 10.5 14 14" />
+          </Svg>
+          <input
+            type="search"
+            placeholder="Search the page"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && query) {
+                e.preventDefault();
+                e.stopPropagation();
+                setQuery('');
+              }
+            }}
+          />
+        </label>
+        {multi.size > 0 && (
+          <div className="le-ol-multi" role="status">
+            <span>{multi.size} selected</span>
+            <button type="button" className="le-ol-link" onClick={() => onMulti(new Set())}>
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+      <ul role="tree" aria-label="Page outline" aria-multiselectable="true">
         <li role="none">
           <div ref={registerRow(rowKey.page)} className={`le-ol-row is-page${pageSelected ? ' is-selected' : ''}`}>
             <span className="le-ol-chev-space" />
@@ -740,6 +893,7 @@ export function Outline(props: PaneProps) {
         {sections.map(renderSection)}
         {showSectionDrop(sections.length) && <li className="le-ol-drop" aria-hidden="true" />}
       </ul>
+      {matches && matches.sections.size === 0 && <p className="le-ol-empty">Nothing on the page matches.</p>}
       <div
         className="le-ol-addrow is-section"
         onDragOver={(e) => {
@@ -748,9 +902,9 @@ export function Outline(props: PaneProps) {
         }}
         onDrop={drop}
       >
-        <button type="button" className="le-ol-add" onClick={addSection}>
+        <button type="button" className="le-ol-add" data-tour="add" onClick={() => onAddSection(sections.length)}>
           <Svg size={12}>{I.plus}</Svg>
-          Add section
+          Add a section
         </button>
       </div>
     </nav>
