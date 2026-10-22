@@ -270,3 +270,9 @@
   line-height: 16px;
   color: var(--body);
 }
+
+.le-v2-tablegrid { overflow-x: auto; margin-bottom: 8px; }
+.le-v2-tablegrid table { border-collapse: collapse; }
+.le-v2-tablegrid td { padding: 2px; vertical-align: middle; }
+.le-v2-tablegrid input { min-width: 96px; }
+.le-v2-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }

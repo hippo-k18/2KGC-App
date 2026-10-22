@@ -51,6 +51,7 @@ import {
   without,
   type Opt,
 } from './settings-fields';
+import { MAX_TABLE_COLUMNS, MAX_TABLE_ROWS, addColumn, addRow, docToGrid, gridToDoc, removeColumn, removeRow } from '@/lib/learn-table-core';
 import './settings-v2.css';
 
 /**
@@ -1111,18 +1112,72 @@ function CountdownSettings({ block, upd }: { block: BlockOf<'countdown'>; upd: U
 }
 
 function TableSettings({ block, upd }: { block: BlockOf<'table'>; upd: Upd }) {
+  const grid = docToGrid(block.doc);
+  const set = (rows: string[][], header = grid.header) => upd({ doc: gridToDoc({ header, rows }) });
+  const cols = grid.rows[0]?.length ?? 0;
   return (
     <Group title="Table">
-      <RichField
-        label="Table"
-        variant="full"
-        rows={8}
-        value={block.doc}
-        onChange={(v) =>
-          // The stand-in editor hands back text; a doc of plain paragraphs keeps the contract until T317's editor lands.
-          upd({ doc: typeof v === 'string' ? textToDoc(v) : v })
-        }
-      />
+      {grid.rich && (
+        <p className="le-set-warn" role="status">
+          Some cells have formatting or merged cells. Typing in a cell here keeps only its words.
+        </p>
+      )}
+      <Check label="First row is headings" checked={grid.header} onChange={(h) => set(grid.rows, h)} />
+      <div className="le-v2-tablegrid" role="group" aria-label="Table cells">
+        <table>
+          <tbody>
+            {grid.rows.map((r, i) => (
+              <tr key={i}>
+                {r.map((cell, j) => (
+                  <td key={j}>
+                    <input
+                      className="whova-text-input le-set-input"
+                      aria-label={`Row ${i + 1}, column ${j + 1}`}
+                      value={cell}
+                      onChange={(e) => set(grid.rows.map((row, x) => (x === i ? row.map((c, y) => (y === j ? e.target.value : c)) : row)))}
+                    />
+                  </td>
+                ))}
+                <td>
+                  <button
+                    type="button"
+                    className="le-set-link danger"
+                    aria-label={`Remove row ${i + 1}`}
+                    disabled={grid.rows.length <= 1}
+                    onClick={() => set(removeRow(grid.rows, i))}
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+            <tr>
+              {Array.from({ length: cols }, (_, j) => (
+                <td key={j}>
+                  <button
+                    type="button"
+                    className="le-set-link danger"
+                    aria-label={`Remove column ${j + 1}`}
+                    disabled={cols <= 1}
+                    onClick={() => set(removeColumn(grid.rows, j))}
+                  >
+                    Remove
+                  </button>
+                </td>
+              ))}
+              <td />
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="le-v2-row">
+        <button type="button" className="btn btn-default btn-sm" disabled={grid.rows.length >= MAX_TABLE_ROWS} onClick={() => set(addRow(grid.rows))}>
+          + Add row
+        </button>
+        <button type="button" className="btn btn-default btn-sm" disabled={cols >= MAX_TABLE_COLUMNS} onClick={() => set(addColumn(grid.rows))}>
+          + Add column
+        </button>
+      </div>
       <Check label="Shade every other row" checked={block.striped} onChange={(striped) => upd({ striped })} />
       <Text
         label="Caption (optional)"
@@ -1132,16 +1187,6 @@ function TableSettings({ block, upd }: { block: BlockOf<'table'>; upd: Upd }) {
       />
     </Group>
   );
-}
-
-function textToDoc(text: string): BlockOf<'table'>['doc'] {
-  return {
-    type: 'doc',
-    content: text
-      .split(/\n{2,}/)
-      .filter((p) => p.trim())
-      .map((p) => ({ type: 'paragraph', content: [{ type: 'text', text: p }] })),
-  };
 }
 
 function TocSettings({ block, upd }: { block: BlockOf<'toc'>; upd: Upd }) {

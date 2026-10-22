@@ -483,3 +483,12 @@ button.le-chip { cursor: pointer; }
   .le-bar-right { flex-wrap: wrap; }
   .le-menu { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; min-width: 0; }
 }
+
+/* Below 1400px the page tools live in the More menu, so the bar stays one row. */
+@media (max-width: 1399px) {
+  .le-hide-mid { display: none !important; }
+}
+@media (max-width: 480px) {
+  .le-hide-phone { display: none !important; }
+  .le-bar .le-icon-btn { width: 28px; }
+}

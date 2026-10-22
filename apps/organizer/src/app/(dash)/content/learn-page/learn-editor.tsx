@@ -787,6 +787,20 @@ export function LearnEditor({
     { label: 'History', onClick: () => openDialog('history') },
     { label: 'Discard draft', onClick: () => openDialog('discard') },
     { label: 'Keyboard shortcuts', keys: 'Mod+/', onClick: () => openDialog('shortcuts') },
+    {
+      label: 'View live page',
+      onClick: () => {
+        setMenu(false);
+        window.open(`${siteOrigin}/learn`, '_blank', 'noreferrer');
+      },
+    },
+    {
+      label: 'Help',
+      onClick: () => {
+        setMenu(false);
+        setHelp(true);
+      },
+    },
   ];
 
   const bulkCount = multi.size;
@@ -864,13 +878,13 @@ export function LearnEditor({
           </div>
 
           <div className="le-bar-right">
-            <button type="button" className="btn btn-default btn-sm le-hide-narrow" onClick={() => openSide('find')} title={keys('Mod+F')}>
+            <button type="button" className="btn btn-default btn-sm le-hide-mid" onClick={() => openSide('find')} title={keys('Mod+F')}>
               Find
             </button>
-            <button type="button" className="btn btn-default btn-sm le-hide-narrow" onClick={() => openSide({ type: 'check', tab: 'accessibility' })} title={keys('Shift+Mod+K')}>
+            <button type="button" className="btn btn-default btn-sm le-hide-mid" onClick={() => openSide({ type: 'check', tab: 'accessibility' })} title={keys('Shift+Mod+K')}>
               Check
             </button>
-            <button type="button" className="btn btn-default btn-sm le-hide-narrow" onClick={() => openDialog('media')}>
+            <button type="button" className="btn btn-default btn-sm le-hide-mid" onClick={() => openDialog('media')}>
               Media
             </button>
             <div className="le-menu-wrap">
@@ -885,10 +899,10 @@ export function LearnEditor({
               </button>
               {menu && <ToolsMenu items={toolItems} keys={keys} onClose={() => setMenu(false)} />}
             </div>
-            <button type="button" className="btn btn-default btn-sm" data-tour="help" onClick={() => setHelp(true)} aria-label="Help">
+            <button type="button" className="btn btn-default btn-sm le-hide-phone" data-tour="help" onClick={() => setHelp(true)} aria-label="Help">
               Help
             </button>
-            <a className="btn btn-default btn-sm le-hide-narrow" href={`${siteOrigin}/learn`} target="_blank" rel="noreferrer">
+            <a className="btn btn-default btn-sm le-hide-mid" href={`${siteOrigin}/learn`} target="_blank" rel="noreferrer">
               View live page
             </a>
             <button type="button" className="btn btn-default btn-sm le-hide-narrow" onClick={() => openDialog('schedule')}>
@@ -932,9 +946,10 @@ export function LearnEditor({
               <strong>{error.message}</strong>
               {error.problems && error.problems.length > 0 && (
                 <ul className="le-problems">
-                  {error.problems.slice(0, 8).map((p) => (
+                  {error.problems.slice(0, 3).map((p) => (
                     <li key={p}>{p}</li>
                   ))}
+                  {error.problems.length > 3 && <li>and {error.problems.length - 3} more</li>}
                 </ul>
               )}
             </div>
