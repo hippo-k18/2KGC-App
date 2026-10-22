@@ -64,6 +64,14 @@ const nextConfig: NextConfig = {
    */
   experimental: { serverActions: { bodySizeLimit: '12mb' } },
 
+  /**
+   * Where the build goes. `ORGANIZER_DIST_DIR` lets a test server build beside
+   * a dev server that is already running here rather than on top of its
+   * `.next` (AGENTS.md; `apps/web` has `WEB_DIST_DIR` for the same reason).
+   * Unset, which is every deploy, this is `.next` as always.
+   */
+  distDir: process.env.ORGANIZER_DIST_DIR || '.next',
+
   /** No `x-powered-by: Next.js` on every response (T263). */
   poweredByHeader: false,
 
