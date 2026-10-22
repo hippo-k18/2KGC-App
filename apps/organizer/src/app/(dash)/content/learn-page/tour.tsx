@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { scrollToClear, type Span } from '@/lib/learn-tour-core';
 import './extras.css';
 
 /**
@@ -91,6 +92,58 @@ function findAnchor(step: Step): { el: HTMLElement; phone: boolean } | null {
   return alt ? { el: alt, phone: true } : null;
 }
 
+/** The nearest ancestor that scrolls vertically. */
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const { overflowY } = getComputedStyle(p);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
+}
+
+/** The sticky or fixed box `hit` belongs to, below the first ancestor it shares with `target`. */
+function stickyBox(hit: Element, target: HTMLElement): Element {
+  for (let p: Element | null = hit; p && !p.contains(target); p = p.parentElement) {
+    const { position } = getComputedStyle(p);
+    if (position === 'sticky' || position === 'fixed') return p;
+  }
+  return hit;
+}
+
+/**
+ * What is drawn over `el` at its top, middle and bottom: a sticky bar, say.
+ * The tour's own shade and ring do not count.
+ */
+function coversOf(el: HTMLElement): Span[] {
+  const r = el.getBoundingClientRect();
+  const x = r.left + r.width / 2;
+  const out: Span[] = [];
+  for (const y of [r.top + 1, r.top + r.height / 2, r.bottom - 1]) {
+    for (const hit of document.elementsFromPoint(x, y)) {
+      // Painted top first, so everything before the target (or its container) is on top of it.
+      if (hit === el || hit.contains(el)) break;
+      if (el.contains(hit) || hit.closest('.le-x-tour')) continue;
+      const b = stickyBox(hit, el).getBoundingClientRect();
+      out.push({ top: b.top, bottom: b.bottom });
+    }
+  }
+  return out;
+}
+
+/**
+ * Brings `el` into view, then clear of anything sticky drawn over it (T326 D5b:
+ * "Add a section" ended up under the outline's Copy and Paste bar).
+ */
+function revealTarget(el: HTMLElement): void {
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  const pane = scrollParent(el);
+  if (!pane) return;
+  const r = el.getBoundingClientRect();
+  const p = pane.getBoundingClientRect();
+  const delta = scrollToClear({ top: r.top, bottom: r.bottom }, coversOf(el), { top: p.top, bottom: p.bottom });
+  if (delta !== 0) pane.scrollBy({ top: delta });
+}
+
 /** Where the card goes: below the target, else above, else beside, else centred; always inside the window. */
 function placeCard(target: Box | null, card: { width: number; height: number }): { top: number; left: number } {
   const vw = window.innerWidth;
@@ -147,7 +200,8 @@ export function FirstRunTour({ onDone }: { onDone: () => void }) {
 
   // Bring the target into view first, then measure, so the ring lands on it.
   useLayoutEffect(() => {
-    findAnchor(STEPS[step])?.el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const found = findAnchor(STEPS[step]);
+    if (found) revealTarget(found.el);
     measure();
   }, [step, measure]);
 

@@ -1,9 +1,10 @@
 'use client';
 
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import type { LearnPageContent } from '@kgc/shared';
+import type { LearnPageContent, LearnSection } from '@kgc/shared';
 import type { EditAction } from '@/lib/learn-editor-core';
-import { findInPage, replaceInPage, type FindMatch, type FindOptions, type Where } from '@/lib/learn-tools-core';
+import { findOnPage, lockedSummary, type FindHit } from '@/lib/learn-find-core';
+import { replaceInPage, type FindOptions, type Where } from '@/lib/learn-tools-core';
 import './tools.css';
 
 /**
@@ -13,6 +14,10 @@ import './tools.css';
  * outline shows and `onJump` can select it. Every replace goes through
  * `onEdit` as one `replace` action, so a single Undo brings back everything a
  * "Replace all" changed.
+ *
+ * Matches inside a linked (Saved section) block and words split by formatting
+ * are listed too (T324 E F12, `learn-find-core`), with Replace off and the
+ * reason on the row; Replace all leaves them alone and says how many.
  */
 
 /** Context strings are cut at this many characters by findInPage; a full one means there is more. */
@@ -21,10 +26,10 @@ const CONTEXT = 30;
 interface Group {
   key: string;
   title: string;
-  items: { match: FindMatch; index: number }[];
+  items: { match: FindHit; index: number }[];
 }
 
-function groupBySection(content: LearnPageContent, matches: FindMatch[]): Group[] {
+function groupBySection(content: LearnPageContent, matches: FindHit[]): Group[] {
   const groups = new Map<string, Group>();
   matches.forEach((match, index) => {
     const key = match.where.sectionId ?? '';
@@ -45,11 +50,17 @@ function countLabel(n: number): string {
 
 export function FindReplacePanel({
   content,
+  library,
+  libraryNames,
   onEdit,
   onJump,
   onClose,
 }: {
   content: LearnPageContent;
+  /** Saved sections by id, so a linked section's text is found too. Null while loading. */
+  library?: ReadonlyMap<string, LearnSection> | null;
+  /** Saved section names by id, for the results list. */
+  libraryNames?: ReadonlyMap<string, string>;
   onEdit: (action: EditAction) => void;
   onJump: (where: Where) => void;
   onClose: () => void;
@@ -71,7 +82,13 @@ export function FindReplacePanel({
   // Deferred, so typing stays smooth on a long page while the walk catches up.
   const deferredQuery = useDeferredValue(query);
   const opts: FindOptions = useMemo(() => ({ matchCase, wholeWord }), [matchCase, wholeWord]);
-  const matches = useMemo(() => findInPage(content, deferredQuery, opts), [content, deferredQuery, opts]);
+  const matches = useMemo(
+    () => findOnPage(content, deferredQuery, opts, library, libraryNames),
+    [content, deferredQuery, opts, library, libraryNames],
+  );
+  /** What Replace all changes; the rest are listed but left alone. */
+  const replaceable = useMemo(() => matches.filter((m) => !m.locked).length, [matches]);
+  const kept = useMemo(() => lockedSummary(matches), [matches]);
   const groups = useMemo(() => groupBySection(content, matches), [content, matches]);
   // The index can outlive a shorter list after an edit; clamp rather than reset.
   const cur = matches.length === 0 ? -1 : Math.min(current, matches.length - 1);
@@ -86,8 +103,9 @@ export function FindReplacePanel({
     const at = refocus.current;
     if (at === null) return;
     refocus.current = null;
-    const rows = listRef.current?.querySelectorAll<HTMLElement>('.le-tools-result-replace');
-    const target = rows?.[Math.min(at, rows.length - 1)];
+    // The next Replace that can be pressed, from the replaced row on.
+    const rows = Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('.le-tools-result-replace') ?? []);
+    const target = rows.slice(at).find((b) => !b.disabled) ?? rows.find((b) => !b.disabled);
     (target ?? findRef.current)?.focus();
   }, [matches]);
 
@@ -120,7 +138,8 @@ export function FindReplacePanel({
     go((from + dir + matches.length) % matches.length);
   };
 
-  const replaceOne = (m: FindMatch, index: number) => {
+  const replaceOne = (m: FindHit, index: number) => {
+    if (m.locked) return;
     const res = replaceInPage(content, deferredQuery, replacement, opts, m.id);
     if (res.count === 0) return;
     onEdit({ type: 'replace', content: res.content });
@@ -141,7 +160,7 @@ export function FindReplacePanel({
     if (res.count === 0) return;
     onEdit({ type: 'replace', content: res.content });
     setCurrent(-1);
-    setDone(`Replaced ${res.count}. Undo brings ${res.count === 1 ? 'it' : 'them'} back.`);
+    setDone(`Replaced ${res.count}. Undo brings ${res.count === 1 ? 'it' : 'them'} back.${kept ? ` ${kept}` : ''}`);
     findRef.current?.focus();
   };
 
@@ -265,7 +284,7 @@ export function FindReplacePanel({
                 setDone(null);
                 setConfirmAll(true);
               }}
-              disabled={stale || matches.length === 0}
+              disabled={stale || replaceable === 0}
             >
               Replace all
             </button>
@@ -276,8 +295,9 @@ export function FindReplacePanel({
           <div className="le-tools-confirm" role="group" aria-labelledby={`${ids}-confirm`}>
             <p id={`${ids}-confirm`}>
               {replacement
-                ? `Replace ${countLabel(matches.length)} with "${replacement}"?`
-                : `Remove ${countLabel(matches.length)}? The replacement is empty.`}
+                ? `Replace ${countLabel(replaceable)} with "${replacement}"?`
+                : `Remove ${countLabel(replaceable)}? The replacement is empty.`}
+              {kept && ` ${kept}`}
             </p>
             <div className="le-tools-confirm-actions">
               {/* Focus lands on Cancel, so a stray Enter does not change the page. */}
@@ -285,7 +305,7 @@ export function FindReplacePanel({
                 Cancel
               </button>
               <button type="button" className="whova-btn-main small" onClick={replaceAll}>
-                Replace {matches.length}
+                Replace {replaceable}
               </button>
             </div>
           </div>
@@ -315,7 +335,10 @@ export function FindReplacePanel({
                         onClick={() => go(index)}
                         aria-current={index === cur ? 'true' : undefined}
                       >
-                        <span className="le-tools-result-field">{m.where.field}</span>
+                        <span className="le-tools-result-field">
+                          {m.where.field}
+                          {m.savedSection && `, in saved section "${m.savedSection}"`}
+                        </span>
                         <span className="le-tools-result-text">
                           {m.before.length >= CONTEXT && '…'}
                           {m.before}
@@ -323,12 +346,19 @@ export function FindReplacePanel({
                           {m.after}
                           {m.after.length >= CONTEXT && '…'}
                         </span>
+                        {m.locked && (
+                          <span id={`${ids}-why-${index}`} className="le-muted" style={{ display: 'block', fontSize: 12 }}>
+                            {m.locked}
+                          </span>
+                        )}
                       </button>
                       <button
                         type="button"
                         className="le-tools-result-replace"
                         onClick={() => replaceOne(m, index)}
-                        disabled={stale}
+                        disabled={stale || !!m.locked}
+                        title={m.locked}
+                        aria-describedby={m.locked ? `${ids}-why-${index}` : undefined}
                         aria-label={`Replace "${m.match}" in ${m.where.field}`}
                       >
                         Replace

@@ -10,7 +10,7 @@ import type {
   RichContent,
   RichNode,
 } from '@kgc/shared';
-import { blockSummary, cloneBlockWithNewIds, cloneSectionWithNewIds } from './learn-editor-core';
+import { blockSummary, cloneBlockWithNewIds, cloneSectionWithNewIds, kindLabel, starterLines, starterList } from './learn-editor-core';
 import { isRichDoc, mapRichText, richColors, richHeadings, richLinks, richOneLine, richTextRuns } from './learn-rich';
 
 /**
@@ -477,7 +477,7 @@ export function replaceInPage(
 
 // ─── Accessibility checker ───────────────────────────────────────────────────
 
-export type IssueRule = 'alt' | 'heading-order' | 'contrast' | 'empty-link' | 'vague-link' | 'embed-title' | 'table-header';
+export type IssueRule = 'alt' | 'heading-order' | 'contrast' | 'empty-link' | 'vague-link' | 'table-header' | 'starter-text';
 
 export interface Issue {
   id: string;
@@ -495,8 +495,8 @@ export const ISSUE_RULE_LABEL: Record<IssueRule, string> = {
   contrast: 'Hard to read colours',
   'empty-link': 'Empty link',
   'vague-link': 'Unclear link text',
-  'embed-title': 'Embed without a title',
   'table-header': 'Table without a header row',
+  'starter-text': 'Starter text left in',
 };
 
 /** Link words that say nothing out of context, which is how screen reader users often hear links. */
@@ -637,9 +637,7 @@ export function accessibilityIssues(content: LearnPageContent): Issue[] {
         case 'logos':
           b.items.forEach((it, i) => img(it, `Logo ${i + 1}`));
           break;
-        case 'embed':
-          if (!b.title.trim()) add('embed-title', 'error', 'An embed has no title.', 'Give it a short title, like "Map of the venue".', w('Title'));
-          break;
+        // No 'embed' case: an empty title is fine, www uses the service's name ("Map", "Video"). T326 item 6.
         case 'table': {
           const table = b.doc.content.find((x) => x.type === 'table') as Extract<RichNode, { type: 'table' }> | undefined;
           const first = table?.content[0] as Extract<RichNode, { type: 'tableRow' }> | undefined;
@@ -651,6 +649,17 @@ export function accessibilityIssues(content: LearnPageContent): Issue[] {
         default:
           break;
       }
+
+      // T326 N3: a new block's own words, left in, publish as real copy.
+      const starter = starterLines(b);
+      if (starter.length)
+        add(
+          'starter-text',
+          'warning',
+          `The ${kindLabel(b.kind)} block still has starter text: ${starterList(starter)}.`,
+          'Replace it with your own words, or delete it.',
+          w(kindLabel(b.kind)),
+        );
     }
   }
   return out;

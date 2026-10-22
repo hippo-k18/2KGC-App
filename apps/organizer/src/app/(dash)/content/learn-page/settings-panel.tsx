@@ -3,6 +3,7 @@
 import { useId, useState, type DragEvent, type ReactNode } from 'react';
 import type { Align, LearnSection, LinkButton, Person, Spacing } from '@kgc/shared';
 import {
+  columnCountPatch,
   findBlock,
   kindLabel,
   newId,
@@ -579,7 +580,8 @@ function ColumnsSettings({ block, upd, siteOrigin, uploadImage }: { block: Block
         legend="Columns"
         value={block.columns}
         options={COLUMN_COUNTS}
-        onChange={(columns) => columns && upd({ columns })}
+        // Adds empty columns up to the number picked; fewer removes only empty ones (T324 D10).
+        onChange={(columns) => columns && upd(columnCountPatch(block, columns))}
       />
       <ol className="le-set-items">
         {block.items.map((it, i) => (

@@ -7,7 +7,7 @@ import type {
   PageImage,
   RichContent,
 } from '@kgc/shared';
-import { richOneLine } from './learn-rich';
+import { richOneLine, richToPlainText } from './learn-rich';
 import { isUnfinishedHref } from './learn-page-core';
 
 /**
@@ -748,6 +748,148 @@ export function createSection(label = 'New section'): LearnSection {
   };
 }
 
+type ColumnItem = BlockOf<'columns'>['items'][number];
+
+function isEmptyColumn(it: ColumnItem): boolean {
+  return !it.title?.trim() && !richOneLine(it.text) && !it.image?.src && !it.link;
+}
+
+/**
+ * Picking a number under Columns (T324 D10). The block gets empty columns up
+ * to that many, so picking 3 shows a third column at once. Picking fewer
+ * removes only empty columns from the end: one with anything in it stays and
+ * wraps onto the next row, as www draws it, so nothing typed is lost.
+ */
+export function columnCountPatch(block: BlockOf<'columns'>, columns: Columns): { columns: Columns; items: ColumnItem[] } {
+  const items = block.items.slice();
+  while (items.length < columns) items.push({ id: newId('c'), title: '', text: '' });
+  while (items.length > columns && isEmptyColumn(items[items.length - 1])) items.pop();
+  return { columns, items };
+}
+
+/**
+ * Names for a list of sections to pick from, such as the bulk "Move to" list
+ * (T324 D16). Two sections with the same name get their place on the page
+ * added, "Hero (section 1)" and "Hero (section 4)", so they can be told apart.
+ */
+export function sectionPickLabels(sections: readonly Pick<LearnSection, 'label'>[]): string[] {
+  const names = sections.map((s) => s.label.trim() || 'Untitled section');
+  const count = new Map<string, number>();
+  for (const n of names) count.set(n, (count.get(n) ?? 0) + 1);
+  return names.map((n, i) => (count.get(n)! > 1 ? `${n} (section ${i + 1})` : n));
+}
+
+// ─── Starter text ─────────────────────────────────────────────────────────────
+
+/**
+ * The words a reader would see in `b`, one entry per field or paragraph, for
+ * the starter text check. A stat is its figure and label together, so a
+ * course lead who changes "500+" is not told off for keeping "Learners".
+ * Fields whose starter is a fine final value are left out: an Embed's
+ * screen-reader title (www uses "Map" and the like when it is empty, T326
+ * item 6), a contents list's "On this page" and a countdown's labels.
+ */
+function readerLines(b: LearnBlock): string[] {
+  const out: string[] = [];
+  const add = (...xs: (string | undefined)[]) => {
+    for (const x of xs) if (x) out.push(x);
+  };
+  // Table cells come out tab-separated, so a cell counts as a line too.
+  const rich = (c: RichContent | undefined) => add(...richToPlainText(c).split(/[\n\t]/));
+  switch (b.kind) {
+    case 'heading':
+    case 'text':
+      rich(b.text);
+      break;
+    case 'image':
+    case 'video':
+      add(b.caption);
+      break;
+    case 'buttons':
+      add(...b.buttons.map((x) => x.label));
+      break;
+    case 'people':
+      for (const p of b.people) {
+        add(p.name, p.role);
+        rich(p.bio);
+      }
+      break;
+    case 'list':
+      for (const it of b.items) {
+        add(it.title, it.link?.label, ...(it.children ?? []));
+        rich(it.text);
+      }
+      break;
+    case 'columns':
+      for (const it of b.items) {
+        add(it.title, it.link?.label);
+        rich(it.text);
+      }
+      break;
+    case 'imageText':
+      rich(b.text);
+      add(...(b.buttons ?? []).map((x) => x.label));
+      break;
+    case 'gallery':
+      add(...b.images.map((i) => i.caption));
+      break;
+    case 'quote':
+      rich(b.text);
+      add(b.name, b.role);
+      break;
+    case 'callout':
+      add(b.title);
+      rich(b.text);
+      break;
+    case 'accordion':
+    case 'tabs':
+      for (const it of b.items) {
+        add(it.title);
+        rich(it.text);
+      }
+      break;
+    case 'stats':
+      add(...b.items.map((i) => `${i.value.trim()} ${i.label.trim()}`.trim()));
+      break;
+    case 'cards':
+      for (const it of b.items) {
+        add(it.title, it.badge, it.link?.label);
+        rich(it.text);
+      }
+      break;
+    case 'table':
+      rich(b.doc);
+      add(b.caption);
+      break;
+    default:
+      break;
+  }
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+
+/**
+ * The text a new block of each kind starts with (`createBlock`), worked out
+ * from `createBlock` itself so the check can never fall behind it. Left in by
+ * mistake it publishes as real copy (T326 N3), so the Publish dialog and the
+ * page checks both warn about it.
+ */
+export const STARTER_TEXT: Readonly<Record<BlockKind, ReadonlySet<string>>> = Object.fromEntries(
+  BLOCK_KINDS.map(({ kind }) => [kind, new Set(readerLines(createBlock(kind)))]),
+) as unknown as Record<BlockKind, ReadonlySet<string>>;
+
+/** The lines of `b` that are still exactly a new block's starter text, after trimming. Each line once. */
+export function starterLines(b: LearnBlock): string[] {
+  const starter = STARTER_TEXT[b.kind];
+  if (!starter?.size) return [];
+  return [...new Set(readerLines(b).filter((l) => starter.has(l)))];
+}
+
+/** '"Second card"' or '"Second card" and 2 more', for a warning. */
+export function starterList(lines: string[]): string {
+  const first = `"${short(lines[0], 50)}"`;
+  return lines.length > 1 ? `${first} and ${lines.length - 1} more` : first;
+}
+
 // ─── Problems the editor warns about before the server does ──────────────────
 
 export interface Warning {
@@ -788,7 +930,8 @@ export function contentWarnings(content: LearnPageContent): Warning[] {
       const warn = (message: string) => out.push({ sectionId: s.id, blockId: b.id, message });
       switch (b.kind) {
         case 'imageText':
-          if (!b.image.src) warn('Image has no picture yet');
+          // www shows the text and buttons on their own, so this is a note, not a problem.
+          if (!b.image.src) warn('No picture yet; the text shows on its own');
           else if (!b.image.alt.trim()) warn('Image needs a description (alt text)');
           break;
         case 'gallery':
@@ -809,7 +952,7 @@ export function contentWarnings(content: LearnPageContent): Warning[] {
           const status = embedStatus(b.provider, b.url);
           if (status.state === 'empty') warn('Embed has no link yet');
           else if (status.state === 'bad') warn(status.message);
-          if (!b.title.trim()) warn('Embed needs a title for screen readers');
+          // An empty title is fine: www uses the service's name ("Map", "Video").
           break;
         }
         case 'countdown':
@@ -820,6 +963,11 @@ export function contentWarnings(content: LearnPageContent): Warning[] {
           break;
       }
       if (hasUnfinishedLink(b)) warn('A link is not finished yet');
+      if (!s.hidden && !b.hidden) {
+        const starter = starterLines(b);
+        if (starter.length)
+          warn(`The ${kindLabel(b.kind)} block in "${name}" still has starter text: ${starterList(starter)}`);
+      }
     }
   });
   return out;
