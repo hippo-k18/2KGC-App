@@ -25,4 +25,12 @@ export {
 } from './media-actions';
 export type { LearnLibraryRow, LearnMediaListing } from '@/lib/learn-media';
 export type { MediaRow, MediaSort } from '@/lib/learn-media-core';
+export {
+  scheduleLearnPublishAction,
+  cancelLearnScheduleAction,
+  createLearnPreviewLinkAction,
+  revokeLearnPreviewLinkAction,
+  editLearnImageAction,
+} from './ops-actions';
+export type { LearnImageEdit, LearnImageOp } from '@/lib/learn-image-edit-core';
 export type { LearnEditorState, LearnVersionSummary } from '@/lib/learn-page';

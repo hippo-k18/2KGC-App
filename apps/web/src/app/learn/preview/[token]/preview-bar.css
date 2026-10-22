@@ -1,0 +1,11 @@
+/* The draft preview's banner (T316): sticky, so it stays in view down a long draft. */
+.learn-preview-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  padding: 10px 16px;
+  background: var(--orange);
+  color: #fff;
+  font: 600 15px/1.4 var(--font-open-sans), sans-serif;
+  text-align: center;
+}

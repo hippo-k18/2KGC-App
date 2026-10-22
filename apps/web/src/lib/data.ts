@@ -28,7 +28,8 @@ import {
   LEARN_PAGE_DEFAULT,
   LEARN_PAGE_DOC,
   type LearnPageContent,
-  learnPageOrDefault,
+  previewTokenMatches,
+  readLearnPage,
   DEFAULT_SPONSOR_TIERS,
   groupSponsorsByTier,
   resolveEventBasics,
@@ -1365,8 +1366,29 @@ export const learnPage = cache(async function learnPage(): Promise<LearnPageCont
     'learnPage',
     async () => {
       const snap = await db().doc(LEARN_PAGE_DOC).get();
-      return learnPageOrDefault(snap.data()?.published);
+      return readLearnPage(snap.data()?.published) ?? LEARN_PAGE_DEFAULT;
     },
     LEARN_PAGE_DEFAULT,
   );
+});
+
+/**
+ * The Learn page's current draft, for the preview link `/learn/preview/<token>`
+ * (T316), or `null` when the token is wrong, rotated or revoked.
+ *
+ * Read fresh on every request, never through `shared()`: a revoked link must
+ * stop working at once, and a draft must never sit in the shared cache where
+ * the public page reads from. `cache()` is per request only, so the metadata
+ * and the body share one read. The token is compared in constant time.
+ */
+export const learnPreview = cache(async function learnPreview(token: string): Promise<LearnPageContent | null> {
+  try {
+    const snap = await db().doc(LEARN_PAGE_DOC).get();
+    const data = snap.data();
+    if (!data || !previewTokenMatches(data.previewToken, token)) return null;
+    return readLearnPage(data.draft);
+  } catch (err) {
+    console.error('[data] learnPreview failed; rendering the published page instead', err);
+    return null;
+  }
 });

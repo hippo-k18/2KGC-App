@@ -1016,8 +1016,8 @@ export class LearnConflict extends Error {
   }
 }
 
-/** The fields of a doc that are always present, plus the published ones when set. */
-function docOf(d: LearnPageDoc): LearnPageDoc {
+/** The fields of a doc that are always present, plus the optional ones when set. */
+export function docOf(d: LearnPageDoc): LearnPageDoc {
   const out: LearnPageDoc = {
     draft: d.draft,
     published: d.published ?? null,
@@ -1027,6 +1027,20 @@ function docOf(d: LearnPageDoc): LearnPageDoc {
   };
   if (d.publishedAt !== undefined) out.publishedAt = d.publishedAt;
   if (d.publishedBy !== undefined) out.publishedBy = d.publishedBy;
+  // T316: a draft save keeps a pending schedule and a live preview link.
+  if (d.scheduledPublishAt !== undefined) out.scheduledPublishAt = d.scheduledPublishAt;
+  if (d.scheduledBy !== undefined) out.scheduledBy = d.scheduledBy;
+  if (d.scheduledRevision !== undefined) out.scheduledRevision = d.scheduledRevision;
+  if (d.previewToken !== undefined) out.previewToken = d.previewToken;
+  return out;
+}
+
+/** The doc with no publish scheduled (T316): what a publish or a cancel leaves. */
+export function withoutSchedule(d: LearnPageDoc): LearnPageDoc {
+  const out = docOf(d);
+  delete out.scheduledPublishAt;
+  delete out.scheduledBy;
+  delete out.scheduledRevision;
   return out;
 }
 
@@ -1095,7 +1109,8 @@ export function planPublish(
 ): { doc: LearnPageDoc; version: { content: LearnPageContent; publishedAt: number; publishedBy: string; note?: string } } {
   const blockers = publishBlockers(stored.draft);
   if (blockers.length > 0) throw new LearnNotReady(blockers);
-  const doc = docOf({ ...stored, published: stored.draft, publishedAt: now, publishedBy: actor });
+  // Publishing by hand also settles a pending schedule: the draft it would have published is live.
+  const doc = withoutSchedule({ ...stored, published: stored.draft, publishedAt: now, publishedBy: actor });
   const version: { content: LearnPageContent; publishedAt: number; publishedBy: string; note?: string } = {
     content: stored.draft,
     publishedAt: now,

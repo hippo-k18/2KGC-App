@@ -146,6 +146,17 @@ export interface AuditEntry {
     | 'learnSection.update'
     | 'learnSection.rename'
     | 'learnSection.remove'
+    /**
+     * T316. A scheduled publish puts the draft on www with nobody pressing a
+     * button, so who scheduled it and when is the record of who published it;
+     * the timer's own run is logged as `learnPage.scheduledPublish` by
+     * `system:schedule`. A preview link shows the draft to anyone holding it.
+     */
+    | 'learnPage.schedule'
+    | 'learnPage.cancelSchedule'
+    | 'learnPage.scheduledPublish'
+    | 'learnPage.previewLink'
+    | 'learnPage.editImage'
     /** The entities the later dashboard screens author. */
     | 'exhibitor.create'
     | 'exhibitor.update'
