@@ -1,4 +1,4 @@
-import { isSafeHref, slugifyAnchor } from '@kgc/shared';
+import { expandedBlockId, expandReusableBlocks, isSafeHref, LEARN_COLORS, slugifyAnchor } from '@kgc/shared';
 import type {
   BandBackground,
   ColorValue,
@@ -33,29 +33,37 @@ export interface Where {
 
 // ─── Colour ───────────────────────────────────────────────────────────────────
 
-/** The brand names a `ColorValue` may carry, as the website draws them. */
+/**
+ * The brand names a `ColorValue` may carry, as the website draws them. The
+ * hex values are T319's tokens (`LEARN_COLORS`), the one list the site's
+ * stylesheet, the rich text editor and these contrast checks all read.
+ */
 export const BRAND_COLORS: Record<Exclude<ColorValue, `#${string}`>, { hex: string; label: string }> = {
-  navy: { hex: '#1b2942', label: 'Navy' },
-  blue: { hex: '#2069bc', label: 'Blue' },
-  'light-blue': { hex: '#8dccee', label: 'Light blue' },
-  teal: { hex: '#0f766e', label: 'Teal' },
-  orange: { hex: '#c2410c', label: 'Orange' },
-  grey: { hex: '#64748b', label: 'Grey' },
-  dark: { hex: '#1f1a11', label: 'Dark' },
-  white: { hex: '#ffffff', label: 'White' },
+  navy: { hex: LEARN_COLORS.navy, label: 'Navy' },
+  blue: { hex: LEARN_COLORS.blue, label: 'Blue' },
+  'light-blue': { hex: LEARN_COLORS['light-blue'], label: 'Light blue' },
+  teal: { hex: LEARN_COLORS.teal, label: 'Teal' },
+  orange: { hex: LEARN_COLORS.orange, label: 'Orange' },
+  grey: { hex: LEARN_COLORS.grey, label: 'Grey' },
+  dark: { hex: LEARN_COLORS.dark, label: 'Dark' },
+  white: { hex: LEARN_COLORS.white, label: 'White' },
 };
 
-/** What each band background looks like behind text, ignoring the wave art. */
+/**
+ * What each band background looks like behind text, ignoring the wave art:
+ * the `--lp-band` values in the website's `learn-page-view.css`. The light
+ * blue wash is the one colour there that is not a brand token.
+ */
 export const BAND_BG_HEX: Record<BandBackground, string> = {
-  plain: '#ffffff',
-  'white-wave': '#ffffff',
+  plain: LEARN_COLORS.white,
+  'white-wave': LEARN_COLORS.white,
   'light-blue-wave': '#e3f5fd',
-  blue: '#8dccee',
-  'grey-wave': '#e0e5ee',
+  blue: LEARN_COLORS['light-blue'],
+  'grey-wave': LEARN_COLORS.grey,
 };
 
 /** The site's body text colour. */
-export const DEFAULT_TEXT_HEX = '#1f1a11';
+export const DEFAULT_TEXT_HEX = LEARN_COLORS.dark;
 
 export function isHexColor(v: string): v is `#${string}` {
   return /^#[0-9a-fA-F]{6}$/.test(v);
@@ -88,7 +96,9 @@ export function contrastRatio(a: string, b: string): number {
 export function sectionBgHex(section: LearnSection): string {
   const custom = colorHex(section.backgroundColor);
   if (custom) return custom;
-  if (section.backgroundImage?.src && (section.overlay ?? 0) >= 0.4) return '#1f1a11';
+  // The site turns text white from an overlay of 0.3 (`sectionIsDark`), so
+  // from there the text is judged against the dark photo it then sits on.
+  if (section.backgroundImage?.src && (section.overlay ?? 0) >= 0.3) return LEARN_COLORS.dark;
   return BAND_BG_HEX[section.background];
 }
 
@@ -970,4 +980,48 @@ export function imageUsage(content: LearnPageContent | null | undefined, src: st
     }
   }
   return out;
+}
+
+// ─── Saved sections in the preview ───────────────────────────────────────────
+
+/** The draft as the preview draws it, and where each drawn block came from. */
+export interface PreviewExpansion {
+  content: LearnPageContent;
+  /** An expanded block's id to the id of the `reusable` block it stands in for. */
+  hosts: ReadonlyMap<string, string>;
+}
+
+const NO_HOSTS: ReadonlyMap<string, string> = new Map();
+
+/**
+ * The draft with its `reusable` blocks expanded by T315's
+ * `expandReusableBlocks`, the function Publish runs, so the preview shows
+ * what will go live.
+ *
+ * A section keeps its `reusable` blocks (and the preview its placeholder for
+ * them) while the library is loading, when one names a saved section that no
+ * longer exists, or when one is hidden: expansion would make those vanish,
+ * and the editor must still show something to select. Sections without
+ * reusable blocks come back as the same objects, so their memoised blocks are
+ * not drawn again.
+ */
+export function expandForPreview(
+  content: LearnPageContent,
+  library: ReadonlyMap<string, LearnSection> | null | undefined,
+): PreviewExpansion {
+  const has = (s: LearnSection) => s.blocks.some((b) => b.kind === 'reusable');
+  if (!library || !content.sections.some(has)) return { content, hosts: NO_HOSTS };
+  const expanded = expandReusableBlocks(content, library);
+  const hosts = new Map<string, string>();
+  const sections = content.sections.map((s, i) => {
+    if (!has(s)) return s;
+    const ready = s.blocks.every((b) => b.kind !== 'reusable' || (!b.hidden && library.has(b.libraryId)));
+    if (!ready) return s;
+    for (const b of s.blocks) {
+      if (b.kind !== 'reusable') continue;
+      for (const saved of library.get(b.libraryId)?.blocks ?? []) hosts.set(expandedBlockId(b.id, saved.id), b.id);
+    }
+    return expanded.sections[i];
+  });
+  return { content: { ...content, sections }, hosts };
 }

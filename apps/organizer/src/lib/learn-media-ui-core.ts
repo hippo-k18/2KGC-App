@@ -3,12 +3,15 @@
  * (T318): searching and sorting the library rows, tag counts, checking files
  * before a multi-upload, and the crop, rotate and flip geometry.
  *
- * Geometry convention, shared with `transformLearnImageAction`: the crop is
+ * Geometry convention, shared with `editLearnImageAction` (T316): the crop is
  * taken from the ORIGINAL pixels first, then the result is rotated clockwise,
- * then flipped. The editor keeps its crop and focal point in the original's
+ * then flipped (`imageEditOps`). The editor keeps its crop and focal point in the original's
  * coordinates and only converts to what the person sees for drawing, so a
  * rotate or flip never has to re-fit the crop.
  */
+
+import type { LearnImageOp } from './learn-image-edit-core';
+import type { MediaSort as ServerMediaSort } from './learn-media-core';
 
 // ─── Library rows ────────────────────────────────────────────────────────────
 
@@ -21,13 +24,15 @@ export interface MediaLike {
   image: { src: string; alt: string };
 }
 
-export type MediaSort = 'newest' | 'oldest' | 'name' | 'largest';
+/** The server's sorts (`learn-media-core.ts`), so a sort chosen here is one the server knows too. */
+export type MediaSort = ServerMediaSort;
 
 export const MEDIA_SORTS: { id: MediaSort; label: string }[] = [
   { id: 'newest', label: 'Newest first' },
   { id: 'oldest', label: 'Oldest first' },
   { id: 'name', label: 'Name A to Z' },
   { id: 'largest', label: 'Largest first' },
+  { id: 'smallest', label: 'Smallest first' },
 ];
 
 /** The words of a search, lower-cased; empty when there is nothing to search for. */
@@ -80,6 +85,8 @@ export function sortMedia<T extends MediaLike>(rows: readonly T[], sort: MediaSo
       );
     case 'largest':
       return out.sort((a, b) => b.bytes - a.bytes || newest(a, b));
+    case 'smallest':
+      return out.sort((a, b) => a.bytes - b.bytes || newest(a, b));
   }
 }
 
@@ -342,4 +349,25 @@ export function toDisplayRect(rect: CropRect, t: Transform): CropRect {
 
 export function toOriginalRect(rect: CropRect, t: Transform): CropRect {
   return mapRect(rect, (p) => toOriginalPoint(p, t));
+}
+
+/**
+ * The editor's crop, turn and flips as the ops `editLearnImageAction` runs, in
+ * its order: crop in whole pixels of the original (`w` by `h`), then rotate
+ * clockwise, then flip. Only ops that change something are sent, and a flip
+ * both ways is sent as the half turn it equals, so an edit that ends where it
+ * started comes back empty (the caller then saves only the focal point).
+ */
+export function imageEditOps(crop: CropRect, t: Transform, w: number, h: number): LearnImageOp[] {
+  const ops: LearnImageOp[] = [];
+  if (!isFullCrop(crop)) {
+    const px = cropToPixels(crop, w, h);
+    if (px.x !== 0 || px.y !== 0 || px.width !== w || px.height !== h) ops.push({ op: 'crop', ...px });
+  }
+  const both = t.flipX && t.flipY;
+  const rotate = ((t.rotate + (both ? 180 : 0)) % 360) as Rotation;
+  if (rotate !== 0) ops.push({ op: 'rotate', degrees: rotate });
+  if (!both && t.flipX) ops.push({ op: 'flip', direction: 'horizontal' });
+  if (!both && t.flipY) ops.push({ op: 'flip', direction: 'vertical' });
+  return ops;
 }

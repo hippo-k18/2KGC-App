@@ -1,5 +1,14 @@
-import type { LearnPageContent, LearnPageDoc } from '@kgc/shared';
-import { LearnConflict, docOf, effectiveDoc, planPublish, withoutSchedule } from './learn-page-core';
+import { expandReusableBlocks, type LearnPageContent, type LearnPageDoc, type LearnSection } from '@kgc/shared';
+import {
+  LearnConflict,
+  docOf,
+  effectiveDoc,
+  planPublish,
+  publishBlockers,
+  validateLearnContent,
+  withoutSchedule,
+  type LearnValidateOptions,
+} from './learn-page-core';
 
 /**
  * Scheduled publish and the draft preview link for the KGC | Learn page (T316),
@@ -68,22 +77,87 @@ export function planCancelSchedule(stored: LearnPageDoc | null | undefined): Lea
   return withoutSchedule(stored);
 }
 
-export interface ScheduledPublishPlan {
-  doc: LearnPageDoc;
-  version: { content: LearnPageContent; publishedAt: number; publishedBy: string; note?: string };
-  draftChanged: boolean;
+export type ScheduledPublishPlan =
+  | {
+      ok: true;
+      doc: LearnPageDoc;
+      version: { content: LearnPageContent; publishedAt: number; publishedBy: string; note?: string };
+      draftChanged: boolean;
+    }
+  | {
+      /** Due but not publishable: `doc` drops the schedule and records why. */
+      ok: false;
+      doc: LearnPageDoc;
+      message: string;
+      problems: string[];
+      draftChanged: boolean;
+    };
+
+/** How many problems the failure note names before "and N more". */
+const FAILURE_PROBLEMS_SHOWN = 5;
+
+function failureMessage(lead: string, problems: readonly string[]): string {
+  const shown = problems.slice(0, FAILURE_PROBLEMS_SHOWN).join(' ');
+  const more = problems.length > FAILURE_PROBLEMS_SHOWN ? ` And ${problems.length - FAILURE_PROBLEMS_SHOWN} more.` : '';
+  // The editor's banner says that the scheduled publish did not run; this is the why.
+  return `${lead}${shown ? ` ${shown}` : ''}${more}`;
 }
 
 /**
- * What the timer does at `now`: `null` when nothing is due, otherwise the
- * published doc and the version to write beside it.
+ * What the timer does at `now`: `null` when nothing is due, otherwise either
+ * the published doc and the version to write beside it, or (`ok: false`) the
+ * doc with the schedule cleared and the reason recorded.
+ *
+ * The checks are the ones `publishLearnPage` makes for a press of Publish, in
+ * the same order, so a scheduled publish can never put on www what a person
+ * could not: the stored draft is validated again (it may have been written
+ * some other way since it was saved), Image and Video blocks must be filled in
+ * (`publishBlockers`), and saved sections are expanded from `library` and the
+ * expanded page validated too, because a saved section can be older than
+ * today's rules. The live copy and the version hold the expanded page, so www
+ * and Restore never depend on the library.
+ *
+ * A failure clears the schedule rather than leaving it due. The timer runs
+ * every minute and the draft will not fix itself, so retrying would only fail
+ * again (and, before this, threw inside the transaction on every tick). The
+ * editor shows `scheduleFailure` so the organizer knows to fix it and publish
+ * or schedule again.
  */
-export function planScheduledPublish(stored: LearnPageDoc | null | undefined, now: number): ScheduledPublishPlan | null {
+export function planScheduledPublish(
+  stored: LearnPageDoc | null | undefined,
+  now: number,
+  library: ReadonlyMap<string, LearnSection> = new Map(),
+  opts: LearnValidateOptions = {},
+): ScheduledPublishPlan | null {
   if (!stored || typeof stored.scheduledPublishAt !== 'number' || stored.scheduledPublishAt > now) return null;
-  const draftChanged = stored.scheduledRevision !== undefined && stored.scheduledRevision !== stored.revision;
-  const actor = stored.scheduledBy || 'scheduled publish';
-  const { doc, version } = planPublish(stored, actor, now, draftChanged ? SCHEDULED_CHANGED_NOTE : SCHEDULED_NOTE);
-  return { doc, version, draftChanged };
+  const base = effectiveDoc(stored);
+  const draftChanged = base.scheduledRevision !== undefined && base.scheduledRevision !== base.revision;
+  const actor = base.scheduledBy || 'scheduled publish';
+  const fail = (lead: string, problems: string[]): ScheduledPublishPlan => {
+    const message = failureMessage(lead, problems);
+    return { ok: false, doc: { ...withoutSchedule(base), scheduleFailure: { at: now, message } }, message, problems, draftChanged };
+  };
+
+  const checked = validateLearnContent(base.draft, opts);
+  if (!checked.ok) return fail('The saved draft has problems:', checked.problems);
+  const expanded = validateLearnContent(expandReusableBlocks(checked.content, library), opts);
+  if (!expanded.ok) return fail('With its saved sections filled in, the page does not pass the checks:', expanded.problems);
+  // Checked on the expanded page, so an empty block inside a saved section counts as well.
+  const blockers = publishBlockers(expanded.content);
+  if (blockers.length > 0) return fail('Some blocks are not filled in yet.', blockers);
+
+  const planned = planPublish(
+    { ...base, draft: checked.content },
+    actor,
+    now,
+    draftChanged ? SCHEDULED_CHANGED_NOTE : SCHEDULED_NOTE,
+  );
+  return {
+    ok: true,
+    doc: { ...planned.doc, published: expanded.content },
+    version: { ...planned.version, content: expanded.content },
+    draftChanged,
+  };
 }
 
 // ---------------------------------------------------------------------------

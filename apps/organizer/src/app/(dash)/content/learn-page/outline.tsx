@@ -1,7 +1,9 @@
 'use client';
 
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -22,6 +24,7 @@ import {
 import { blockRange, outlineMatches } from '@/lib/learn-tools-core';
 import { AddBlockPicker } from './add-block-picker';
 import type { PaneProps } from './editor-types';
+import { isMacPlatform, shortcutText } from './shortcuts-dialog';
 import './outline.css';
 
 /**
@@ -229,6 +232,13 @@ const I = {
     </>
   ),
   plus: <path d="M8 3v10M3 8h10" />,
+  more: (
+    <>
+      <circle cx="3.5" cy="8" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="12.5" cy="8" r="1.1" fill="currentColor" stroke="none" />
+    </>
+  ),
 };
 
 function IconButton({
@@ -258,6 +268,162 @@ function IconButton({
     >
       <Svg>{children}</Svg>
     </button>
+  );
+}
+
+// ─── Row menu ─────────────────────────────────────────────────────────────────
+
+interface RowAction {
+  label: string;
+  icon: ReactNode;
+  run: () => void;
+  /** The global shortcut that does the same thing, shown so the menu teaches it. */
+  keys?: string;
+  disabled?: boolean;
+  danger?: boolean;
+}
+
+/** The nearest ancestor that scrolls, so the menu can tell whether it would be cut off. */
+function scrollBottom(el: HTMLElement): number {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const { overflowY } = getComputedStyle(p);
+    if (overflowY === 'auto' || overflowY === 'scroll') return Math.min(p.getBoundingClientRect().bottom, window.innerHeight);
+  }
+  return window.innerHeight;
+}
+
+/**
+ * The selected row's less common actions. They used to sit on every hovered
+ * row as five icons over the end of the label, so a click aimed at the label
+ * could hide or move the row instead (T318). In a menu they take one
+ * deliberate click more, and only on the row already chosen.
+ */
+function RowMenu({
+  name,
+  items,
+  open,
+  focus,
+  onOpen,
+  onClose,
+}: {
+  name: string;
+  items: RowAction[];
+  open: boolean;
+  /** Which item takes focus on opening: ArrowUp on the button opens at the end. */
+  focus: 'first' | 'last';
+  onOpen: (at: 'first' | 'last') => void;
+  /** `refocus` puts focus back on the button; a click elsewhere leaves it where it went. */
+  onClose: (refocus: boolean) => void;
+}) {
+  const wrap = useRef<HTMLSpanElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+
+  const enabled = () => Array.from(menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? []);
+
+  const close = (refocus: boolean) => {
+    if (refocus) button.current?.focus();
+    onClose(refocus);
+  };
+
+  // Measured before paint, so a menu near the bottom of the pane opens upward without a flicker.
+  useLayoutEffect(() => {
+    const el = menu.current;
+    if (!open || !el || !button.current) return;
+    const below = button.current.getBoundingClientRect().bottom + el.offsetHeight + 8;
+    el.classList.toggle('is-up', below > scrollBottom(button.current));
+    const list = el.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)');
+    (focus === 'last' ? list[list.length - 1] : list[0])?.focus();
+  }, [open, focus]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) onClose(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open, onClose]);
+
+  const onMenuKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const list = enabled();
+    const i = list.indexOf(document.activeElement as HTMLButtonElement);
+    let next: HTMLButtonElement | undefined;
+    if (e.key === 'ArrowDown') next = list[(i + 1) % list.length];
+    else if (e.key === 'ArrowUp') next = list[(i - 1 + list.length) % list.length];
+    else if (e.key === 'Home') next = list[0];
+    else if (e.key === 'End') next = list[list.length - 1];
+    else if (e.key === 'Escape' || e.key === 'Tab') {
+      // Stopped here so the editor's own Escape (clear the selection) does not also run.
+      e.preventDefault();
+      e.stopPropagation();
+      close(true);
+      return;
+    } else return;
+    e.preventDefault();
+    next?.focus();
+  };
+
+  const mac = open && isMacPlatform();
+
+  return (
+    <span ref={wrap} className="le-ol-more-wrap">
+      <button
+        ref={button}
+        type="button"
+        className={`le-ol-icon le-ol-more${open ? ' is-open' : ''}`}
+        aria-label={`More actions for ${name}`}
+        title="More actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (open) close(true);
+          else onOpen('first');
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+          e.preventDefault();
+          e.stopPropagation();
+          onOpen(e.key === 'ArrowUp' ? 'last' : 'first');
+        }}
+      >
+        <Svg>{I.more}</Svg>
+      </button>
+      {open && (
+        <div
+          ref={menu}
+          className="le-ol-menu"
+          role="menu"
+          aria-label={`Actions for ${name}`}
+          onKeyDown={onMenuKey}
+          // The menu sits inside a draggable row; a click that wobbles should not pick the row up.
+          onDragStart={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              role="menuitem"
+              className={`le-ol-menuitem${it.danger ? ' is-danger' : ''}`}
+              disabled={it.disabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                close(true);
+                it.run();
+              }}
+            >
+              <Svg>{it.icon}</Svg>
+              <span>{it.label}</span>
+              {it.keys && <kbd>{shortcutText(it.keys, mac)}</kbd>}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -319,11 +485,21 @@ export function Outline(props: OutlineProps) {
   const [dropAt, setDropAt] = useState<DropAt | null>(null);
 
   const rowRefs = useRef(new Map<string, HTMLElement>());
-  const focusAfterRender = useRef<string | null>(null);
+  /** The row, and which of its buttons, to focus once a move has re-rendered it. */
+  const focusAfterRender = useRef<{ key: string; part: 'main' | 'more' } | null>(null);
   const pickerOpener = useRef<HTMLElement | null>(null);
   const navRef = useRef<HTMLElement>(null);
 
   const selectedKey = selectionKey(selection);
+
+  // The open row menu belongs to the selected row, so choosing another row closes it.
+  const [menu, setMenu] = useState<{ key: string; focus: 'first' | 'last' } | null>(null);
+  const [menuSelection, setMenuSelection] = useState(selectedKey);
+  if (menuSelection !== selectedKey) {
+    setMenuSelection(selectedKey);
+    if (menu && menu.key !== selectedKey) setMenu(null);
+  }
+  const closeMenu = useCallback(() => setMenu(null), []);
 
   useEffect(() => {
     rowRefs.current.get(selectedKey)?.scrollIntoView({ block: 'nearest' });
@@ -331,13 +507,12 @@ export function Outline(props: OutlineProps) {
 
   // A row moved by keyboard is a moved DOM node, which can drop focus.
   useEffect(() => {
-    const key = focusAfterRender.current;
-    if (!key) return;
+    const target = focusAfterRender.current;
+    if (!target) return;
     focusAfterRender.current = null;
-    rowRefs.current
-      .get(key)
-      ?.querySelector<HTMLButtonElement>('.le-ol-main')
-      ?.focus();
+    const row = rowRefs.current.get(target.key);
+    const more = target.part === 'more' ? row?.querySelector<HTMLButtonElement>('.le-ol-more') : null;
+    (more ?? row?.querySelector<HTMLButtonElement>('.le-ol-main'))?.focus();
   });
 
   useEffect(() => {
@@ -574,6 +749,36 @@ export function Outline(props: OutlineProps) {
     </span>
   );
 
+  /**
+   * Only the selected row carries actions, and only while it is the one thing
+   * selected: with several blocks chosen, the shell's bulk bar acts on them.
+   */
+  const showsActions = (key: string) => selectedKey === key && multi.size === 0;
+
+  const rowMenu = (key: string, name: string, items: RowAction[]) => (
+    <RowMenu
+      name={name}
+      items={items}
+      open={menu?.key === key}
+      focus={menu?.key === key ? menu.focus : 'first'}
+      onOpen={(focus) => setMenu({ key, focus })}
+      onClose={closeMenu}
+    />
+  );
+
+  /**
+   * Shift+F10 and the Menu key open the row's actions from its label, the
+   * usual keyboard way to reach a context menu. The row is selected first,
+   * because the menu only lives on the selected row.
+   */
+  const openMenuKey = (e: KeyboardEvent<HTMLButtonElement>, key: string): boolean => {
+    if (e.key !== 'ContextMenu' && !(e.shiftKey && e.key === 'F10')) return false;
+    e.preventDefault();
+    if (selectedKey !== key || multi.size > 0) e.currentTarget.click();
+    setMenu({ key, focus: 'first' });
+    return true;
+  };
+
   const renderBlock = (section: LearnSection, sectionIndex: number, block: LearnBlock, index: number) => {
     if (matches && !matches.blocks.has(block.id)) return null;
     const key = rowKey.block(block.id);
@@ -597,11 +802,36 @@ export function Outline(props: OutlineProps) {
         onMulti(new Set(section.blocks.map((b) => b.id)));
         return;
       }
+      if (openMenuKey(e, key)) return;
       if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
       e.preventDefault();
-      focusAfterRender.current = key;
+      focusAfterRender.current = { key, part: 'main' };
       stepBlock(sectionIndex, index, e.key === 'ArrowUp' ? -1 : 1);
     };
+
+    /** A move from the menu keeps focus on the menu button, which moves with the row. */
+    const fromMenu = (dir: -1 | 1) => {
+      focusAfterRender.current = { key, part: 'more' };
+      stepBlock(sectionIndex, index, dir);
+    };
+    const actions: RowAction[] = [
+      {
+        label: block.hidden ? 'Show block' : 'Hide block',
+        icon: block.hidden ? I.eye : I.eyeOff,
+        keys: 'Shift+Mod+H',
+        run: () =>
+          onEdit({ type: 'updateBlock', sectionId: section.id, blockId: block.id, patch: { hidden: !block.hidden } }),
+      },
+      { label: 'Move up', icon: I.up, keys: 'Alt+Up', disabled: isFirstAnywhere, run: () => fromMenu(-1) },
+      { label: 'Move down', icon: I.down, keys: 'Alt+Down', disabled: isLastAnywhere, run: () => fromMenu(1) },
+      {
+        label: 'Duplicate',
+        icon: I.copy,
+        keys: 'Mod+D',
+        run: () => onEdit({ type: 'duplicateBlock', sectionId: section.id, blockId: block.id }),
+      },
+      { label: 'Delete', icon: I.trash, keys: 'Delete', danger: true, run: () => setConfirming(key) },
+    ];
 
     return (
       <li key={block.id} role="none">
@@ -647,48 +877,20 @@ export function Outline(props: OutlineProps) {
               </span>
             )}
           </button>
-          <span className="le-ol-actions">
-            <IconButton
-              label={block.hidden ? 'Show block' : 'Hide block'}
-              onClick={() =>
-                onEdit({ type: 'updateBlock', sectionId: section.id, blockId: block.id, patch: { hidden: !block.hidden } })
-              }
-            >
-              {block.hidden ? I.eye : I.eyeOff}
-            </IconButton>
-            <IconButton
-              label="Move block up"
-              disabled={isFirstAnywhere}
-              onClick={() => stepBlock(sectionIndex, index, -1)}
-            >
-              {I.up}
-            </IconButton>
-            <IconButton
-              label="Move block down"
-              disabled={isLastAnywhere}
-              onClick={() => stepBlock(sectionIndex, index, 1)}
-            >
-              {I.down}
-            </IconButton>
-            <IconButton
-              label="Duplicate block"
-              onClick={() => onEdit({ type: 'duplicateBlock', sectionId: section.id, blockId: block.id })}
-            >
-              {I.copy}
-            </IconButton>
-            <IconButton
-              label="Add a block after this one"
-              onClick={() => {
-                const opener = rowRefs.current.get(key)?.querySelector<HTMLButtonElement>('.le-ol-main');
-                if (opener) openPicker(section.id, index + 1, key, opener);
-              }}
-            >
-              {I.plus}
-            </IconButton>
-            <IconButton label="Delete block" danger onClick={() => setConfirming(key)}>
-              {I.trash}
-            </IconButton>
-          </span>
+          {showsActions(key) && (
+            <span className="le-ol-actions">
+              <IconButton
+                label="Add a block after this one"
+                onClick={() => {
+                  const opener = rowRefs.current.get(key)?.querySelector<HTMLButtonElement>('.le-ol-main');
+                  if (opener) openPicker(section.id, index + 1, key, opener);
+                }}
+              >
+                {I.plus}
+              </IconButton>
+              {rowMenu(key, summary, actions)}
+            </span>
+          )}
         </div>
         {confirmRow(
           key,
@@ -716,9 +918,10 @@ export function Outline(props: OutlineProps) {
     const endKey = `end:${section.id}`;
 
     const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+      if (openMenuKey(e, key)) return;
       if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault();
-        focusAfterRender.current = key;
+        focusAfterRender.current = { key, part: 'main' };
         moveSectionTo(section.id, index + (e.key === 'ArrowUp' ? -1 : 1));
       } else if (!e.altKey && e.key === 'ArrowLeft' && open) {
         e.preventDefault();
@@ -728,6 +931,34 @@ export function Outline(props: OutlineProps) {
         toggleCollapsed(section.id);
       }
     };
+
+    const fromMenu = (to: number) => {
+      focusAfterRender.current = { key, part: 'more' };
+      moveSectionTo(section.id, to);
+    };
+    const actions: RowAction[] = [
+      {
+        label: section.hidden ? 'Show section' : 'Hide section',
+        icon: section.hidden ? I.eye : I.eyeOff,
+        keys: 'Shift+Mod+H',
+        run: () => onEdit({ type: 'updateSection', sectionId: section.id, patch: { hidden: !section.hidden } }),
+      },
+      { label: 'Move up', icon: I.up, keys: 'Alt+Up', disabled: index === 0, run: () => fromMenu(index - 1) },
+      {
+        label: 'Move down',
+        icon: I.down,
+        keys: 'Alt+Down',
+        disabled: index === sections.length - 1,
+        run: () => fromMenu(index + 1),
+      },
+      {
+        label: 'Duplicate',
+        icon: I.copy,
+        keys: 'Mod+D',
+        run: () => onEdit({ type: 'duplicateSection', sectionId: section.id }),
+      },
+      { label: 'Delete', icon: I.trash, keys: 'Delete', danger: true, run: () => setConfirming(key) },
+    ];
 
     return (
       <li key={section.id} role="none" {...sectionGroupDrag(index)}>
@@ -776,30 +1007,7 @@ export function Outline(props: OutlineProps) {
               </span>
             )}
           </button>
-          <span className="le-ol-actions">
-            <IconButton
-              label={section.hidden ? 'Show section' : 'Hide section'}
-              onClick={() => onEdit({ type: 'updateSection', sectionId: section.id, patch: { hidden: !section.hidden } })}
-            >
-              {section.hidden ? I.eye : I.eyeOff}
-            </IconButton>
-            <IconButton label="Move section up" disabled={index === 0} onClick={() => moveSectionTo(section.id, index - 1)}>
-              {I.up}
-            </IconButton>
-            <IconButton
-              label="Move section down"
-              disabled={index === sections.length - 1}
-              onClick={() => moveSectionTo(section.id, index + 1)}
-            >
-              {I.down}
-            </IconButton>
-            <IconButton label="Duplicate section" onClick={() => onEdit({ type: 'duplicateSection', sectionId: section.id })}>
-              {I.copy}
-            </IconButton>
-            <IconButton label="Delete section" danger onClick={() => setConfirming(key)}>
-              {I.trash}
-            </IconButton>
-          </span>
+          {showsActions(key) && <span className="le-ol-actions">{rowMenu(key, label, actions)}</span>}
         </div>
         {confirmRow(
           key,

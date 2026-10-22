@@ -1,5 +1,15 @@
-import type { ColorValue, RichContent, RichDoc, RichMark, RichNode, TextAlign, TextSize } from '@kgc/shared';
-import { markdownToDoc } from '../learn-editor-core';
+import {
+  isColorValue as sharedIsColorValue,
+  markdownToRichDoc,
+  RICH_COLOR_NAMES,
+  type ColorValue,
+  type RichContent,
+  type RichDoc,
+  type RichMark,
+  type RichNode,
+  type TextAlign,
+  type TextSize,
+} from '@kgc/shared';
 
 /**
  * RichDoc (the stored contract, `learn-page.ts`) to TipTap JSON and back (T317).
@@ -36,10 +46,11 @@ export interface TTNode {
 
 const ALIGNS: TextAlign[] = ['left', 'center', 'right', 'justify'];
 const SIZES: TextSize[] = ['small', 'normal', 'large', 'x-large'];
-export const NAMED_COLORS = ['navy', 'blue', 'light-blue', 'teal', 'orange', 'grey', 'dark', 'white'] as const;
+// The server's list and test, so the editor never stores a colour it would refuse.
+export const NAMED_COLORS = RICH_COLOR_NAMES;
 
 export function isColorValue(v: unknown): v is ColorValue {
-  return typeof v === 'string' && ((NAMED_COLORS as readonly string[]).includes(v) || /^#[0-9a-f]{6}$/i.test(v));
+  return sharedIsColorValue(v);
 }
 
 /** Canonical mark order, so two runs with the same marks compare equal. */
@@ -63,27 +74,14 @@ const SIMPLE_MARKS = new Set(['bold', 'italic', 'underline', 'strike', 'code', '
 
 /**
  * A v1 Markdown string as a RichDoc: paragraphs, line breaks, bold, italic
- * and links, exactly what the v1 editor wrote.
+ * and links, exactly what the v1 editor wrote, by T315's parser.
  *
- * Stand-in until T315's `rich-doc-core` lands; swap the body for its
- * `markdownToRichDoc` then, keeping this name.
+ * `inline` because the v1 page draws a text block's `- ` and `# ` lines as
+ * plain text (`learnRichParagraphs`), so the first edit of an old block must
+ * not turn them into a list or a heading the reader never saw.
  */
 export function markdownToRich(md: string): RichDoc {
-  const inline = markdownToDoc(md);
-  return normalizeRichDoc({
-    type: 'doc',
-    content: inline.content.map((p) => ({
-      type: 'paragraph',
-      content: (p.content ?? []).map((n): RichNode => {
-        if (n.type === 'hardBreak') return { type: 'hardBreak' };
-        const marks: RichMark[] = (n.marks ?? []).flatMap((m): RichMark[] => {
-          if (m.type === 'link') return m.attrs?.href ? [{ type: 'link', href: m.attrs.href }] : [];
-          return [{ type: m.type }];
-        });
-        return marks.length ? { type: 'text', text: n.text ?? '', marks } : { type: 'text', text: n.text ?? '' };
-      }),
-    })),
-  });
+  return normalizeRichDoc(markdownToRichDoc(md, { inline: true }));
 }
 
 export function toRichDoc(value: RichContent | null | undefined): RichDoc {
@@ -379,7 +377,12 @@ export function richPlainText(doc: RichDoc): string {
   return parts.join('').replace(/\n{2,}/g, '\n').trim();
 }
 
+/**
+ * Words in plain text by the rule of T315's `richContentWordCount` (runs
+ * between spaces that hold a letter or a digit), so the editor's count is the
+ * one the settings panel and the server show. The editor counts the text it
+ * holds, not a RichDoc, hence a string here.
+ */
 export function countWords(text: string): number {
-  const m = text.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu);
-  return m ? m.length : 0;
+  return text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
 }

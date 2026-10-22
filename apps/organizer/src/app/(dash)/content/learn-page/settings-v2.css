@@ -276,3 +276,26 @@
 .le-v2-tablegrid td { padding: 2px; vertical-align: middle; }
 .le-v2-tablegrid input { min-width: 96px; }
 .le-v2-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+
+/* Saved section picker on a linked (reusable) block. */
+.le-v2-lib-now { margin: 0 0 8px; line-height: 18px; color: var(--ink); }
+.le-v2-lib-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.le-v2-lib-choice {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d6dbe0;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.le-v2-lib-choice:hover { border-color: var(--interactive); }
+.le-v2-lib-choice.is-current { border-color: var(--interactive); background: #eef5fb; }
+.le-v2-lib-name { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.le-v2-lib-meta { flex: none; font-size: 12px; color: var(--body); }
+.le-v2-lib-error p { margin: 0 0 6px; color: var(--danger, #dd4b39); }

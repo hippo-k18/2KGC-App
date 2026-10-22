@@ -26,9 +26,9 @@ import {
 } from '@/lib/learn-media-ui-core';
 import { imageUsage } from '@/lib/learn-tools-core';
 import {
+  backfillLearnMediaAction,
   deleteLearnMediaAction,
   listLearnMediaAction,
-  recordLearnMediaAction,
   updateLearnMediaAction,
   type MediaRow,
 } from './api';
@@ -46,9 +46,17 @@ import './media.css';
  *
  * Uploads run three at a time. A server action reports no progress, so each
  * file shows a moving bar until it is done or has failed.
+ *
+ * The server writes every library row (T315): an upload writes one, and so
+ * does saving an edited image (T316, a new file beside the original). This
+ * screen only shows them, and reloads the list after either so sizes and
+ * "Where it is used" are the server's.
  */
 
 const PARALLEL_UPLOADS = 3;
+
+/** A row as the list returns it: `uses` names every place the server found it (versions and saved sections too). */
+type LibraryMedia = MediaRow & { uses?: string[] };
 
 type UploadStatus = 'waiting' | 'uploading' | 'done' | 'failed';
 interface UploadEntry {
@@ -73,11 +81,6 @@ export interface MediaLibraryProps {
 
 const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 
-function editedName(fileName: string): string {
-  const m = /^(.*?)(\.[^.]+)?$/.exec(fileName);
-  return `${m?.[1] || 'image'} (edited)${m?.[2] ?? ''}`;
-}
-
 export function MediaLibrary({ mode, onPick, onClose, content, published, title }: MediaLibraryProps) {
   const services = useEditorServices();
   const siteOrigin = services?.siteOrigin ?? '';
@@ -87,7 +90,7 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
   const detailsHeadRef = useRef<HTMLHeadingElement>(null);
   const uploadKey = useRef(0);
 
-  const [rows, setRows] = useState<MediaRow[] | null>(null);
+  const [rows, setRows] = useState<LibraryMedia[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [query, setQuery] = useState('');
@@ -102,6 +105,9 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
   // Focal point edits keep the same file, which the library row cannot store;
   // held here so "Use this image" hands over the edited version.
   const [edits, setEdits] = useState<Record<string, PageImage>>({});
+  // An edited copy the server just stored: selected, with the focal point the
+  // person chose, once the reloaded list holds its row.
+  const pendingEdit = useRef<PageImage | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -109,8 +115,17 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
       .then((res) => {
         if (!alive) return;
         if (res.ok) {
-          setRows(res.items);
+          const items: LibraryMedia[] = res.media.items;
+          setRows(items);
           setLoadError(null);
+          const edited = pendingEdit.current;
+          const row = edited && items.find((r) => r.image.src === edited.src);
+          if (edited && row) {
+            pendingEdit.current = null;
+            setEdits((cur) => ({ ...cur, [row.id]: { ...row.image, ...edited } }));
+            setSelectedId(row.id);
+            setActiveId(row.id);
+          }
         } else setLoadError(res.error || 'The images could not be loaded.');
       })
       .catch(() => alive && setLoadError('The images could not be loaded. Check your connection and try again.'));
@@ -124,15 +139,15 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
   const selected = rows?.find((r) => r.id === selectedId) ?? null;
   const focusTarget = visible.find((r) => r.id === activeId) ?? visible.find((r) => r.id === selectedId) ?? visible[0];
 
-  function imageOf(row: MediaRow): PageImage {
+  function imageOf(row: LibraryMedia): PageImage {
     return edits[row.id] ?? row.image;
   }
 
-  function pick(row: MediaRow) {
+  function pick(row: LibraryMedia) {
     onPick?.(imageOf(row));
   }
 
-  function select(row: MediaRow, open = false) {
+  function select(row: LibraryMedia, open = false) {
     setSelectedId(row.id);
     setActiveId(row.id);
     if (open) {
@@ -150,8 +165,15 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
     });
   }
 
-  function upsert(item: MediaRow) {
-    setRows((cur) => (cur ? (cur.some((r) => r.id === item.id) ? cur.map((r) => (r.id === item.id ? item : r)) : [item, ...cur]) : [item]));
+  function upsert(item: LibraryMedia) {
+    // An update returns the row without `uses`; the ones already listed still hold.
+    setRows((cur) =>
+      cur
+        ? cur.some((r) => r.id === item.id)
+          ? cur.map((r) => (r.id === item.id ? { ...item, uses: item.uses ?? r.uses } : r))
+          : [item, ...cur]
+        : [item],
+    );
   }
 
   function removeRow(id: string) {
@@ -203,15 +225,15 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
     setUploads((cur) => cur.map((u) => (u.key === key ? { ...u, ...patch } : u)));
   }
 
-  async function uploadOne(file: File, key: number): Promise<MediaRow | null> {
-    if (!services) return null;
+  async function uploadOne(file: File, key: number): Promise<{ row: LibraryMedia | null; unlisted: boolean }> {
+    if (!services) return { row: null, unlisted: false };
     setUpload(key, { status: 'uploading' });
     try {
       const prepared = await prepareImageFile(file);
       const res = await services.uploadImage(prepared.file);
       if (!res.ok) {
         setUpload(key, { status: 'failed', error: res.error || 'The upload did not work.' });
-        return null;
+        return { row: null, unlisted: false };
       }
       let image: PageImage = { ...res.image };
       if (!image.width || !image.height) {
@@ -223,17 +245,25 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
         }
         if (dims.width && dims.height) image = { ...image, ...dims };
       }
-      const rec = await recordLearnMediaAction(image, file.name, prepared.file.size);
-      if (!rec.ok) {
-        setUpload(key, { status: 'failed', error: rec.error || 'The image uploaded but could not be added to the library.' });
-        return null;
-      }
-      upsert(rec.item);
       setUpload(key, { status: 'done' });
-      return rec.item;
+      // The file is stored but its library row was not written; the scan after
+      // this batch adds it, as it does for images from before the library.
+      if (!res.mediaId) return { row: null, unlisted: true };
+      // Shown at once; the reload after the batch replaces it with the server's row.
+      const row: LibraryMedia = {
+        id: res.mediaId,
+        image,
+        fileName: file.name,
+        bytes: prepared.file.size,
+        uploadedAt: Date.now(),
+        uploadedBy: '',
+        uses: [],
+      };
+      upsert(row);
+      return { row, unlisted: false };
     } catch {
       setUpload(key, { status: 'failed', error: 'The upload did not work. Check your connection and try again.' });
-      return null;
+      return { row: null, unlisted: false };
     }
   }
 
@@ -253,11 +283,15 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
       ...failed,
       ...queued.map(({ file, key }) => ({ key, name: file.name, status: 'waiting' as const })),
     ]);
-    const first: { row: MediaRow | null } = { row: null };
+    const first: { row: LibraryMedia | null } = { row: null };
+    let unlisted = false;
     await runPool(queued, PARALLEL_UPLOADS, async ({ file, key }) => {
-      const row = await uploadOne(file, key);
-      if (row && !first.row) first.row = row;
+      const out = await uploadOne(file, key);
+      if (out.row && !first.row) first.row = out.row;
+      if (out.unlisted) unlisted = true;
     });
+    if (unlisted) await backfillLearnMediaAction().catch(() => undefined);
+    if (queued.length > 0) setReload((n) => n + 1);
     // Show what just arrived when nothing else was being looked at.
     const shown = first.row;
     if (shown) setSelectedId((cur) => cur ?? shown.id);
@@ -528,9 +562,9 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
               onBack={backToGrid}
               onSaved={upsert}
               onDeleted={removeRow}
-              onAdded={(item) => {
-                upsert(item);
-                setSelectedId(item.id);
+              onEdited={(img) => {
+                pendingEdit.current = img;
+                setReload((n) => n + 1);
               }}
               onFocalEdit={(img) => setEdits((cur) => ({ ...cur, [selected.id]: img }))}
             />
@@ -546,7 +580,7 @@ export function MediaLibrary({ mode, onPick, onClose, content, published, title 
 // ─── Details panel ───────────────────────────────────────────────────────────
 
 interface DetailsProps {
-  row: MediaRow;
+  row: LibraryMedia;
   image: PageImage;
   mode: 'manage' | 'pick';
   siteOrigin: string;
@@ -554,9 +588,10 @@ interface DetailsProps {
   published: LearnPageContent | null;
   headRef: RefObject<HTMLHeadingElement | null>;
   onBack: () => void;
-  onSaved: (row: MediaRow) => void;
+  onSaved: (row: LibraryMedia) => void;
   onDeleted: (id: string) => void;
-  onAdded: (row: MediaRow) => void;
+  /** An edited copy was saved as a new file and library row (`src` is the new one). */
+  onEdited: (image: PageImage) => void;
   onFocalEdit: (image: PageImage) => void;
 }
 
@@ -571,7 +606,7 @@ function MediaDetails({
   onBack,
   onSaved,
   onDeleted,
-  onAdded,
+  onEdited,
   onFocalEdit,
 }: DetailsProps) {
   const services = useEditorServices();
@@ -586,9 +621,16 @@ function MediaDetails({
   const [confirming, setConfirming] = useState(false);
   const [refusal, setRefusal] = useState<string[] | null>(null);
 
+  // The draft as it is on screen (it may not be saved yet), plus what only the
+  // server can see: kept versions and saved sections. The server's own Draft
+  // and Live page entries are left out, since the screen's copy is newer.
   const usedIn = useMemo(
-    () => [...imageUsage(content, row.image.src, 'Draft: '), ...imageUsage(published, row.image.src, 'Live: ')],
-    [content, published, row.image.src],
+    () => [
+      ...imageUsage(content, row.image.src, 'Draft: '),
+      ...imageUsage(published, row.image.src, 'Live: '),
+      ...(row.uses ?? []).filter((u) => !u.startsWith('Draft: ') && !u.startsWith('Live page: ')),
+    ],
+    [content, published, row.image.src, row.uses],
   );
 
   async function patch(p: { fileName?: string; tags?: string[]; alt?: string }, done: string): Promise<boolean> {
@@ -663,33 +705,22 @@ function MediaDetails({
       );
       return;
     }
-    setBusy(true);
-    try {
-      // The size of the new file is not reported back, so it is recorded as unknown.
-      const rec = await recordLearnMediaAction(result, editedName(row.fileName), 0);
-      if (!rec.ok) {
-        setError(rec.error || 'The edited image was saved but could not be added to the library.');
-        return;
-      }
-      onAdded(rec.item);
-    } catch {
-      setError('The edited image could not be added to the library. Check your connection and try again.');
-    } finally {
-      setBusy(false);
-    }
+    // The image editor saved the copy and its library row; show it.
+    onEdited(result);
+    setNote('The edited copy was saved beside the original.');
   }
 
   async function confirmDelete() {
     setBusy(true);
     setError(null);
     try {
-      const res = await deleteLearnMediaAction(row.id, usedIn);
+      const res = await deleteLearnMediaAction(row.id);
       if (res.ok) {
         onDeleted(row.id);
         return;
       }
-      if (res.usedIn?.length) setRefusal(res.usedIn);
-      else setError(res.error || 'The image could not be deleted.');
+      // The server checks every place the image is used and names them in the error.
+      setError(res.error || 'The image could not be deleted.');
       setConfirming(false);
     } catch {
       setError('The image could not be deleted. Check your connection and try again.');
@@ -851,7 +882,7 @@ function MediaDetails({
       <div className="le-media-field">
         <h4 className="le-media-label">Where it is used</h4>
         {usedIn.length === 0 ? (
-          <p className="le-media-hint">Not used on the draft or the live page.</p>
+          <p className="le-media-hint">Not used on the page, in a kept version or in a saved section.</p>
         ) : (
           <ul className="le-media-used">
             {usedIn.map((u, i) => (

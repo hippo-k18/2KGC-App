@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { sectionColumns, sectionOptionClasses, type LearnBlock, type LearnSection } from '@kgc/shared';
+import { hasLearnImage, sectionColumns, sectionOptionClasses, type LearnBlock, type LearnSection } from '@kgc/shared';
 import { FillPicture, type BlockCtx } from './parts';
 
 /**
@@ -14,7 +14,8 @@ export function sectionShell(section: LearnSection): { classes: string[]; style:
 
 /** The photo behind a band and its dark overlay; the band must carry `lp-has-bgimg`. */
 export function SectionBackground({ section, ctx }: { section: LearnSection; ctx: BlockCtx }) {
-  if (!section.backgroundImage) return null;
+  // An optional image left empty in a draft (`src: ''`) is no image (T320).
+  if (!hasLearnImage(section.backgroundImage)) return null;
   return (
     <div className="lp-band-bg" aria-hidden="true">
       <FillPicture image={section.backgroundImage} ctx={ctx} />

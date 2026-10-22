@@ -5,11 +5,11 @@ import type { LearnSection } from '@kgc/shared';
 import { cloneSectionWithNewIds, createSection } from '@/lib/learn-editor-core';
 import { SECTION_TEMPLATES, TEMPLATE_CATEGORIES, type TemplateCategory } from '@/lib/learn-templates';
 import {
-  deleteLearnLibraryAction,
+  deleteLearnLibraryItemAction,
   listLearnLibraryAction,
-  renameLearnLibraryAction,
-  saveLearnLibraryAction,
-  type LibraryRow,
+  renameLearnLibraryItemAction,
+  saveLearnLibraryItemAction,
+  type LearnLibraryRow as LibraryRow,
 } from './api';
 import { Modal } from './dialogs';
 import './extras.css';
@@ -392,9 +392,10 @@ function LibraryItem({
     setBusy(true);
     setError(null);
     try {
-      const res = await renameLearnLibraryAction(row.id, next);
+      const res = await renameLearnLibraryItemAction(row.id, next);
       if (res.ok) {
-        onRenamed(next);
+        // The server's cleaned name, so the list shows what was stored.
+        onRenamed(res.name);
         setMode('view');
         // Back to the button that opened the field, so keyboard users keep their place.
         requestAnimationFrame(() => renameBtn.current?.focus());
@@ -409,12 +410,14 @@ function LibraryItem({
     setBusy(true);
     setError(null);
     try {
-      const res = await deleteLearnLibraryAction(row.id);
+      const res = await deleteLearnLibraryItemAction(row.id);
       if (res.ok) {
         onDeleted();
         return;
       }
+      // Refused while the draft, the live page or a kept version uses it; the error names where.
       setError(res.error);
+      setMode('view');
     } catch {
       setError(NETWORK_ERROR);
     }
@@ -468,19 +471,35 @@ function LibraryItem({
         )}
         <span className="le-x-lib-meta">
           Saved {formatDay(row.createdAt)} · {plural(row.section.blocks.length, 'block')}
+          {row.uses.length > 0 && <> · Linked in {plural(row.uses.length, 'place')}</>}
         </span>
       </div>
 
       {mode === 'confirm-delete' ? (
-        <div className="le-x-confirm" role="group" aria-label={`Delete ${row.name}`}>
-          <span>Delete this saved section? Linked copies on the page stop showing it.</span>
-          <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void remove()} autoFocus>
-            {busy ? 'Deleting...' : 'Delete'}
-          </button>
-          <button type="button" className="btn btn-default btn-sm" disabled={busy} onClick={() => setMode('view')}>
-            Keep it
-          </button>
-        </div>
+        row.uses.length > 0 ? (
+          // The server refuses this delete, so say why here instead of offering it.
+          <div className="le-x-confirm" role="alert">
+            <span>This section is still linked, so it cannot be deleted. Remove the link from these places first:</span>
+            <ul className="le-x-lib-uses">
+              {row.uses.map((u, i) => (
+                <li key={`${u}-${i}`}>{u}</li>
+              ))}
+            </ul>
+            <button type="button" className="btn btn-default btn-sm" onClick={() => setMode('view')} autoFocus>
+              Close
+            </button>
+          </div>
+        ) : (
+          <div className="le-x-confirm" role="group" aria-label={`Delete ${row.name}`}>
+            <span>Delete this saved section? This cannot be undone.</span>
+            <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void remove()} autoFocus>
+              {busy ? 'Deleting...' : 'Delete'}
+            </button>
+            <button type="button" className="btn btn-default btn-sm" disabled={busy} onClick={() => setMode('view')}>
+              Keep it
+            </button>
+          </div>
+        )
       ) : (
         <div className="le-x-lib-actions">
           <div className="le-x-lib-insert">
@@ -555,9 +574,9 @@ export function SaveToLibraryDialog({
     setBusy(true);
     setError(null);
     try {
-      const res = await saveLearnLibraryAction(trimmed, section);
+      const res = await saveLearnLibraryItemAction({ name: trimmed, section });
       if (res.ok) {
-        onSaved(res.item);
+        onSaved({ id: res.id, name: trimmed, section, createdAt: Date.now(), createdBy: '', uses: [] });
         onClose();
         return;
       }

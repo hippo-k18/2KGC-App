@@ -1032,15 +1032,22 @@ export function docOf(d: LearnPageDoc): LearnPageDoc {
   if (d.scheduledBy !== undefined) out.scheduledBy = d.scheduledBy;
   if (d.scheduledRevision !== undefined) out.scheduledRevision = d.scheduledRevision;
   if (d.previewToken !== undefined) out.previewToken = d.previewToken;
+  if (d.scheduleFailure !== undefined) out.scheduleFailure = d.scheduleFailure;
   return out;
 }
 
-/** The doc with no publish scheduled (T316): what a publish or a cancel leaves. */
+/**
+ * The doc with no publish scheduled (T316): what a publish, a cancel or a new
+ * schedule starts from. A recorded scheduled-publish failure goes too: it
+ * explained why the last schedule did not run, and once somebody publishes or
+ * schedules again it describes nothing that is still true.
+ */
 export function withoutSchedule(d: LearnPageDoc): LearnPageDoc {
   const out = docOf(d);
   delete out.scheduledPublishAt;
   delete out.scheduledBy;
   delete out.scheduledRevision;
+  delete out.scheduleFailure;
   return out;
 }
 
@@ -1184,6 +1191,19 @@ export function readStoredDoc(
   };
   if (typeof stored.publishedAt === 'number') doc.publishedAt = stored.publishedAt;
   if (typeof stored.publishedBy === 'string') doc.publishedBy = stored.publishedBy;
+  // T316's schedule and preview link, typed one by one: the editor shows the
+  // schedule and offers the link, so a field of the wrong type is dropped here
+  // rather than rendered.
+  if (typeof stored.scheduledPublishAt === 'number' && Number.isFinite(stored.scheduledPublishAt)) {
+    doc.scheduledPublishAt = stored.scheduledPublishAt;
+    if (typeof stored.scheduledBy === 'string') doc.scheduledBy = stored.scheduledBy;
+    if (Number.isInteger(stored.scheduledRevision)) doc.scheduledRevision = stored.scheduledRevision;
+  }
+  if (typeof stored.previewToken === 'string' && stored.previewToken) doc.previewToken = stored.previewToken;
+  const failure = stored.scheduleFailure;
+  if (isObj(failure) && typeof failure.at === 'number' && typeof failure.message === 'string') {
+    doc.scheduleFailure = { at: failure.at, message: failure.message };
+  }
   return { ok: true, doc };
 }
 

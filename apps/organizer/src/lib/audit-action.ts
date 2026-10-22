@@ -68,6 +68,7 @@ export const AUDIT_VERB: Record<string, string> = {
   saveDraft: 'Saved a draft of',
   schedule: 'Scheduled a publish of',
   scheduledPublish: 'Auto-published',
+  scheduledPublishFailed: 'Could not auto-publish',
   send: 'Sent',
   sendInvitation: 'Sent an invitation for',
   setPassphrase: 'Set a passphrase for',

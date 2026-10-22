@@ -151,10 +151,14 @@ export interface AuditEntry {
      * button, so who scheduled it and when is the record of who published it;
      * the timer's own run is logged as `learnPage.scheduledPublish` by
      * `system:schedule`. A preview link shows the draft to anyone holding it.
+     * `scheduledPublishFailed` is the timer finding a due draft it may not
+     * publish (an empty Image block, say): it clears the schedule, so this
+     * entry is the record of why the page did not go live.
      */
     | 'learnPage.schedule'
     | 'learnPage.cancelSchedule'
     | 'learnPage.scheduledPublish'
+    | 'learnPage.scheduledPublishFailed'
     | 'learnPage.previewLink'
     | 'learnPage.editImage'
     /** The entities the later dashboard screens author. */

@@ -27,6 +27,7 @@ export const SHORTCUTS: { keys: string[]; label: string; group: string }[] = [
   { group: 'Outline', keys: ['Shift+Click', 'Mod+Click'], label: 'Select several' },
   { group: 'Outline', keys: ['Mod+A'], label: 'Select every block in the section' },
   { group: 'Outline', keys: ['/'], label: 'Add a block' },
+  { group: 'Outline', keys: ['Shift+F10'], label: 'Open the row menu' },
 
   { group: 'Tools', keys: ['Mod+F'], label: 'Find and replace' },
   { group: 'Tools', keys: ['Shift+Mod+K'], label: 'Check the page' },

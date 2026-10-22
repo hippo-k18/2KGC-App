@@ -16,7 +16,11 @@ export type Device = 'desktop' | 'tablet' | 'phone';
 /** Preview frame widths in CSS pixels. */
 export const DEVICE_WIDTH: Record<Device, number> = { desktop: 1280, tablet: 820, phone: 390 };
 
-export type UploadResult = { ok: true; image: PageImage } | { ok: false; error: string };
+/**
+ * `mediaId` is the media library row the upload wrote (T315), when that write
+ * worked; the library uses it to show the new image without reloading.
+ */
+export type UploadResult = { ok: true; image: PageImage; mediaId?: string } | { ok: false; error: string };
 /** Uploads one file and resolves with the stored image (alt empty, to be filled). */
 export type UploadImage = (file: File) => Promise<UploadResult>;
 

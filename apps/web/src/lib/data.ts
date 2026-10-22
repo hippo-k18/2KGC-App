@@ -27,7 +27,11 @@ import {
   BUYER_FEE_PERCENT,
   LEARN_PAGE_DEFAULT,
   LEARN_PAGE_DOC,
+  LEARN_PAGE_LIBRARY,
   type LearnPageContent,
+  type LearnSection,
+  expandReusableBlocks,
+  parseLearnSection,
   previewTokenMatches,
   readLearnPage,
   DEFAULT_SPONSOR_TIERS,
@@ -1386,7 +1390,18 @@ export const learnPreview = cache(async function learnPreview(token: string): Pr
     const snap = await db().doc(LEARN_PAGE_DOC).get();
     const data = snap.data();
     if (!data || !previewTokenMatches(data.previewToken, token)) return null;
-    return readLearnPage(data.draft);
+    const draft = readLearnPage(data.draft);
+    if (!draft || !draft.sections.some((s) => s.blocks.some((b) => b.kind === 'reusable'))) return draft;
+    // Publish fills saved sections in (T315), so the live copy never holds a
+    // reusable block; a draft does, and the preview must show what Publish
+    // would put live. Read the library only when the draft points at it.
+    const lib = await db().collection(LEARN_PAGE_LIBRARY).get();
+    const sections = new Map<string, LearnSection>();
+    for (const d of lib.docs) {
+      const section = parseLearnSection((d.data() as { section?: unknown }).section);
+      if (section) sections.set(d.id, section);
+    }
+    return readLearnPage(expandReusableBlocks(draft, sections));
   } catch (err) {
     console.error('[data] learnPreview failed; rendering the published page instead', err);
     return null;

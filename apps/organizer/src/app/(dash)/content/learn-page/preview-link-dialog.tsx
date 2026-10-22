@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { learnPreviewUrl } from '@/lib/learn-page-ops-core';
 import { createLearnPreviewLinkAction, revokeLearnPreviewLinkAction } from './api';
 import { Modal } from './dialogs';
 import './extras.css';
@@ -25,7 +26,11 @@ export function PreviewLinkDialog({
   const [confirm, setConfirm] = useState<null | 'rotate' | 'revoke'>(null);
   const [copied, setCopied] = useState<null | 'yes' | 'manual'>(null);
   const [error, setError] = useState<string | null>(null);
-  const url = token ? `${siteOrigin}/learn?preview=${encodeURIComponent(token)}` : '';
+  // The link the server made when it made the token. A token loaded with the
+  // page has none, so it is built the same way (`learnPreviewUrl`, against the
+  // same public origin).
+  const [made, setMade] = useState<{ token: string; url: string } | null>(null);
+  const url = !token ? '' : made?.token === token ? made.url : learnPreviewUrl(siteOrigin, token);
 
   // The button that was pressed disappears when the link appears or goes, so
   // focus moves to the new first control instead of falling to the page.
@@ -49,6 +54,7 @@ export function PreviewLinkDialog({
     try {
       const res = await createLearnPreviewLinkAction();
       if (res.ok) {
+        setMade({ token: res.token, url: res.url });
         onToken(res.token);
         setConfirm(null);
         setCopied(null);

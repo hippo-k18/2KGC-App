@@ -6,18 +6,31 @@
 
 /* ── Block options ────────────────────────────────────────────────────── */
 
+/* The website's widths (learn-blocks.css). */
 .lp-mw-small { max-width: 480px; margin-left: auto; margin-right: auto; }
-.lp-mw-medium { max-width: 680px; margin-left: auto; margin-right: auto; }
-.lp-mw-large { max-width: 880px; margin-left: auto; margin-right: auto; }
+.lp-mw-medium { max-width: 720px; margin-left: auto; margin-right: auto; }
+.lp-mw-large { max-width: 960px; margin-left: auto; margin-right: auto; }
 .lp-mw-full { max-width: none; }
 
-.lp-boxed > .lp-block-body {
-  padding: 24px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
+/*
+ * The box itself is the website's rule (`.lp-block.lp-boxed` in T319's
+ * learn-blocks.css), which lands on this shell because it carries both
+ * classes; a second box here would draw it twice.
+ */
+
+/*
+ * T319's twins carry the site's `lp-block` class on their own outer element.
+ * The selection outline and the pointer belong to the shell around them.
+ */
+.lp-block-body .lp-block,
+.lp-block-body .lp-block:hover,
+.lp-block-body .lp-block:focus-visible {
+  outline: none;
+  cursor: inherit;
 }
+
+/* A copy from a saved section: selectable, but its text lives in the library. */
+.lp-block[data-lp-saved] { cursor: default; }
 
 .lp-block[style*='--lp-text'] :is(h1, h2, h3, h4, p, li, a, .lp-heading, .lp-caption) { color: inherit; }
 

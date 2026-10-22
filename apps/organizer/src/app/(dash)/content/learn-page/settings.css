@@ -820,3 +820,8 @@ textarea.le-set-area.whova-text-input {
 .le-set-img.compact .le-set-img-side {
   min-width: 0;
 }
+
+/* A rich field opens about as tall as the textarea it replaced (`rows`). */
+.le-set-rich .rt-full .rt-content {
+  min-height: calc(var(--le-rich-rows, 4) * 1.6em + 16px);
+}

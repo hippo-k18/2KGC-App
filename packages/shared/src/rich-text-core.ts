@@ -77,7 +77,11 @@ export function isSafeHref(href: string): boolean {
   // test in the world says it is relative. `rich-text.tsx` then classifies it
   // as one of our own pages and drops `rel="noreferrer noopener"` and the new
   // tab. Same for `\\host` and `\/host`.
-  if (/^[/\\][/\\]/.test(trimmed)) return false;
+  //
+  // The URL parser also strips ASCII tab, CR and LF anywhere in a link, so
+  // `/\t/host` becomes `//host` in the browser (T321): those are removed
+  // before the check, the same way the browser will.
+  if (/^[/\\][/\\]/.test(trimmed.replace(/[\t\n\r]/g, ""))) return false;
   if (trimmed.startsWith("/") || trimmed.startsWith("#")) return true;
   try {
     return SAFE_SCHEMES.includes(new URL(trimmed).protocol);

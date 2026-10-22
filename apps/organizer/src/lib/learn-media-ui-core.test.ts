@@ -12,6 +12,7 @@ import {
   fitCropToAspect,
   focalFromCrop,
   formatBytes,
+  imageEditOps,
   isFullCrop,
   matchesSearch,
   moveCrop,
@@ -83,6 +84,9 @@ describe('sort', () => {
   });
   it('orders largest first, newest first on a tie', () => {
     expect(names('largest')).toEqual(['logo 10.webp', 'Venue.png', 'team-photo.jpg', 'logo 2.webp']);
+  });
+  it('orders smallest first, newest first on a tie (the sort T315 added)', () => {
+    expect(names('smallest')).toEqual(['logo 2.webp', 'team-photo.jpg', 'logo 10.webp', 'Venue.png']);
   });
   it('does not change the input', () => {
     const copy = [...rows];
@@ -329,5 +333,34 @@ describe('display and original coordinates', () => {
       width: 0.25,
       height: 0.5,
     });
+  });
+});
+
+describe('imageEditOps', () => {
+  const none = { rotate: 0, flipX: false, flipY: false } as const;
+
+  it('sends nothing for an edit that changes nothing', () => {
+    expect(imageEditOps(FULL_CROP, none, 800, 600)).toEqual([]);
+    // Flipped both ways and turned half way is the original picture.
+    expect(imageEditOps(FULL_CROP, { rotate: 180, flipX: true, flipY: true }, 800, 600)).toEqual([]);
+  });
+
+  it('crops in pixels of the original, then rotates, then flips', () => {
+    expect(imageEditOps({ x: 0.25, y: 0.5, width: 0.5, height: 0.5 }, { rotate: 90, flipX: true, flipY: false }, 800, 600)).toEqual([
+      { op: 'crop', x: 200, y: 300, width: 400, height: 300 },
+      { op: 'rotate', degrees: 90 },
+      { op: 'flip', direction: 'horizontal' },
+    ]);
+  });
+
+  it('sends a flip both ways as a half turn', () => {
+    expect(imageEditOps(FULL_CROP, { rotate: 0, flipX: true, flipY: true }, 800, 600)).toEqual([{ op: 'rotate', degrees: 180 }]);
+    expect(imageEditOps(FULL_CROP, { rotate: 90, flipX: true, flipY: true }, 800, 600)).toEqual([{ op: 'rotate', degrees: 270 }]);
+  });
+
+  it('leaves out a crop that rounds to the whole picture', () => {
+    expect(imageEditOps({ x: 0.0001, y: 0, width: 0.9995, height: 1 }, { ...none, flipY: true }, 800, 600)).toEqual([
+      { op: 'flip', direction: 'vertical' },
+    ]);
   });
 });

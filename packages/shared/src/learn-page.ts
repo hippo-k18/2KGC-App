@@ -202,6 +202,13 @@ export interface LearnPageDoc {
   scheduledRevision?: number;
   /** Unguessable token for a read-only draft preview link; rotate to revoke. */
   previewToken?: string;
+  /**
+   * The last scheduled publish that came due but could not run (an empty Image
+   * block, a draft or saved section that no longer passes the checks). The
+   * timer clears the schedule when this happens, so the editor shows why
+   * nothing went live. Cleared by the next schedule or publish.
+   */
+  scheduleFailure?: { at: number; message: string };
 }
 
 export interface LearnPageVersion {

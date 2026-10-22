@@ -198,6 +198,13 @@
   flex: 1 1 220px;
   line-height: 18px;
 }
+.le-x-lib-uses {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 18px;
+}
 
 /* ── Schedule ───────────────────────────────────────────────────────────── */
 

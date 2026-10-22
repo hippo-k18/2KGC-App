@@ -16,6 +16,7 @@ import {
   cropToPixels,
   fitCropToAspect,
   focalFromCrop,
+  imageEditOps,
   isFullCrop,
   moveCrop,
   pointInCrop,
@@ -30,7 +31,7 @@ import {
   type CropRect,
   type Transform,
 } from '@/lib/learn-media-ui-core';
-import { transformLearnImageAction } from './api';
+import { editLearnImageAction } from './api';
 import { Modal } from './dialogs';
 import { resolveSrc } from './editor-types';
 import './media.css';
@@ -213,27 +214,32 @@ export function ImageEditor({ image, siteOrigin, onDone, onClose }: ImageEditorP
   }
 
   async function save() {
-    if (!geometryChanged) {
+    const ops = geometryChanged ? imageEditOps(crop, t, w, h) : [];
+    // Turns and flips that cancel out leave the picture as it was: no new file.
+    if (ops.length === 0) {
       onDone(focalOnly());
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const res = await transformLearnImageAction({
-        src: image.src,
-        crop: isFullCrop(crop) ? undefined : cropToPixels(crop, w, h),
-        rotate: t.rotate,
-        flipX: t.flipX,
-        flipY: t.flipY,
-      });
+      // The server makes a new file and its library row and keeps the original,
+      // so the pages and versions that use the original are unaffected. It
+      // refuses the website's own /kgc/ images; that message is shown as sent.
+      const res = await editLearnImageAction({ src: image.src, edit: { ops, format: 'keep' }, alt: image.alt });
       if (!res.ok) {
         setError(res.error || 'The edited image could not be saved.');
         return;
       }
-      // The new file is the on-screen crop, so the focal point moves into its frame.
-      const f = dispFocus ? pointInCrop(dispFocus, dispCrop) : { x: 0.5, y: 0.5 };
-      onDone({ ...res.image, alt: image.alt, focusX: f.x, focusY: f.y });
+      // The new file is the on-screen crop, so a focal point the person chose
+      // moves into its frame. Without one, the new image has none either.
+      const out: PageImage = { ...res.image, alt: image.alt };
+      if (dispFocus) {
+        const f = pointInCrop(dispFocus, dispCrop);
+        out.focusX = f.x;
+        out.focusY = f.y;
+      }
+      onDone(out);
     } catch {
       setError('The edited image could not be saved. Check your connection and try again.');
     } finally {

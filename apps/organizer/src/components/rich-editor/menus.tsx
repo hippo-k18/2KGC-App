@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Editor } from '@tiptap/core';
-import type { ColorValue } from '@kgc/shared';
+import { LEARN_COLORS, type ColorValue } from '@kgc/shared';
 import { BRAND_COLORS, EMOJI, SPECIAL_CHARS, colorHex, colorLabel, contrastWarning, parseHex } from '../../lib/rich-editor/tools';
 import { isColorValue } from '../../lib/rich-editor/convert';
 import { Icon } from './icons';
@@ -11,7 +11,7 @@ import { Popover, ToolButton } from './controls';
 /* ── Colour ────────────────────────────────────────────────────────────── */
 
 /** Body text colour on the website, for judging a highlight. */
-const INK: ColorValue = '#272338';
+const INK: ColorValue = LEARN_COLORS.dark;
 
 export function ColorMenu({ editor, kind, current }: { editor: Editor; kind: 'text' | 'highlight'; current: ColorValue | null }) {
   const label = kind === 'text' ? 'Text colour' : 'Highlight colour';
@@ -32,7 +32,7 @@ export function ColorMenu({ editor, kind, current }: { editor: Editor; kind: 'te
     kind === 'text' ? (
       <span className="rt-color-face">
         <span className="rt-color-letter">A</span>
-        <span className="rt-color-bar" style={{ background: current ? colorHex(current) : '#272338' }} />
+        <span className="rt-color-bar" style={{ background: current ? colorHex(current) : INK }} />
       </span>
     ) : (
       <span className="rt-color-face">

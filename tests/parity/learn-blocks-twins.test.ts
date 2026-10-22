@@ -14,7 +14,6 @@ import { describe, expect, it } from 'vitest';
 const root = join(import.meta.dirname, '..', '..');
 const web = join(root, 'apps/web/src/components/learn-blocks');
 const dash = join(root, 'apps/organizer/src/app/(dash)/content/learn-page/preview-blocks');
-const harness = join(root, 'apps/organizer/src/app/dev/learn-twins');
 
 /** Files only the dashboard has: its index, font and the site's base rules. */
 const DASHBOARD_ONLY = new Set(['index.ts', 'preview-font.ts', 'site-base.css', 'fonts']);
@@ -32,20 +31,6 @@ describe('Learn page block twins', () => {
       expect(readFileSync(join(dash, f), 'utf8')).toBe(readFileSync(join(web, f), 'utf8'));
     });
   }
-
-  it("the twin harness draws with copies of the website's page view", () => {
-    const webView = readFileSync(join(root, 'apps/web/src/components/learn-page-view.tsx'), 'utf8').replaceAll(
-      "'./learn-blocks/",
-      "'../../(dash)/content/learn-page/preview-blocks/",
-    );
-    expect(readFileSync(join(harness, 'page-view.tsx'), 'utf8')).toBe(webView);
-    expect(readFileSync(join(harness, 'learn-page-view.css'), 'utf8')).toBe(
-      readFileSync(join(root, 'apps/web/src/components/learn-page-view.css'), 'utf8'),
-    );
-    expect(readFileSync(join(harness, 'linkedin-icon.tsx'), 'utf8')).toBe(
-      readFileSync(join(root, 'apps/web/src/components/linkedin-icon.tsx'), 'utf8'),
-    );
-  });
 
   it('the dashboard font is the website font', () => {
     for (const f of ['open-sans-var.woff2', 'open-sans-var-italic.woff2']) {

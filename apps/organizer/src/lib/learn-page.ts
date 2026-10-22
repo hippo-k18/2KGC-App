@@ -19,12 +19,14 @@ import {
   LEARN_LIMITS,
   LEARN_VERSIONS_KEPT,
   LearnConflict,
+  LearnNotReady,
   LearnUnreadable,
   effectiveDoc,
   fitWidth,
   hasUnpublishedChanges,
   isLearnVersionId,
   planPublish,
+  publishBlockers,
   planReplaceDraft,
   planSave,
   readStoredDoc,
@@ -183,6 +185,9 @@ export async function publishLearnPage(input: {
     const expanded = expandReusableBlocks(base.draft, await loadLearnLibrarySections(tx));
     const check = validateLearnContent(expanded, learnValidateOptions());
     if (!check.ok) throw new LearnPublishInvalid(check.problems);
+    // An empty Image or Video block inside a saved section blocks publishing too.
+    const blockers = publishBlockers(check.content);
+    if (blockers.length > 0) throw new LearnNotReady(blockers);
     const planned = planPublish(base, input.actor, now, input.note);
     const doc: LearnPageDoc = { ...planned.doc, published: check.content };
     const version = { ...planned.version, content: check.content };

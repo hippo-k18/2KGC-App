@@ -31,6 +31,7 @@ import {
 } from '@/lib/learn-tools-core';
 import {
   cancelLearnScheduleAction,
+  listLearnLibraryAction,
   loadLearnEditorAction,
   publishLearnPageAction,
   revertLearnDraftAction,
@@ -52,7 +53,7 @@ import { MediaLibrary } from './media-library';
 import { Outline } from './outline';
 import { LearnPreview, type BlockClickFn } from './preview';
 import { PreviewLinkDialog } from './preview-link-dialog';
-import { ScheduleDialog, ScheduledBanner, formatScheduled } from './schedule-dialog';
+import { ScheduleDialog, ScheduleFailedBanner, ScheduledBanner, formatScheduled } from './schedule-dialog';
 import { SettingsPanel } from './settings-panel';
 import { ShortcutsDialog, isMacPlatform, shortcutText } from './shortcuts-dialog';
 import { AddSectionDialog, SaveToLibraryDialog } from './templates-dialog';
@@ -224,6 +225,14 @@ export function LearnEditor({
   const [versions, setVersions] = useState<LearnVersionSummary[]>(initial.versions);
   const [scheduledAt, setScheduledAt] = useState<number | undefined>(initial.doc.scheduledPublishAt);
   const [previewToken, setPreviewToken] = useState<string | undefined>(initial.doc.previewToken);
+  // The draft was saved again after the schedule was set (the scheduled
+  // publish takes the draft as it is at that time, so the banner says so).
+  const [changedSinceSchedule, setChangedSinceSchedule] = useState(
+    initial.doc.scheduledRevision !== undefined && initial.doc.scheduledRevision !== initial.doc.revision,
+  );
+  // The last scheduled publish came due and could not run. Dismissing only hides
+  // it here; the next schedule or publish clears it on the server.
+  const [scheduleFailure, setScheduleFailure] = useState(initial.doc.scheduleFailure);
 
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [savedAt, setSavedAt] = useState<number | undefined>(initial.doc.draftUpdatedAt || undefined);
@@ -237,6 +246,24 @@ export function LearnEditor({
   // A form asked for an image; the promise it holds resolves when the library closes.
   const [picking, setPicking] = useState<{ title?: string; resolve: (v: PageImage | null) => void } | null>(null);
   const [editingImage, setEditingImage] = useState<{ image: PageImage; resolve: (v: PageImage | null) => void } | null>(null);
+
+  // Saved sections by id, so the preview draws a linked section as Publish
+  // will expand it. Loaded once, then again whenever the library may have
+  // changed from here (a section saved to it, the add-section dialog closed).
+  // Null until the first answer: the preview shows placeholders meanwhile,
+  // and keeps the last good copy if a refresh fails.
+  const [library, setLibrary] = useState<ReadonlyMap<string, LearnSection> | null>(null);
+  const refreshLibrary = useCallback(async () => {
+    try {
+      const res = await listLearnLibraryAction();
+      if (res.ok) setLibrary(new Map(res.items.map((item) => [item.id, item.section])));
+    } catch {
+      // Offline or a server hiccup: the placeholders stay until the next refresh.
+    }
+  }, []);
+  useEffect(() => {
+    void refreshLibrary();
+  }, [refreshLibrary]);
 
   // What the server holds, so autosave sends only real changes. Refs, not
   // state: the save loop reads them after awaits, when state would be stale.
@@ -336,6 +363,7 @@ export function LearnEditor({
         revision.current = res.revision;
         lastSaved.current = sending;
         setSavedAt(res.savedAt);
+        setChangedSinceSchedule(true);
         setError(null);
         const caughtUp = contentEqual(latest.current, sending);
         setSaveState(caughtUp ? 'saved' : 'unsaved');
@@ -403,6 +431,8 @@ export function LearnEditor({
     setEpoch((n) => n + 1);
     setSaveState('saved');
     setError(null);
+    // A discard or restore is a new draft revision too.
+    setChangedSinceSchedule(true);
   }, []);
 
   /** Fresh state from the server: after a conflict, or to start over. */
@@ -413,6 +443,8 @@ export function LearnEditor({
     setVersions(state.versions);
     setScheduledAt(state.doc.scheduledPublishAt);
     setPreviewToken(state.doc.previewToken);
+    setChangedSinceSchedule(state.doc.scheduledRevision !== undefined && state.doc.scheduledRevision !== state.doc.revision);
+    setScheduleFailure(state.doc.scheduleFailure);
     setSavedAt(state.doc.draftUpdatedAt || undefined);
   }, [replaceDraft]);
 
@@ -703,7 +735,7 @@ export function LearnEditor({
     fd.append('file', file);
     try {
       const res = await uploadLearnImageAction(fd);
-      return res.ok ? { ok: true, image: res.image } : { ok: false, error: res.error };
+      return res.ok ? { ok: true, image: res.image, mediaId: res.mediaId } : { ok: false, error: res.error };
     } catch {
       return { ok: false, error: 'The upload did not finish. Check the connection and try again.' };
     }
@@ -745,8 +777,10 @@ export function LearnEditor({
       { id: res.versionId, publishedAt: res.publishedAt, publishedBy: 'You', note: note.trim() || undefined },
       ...v,
     ]);
-    // Publishing by hand replaces a pending schedule (T316 clears it on the server).
+    // Publishing by hand replaces a pending schedule, and settles a failed one
+    // (the server clears both in the publish).
     setScheduledAt(undefined);
+    setScheduleFailure(undefined);
     setFlash('Published. The live page updates within a minute.');
     return null;
   }, []);
@@ -959,8 +993,20 @@ export function LearnEditor({
 
         {scheduledAt && (
           <div className="le-banner le-banner-tight">
-            <ScheduledBanner at={scheduledAt} onChange={() => openDialog('schedule')} onCancel={() => void cancelSchedule()} />
+            <ScheduledBanner
+              at={scheduledAt}
+              draftChanged={changedSinceSchedule}
+              onChange={() => openDialog('schedule')}
+              onCancel={() => void cancelSchedule()}
+            />
           </div>
+        )}
+        {scheduleFailure && !scheduledAt && (
+          <ScheduleFailedBanner
+            failure={scheduleFailure}
+            onReschedule={() => openDialog('schedule')}
+            onDismiss={() => setScheduleFailure(undefined)}
+          />
         )}
         {saveState === 'conflict' && (
           <div className="whova-banner danger le-banner" role="alert">
@@ -1057,7 +1103,7 @@ export function LearnEditor({
           {show('preview') && (
             <main className="le-pane le-pane-preview" id="le-pane-preview" aria-label="Preview" role={narrow ? 'tabpanel' : undefined} ref={stageRef} data-tour="preview" data-zoomed={zoom !== 1 || undefined}>
               <div className="le-frame" style={{ width, zoom: frameZoom, ['--le-unzoom' as string]: 1 / frameZoom }} data-device={device}>
-                <LearnPreview {...pane} siteOrigin={siteOrigin} device={device} multi={multi} onBlockClick={onBlockClick} />
+                <LearnPreview {...pane} siteOrigin={siteOrigin} device={device} multi={multi} onBlockClick={onBlockClick} library={library} />
               </div>
             </main>
           )}
@@ -1103,8 +1149,12 @@ export function LearnEditor({
         {dialog === 'schedule' && (
           <ScheduleDialog
             scheduledAt={scheduledAt ?? null}
+            baseRevision={() => revision.current}
+            onConflict={() => setSaveState('conflict')}
             onScheduled={(at) => {
               setScheduledAt(at);
+              setChangedSinceSchedule(false);
+              setScheduleFailure(undefined);
               setFlash(`Scheduled. The draft goes live ${formatScheduled(at)}.`);
             }}
             onCancelled={() => {
@@ -1127,15 +1177,23 @@ export function LearnEditor({
                 { id: `s${block.id.slice(1)}`, label: name, background: 'plain', width: 'normal', paddingTop: 'none', paddingBottom: 'none', blocks: [block] },
                 dialog.index,
               );
+              void refreshLibrary();
             }}
-            onClose={() => setDialog(null)}
+            onClose={() => {
+              setDialog(null);
+              // Saved sections can be renamed or deleted in the dialog.
+              void refreshLibrary();
+            }}
           />
         )}
         {sectionForLibrary && (
           <SaveToLibraryDialog
             section={sectionForLibrary}
             onClose={() => setDialog(null)}
-            onSaved={(item) => setFlash(`Saved "${item.name}" to the library. Add it from Add a section.`)}
+            onSaved={(item) => {
+              setFlash(`Saved "${item.name}" to the library. Add it from Add a section.`);
+              void refreshLibrary();
+            }}
           />
         )}
         {picking && (

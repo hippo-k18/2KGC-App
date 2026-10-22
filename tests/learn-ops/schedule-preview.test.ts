@@ -9,7 +9,17 @@
  */
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { COLLECTIONS, LEARN_PAGE_DEFAULT, type LearnPageContent, type LearnPageDoc, isPreviewTokenShape } from '@kgc/shared';
+import {
+  COLLECTIONS,
+  LEARN_PAGE_DEFAULT,
+  LEARN_PAGE_LIBRARY,
+  type LearnBlock,
+  type LearnLibraryItem,
+  type LearnPageContent,
+  type LearnPageDoc,
+  type LearnSection,
+  isPreviewTokenShape,
+} from '@kgc/shared';
 import { db } from '@/lib/firestore';
 import { publishLearnPage, saveLearnDraft } from '@/lib/learn-page';
 import { LearnConflict } from '@/lib/learn-page-core';
@@ -33,6 +43,19 @@ const audit = () => db().collection(COLLECTIONS.auditLog);
 function page(title: string): LearnPageContent {
   return { ...structuredClone(LEARN_PAGE_DEFAULT), seoTitle: title };
 }
+
+/** The default page with one more section holding `blocks`. */
+function pageWith(title: string, blocks: LearnBlock[]): LearnPageContent {
+  const p = page(title);
+  p.sections.push(section('extra', blocks));
+  return p;
+}
+
+function section(id: string, blocks: LearnBlock[]): LearnSection {
+  return { id, label: id, background: 'plain', width: 'normal', paddingTop: 'medium', paddingBottom: 'medium', blocks };
+}
+
+const kinds = (c: LearnPageContent | null | undefined) => (c?.sections ?? []).flatMap((s) => s.blocks.map((b) => b.kind));
 
 async function stored(): Promise<LearnPageDoc> {
   return (await docRef().get()).data() as LearnPageDoc;
@@ -121,6 +144,66 @@ describe('scheduled publish', () => {
     await expect(scheduleLearnPublish(Date.now() + HOUR, 0, ACTOR)).rejects.toThrow(LearnConflict);
     await expect(scheduleLearnPublish(Date.now() - 1, 1, ACTOR)).rejects.toThrow(LearnOpRejected);
     expect((await stored()).scheduledPublishAt).toBeUndefined();
+  });
+});
+
+describe('scheduled publish makes the checks Publish makes (T323)', () => {
+  it('a draft with an empty Image block is not published: the schedule is cleared, the failure recorded and audited', async () => {
+    const empty: LearnBlock = { id: 'img1', kind: 'image', image: { src: '', alt: '', width: 0, height: 0 }, width: 'medium', shape: 'original' };
+    await saveLearnDraft(pageWith('Unfinished', [empty]), 0, ACTOR);
+    const at = Date.now() + HOUR;
+    await scheduleLearnPublish(at, 1, ACTOR);
+
+    const run = await runLearnPageCronStep(at);
+    expect(run).toMatchObject({ published: false, failed: true, scheduledBy: ACTOR });
+    expect(run.message).toMatch(/^Some blocks are not filled in yet\./);
+    expect(run.problems).toEqual(['The Image block in "extra" has no image yet. Choose one or remove the block.']);
+
+    const doc = await stored();
+    expect(doc.published).toBeNull();
+    expect(doc.scheduledPublishAt).toBeUndefined();
+    expect(doc.scheduledBy).toBeUndefined();
+    expect(doc.scheduledRevision).toBeUndefined();
+    expect(doc.scheduleFailure).toEqual({ at, message: run.message });
+    expect(doc.revision).toBe(1);
+    expect(await versions()).toHaveLength(0);
+
+    const rows = (await audit().where('action', '==', 'learnPage.scheduledPublishFailed').get()).docs.map((d) => d.data());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ actor: 'system:schedule', before: { scheduledBy: ACTOR } });
+    expect((await audit().where('action', '==', 'learnPage.scheduledPublish').get()).size).toBe(0);
+
+    // The next tick finds nothing due, so it neither throws nor logs again.
+    expect(await runLearnPageCronStep(at + 60_000)).toEqual({ published: false });
+    expect((await audit().where('action', '==', 'learnPage.scheduledPublishFailed').get()).size).toBe(1);
+
+    // Fixing the draft and scheduling again clears the failure.
+    await saveLearnDraft(page('Fixed'), 1, ACTOR);
+    expect((await stored()).scheduleFailure).toEqual({ at, message: run.message });
+    await scheduleLearnPublish(Date.now() + HOUR, 2, ACTOR);
+    expect((await stored()).scheduleFailure).toBeUndefined();
+  });
+
+  it('a reusable block is expanded in the published copy and the version, and stays a link in the draft', async () => {
+    const saved: LearnLibraryItem = {
+      name: 'Call to action',
+      section: section('saved', [{ id: 't1', kind: 'text', text: 'Apply now' }]),
+      createdAt: Date.now(),
+      createdBy: ACTOR,
+    };
+    await db().collection(LEARN_PAGE_LIBRARY).doc('cta').set(saved);
+    await saveLearnDraft(pageWith('Linked', [{ id: 'r1', kind: 'reusable', libraryId: 'cta' }]), 0, ACTOR);
+    const at = Date.now() + HOUR;
+    await scheduleLearnPublish(at, 1, ACTOR);
+
+    const run = await runScheduledLearnPublish(at);
+    expect(run).toMatchObject({ published: true });
+    const doc = await stored();
+    expect(kinds(doc.published)).not.toContain('reusable');
+    expect(JSON.stringify(doc.published)).toContain('Apply now');
+    expect(kinds(doc.draft)).toContain('reusable');
+    const [version] = await versions();
+    expect(version.content).toEqual(doc.published);
   });
 });
 

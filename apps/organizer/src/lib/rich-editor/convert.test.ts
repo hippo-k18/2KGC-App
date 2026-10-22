@@ -131,15 +131,37 @@ describe('v1 Markdown', () => {
   });
 
   it('round trips a Markdown string loaded into the editor', () => {
-    const d = toRichDoc('A **[bold link](mailto:x@y.z)** and _more_');
+    const d = toRichDoc('A [link](mailto:x@y.z), **bold** and _more_');
     expect(roundTrip(d)).toEqual(d);
     expect(d.content[0]).toEqual({
       type: 'paragraph',
       content: [
         { type: 'text', text: 'A ' },
-        { type: 'text', text: 'bold link', marks: [{ type: 'link', href: 'mailto:x@y.z' }, { type: 'bold' }] },
+        { type: 'text', text: 'link', marks: [{ type: 'link', href: 'mailto:x@y.z' }] },
+        { type: 'text', text: ', ' },
+        { type: 'text', text: 'bold', marks: [{ type: 'bold' }] },
         { type: 'text', text: ' and ' },
         { type: 'text', text: 'more', marks: [{ type: 'italic' }] },
+      ],
+    });
+  });
+
+  it('loads what the v1 page shows, no more', () => {
+    // The v1 page draws a link inside bold as bold text, and `- ` or `# `
+    // lines as text, so the first edit must not change how they look.
+    expect(markdownToRich('**[x](https://a.b)**\n- item\n# not a heading')).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: '[x](https://a.b)', marks: [{ type: 'bold' }] },
+            { type: 'hardBreak' },
+            { type: 'text', text: '- item' },
+            { type: 'hardBreak' },
+            { type: 'text', text: '# not a heading' },
+          ],
+        },
       ],
     });
   });

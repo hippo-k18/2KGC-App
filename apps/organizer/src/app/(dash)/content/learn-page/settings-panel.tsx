@@ -199,6 +199,7 @@ function HeadingSettings({ block, upd }: { block: BlockOf<'heading'> } & Ctx) {
       <RichField
         label="Text"
         rows={2}
+        singleLine
         value={block.text}
         onChange={(text) => upd({ text })}
         hint="Tip: click the heading in the preview to edit it in place."

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LearnBlock, LearnPageContent, LearnSection, RichDoc } from '@kgc/shared';
+import { LEARN_COLORS, type LearnBlock, type LearnPageContent, type LearnSection, type RichDoc } from '@kgc/shared';
 import {
   BLOCK_CATEGORIES,
   BLOCK_KINDS,
@@ -23,8 +23,11 @@ import {
   anchorProblem,
   blockRange,
   blocksInPageOrder,
+  BRAND_COLORS,
   contrastRatio,
+  expandForPreview,
   findInPage,
+  sectionBgHex,
   imageUsage,
   isVagueLinkText,
   outlineMatches,
@@ -444,5 +447,57 @@ describe('selection, outline, status, usage', () => {
     p.sections[1].backgroundImage = IMG;
     p.sections[0].blocks.push({ id: 'g', kind: 'gallery', layout: 'grid', columns: 3, lightbox: true, images: [{ ...IMG, id: 'x' }] });
     expect(imageUsage(p, IMG.src, 'Draft: ')).toEqual(['Draft: Page share image', 'Draft: S1 › Gallery: 1 photo', 'Draft: S2 › background']);
+  });
+});
+
+describe('saved sections in the preview', () => {
+  const text = (id: string, t: string): LearnBlock => ({ id, kind: 'text', text: t, size: 'normal' }) as LearnBlock;
+  const linked = (id: string, libraryId: string, extra: Partial<LearnBlock> = {}): LearnBlock =>
+    ({ id, kind: 'reusable', libraryId, ...extra }) as LearnBlock;
+  const library = new Map([['lib1', section('saved', [text('t1', 'Saved one'), text('t2', 'Saved two')], { background: 'blue' })]]);
+  const draft = (blocks: LearnBlock[]): LearnPageContent => ({ seoTitle: 'T', seoDescription: '', sections: [section('a', [text('x', 'Own')]), section('b', blocks)] });
+
+  it('expands a linked section and names each copy\'s host', () => {
+    const { content, hosts } = expandForPreview(draft([linked('r1', 'lib1')]), library);
+    expect(content.sections[1].blocks.map((b) => b.id)).toEqual(['r1--t1', 'r1--t2']);
+    // A section holding only the linked block takes the saved section's look, and keeps its own id.
+    expect(content.sections[1]).toMatchObject({ id: 'b', background: 'blue' });
+    expect([...hosts]).toEqual([
+      ['r1--t1', 'r1'],
+      ['r1--t2', 'r1'],
+    ]);
+  });
+
+  it('leaves sections without linked blocks as the same objects', () => {
+    const d = draft([linked('r1', 'lib1')]);
+    expect(expandForPreview(d, library).content.sections[0]).toBe(d.sections[0]);
+    const plain = draft([text('y', 'No link')]);
+    expect(expandForPreview(plain, library).content).toBe(plain);
+  });
+
+  it('keeps the placeholder while loading, for a missing saved section and for a hidden link', () => {
+    const d = draft([linked('r1', 'lib1')]);
+    expect(expandForPreview(d, null).content).toBe(d);
+    expect(expandForPreview(draft([linked('r1', 'gone')]), library).content.sections[1].blocks.map((b) => b.id)).toEqual(['r1']);
+    const hidden = draft([text('y', 'Own'), linked('r1', 'lib1', { hidden: true })]);
+    expect(expandForPreview(hidden, library).content.sections[1].blocks.map((b) => b.id)).toEqual(['y', 'r1']);
+  });
+});
+
+describe('brand colours', () => {
+  const text = (id: string, t: string): LearnBlock => ({ id, kind: 'text', text: t, size: 'normal' }) as LearnBlock;
+
+  it('are the website tokens', () => {
+    for (const [name, { hex }] of Object.entries(BRAND_COLORS)) expect(hex).toBe(LEARN_COLORS[name as keyof typeof LEARN_COLORS]);
+  });
+
+  it('still warn about light text on a light band', () => {
+    const issues = accessibilityIssues({
+      seoTitle: 'T',
+      seoDescription: '',
+      sections: [section('a', [{ ...text('x', 'Pale'), textColor: 'grey' } as LearnBlock], { background: 'grey-wave' })],
+    });
+    expect(issues.map((i) => i.rule)).toContain('contrast');
+    expect(sectionBgHex(section('a', [], { backgroundImage: IMG, overlay: 0.3 }))).toBe(LEARN_COLORS.dark);
   });
 });

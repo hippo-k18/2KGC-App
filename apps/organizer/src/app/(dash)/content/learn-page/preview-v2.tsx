@@ -1,21 +1,31 @@
 'use client';
 
-import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
-import type { LearnBlock, LearnPageContent } from '@kgc/shared';
+import { createContext, useContext, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { parseLearnSection, tocEntries, type LearnBlock, type LearnPageContent } from '@kgc/shared';
 import { EMBED_PROVIDERS, embedSrc, type BlockOf } from '@/lib/learn-editor-core';
 import { pageAnchors } from '@/lib/learn-tools-core';
+import { isV2Block, LearnV2Block, type BlockCtx, type V2Block } from './preview-blocks';
 import { ButtonRow, Picture, TextLink } from './preview-parts';
 import { RichBlocks, RichLine } from './preview-rich';
 
 /**
- * The 14 v2 block kinds in the editor preview (T318).
+ * The 14 v2 block kinds in the editor preview.
  *
- * ── Interim ──────────────────────────────────────────────────────────────────
- * T319 builds pixel twins of the website's v2 blocks in `preview-blocks/`.
- * These are close enough to edit against, laid out with the same `lp-` rules
- * as v1, and keyed by kind in `V2_BODIES` so integration replaces one entry at
- * a time: `V2_BODIES.gallery = (p) => <T319Gallery block={p.block} ... />`.
- * The shell around them (selection, tags, hidden state, columns) stays here.
+ * A finished block is drawn by T319's twin of the website's renderer
+ * (`preview-blocks/`), so the preview is the page. The twins assume content
+ * that `parseLearnPageContent` has already made safe, as it is on the
+ * website, but the preview draws the raw draft and old versions (T320). So
+ * each block goes through the same parser first (`parseLearnSection`), and
+ * the twin draws what comes out. A block the parser drops is one the website
+ * would not show (a gallery with no photos, an embed with a link we do not
+ * allow, a countdown with no date): the editor still has to show it, so the
+ * bodies in `V2_BODIES` (T318) draw it with a hint instead.
+ *
+ * The shell around every block (`BlockView` in `preview.tsx`) already applies
+ * spacing, maximum width, the box, the text colour, the anchor and the
+ * screens it shows on, and dims rather than hides a block meant for another
+ * width. Those options are taken off the twin's copy so they are not applied
+ * twice.
  */
 
 export interface V2BodyProps<K extends LearnBlock['kind']> {
@@ -30,6 +40,13 @@ export interface V2BodyProps<K extends LearnBlock['kind']> {
  * every memoised block on the page.
  */
 export const PreviewContentContext = createContext<LearnPageContent | null>(null);
+
+/**
+ * The twins' render context (`makeBlockCtx`). The preview keeps one object
+ * while the heading ids stay the same, so typing does not re-render every
+ * block that reads it.
+ */
+export const PreviewBlockCtxContext = createContext<BlockCtx | null>(null);
 
 type Bodies = { [K in LearnBlock['kind']]?: (p: V2BodyProps<K>) => ReactNode };
 
@@ -180,6 +197,7 @@ function Toc({ block }: V2BodyProps<'toc'>) {
   );
 }
 
+/** How the editor draws a v2 block the website would not show yet, kind by kind. */
 export const V2_BODIES: Bodies = {
   imageText: ({ block, siteOrigin }) => (
     <div className={`lp-v2-imagetext is-${block.imageSide} is-${block.imageWidth}`}>
@@ -290,8 +308,43 @@ export const V2_BODIES: Bodies = {
   ),
 };
 
+/** The block as the website would draw it, without the options the shell applies; null when the site would not draw it. */
+function twinOf(block: LearnBlock): V2Block | null {
+  // `hidden` is the shell's business too: a hidden block is drawn, dimmed.
+  const parsed = parseLearnSection({ id: 'preview', blocks: [{ ...block, hidden: false }] })?.blocks[0];
+  if (!parsed || parsed.kind !== block.kind || !isV2Block(parsed)) return null;
+  const twin: V2Block = { ...parsed };
+  delete twin.spaceAbove;
+  delete twin.spaceBelow;
+  delete twin.maxWidth;
+  delete twin.boxed;
+  delete twin.textColor;
+  delete twin.anchor;
+  delete twin.visibleOn;
+  return twin;
+}
+
+function TocTwin({ block, ctx }: { block: Extract<V2Block, { kind: 'toc' }>; ctx: BlockCtx }) {
+  const content = useContext(PreviewContentContext);
+  if (!content || tocEntries(content, ctx.headingIds).length === 0) {
+    return <p className="lp-v2-muted">Contents: headings on the page are listed here.</p>;
+  }
+  return <LearnV2Block block={block} ctx={ctx} content={content} />;
+}
+
 /** The body of a v2 block, or null for a v1 kind. */
 export function V2Body(props: { block: LearnBlock; siteOrigin: string; selected: boolean }) {
+  const ctx = useContext(PreviewBlockCtxContext);
+  const twin = useMemo(() => (isV2Block(props.block) ? twinOf(props.block) : null), [props.block]);
+  if (twin && ctx) {
+    return (
+      // Tabs, photos, frames and folds answer clicks once the block is
+      // selected; before that a click anywhere on it selects it.
+      <div className="lp-twin" style={props.selected ? undefined : { pointerEvents: 'none' }}>
+        {twin.kind === 'toc' ? <TocTwin block={twin} ctx={ctx} /> : <LearnV2Block block={twin} ctx={ctx} />}
+      </div>
+    );
+  }
   const render = V2_BODIES[props.block.kind] as ((p: V2BodyProps<LearnBlock['kind']>) => ReactNode) | undefined;
   if (!render) return null;
   return <>{render(props as V2BodyProps<LearnBlock['kind']>)}</>;

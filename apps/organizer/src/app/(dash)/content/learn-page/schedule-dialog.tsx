@@ -59,13 +59,23 @@ function timeZoneLabel(): string {
 
 export function ScheduleDialog({
   scheduledAt,
+  baseRevision,
   onScheduled,
   onCancelled,
+  onConflict,
   onClose,
 }: {
   scheduledAt?: number | null;
+  /**
+   * The draft revision the editor last saved, read when Schedule is pressed:
+   * the server schedules only the draft the person is looking at, the same
+   * check a save makes.
+   */
+  baseRevision: () => number;
   onScheduled: (at: number) => void;
   onCancelled: () => void;
+  /** Someone else saved in the meantime; the shell offers to load their draft. */
+  onConflict?: () => void;
   onClose: () => void;
 }) {
   const dateId = useId();
@@ -89,13 +99,15 @@ export function ScheduleDialog({
     setBusy('schedule');
     setError(null);
     try {
-      const res = await scheduleLearnPublishAction(at);
+      const res = await scheduleLearnPublishAction(at, baseRevision());
       if (res.ok) {
         onScheduled(res.scheduledPublishAt);
         onClose();
         return;
       }
+      // A conflict's message says what happened and what to do; it is shown as sent.
       setError(res.error);
+      if (res.conflict) onConflict?.();
     } catch {
       setError(NETWORK_ERROR);
     }
@@ -202,8 +214,22 @@ export function ScheduleDialog({
   );
 }
 
-/** A slim line under the top bar while a publish is waiting. */
-export function ScheduledBanner({ at, onChange, onCancel }: { at: number; onChange: () => void; onCancel: () => void }) {
+/**
+ * A slim line under the top bar while a publish is waiting. `draftChanged`:
+ * the draft was saved again after the schedule was set, and the scheduled
+ * publish takes the draft as it is then, so the person should know.
+ */
+export function ScheduledBanner({
+  at,
+  draftChanged,
+  onChange,
+  onCancel,
+}: {
+  at: number;
+  draftChanged?: boolean;
+  onChange: () => void;
+  onCancel: () => void;
+}) {
   return (
     <div className="le-x-sched-banner" role="status">
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
@@ -211,6 +237,7 @@ export function ScheduledBanner({ at, onChange, onCancel }: { at: number; onChan
         <path d="M7 4v3.2l2 1.3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
       <span>Scheduled to go live {formatScheduled(at)}.</span>
+      {draftChanged && <span>The draft has changed since then, and the latest version is what goes live.</span>}
       <button type="button" className="le-x-banner-link" onClick={onChange}>
         Change
       </button>
@@ -218,6 +245,38 @@ export function ScheduledBanner({ at, onChange, onCancel }: { at: number; onChan
       <button type="button" className="le-x-banner-link" onClick={onCancel}>
         Cancel
       </button>
+    </div>
+  );
+}
+
+/**
+ * The last scheduled publish came due and did not run (an empty Image block, a
+ * saved section that no longer passes the checks). The server cleared the
+ * schedule so the timer stops trying; this says why nothing went live. Hiding
+ * it is only for this screen: the next schedule or publish clears it for good.
+ */
+export function ScheduleFailedBanner({
+  failure,
+  onReschedule,
+  onDismiss,
+}: {
+  failure: { at: number; message: string };
+  onReschedule: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="whova-banner warning le-banner" role="alert">
+      <div>
+        <strong>The publish scheduled for {formatScheduled(failure.at)} did not run.</strong> {failure.message}
+        <div className="le-banner-actions">
+          <button type="button" className="btn btn-default btn-sm" onClick={onReschedule}>
+            Schedule again
+          </button>
+          <button type="button" className="btn btn-default btn-sm" onClick={onDismiss}>
+            Dismiss
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

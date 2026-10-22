@@ -73,8 +73,17 @@ export function isDarkBackground(v: ColorValue | undefined): boolean {
 
 /** A section's own colours: dark when its colour is dark or it has a photo under an overlay. */
 export function sectionIsDark(section: Pick<LearnSection, "backgroundColor" | "backgroundImage" | "overlay">): boolean {
-  if (section.backgroundImage) return (section.overlay ?? 0) >= 0.3 || isDarkBackground(section.backgroundColor);
+  if (hasPhoto(section)) return (section.overlay ?? 0) >= 0.3 || isDarkBackground(section.backgroundColor);
   return isDarkBackground(section.backgroundColor);
+}
+
+/**
+ * A section photo with a file to show. A draft may hold one left empty
+ * (`src: ''`, "not chosen yet", T320), which draws as no photo.
+ */
+function hasPhoto(section: Pick<LearnSection, "backgroundImage">): boolean {
+  const src = section.backgroundImage?.src;
+  return typeof src === "string" && src.trim() !== "";
 }
 
 /* ── Anchors ──────────────────────────────────────────────────────────── */
@@ -288,7 +297,7 @@ export function sectionOptionClasses(s: SectionOptions): { classes: string[]; ba
   const c = learnColor(s.backgroundColor);
   if (c.token || c.hex) classes.push("lp-bgc");
   if (c.token) classes.push(`lp-bgc-${c.token}`);
-  if (s.backgroundImage) classes.push("lp-has-bgimg");
+  if (hasPhoto(s)) classes.push("lp-has-bgimg");
   if (sectionIsDark(s)) classes.push("lp-on-dark");
   if (s.layout && s.layout !== "single") classes.push("lp-has-layout");
   return { classes, band: c.hex };

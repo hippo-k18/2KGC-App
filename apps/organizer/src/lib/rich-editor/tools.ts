@@ -1,4 +1,4 @@
-import { isSafeHref, type ColorValue } from '@kgc/shared';
+import { isSafeHref, LEARN_COLORS, type ColorValue, type LearnColorToken } from '@kgc/shared';
 
 /**
  * The rich text editor's small pure helpers (T317): colours and contrast,
@@ -9,20 +9,24 @@ import { isSafeHref, type ColorValue } from '@kgc/shared';
 /* ── Colours ───────────────────────────────────────────────────────────── */
 
 /**
- * What each brand colour name looks like in the editor. The website's
- * stylesheet is the authority (`apps/web/src/app/globals.css`, palette 1 to 6);
- * these are the same values.
+ * What each brand colour name looks like in the editor: T319's tokens
+ * (`LEARN_COLORS` in `@kgc/shared`), the values the website's stylesheet
+ * paints, so a swatch, its contrast warning and the page agree.
  */
-export const BRAND_COLORS: { value: Exclude<ColorValue, `#${string}`>; label: string; hex: string }[] = [
-  { value: 'navy', label: 'Navy', hex: '#263759' },
-  { value: 'blue', label: 'Blue', hex: '#1159af' },
-  { value: 'light-blue', label: 'Light blue', hex: '#8dccee' },
-  { value: 'teal', label: 'Teal', hex: '#17556a' },
-  { value: 'orange', label: 'Orange', hex: '#f68621' },
-  { value: 'grey', label: 'Grey', hex: '#5f6b7a' },
-  { value: 'dark', label: 'Dark', hex: '#272338' },
-  { value: 'white', label: 'White', hex: '#ffffff' },
-];
+const COLOR_LABELS: Record<LearnColorToken, string> = {
+  navy: 'Navy',
+  blue: 'Blue',
+  'light-blue': 'Light blue',
+  teal: 'Teal',
+  orange: 'Orange',
+  grey: 'Grey',
+  dark: 'Dark',
+  white: 'White',
+};
+
+export const BRAND_COLORS: { value: Exclude<ColorValue, `#${string}`>; label: string; hex: string }[] = (
+  Object.keys(LEARN_COLORS) as LearnColorToken[]
+).map((value) => ({ value, label: COLOR_LABELS[value], hex: LEARN_COLORS[value] }));
 
 export function colorHex(c: ColorValue): string {
   return BRAND_COLORS.find((b) => b.value === c)?.hex ?? c;

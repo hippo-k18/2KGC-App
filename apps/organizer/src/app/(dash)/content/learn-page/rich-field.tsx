@@ -1,25 +1,15 @@
 'use client';
 
-import { useId, type ReactNode } from 'react';
-import type { RichContent, RichDoc, RichNode } from '@kgc/shared';
-import { richWordCount } from '@/lib/learn-rich';
+import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
+import type { RichContent, RichDoc } from '@kgc/shared';
+import { RichEditor, type RichAnchor } from '@/components/rich-editor';
+import { collapseToSingleParagraph, toRichDoc } from '@/lib/rich-editor/convert';
 import { useEditorServices } from './editor-context';
 
 /**
  * Every rich text field in the Learn editor's settings goes through here
- * (T318), so swapping in T317's `RichEditor` is one file.
- *
- * ── Stand-in ─────────────────────────────────────────────────────────────────
- * Until `apps/organizer/src/components/rich-editor` lands, this is a textarea
- * over the v1 Markdown subset (bold, italic, links, paragraphs). It takes the
- * props T317 published (`value`, `onChange`, `variant`, `anchors`,
- * `placeholder`, `maxWords`) so the swap is:
- *
- *   import { RichEditor } from '@/components/rich-editor';
- *   <RichEditor value={value} onChange={onChange} variant={variant} anchors={anchors} ... />
- *
- * A RichDoc that holds more than the subset shows as plain paragraphs here and
- * is only rewritten if the person types in the box, which the hint says.
+ * (T318), with T317's `RichEditor` inside, so the forms never deal with the
+ * editor's props themselves.
  */
 
 export interface RichFieldProps {
@@ -29,88 +19,62 @@ export interface RichFieldProps {
   variant?: 'inline' | 'full';
   placeholder?: string;
   maxWords?: number;
+  /** Roughly how many lines the box shows before it grows. */
   rows?: number;
   hint?: ReactNode;
+  /** One paragraph only (a heading's text): Enter makes a line break. */
+  singleLine?: boolean;
 }
 
-function inlineMd(nodes: RichNode[] | undefined): string {
-  return (nodes ?? [])
-    .map((n) => {
-      if (n.type === 'hardBreak') return '\n';
-      if (n.type !== 'text') return inlineMd('content' in n ? n.content : undefined);
-      let t = n.text;
-      const link = n.marks?.find((m) => m.type === 'link');
-      if (link && link.type === 'link') t = `[${t}](${link.href})`;
-      if (n.marks?.some((m) => m.type === 'italic')) t = `*${t}*`;
-      if (n.marks?.some((m) => m.type === 'bold')) t = `**${t}**`;
-      return t;
-    })
-    .join('');
+/** `value` as the editor holds it, so an edit can be told apart from a reload. */
+function asDoc(value: RichContent, singleLine: boolean): string {
+  const doc = toRichDoc(value);
+  return JSON.stringify(singleLine ? collapseToSingleParagraph(doc) : doc);
 }
 
-/** A RichDoc as the Markdown subset, block by block; anything richer is flattened. */
-export function richDocToMarkdown(doc: RichDoc): string {
-  const block = (n: RichNode): string => {
-    switch (n.type) {
-      case 'paragraph':
-      case 'heading':
-      case 'codeBlock':
-        return inlineMd(n.content);
-      case 'bulletList':
-      case 'orderedList':
-      case 'blockquote':
-      case 'table':
-      case 'tableRow':
-        return n.content.map(block).join('\n');
-      case 'listItem':
-      case 'tableCell':
-      case 'tableHeader':
-        return n.content.map(block).join(' ');
-      default:
-        return inlineMd([n]);
-    }
-  };
-  return doc.content.map(block).join('\n\n');
+/**
+ * The `onChange` to give a `RichEditor` over stored text. A v1 Markdown string
+ * stays a string until somebody changes the words: opening an old page must
+ * not leave it with unsaved changes. The editor only reports real
+ * transactions; this also compares with what is stored, in case a load ever
+ * normalises the document on its own.
+ */
+export function useRichChange(value: RichContent, singleLine: boolean, onChange: (doc: RichDoc) => void): (doc: RichDoc) => void {
+  const latest = useRef({ value, singleLine, onChange });
+  useEffect(() => {
+    latest.current = { value, singleLine, onChange };
+  });
+  return useCallback((doc: RichDoc) => {
+    const { value: current, singleLine: single, onChange: emit } = latest.current;
+    if (JSON.stringify(doc) === asDoc(current, single)) return;
+    emit(doc);
+  }, []);
 }
 
-const RICH_TYPES = new Set(['paragraph', 'text', 'hardBreak']);
-function onlySubset(doc: RichDoc): boolean {
-  const ok = (n: RichNode): boolean =>
-    RICH_TYPES.has(n.type) &&
-    (n.type !== 'text' || (n.marks ?? []).every((m) => m.type === 'bold' || m.type === 'italic' || m.type === 'link')) &&
-    (!('content' in n) || !n.content || n.content.every(ok));
-  return doc.content.every(ok);
+/** The page's anchors as the link dialog lists them. */
+export function useRichAnchors(): RichAnchor[] {
+  const services = useEditorServices();
+  return useMemo(() => (services?.anchors ?? []).map((a) => ({ id: a.anchor, label: a.label })), [services?.anchors]);
 }
 
-export function RichField({ label, value, onChange, placeholder, maxWords, rows = 4, hint }: RichFieldProps) {
-  const id = useId();
-  useEditorServices();
-  const text = typeof value === 'string' ? value : richDocToMarkdown(value);
-  const lossy = typeof value !== 'string' && !onlySubset(value);
-  const words = richWordCount(value);
+export function RichField({ label, value, onChange, variant = 'full', placeholder, maxWords, rows = 4, hint, singleLine = false }: RichFieldProps) {
+  const anchors = useRichAnchors();
+  const change = useRichChange(value, singleLine, onChange);
+
   return (
-    <div className="le-set-field">
-      <label className="le-set-label" htmlFor={id}>
-        {label}
-        {maxWords ? (
-          <span className={`le-set-count${words > maxWords ? ' over' : ''}`}>
-            {words} / {maxWords} words
-          </span>
-        ) : null}
-      </label>
-      <textarea
-        id={id}
-        className="whova-text-input le-set-input le-set-area"
-        rows={rows}
-        value={text}
+    <div className="le-set-field le-set-rich" style={{ ['--le-rich-rows' as string]: rows } as CSSProperties}>
+      <span className="le-set-label">{label}</span>
+      <RichEditor
+        value={value}
+        onChange={change}
+        variant={variant}
+        anchors={anchors}
         placeholder={placeholder}
-        spellCheck
-        onChange={(e) => onChange(e.target.value)}
+        maxWords={maxWords}
+        ariaLabel={label}
+        singleLine={singleLine}
       />
-      <p className="le-set-hint">
-        {hint ?? <>Use **bold**, *italic* and [link text](https://...). Leave a blank line to start a new paragraph.</>}
-        {lossy && <> This text has formatting this box cannot show; typing here keeps only bold, italic and links.</>}
-      </p>
+      {hint && <p className="le-set-hint">{hint}</p>}
     </div>
   );
 }

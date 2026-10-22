@@ -35,21 +35,3 @@ export {
 export type { LearnImageEdit, LearnImageOp } from '@/lib/learn-image-edit-core';
 export type { LearnEditorState, LearnVersionSummary } from '@/lib/learn-page';
 
-// v2 (T318). Stand-ins until T315 (media, library) and T316 (schedule,
-// preview link, image tools) land; swap these lines for their actions.
-export {
-  listLearnMediaAction,
-  updateLearnMediaAction,
-  deleteLearnMediaAction,
-  recordLearnMediaAction,
-  transformLearnImageAction,
-  listLearnLibraryAction,
-  saveLearnLibraryAction,
-  renameLearnLibraryAction,
-  deleteLearnLibraryAction,
-  scheduleLearnPublishAction,
-  cancelLearnScheduleAction,
-  createLearnPreviewLinkAction,
-  revokeLearnPreviewLinkAction,
-} from './standin-actions';
-export type { MediaRow, LibraryRow } from './standin-actions';

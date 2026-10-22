@@ -3,7 +3,10 @@ import 'server-only';
 import { randomBytes } from 'node:crypto';
 import { COLLECTIONS, LEARN_PAGE_DOC, type LearnPageDoc } from '@kgc/shared';
 import { appendAudit } from './audit';
+import { recordError } from './errors';
 import { db } from './firestore';
+// One way only: `learn-page.ts` must not import this file, or the two would form a cycle.
+import { learnValidateOptions, loadLearnLibrarySections } from './learn-page';
 import { versionsToPrune } from './learn-page-core';
 import {
   LEARN_PREVIEW_TOKEN_BYTES,
@@ -62,28 +65,54 @@ export interface ScheduledRunResult {
   /** Who scheduled it, for the audit entry. */
   scheduledBy?: string;
   revision?: number;
+  /** The schedule came due but the draft could not be published; the schedule was cleared. */
+  failed?: boolean;
+  /** What the editor shows (`scheduleFailure.message`). */
+  message?: string;
+  problems?: string[];
 }
 
 /**
- * The timer's step: publish the draft when its scheduled time has come.
+ * The timer's step: publish the draft when its scheduled time has come, with
+ * the checks a press of Publish makes (`planScheduledPublish`).
  *
  * The check and the publish are one transaction, and the publish clears the
- * schedule, so overlapping or repeated runs publish once.
+ * schedule, so overlapping or repeated runs publish once. A draft that cannot
+ * be published clears the schedule too and records why on the doc, so the
+ * next tick finds nothing due instead of failing again every minute.
  */
 export async function runScheduledLearnPublish(now: number = Date.now()): Promise<ScheduledRunResult> {
   const versionRef = versionsRef().doc();
   const result = await db().runTransaction(async (tx): Promise<ScheduledRunResult> => {
     const snap = await tx.get(docRef());
     const stored = read(snap);
-    const plan = planScheduledPublish(stored, now);
+    // Cheap test first: the timer runs every minute and is almost never due,
+    // so the saved sections are read only when there is something to publish.
+    if (!stored || typeof stored.scheduledPublishAt !== 'number' || stored.scheduledPublishAt > now) {
+      return { published: false };
+    }
+    // Every read before the first write, as a Firestore transaction requires.
+    const library = await loadLearnLibrarySections(tx);
+    const plan = planScheduledPublish(stored, now, library, learnValidateOptions());
     if (!plan) return { published: false };
     tx.set(docRef(), plan.doc);
+    if (!plan.ok) {
+      return {
+        published: false,
+        failed: true,
+        message: plan.message,
+        problems: plan.problems,
+        draftChanged: plan.draftChanged,
+        scheduledBy: stored.scheduledBy,
+        revision: plan.doc.revision,
+      };
+    }
     tx.set(versionRef, plan.version);
     return {
       published: true,
       versionId: versionRef.id,
       draftChanged: plan.draftChanged,
-      scheduledBy: stored?.scheduledBy,
+      scheduledBy: stored.scheduledBy,
       revision: plan.doc.revision,
     };
   });
@@ -138,6 +167,23 @@ export async function runLearnPageCronStep(now: number = Date.now()): Promise<Sc
         revision: result.revision ?? null,
         versionId: result.versionId ?? null,
         scheduledBy: result.scheduledBy ?? null,
+        draftChanged: result.draftChanged ?? false,
+      },
+    });
+  } else if (result.failed) {
+    // Nobody is watching when the timer fires, so the dashboard's error log
+    // and the audit log are where "why did the page not go live" is answered.
+    recordError('learn page scheduled publish did not run', new Error(result.message ?? 'The draft could not be published.'));
+    await appendAudit({
+      actor: 'system:schedule',
+      action: 'learnPage.scheduledPublishFailed',
+      targetPath: LEARN_PAGE_DOC,
+      subject: 'KGC | Learn page',
+      targetId: 'learn',
+      before: { scheduledBy: result.scheduledBy ?? null },
+      after: {
+        revision: result.revision ?? null,
+        problems: (result.problems ?? []).slice(0, 20),
         draftChanged: result.draftChanged ?? false,
       },
     });

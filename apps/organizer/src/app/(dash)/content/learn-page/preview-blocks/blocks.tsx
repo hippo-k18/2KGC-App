@@ -5,6 +5,7 @@ import {
   EMBED_SANDBOX,
   learnEmbedSrc,
   focalPosition,
+  hasLearnImage,
   tocEntries,
   type LearnBlock,
   type LearnPageContent,
@@ -115,9 +116,9 @@ export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: Blo
           <blockquote>
             <RichBlocks value={block.text} />
           </blockquote>
-          {(block.name || block.photo) && (
+          {(block.name || hasLearnImage(block.photo)) && (
             <figcaption>
-              {block.photo && <Picture image={block.photo} ctx={ctx} alt={block.photo.alt || block.name || ''} className="lp-quote-photo" sizes="64px" />}
+              {hasLearnImage(block.photo) && <Picture image={block.photo} ctx={ctx} alt={block.photo.alt || block.name || ''} className="lp-quote-photo" sizes="64px" />}
               <span>
                 {block.name && <span className="lp-quote-name">{block.name}</span>}
                 {block.role && <span className="lp-quote-role">{block.role}</span>}
@@ -194,7 +195,7 @@ export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: Blo
         <ul {...blockAttrs(block, `lp-cols-${block.columns}`)}>
           {block.items.map((it) => (
             <li key={it.id} className="lp-card">
-              {it.image && <Picture image={it.image} ctx={ctx} className="lp-card-image" sizes="(width < 860px) 100vw, 33vw" />}
+              {hasLearnImage(it.image) && <Picture image={it.image} ctx={ctx} className="lp-card-image" sizes="(width < 860px) 100vw, 33vw" />}
               <div className="lp-card-body">
                 {it.badge && <span className="lp-card-badge">{it.badge}</span>}
                 <h3>{it.title}</h3>

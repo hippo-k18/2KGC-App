@@ -94,6 +94,13 @@ describe("raw HTML", () => {
 });
 
 describe("isSafeHref", () => {
+  it("refuses a tab, CR or LF hidden between the slashes, which the browser strips (T321)", () => {
+    for (const href of ["/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "\\\t\\evil.example", "/\t\n/evil.example"]) {
+      expect(isSafeHref(href)).toBe(false);
+    }
+    expect(isSafeHref("/agenda\tx")).toBe(true);
+  });
+
   it("allows the four schemes and relative targets, and nothing else", () => {
     expect(isSafeHref("https://example.com")).toBe(true);
     expect(isSafeHref("http://example.com")).toBe(true);

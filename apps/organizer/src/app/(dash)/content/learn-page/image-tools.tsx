@@ -11,7 +11,6 @@ import {
   type MouseEvent,
 } from 'react';
 import type { PageImage } from '@kgc/shared';
-import { recordLearnMediaAction } from './api';
 import { useEditorServices } from './editor-context';
 import { resolveSrc, type UploadImage } from './editor-types';
 
@@ -177,10 +176,6 @@ export function ImageTools({
         }
         if (dims.width && dims.height) uploaded = { ...uploaded, ...dims };
       }
-      // Stand-in: until T315's upload writes the media row itself, a picture
-      // uploaded here is added to the library too. The library's own uploads
-      // record their row, so this is the only other place. Remove at integration.
-      if (services) void recordLearnMediaAction(uploaded, file.name, prepared.file.size).catch(() => undefined);
       // Replacing keeps the description; the old focal point belonged to the old picture.
       const old = latest.current;
       const next: PageImage = { ...uploaded };

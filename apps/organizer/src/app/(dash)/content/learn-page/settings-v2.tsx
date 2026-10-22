@@ -29,6 +29,7 @@ import {
   sectionBgHex,
   slugifyAnchor,
 } from '@/lib/learn-tools-core';
+import { listLearnLibraryAction, type LearnLibraryRow } from './api';
 import { useEditorServices } from './editor-context';
 import { resolveSrc, type UploadImage } from './editor-types';
 import { ImageTools } from './image-tools';
@@ -1200,19 +1201,105 @@ function TocSettings({ block, upd }: { block: BlockOf<'toc'>; upd: Upd }) {
   );
 }
 
-function ReusableSettings({ block }: { block: BlockOf<'reusable'> }) {
-  const id = useId();
+/**
+ * Which saved section a linked block shows, and a picker to change it. The
+ * library is read when the form opens, so a section saved in another tab
+ * shows up without reloading the editor.
+ */
+function ReusableSettings({ block, upd }: { block: BlockOf<'reusable'>; upd: Upd }) {
+  const listId = useId();
+  const [rows, setRows] = useState<LearnLibraryRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [choosing, setChoosing] = useState(!block.libraryId);
+
+  useEffect(() => {
+    let live = true;
+    listLearnLibraryAction()
+      .then((res) => {
+        if (!live) return;
+        if (res.ok) {
+          setRows(res.items);
+          setError(null);
+        } else setError(res.error);
+      })
+      .catch(() => live && setError('Could not load the saved sections. Check your connection and try again.'));
+    return () => {
+      live = false;
+    };
+  }, [reload]);
+
+  const current = rows?.find((r) => r.id === block.libraryId);
+
+  let now: ReactNode;
+  if (!block.libraryId) now = 'No saved section chosen yet.';
+  else if (!rows) now = error ? 'A saved section is chosen.' : 'Loading...';
+  else if (current) now = <>Shows <strong>{current.name}</strong>.</>;
+  else now = 'The saved section this block showed is no longer in the library, so nothing shows here. Choose another one.';
+
   return (
     <Group title="Saved section">
       <p className="le-set-hint le-v2-lead">
         Shows a saved section from your library. Change it in the library and every copy updates.
       </p>
       <div className="le-set-field">
-        <label className="le-set-label" htmlFor={id}>
-          Saved section id
-        </label>
-        <input id={id} className="whova-text-input le-set-input" value={block.libraryId || 'None chosen yet'} readOnly />
+        <p className="le-v2-lib-now">{now}</p>
+        {!choosing && (
+          <button type="button" className="btn btn-default btn-sm" onClick={() => setChoosing(true)}>
+            Choose a different saved section
+          </button>
+        )}
       </div>
+
+      {choosing && (
+        <div className="le-set-field">
+          <p className="le-set-label" id={listId}>
+            Choose a saved section
+          </p>
+          {error ? (
+            <div className="le-v2-lib-error" role="alert">
+              <p>{error}</p>
+              <button type="button" className="btn btn-default btn-sm" onClick={() => setReload((n) => n + 1)}>
+                Try again
+              </button>
+            </div>
+          ) : !rows ? (
+            <p className="le-set-hint" role="status">
+              Loading saved sections...
+            </p>
+          ) : rows.length === 0 ? (
+            <p className="le-set-hint">
+              No saved sections yet. To save one, select a section and choose Save to library in its settings.
+            </p>
+          ) : (
+            <ul className="le-v2-lib-list" aria-labelledby={listId}>
+              {rows.map((r) => (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    className={`le-v2-lib-choice${r.id === block.libraryId ? ' is-current' : ''}`}
+                    aria-pressed={r.id === block.libraryId}
+                    onClick={() => {
+                      if (r.id !== block.libraryId) upd({ libraryId: r.id });
+                      setChoosing(false);
+                    }}
+                  >
+                    <span className="le-v2-lib-name">{r.name}</span>
+                    <span className="le-v2-lib-meta">
+                      {r.section.blocks.length === 1 ? '1 block' : `${r.section.blocks.length} blocks`}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {block.libraryId && (
+            <button type="button" className="le-set-link le-v2-clear" onClick={() => setChoosing(false)}>
+              Keep the current one
+            </button>
+          )}
+        </div>
+      )}
     </Group>
   );
 }
@@ -1246,7 +1333,7 @@ export function V2BlockSettings({ block, upd }: { block: LearnBlock; upd: (p: Bl
     case 'toc':
       return <TocSettings block={block} upd={upd} />;
     case 'reusable':
-      return <ReusableSettings block={block} />;
+      return <ReusableSettings block={block} upd={upd} />;
     default:
       return null;
   }

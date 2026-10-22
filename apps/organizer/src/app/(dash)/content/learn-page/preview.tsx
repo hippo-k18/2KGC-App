@@ -3,6 +3,7 @@
 import {
   memo,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -13,7 +14,8 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
-import type { LearnBlock, LearnSection, Person } from '@kgc/shared';
+import { headingIds, isRichDoc, type LearnBlock, type LearnSection, type Person, type RichContent } from '@kgc/shared';
+import { RichEditor } from '@/components/rich-editor';
 import {
   blockColumnOf,
   BLOCK_KINDS,
@@ -29,12 +31,15 @@ import {
   type EditAction,
   type Selection,
 } from '@/lib/learn-editor-core';
-import { colorHex } from '@/lib/learn-tools-core';
+import { colorHex, expandForPreview } from '@/lib/learn-tools-core';
 import { resolveSrc, type Device, type PaneProps } from './editor-types';
+// Before the preview's own CSS: the twins' rules load first, so on a tie the
+// editor's shell rules win.
+import { makeBlockCtx, previewFontClass } from './preview-blocks';
 import { ButtonRow, Picture, TextLink } from './preview-parts';
 import { RichBlocks, RichLine } from './preview-rich';
-import { PreviewContentContext, V2Body } from './preview-v2';
-import { RichInlineEditor } from './rich-inline-editor';
+import { PreviewBlockCtxContext, PreviewContentContext, V2Body } from './preview-v2';
+import { useRichAnchors, useRichChange } from './rich-field';
 import './preview.css';
 import './preview-v2.css';
 
@@ -277,6 +282,74 @@ function offscreen(visibleOn: 'all' | 'desktop' | 'mobile' | undefined, device: 
   return visibleOn === 'mobile' ? device !== 'phone' : device === 'phone';
 }
 
+// ─── In-place text ──────────────────────────────────────────────────────────
+
+/**
+ * T317's editor in place over a heading or text block. A v1 Markdown string
+ * is shown as it is and becomes a RichDoc on its first real edit
+ * (`useRichChange`). The block's own type is kept: the editor inherits it.
+ */
+function InPlaceText({
+  value,
+  singleLine,
+  ariaLabel,
+  onChange,
+  onExit,
+  autoFocus,
+}: {
+  value: RichContent;
+  singleLine: boolean;
+  ariaLabel: string;
+  onChange: (text: RichContent) => void;
+  onExit: () => void;
+  autoFocus: boolean;
+}) {
+  const anchors = useRichAnchors();
+  const change = useRichChange(value, singleLine, onChange);
+  return (
+    <RichEditor
+      value={value}
+      onChange={change}
+      variant="inline"
+      singleLine={singleLine}
+      anchors={anchors}
+      ariaLabel={ariaLabel}
+      placeholder={singleLine ? 'Heading' : 'Text'}
+      onExit={onExit}
+      autoFocus={autoFocus}
+    />
+  );
+}
+
+const LEVEL_OPTIONS = [
+  [1, 'H1'],
+  [2, 'H2'],
+  [3, 'H3'],
+  [4, 'H4'],
+] as const;
+
+/** The heading level, above a heading while it is edited in place. */
+function LevelControl({ level, onLevel }: { level: 1 | 2 | 3 | 4; onLevel: (level: 1 | 2 | 3 | 4) => void }) {
+  return (
+    <div className="lp-toolbar" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <div className="lp-toolbar-row" role="toolbar" aria-label="Heading">
+        <select
+          className="lp-tb-select"
+          aria-label="Heading level"
+          value={level}
+          onChange={(e) => onLevel(Number(e.target.value) as 1 | 2 | 3 | 4)}
+        >
+          {LEVEL_OPTIONS.map(([v, label]) => (
+            <option key={v} value={v}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 // ─── Block shell ────────────────────────────────────────────────────────────
 
 interface BlockViewProps {
@@ -292,6 +365,12 @@ interface BlockViewProps {
   onEdit: EditFn;
   onBlockClick: BlockClickFn;
   wasLocal: (blockId: string) => boolean;
+  /**
+   * For a block drawn from a saved section: the id of the `reusable` block in
+   * the draft that it stands in for. Clicks select that block, and the text
+   * is edited in the library, not here.
+   */
+  hostId?: string;
 }
 
 const BlockView = memo(function BlockView({
@@ -306,20 +385,27 @@ const BlockView = memo(function BlockView({
   onEdit,
   onBlockClick,
   wasLocal,
+  hostId,
 }: BlockViewProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const label = kindLabel(block.kind);
-  // In place editing covers the v1 Markdown text; a RichDoc is edited in the
-  // panel until T317's inline RichEditor is wired here.
-  const editing = selected && (block.kind === 'heading' || block.kind === 'text') && typeof block.text === 'string';
+  const label = hostId ? 'Saved section' : kindLabel(block.kind);
+  /** The draft block a click selects. */
+  const target = hostId ?? block.id;
+  // Headings and text are edited in place, v1 Markdown and RichDoc alike;
+  // a copy from a saved section is not (it is not in the draft).
+  const editing =
+    selected &&
+    !hostId &&
+    (block.kind === 'heading' || block.kind === 'text') &&
+    (typeof block.text === 'string' || isRichDoc(block.text));
 
   const select = () => {
-    if (!selected) onSelect({ kind: 'block', sectionId, blockId: block.id });
+    if (!selected) onSelect({ kind: 'block', sectionId, blockId: target });
   };
 
   const onClick = (e: MouseEvent) => {
     e.stopPropagation();
-    if ((e.shiftKey || e.metaKey || e.ctrlKey) && onBlockClick(sectionId, block.id, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey })) return;
+    if ((e.shiftKey || e.metaKey || e.ctrlKey) && onBlockClick(sectionId, target, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey })) return;
     select();
   };
 
@@ -343,7 +429,7 @@ const BlockView = memo(function BlockView({
   const shouldFocus = useCallback(() => wasLocal(block.id), [wasLocal, block.id]);
 
   const onText = useCallback(
-    (text: string) => onEdit({ type: 'updateBlock', sectionId, blockId: block.id, patch: { text } }),
+    (text: RichContent) => onEdit({ type: 'updateBlock', sectionId, blockId: block.id, patch: { text } }),
     [onEdit, sectionId, block.id],
   );
 
@@ -354,33 +440,17 @@ const BlockView = memo(function BlockView({
 
   let body: ReactNode;
   if (editing && block.kind === 'heading') {
+    const level = previewPick(block.level, LEVELS, 2);
     body = (
-      <div className={`lp-heading lp-h-${previewPick(block.size, TEXT_SIZES, HEADING_DEFAULT_SIZE[previewPick(block.level, LEVELS, 2)])} lp-editing`}>
-        <RichInlineEditor
-          text={block.text as string}
-          single
-          ariaLabel="Heading text"
-          onChange={onText}
-          onExit={exit}
-          shouldFocus={shouldFocus}
-          level={block.level === 4 ? 3 : block.level}
-          onLevel={onLevel}
-          fallback={<RichLine value={block.text} />}
-        />
+      <div className={`lp-heading lp-h-${previewPick(block.size, TEXT_SIZES, HEADING_DEFAULT_SIZE[level])} lp-editing`}>
+        <LevelControl level={level} onLevel={onLevel} />
+        <InPlaceText value={block.text} singleLine ariaLabel="Heading text" onChange={onText} onExit={exit} autoFocus={shouldFocus()} />
       </div>
     );
   } else if (editing && block.kind === 'text') {
     body = (
       <div className={`lp-text lp-t-${previewPick((block as BlockOf<'text'>).size, TEXT_SIZES, 'normal')} lp-editing`}>
-        <RichInlineEditor
-          text={block.text as string}
-          single={false}
-          ariaLabel="Text"
-          onChange={onText}
-          onExit={exit}
-          shouldFocus={shouldFocus}
-          fallback={<RichBlocks value={block.text} />}
-        />
+        <InPlaceText value={block.text} singleLine={false} ariaLabel="Text" onChange={onText} onExit={exit} autoFocus={shouldFocus()} />
       </div>
     );
   } else {
@@ -400,14 +470,21 @@ const BlockView = memo(function BlockView({
     .join(' ');
   const color = colorHex(block.textColor);
   const away = offscreen(block.visibleOn, device);
+  // A heading is a contents target under the id the website gives it, so a
+  // contents link in the preview jumps to it as on the site.
+  const blockCtx = useContext(PreviewBlockCtxContext);
+  const anchorId = block.anchor ?? (block.kind === 'heading' ? blockCtx?.headingIds.get(block.id) : undefined);
 
   return (
     <div
       ref={ref}
       className={classes}
-      id={block.anchor ? `lp-anchor-${block.anchor}` : undefined}
-      data-lp-block={block.id}
+      id={anchorId ? `lp-anchor-${anchorId}` : undefined}
+      // A copy from a saved section answers to its host, so "scroll to the
+      // selection" finds it when the host block is chosen in the outline.
+      data-lp-block={target}
       data-block-id={block.id}
+      data-lp-saved={hostId ? true : undefined}
       data-selected={selected || undefined}
       data-multi={multi || undefined}
       data-hidden={block.hidden || undefined}
@@ -416,11 +493,16 @@ const BlockView = memo(function BlockView({
       tabIndex={0}
       role="button"
       aria-pressed={selected || multi}
-      aria-label={`${blockSummary(block)}${block.hidden ? ' (hidden)' : ''}${away ? ` (${VISIBLE_TAG[block.visibleOn as 'desktop' | 'mobile'].toLowerCase()})` : ''}${warning ? ` (warning: ${warning})` : ''}, select to edit`}
+      aria-label={`${hostId ? 'From a saved section: ' : ''}${blockSummary(block)}${block.hidden ? ' (hidden)' : ''}${away ? ` (${VISIBLE_TAG[block.visibleOn as 'desktop' | 'mobile'].toLowerCase()})` : ''}${warning ? ` (warning: ${warning})` : ''}, select to edit`}
       onClick={onClick}
       onKeyDown={onKeyDown}
     >
-      {selected && (
+      {selected && hostId && (
+        <span className="lp-tag lp-tag-block" aria-hidden="true">
+          {label}
+        </span>
+      )}
+      {selected && !hostId && (
         <span
           className="lp-tag lp-tag-block lp-tag-drag"
           draggable
@@ -463,7 +545,12 @@ const BlockView = memo(function BlockView({
 // ─── Section ────────────────────────────────────────────────────────────────
 
 interface SectionViewProps {
+  /** The section as drawn, its saved sections expanded. */
   section: LearnSection;
+  /** The same section in the draft, which moves and drops are worked out against. */
+  source: LearnSection;
+  /** Expanded block id to the `reusable` block it came from. */
+  hosts: ReadonlyMap<string, string>;
   selected: boolean;
   selectedBlockId: string | null;
   /** Ids of this section's blocks in a multiple selection, joined with spaces (a string, so memo compares it). */
@@ -509,6 +596,8 @@ function dropAction(
 
 const SectionView = memo(function SectionView({
   section,
+  source,
+  hosts,
   selected,
   selectedBlockId,
   multiKey,
@@ -544,29 +633,36 @@ const SectionView = memo(function SectionView({
       e.preventDefault();
       e.stopPropagation();
       setDropAt(null);
-      const action = dropAction(section, data, column, beforeId);
+      const action = dropAction(source, data, column, beforeId);
       if (action) onEdit(action);
     },
   });
 
-  const block = (b: LearnBlock, column: number) => (
-    <div key={b.id} className="lp-drop-slot" {...dragHandlers(column, b.id)}>
-      {dropAt?.column === column && dropAt.beforeId === b.id && <div className="lp-drop-line" aria-hidden="true" />}
-      <BlockView
-        block={b}
-        sectionId={section.id}
-        selected={selectedBlockId === b.id}
-        multi={multi.has(b.id)}
-        warning={warnings?.[b.id]}
-        siteOrigin={siteOrigin}
-        device={device}
-        onSelect={onSelect}
-        onEdit={onEdit}
-        onBlockClick={onBlockClick}
-        wasLocal={wasLocal}
-      />
-    </div>
-  );
+  const block = (b: LearnBlock, column: number) => {
+    // A copy from a saved section is not in the draft, so nothing can be
+    // dropped in front of it; it is selected, and warned about, as its host.
+    const host = hosts.get(b.id);
+    const id = host ?? b.id;
+    return (
+      <div key={b.id} className="lp-drop-slot" {...(host ? {} : dragHandlers(column, b.id))}>
+        {!host && dropAt?.column === column && dropAt.beforeId === b.id && <div className="lp-drop-line" aria-hidden="true" />}
+        <BlockView
+          block={b}
+          sectionId={section.id}
+          selected={selectedBlockId === id}
+          multi={multi.has(id)}
+          warning={warnings?.[id]}
+          siteOrigin={siteOrigin}
+          device={device}
+          onSelect={onSelect}
+          onEdit={onEdit}
+          onBlockClick={onBlockClick}
+          wasLocal={wasLocal}
+          hostId={host}
+        />
+      </div>
+    );
+  };
 
   const zoneEnd = (column: number) => (
     <div className="lp-drop-end" {...dragHandlers(column, null)}>
@@ -698,11 +794,32 @@ export interface LearnPreviewProps extends PaneProps {
   /** Blocks in a multiple selection (outline or Shift and Cmd clicks here). */
   multi?: ReadonlySet<string>;
   onBlockClick?: BlockClickFn;
+  /**
+   * Saved sections by id (`listLearnLibraryAction`), to draw `reusable`
+   * blocks as Publish will expand them. Null while it loads.
+   */
+  library?: ReadonlyMap<string, LearnSection> | null;
 }
 
 export function LearnPreview(props: LearnPreviewProps) {
-  const { content, selection, warnings, siteOrigin, device, multi } = props;
+  const { content: draft, selection, warnings, siteOrigin, device, multi, library } = props;
   const rootRef = useRef<HTMLDivElement>(null);
+
+  const { content, hosts: freshHosts } = useMemo(() => expandForPreview(draft, library), [draft, library]);
+  // The same map while the same blocks are expanded, so the memoised
+  // sections are not all drawn again on every keystroke.
+  const hostsKey = JSON.stringify([...freshHosts]);
+  const hosts = useMemo(() => new Map<string, string>(JSON.parse(hostsKey) as [string, string][]), [hostsKey]);
+
+  // One render context for the twins. It is rebuilt only when a heading's id
+  // changes (or the origin), so typing does not re-render every v2 block;
+  // `now` is the moment the preview opened, as a server render would fix it.
+  const [openedAt] = useState(() => Date.now());
+  const idsKey = JSON.stringify([...headingIds(content)]);
+  const blockCtx = useMemo(() => {
+    const ctx = makeBlockCtx({ seoTitle: '', seoDescription: '', sections: [] }, siteOrigin, openedAt);
+    return { ...ctx, headingIds: new Map<string, string>(JSON.parse(idsKey) as [string, string][]) };
+  }, [idsKey, siteOrigin, openedAt]);
 
   // Stable callbacks, so memoised blocks are not re-rendered by a new arrow from the shell.
   const handlers = useRef({ onSelect: props.onSelect, onEdit: props.onEdit, onBlockClick: props.onBlockClick });
@@ -726,6 +843,7 @@ export function LearnPreview(props: LearnPreviewProps) {
     if (!key || key === localKey.current) return;
     localKey.current = null;
     const attr = key.startsWith('b:') ? 'data-lp-block' : 'data-lp-section';
+    // Several copies of one saved section answer to the same host: the first is scrolled to.
     const el = rootRef.current?.querySelector(`[${attr}="${CSS.escape(key.slice(2))}"]`);
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [key]);
@@ -744,43 +862,60 @@ export function LearnPreview(props: LearnPreviewProps) {
   const selectedBlockId = selection.kind === 'block' ? selection.blockId : null;
   const selectedBlockSection = selection.kind === 'block' ? selection.sectionId : null;
 
+  const sourceOf = useMemo(() => new Map(draft.sections.map((s) => [s.id, s])), [draft]);
+
   return (
     <PreviewContentContext.Provider value={content}>
-      <div
-        ref={rootRef}
-        className="lp-root"
-        data-device={device}
-        // The preview is a picture of the page: links in it never navigate, except
-        // a jump to an anchor on the page, which scrolls the preview like the site.
-        onClickCapture={(e) => {
-          const a = (e.target as HTMLElement).closest('a');
-          if (!a) return;
-          e.preventDefault();
-          const href = a.getAttribute('href') ?? '';
-          if (href.startsWith('#') && href.length > 1)
-            rootRef.current
-              ?.querySelector(`#lp-anchor-${CSS.escape(href.slice(1))}`)
-              ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-        }}
-      >
-        {content.sections.map((s) => (
-          <SectionView
-            key={s.id}
-            section={s}
-            selected={selectedSectionId === s.id}
-            selectedBlockId={selectedBlockSection === s.id ? selectedBlockId : null}
-            multiKey={multi && multi.size > 0 ? s.blocks.filter((b) => multi.has(b.id)).map((b) => b.id).join(' ') : ''}
-            warnings={warningsBySection[s.id]}
-            siteOrigin={siteOrigin}
-            device={device}
-            onSelect={onSelect}
-            onEdit={onEdit}
-            onBlockClick={onBlockClick}
-            wasLocal={wasLocal}
-          />
-        ))}
-        {content.sections.length === 0 && <div className="lp-page-empty">This page has no sections yet.</div>}
-      </div>
+      <PreviewBlockCtxContext.Provider value={blockCtx}>
+        <div
+          ref={rootRef}
+          // `lp-site-base` and the site's font come from T319, for the twins;
+          // `lp-page` (below) is the box their phone rules measure.
+          className={`lp-root lp-site-base ${previewFontClass}`}
+          data-device={device}
+          // The preview is a picture of the page: links in it never navigate, except
+          // a jump to an anchor on the page, which scrolls the preview like the site.
+          onClickCapture={(e) => {
+            const a = (e.target as HTMLElement).closest('a');
+            if (!a) return;
+            e.preventDefault();
+            const href = a.getAttribute('href') ?? '';
+            if (href.startsWith('#') && href.length > 1)
+              rootRef.current
+                ?.querySelector(`#lp-anchor-${CSS.escape(href.slice(1))}`)
+                ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+          }}
+        >
+          <div className="lp-page">
+            {content.sections.map((s) => (
+              <SectionView
+                key={s.id}
+                section={s}
+                source={sourceOf.get(s.id) ?? s}
+                hosts={hosts}
+                selected={selectedSectionId === s.id}
+                selectedBlockId={selectedBlockSection === s.id ? selectedBlockId : null}
+                multiKey={
+                  multi && multi.size > 0
+                    ? (sourceOf.get(s.id) ?? s).blocks
+                        .filter((b) => multi.has(b.id))
+                        .map((b) => b.id)
+                        .join(' ')
+                    : ''
+                }
+                warnings={warningsBySection[s.id]}
+                siteOrigin={siteOrigin}
+                device={device}
+                onSelect={onSelect}
+                onEdit={onEdit}
+                onBlockClick={onBlockClick}
+                wasLocal={wasLocal}
+              />
+            ))}
+            {content.sections.length === 0 && <div className="lp-page-empty">This page has no sections yet.</div>}
+          </div>
+        </div>
+      </PreviewBlockCtxContext.Provider>
     </PreviewContentContext.Provider>
   );
 }

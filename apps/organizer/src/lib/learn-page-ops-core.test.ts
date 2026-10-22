@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { LearnPageContent, LearnPageDoc } from '@kgc/shared';
+import type { LearnBlock, LearnPageContent, LearnPageDoc, LearnSection } from '@kgc/shared';
 
-import { LEARN_PAGE_DEFAULT, LearnConflict, planPublish, planReplaceDraft, planSave } from './learn-page-core';
+import { LEARN_PAGE_DEFAULT, LearnConflict, planPublish, planReplaceDraft, planSave, readStoredDoc } from './learn-page-core';
 import {
   LEARN_SCHEDULE_MAX_LEAD_MS,
   LearnOpRejected,
@@ -91,6 +91,39 @@ describe('planCancelSchedule', () => {
   });
 });
 
+/** A due run that publishes; fails the test when it does not. */
+function due(stored: LearnPageDoc, now: number, library: ReadonlyMap<string, LearnSection> = new Map()) {
+  const plan = planScheduledPublish(stored, now, library);
+  if (!plan || !plan.ok) throw new Error(`expected a publish, got ${plan ? plan.message : 'nothing due'}`);
+  return plan;
+}
+
+/** A due run that refuses; fails the test when it publishes. */
+function refused(stored: LearnPageDoc, now: number, library: ReadonlyMap<string, LearnSection> = new Map()) {
+  const plan = planScheduledPublish(stored, now, library);
+  if (!plan || plan.ok) throw new Error(plan ? 'expected a refusal, got a publish' : 'expected a refusal, got nothing due');
+  return plan;
+}
+
+function section(id: string, blocks: LearnBlock[]): LearnSection {
+  return { id, label: id, background: 'plain', width: 'normal', paddingTop: 'medium', paddingBottom: 'medium', blocks };
+}
+
+/** Draft "A" with one more section holding `blocks`, saved and scheduled for NOW + HOUR. */
+function scheduledWith(...blocks: LearnBlock[]): LearnPageDoc {
+  const p = page('A');
+  p.sections.push(section('extra', blocks));
+  return planSchedule(planSave(null, p, 0, 'a@x', NOW - HOUR), NOW + HOUR, 1, 'b@x', NOW);
+}
+
+const EMPTY_IMAGE: LearnBlock = {
+  id: 'img1',
+  kind: 'image',
+  image: { src: '', alt: '', width: 0, height: 0 },
+  width: 'medium',
+  shape: 'original',
+};
+
 describe('planScheduledPublish', () => {
   const scheduled = () => planSchedule(saved(), NOW + HOUR, 1, 'b@x', NOW);
 
@@ -101,7 +134,7 @@ describe('planScheduledPublish', () => {
   });
 
   it('publishes the draft at the time, notes "Scheduled", and clears the schedule', () => {
-    const plan = planScheduledPublish(scheduled(), NOW + HOUR)!;
+    const plan = due(scheduled(), NOW + HOUR);
     expect(plan.draftChanged).toBe(false);
     expect(plan.version).toMatchObject({ note: SCHEDULED_NOTE, publishedBy: 'b@x', publishedAt: NOW + HOUR });
     expect(plan.doc.published?.seoTitle).toBe('A');
@@ -110,20 +143,118 @@ describe('planScheduledPublish', () => {
   });
 
   it('is idempotent: running again on its own result does nothing', () => {
-    const plan = planScheduledPublish(scheduled(), NOW + HOUR)!;
+    const plan = due(scheduled(), NOW + HOUR);
     expect(planScheduledPublish(plan.doc, NOW + 2 * HOUR)).toBeNull();
   });
 
   it('publishes the latest draft when it changed after scheduling, and says so', () => {
     const edited = planSave(scheduled(), page('B'), 1, 'c@x', NOW + 1);
-    const plan = planScheduledPublish(edited, NOW + 2 * HOUR)!;
+    const plan = due(edited, NOW + 2 * HOUR);
     expect(plan.draftChanged).toBe(true);
     expect(plan.doc.published?.seoTitle).toBe('B');
     expect(plan.version.note).toBe(SCHEDULED_CHANGED_NOTE);
   });
 
   it('a late run (the timer was down) still publishes', () => {
-    expect(planScheduledPublish(scheduled(), NOW + 48 * HOUR)).not.toBeNull();
+    expect(due(scheduled(), NOW + 48 * HOUR).ok).toBe(true);
+  });
+});
+
+describe('planScheduledPublish makes the checks a press of Publish makes', () => {
+  it('refuses a draft with an empty Image block: clears the schedule, keeps the draft, records why', () => {
+    const stored = scheduledWith(EMPTY_IMAGE);
+    const plan = refused(stored, NOW + HOUR);
+    expect(plan.problems).toEqual(['The Image block in "extra" has no image yet. Choose one or remove the block.']);
+    expect(plan.message).toBe('Some blocks are not filled in yet. The Image block in "extra" has no image yet. Choose one or remove the block.');
+    expect(plan.doc).not.toHaveProperty('scheduledPublishAt');
+    expect(plan.doc).not.toHaveProperty('scheduledBy');
+    expect(plan.doc).not.toHaveProperty('scheduledRevision');
+    expect(plan.doc.scheduleFailure).toEqual({ at: NOW + HOUR, message: plan.message });
+    // Nothing was published and nothing else moved.
+    expect(plan.doc.published).toBeNull();
+    expect(plan.doc).not.toHaveProperty('publishedAt');
+    expect(plan.doc.draft).toEqual(stored.draft);
+    expect(plan.doc.revision).toBe(stored.revision);
+    // The next tick finds nothing due, so the timer stops retrying.
+    expect(planScheduledPublish(plan.doc, NOW + 2 * HOUR)).toBeNull();
+  });
+
+  it('refuses a stored draft that no longer passes the validator', () => {
+    const stored = { ...scheduledWith(), draft: { ...page('A'), sections: 'not a list' } as unknown as LearnPageContent };
+    const plan = refused(stored, NOW + HOUR);
+    expect(plan.message).toMatch(/The saved draft has problems:/);
+    expect(plan.problems.length).toBeGreaterThan(0);
+    expect(plan.doc.scheduleFailure?.at).toBe(NOW + HOUR);
+  });
+
+  it('expands a saved section into the live copy and the version', () => {
+    const stored = scheduledWith({ id: 'r1', kind: 'reusable', libraryId: 'cta' });
+    const library = new Map([['cta', section('saved', [{ id: 't1', kind: 'text', text: 'Apply now' }])]]);
+    const plan = due(stored, NOW + HOUR, library);
+    const kinds = (c: LearnPageContent | null) => (c?.sections ?? []).flatMap((s) => s.blocks.map((b) => b.kind));
+    expect(kinds(plan.doc.published)).not.toContain('reusable');
+    expect(kinds(plan.doc.published)).toContain('text');
+    expect(JSON.stringify(plan.doc.published)).toContain('Apply now');
+    expect(plan.version.content).toEqual(plan.doc.published);
+    // The draft keeps the link, so a later edit to the saved section still reaches it.
+    expect(kinds(plan.doc.draft)).toContain('reusable');
+  });
+
+  it('refuses when a saved section makes the expanded page fail the checks', () => {
+    const stored = scheduledWith({ id: 'r1', kind: 'reusable', libraryId: 'cta' });
+    const broken = section('saved', [{ id: 't1', kind: 'text', text: 42 } as unknown as LearnBlock]);
+    const plan = refused(stored, NOW + HOUR, new Map([['cta', broken]]));
+    expect(plan.message).toMatch(/With its saved sections filled in, the page does not pass the checks:/);
+    expect(plan.doc).not.toHaveProperty('scheduledPublishAt');
+  });
+
+  it('refuses an empty Image block that sits inside a saved section', () => {
+    const stored = scheduledWith({ id: 'r1', kind: 'reusable', libraryId: 'cta' });
+    const plan = refused(stored, NOW + HOUR, new Map([['cta', section('saved', [EMPTY_IMAGE])]]));
+    expect(plan.message).toMatch(/not filled in yet/);
+    expect(plan.doc.published).toEqual(stored.published);
+  });
+
+  it('names at most five problems in the message', () => {
+    const blocks = Array.from({ length: 7 }, (_, i) => ({ ...EMPTY_IMAGE, id: `img${i}` }));
+    const plan = refused(scheduledWith(...blocks), NOW + HOUR);
+    expect(plan.problems).toHaveLength(7);
+    expect(plan.message).toMatch(/And 2 more\.$/);
+  });
+
+  it('a new schedule or a publish clears the recorded failure, a draft save keeps it', () => {
+    const failed = refused(scheduledWith(EMPTY_IMAGE), NOW + HOUR).doc;
+    const fixed = planSave(failed, page('Fixed'), failed.revision, 'a@x', NOW + 2 * HOUR);
+    expect(fixed.scheduleFailure).toEqual(failed.scheduleFailure);
+    expect(planSchedule(fixed, NOW + 3 * HOUR, fixed.revision, 'b@x', NOW + 2 * HOUR)).not.toHaveProperty('scheduleFailure');
+    expect(planPublish(fixed, 'a@x', NOW + 2 * HOUR).doc).not.toHaveProperty('scheduleFailure');
+  });
+});
+
+describe('readStoredDoc carries the schedule, the preview link and a failure to the editor', () => {
+  it('keeps them when they are well formed', () => {
+    const failed = refused(scheduledWith(EMPTY_IMAGE), NOW + HOUR).doc;
+    const raw = { ...planSchedule(saved(), NOW + HOUR, 1, 'b@x', NOW), previewToken: TOKEN, scheduleFailure: failed.scheduleFailure };
+    const read = readStoredDoc(raw);
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.doc).toMatchObject({
+      scheduledPublishAt: NOW + HOUR,
+      scheduledBy: 'b@x',
+      scheduledRevision: 1,
+      previewToken: TOKEN,
+      scheduleFailure: failed.scheduleFailure,
+    });
+  });
+
+  it('drops them when they are the wrong type', () => {
+    const raw = { ...saved(), scheduledPublishAt: 'soon', previewToken: 7, scheduleFailure: { at: 'x', message: 1 } };
+    const read = readStoredDoc(raw);
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.doc).not.toHaveProperty('scheduledPublishAt');
+    expect(read.doc).not.toHaveProperty('previewToken');
+    expect(read.doc).not.toHaveProperty('scheduleFailure');
   });
 });
 
