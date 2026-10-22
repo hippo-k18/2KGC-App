@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LEARN_PAGE_DEFAULT } from '@kgc/shared';
-import { learnPageMetadata, learnPreviewMetadata } from './learn-page-metadata';
+import { learnPageMetadata, learnPreviewMetadata, learnPreviewNotice } from './learn-page-metadata';
 
 const OG = { src: '/kgc/learn-wordmark.png', alt: 'KGC | Learn', width: 1000, height: 275 };
 
@@ -32,5 +32,21 @@ describe('learnPreviewMetadata', () => {
       alternates: { canonical: '/learn' },
       referrer: 'no-referrer',
     });
+  });
+});
+
+describe('learnPreviewNotice (T324 F13)', () => {
+  it('says the draft is a draft', () => {
+    expect(learnPreviewNotice(true)).toEqual({
+      className: 'learn-preview-bar',
+      text: 'Preview, not published. This is the current draft; the public page may differ.',
+    });
+  });
+
+  it('tells the holder of a turned-off, replaced or made-up link that it no longer works', () => {
+    const off = learnPreviewNotice(false);
+    expect(off.className).toBe('learn-preview-bar is-off');
+    expect(off.text).toMatch(/^This preview link no longer works\./);
+    expect(off.text).toContain('public page');
   });
 });

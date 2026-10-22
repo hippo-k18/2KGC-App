@@ -97,9 +97,10 @@ describe("images (T324 F2)", () => {
   it("drops an image from anywhere else, in every image field", () => {
     for (const src of BAD_IMAGES) {
       const read = readLearnPage(pageWithImages(src), { bucket: BUCKET, allowEmulator: false })!;
-      expect(JSON.stringify(read), src).not.toContain('"src"');
-      // Blocks that need their image go; the rest keep their words.
-      expect(read.sections[0]!.blocks.map((b) => b.id), src).toEqual(["people", "columns", "quote", "cards", "keep"]);
+      expect(JSON.stringify(read), src).not.toMatch(/"src":"[^"]/);
+      // Blocks that need their image go; the rest keep their words. Image and
+      // text keeps its text, with the empty "no picture yet" image (T328 N3).
+      expect(read.sections[0]!.blocks.map((b) => b.id), src).toEqual(["people", "columns", "imageText", "quote", "cards", "keep"]);
     }
   });
 

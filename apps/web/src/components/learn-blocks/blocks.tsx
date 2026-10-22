@@ -74,12 +74,16 @@ export function blockAttrs(block: LearnBlock, ...extra: string[]) {
  */
 export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: BlockCtx; content?: LearnPageContent }) {
   switch (block.kind) {
-    case 'imageText':
+    case 'imageText': {
+      // No picture yet: the text and buttons still show, in one column (T328 N3).
+      const pic = hasLearnImage(block.image);
       return (
-        <div {...blockAttrs(block, `lp-it-${block.imageSide}`, `lp-it-${block.imageWidth}`)}>
-          <div className="lp-it-media">
-            <Picture image={block.image} ctx={ctx} className={`lp-shape-${block.shape}`} sizes="(width < 860px) 100vw, 50vw" />
-          </div>
+        <div {...blockAttrs(block, ...(pic ? [`lp-it-${block.imageSide}`, `lp-it-${block.imageWidth}`] : ['lp-it-noimage']))}>
+          {pic && (
+            <div className="lp-it-media">
+              <Picture image={block.image} ctx={ctx} className={`lp-shape-${block.shape}`} sizes="(width < 860px) 100vw, 50vw" />
+            </div>
+          )}
           <div className="lp-it-body">
             <RichBlocks value={block.text} />
             {block.buttons && block.buttons.length > 0 && (
@@ -92,6 +96,7 @@ export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: Blo
           </div>
         </div>
       );
+    }
 
     case 'gallery': {
       // Checked again here because the lightbox draws a plain `<img>` (T324 F2).

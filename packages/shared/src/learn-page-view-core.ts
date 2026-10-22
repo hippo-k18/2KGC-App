@@ -305,14 +305,16 @@ const links = (v: unknown): LinkButton[] => arr(v).map(parseLink).filter((b): b 
 function parseBlockV2(v: Obj, base: Base, o: LearnImageOptions): LearnBlock | undefined {
   switch (v.kind) {
     case "imageText": {
-      const image = parseImage(v.image, o);
       const text = parseRichContent(v.text);
-      if (!image || !text) return undefined;
+      if (!text) return undefined;
       const buttons = links(v.buttons);
       return compact({
         ...base,
         kind: "imageText" as const,
-        image,
+        // With no picture (or one we do not allow) the text and buttons still
+        // show, in one column (T328 N3). The empty image is the editor's own
+        // "no picture yet"; `hasLearnImage` is false for it.
+        image: parseImage(v.image, o) ?? { src: "", alt: "", width: 0, height: 0 },
         imageSide: v.imageSide === "right" ? ("right" as const) : ("left" as const),
         imageWidth: v.imageWidth === "third" ? ("third" as const) : ("half" as const),
         shape: oneOf(v.shape, IMAGE_SHAPES, "rounded"),
@@ -585,6 +587,22 @@ export function isDrawableLearnBlock(block: LearnBlock): boolean {
 /** An optional image (a person's photo, a column's picture) that has a file to show. */
 export function hasLearnImage(image: PageImage | undefined): image is PageImage {
   return !!image && typeof image.src === "string" && image.src.trim() !== "";
+}
+
+/**
+ * The letters on a person's tile when they have no photo: the first letter of
+ * up to two words of the name, "?" for none. The editor preview draws the same
+ * tile (T324 D12).
+ */
+export function personInitials(name: string): string {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join("") || "?"
+  );
 }
 
 /** CSS `object-position` for an image's focal point. */
