@@ -4,6 +4,8 @@ import { LEARN_PAGE_DEFAULT, type LearnBlock } from "./learn-page.js";
 import { LEARN_PAGE_KITCHEN_SINK } from "./learn-page-sample.js";
 import {
   focalPosition,
+  hasLearnImage,
+  isDrawableLearnBlock,
   isLearnImageSrc,
   learnPageOrDefault,
   learnRichParagraphs,
@@ -121,5 +123,30 @@ describe("learnRichParagraphs and isLearnImageSrc", () => {
     expect(isLearnImageSrc("https://firebasestorage.googleapis.com/v0/b/x/o/a")).toBe(true);
     expect(isLearnImageSrc("//evil.example/a.png")).toBe(false);
     expect(isLearnImageSrc("data:image/png;base64,AAAA")).toBe(false);
+  });
+});
+
+describe("blocks not filled in yet (T314 F1)", () => {
+  const emptyImage = { id: "i", kind: "image", image: { src: "", alt: "", width: 0, height: 0 }, width: "medium", shape: "original" };
+  const emptyVideo = { id: "v", kind: "video", url: "" };
+  const text = { id: "t", kind: "text", text: "Hi" };
+
+  it("parseLearnPageContent drops an empty Image or Video block and keeps the rest", () => {
+    expect(blocksOf(page([emptyImage, emptyVideo, text])).map((b) => b.id)).toEqual(["t"]);
+  });
+
+  it("isDrawableLearnBlock skips them, and hidden blocks, for a renderer handed a raw draft", () => {
+    expect(isDrawableLearnBlock(emptyImage as LearnBlock)).toBe(false);
+    expect(isDrawableLearnBlock(emptyVideo as LearnBlock)).toBe(false);
+    expect(isDrawableLearnBlock({ ...emptyVideo, url: "  " } as LearnBlock)).toBe(false);
+    expect(isDrawableLearnBlock({ ...text, hidden: true } as LearnBlock)).toBe(false);
+    expect(isDrawableLearnBlock(text as LearnBlock)).toBe(true);
+    expect(isDrawableLearnBlock({ ...emptyImage, image: { src: "/kgc/a.png", alt: "", width: 1, height: 1 } } as LearnBlock)).toBe(true);
+  });
+
+  it("hasLearnImage is false for a missing or empty optional image", () => {
+    expect(hasLearnImage(undefined)).toBe(false);
+    expect(hasLearnImage({ src: "", alt: "", width: 0, height: 0 })).toBe(false);
+    expect(hasLearnImage({ src: "/kgc/a.png", alt: "", width: 1, height: 1 })).toBe(true);
   });
 });

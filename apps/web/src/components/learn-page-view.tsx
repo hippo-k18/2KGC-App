@@ -2,6 +2,8 @@ import Image from 'next/image';
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import {
   focalPosition,
+  hasLearnImage,
+  isDrawableLearnBlock,
   isStorageImageSrc,
   learnRichParagraphs,
   videoEmbed,
@@ -54,7 +56,11 @@ interface Ctx {
 }
 
 export function LearnPageView({ content, assetOrigin = '', remoteImages = 'plain' }: LearnPageViewProps) {
-  const sections = content.sections.filter((s) => !s.hidden && s.blocks.some((b) => !b.hidden));
+  // Hidden blocks, and an Image or Video block not filled in yet, are not drawn.
+  const sections = content.sections
+    .filter((s) => !s.hidden)
+    .map((s) => ({ ...s, blocks: s.blocks.filter(isDrawableLearnBlock) }))
+    .filter((s) => s.blocks.length > 0);
   const ctx: Ctx = { assetOrigin, remoteImages, firstImage: { used: false } };
 
   // The page needs one h1. A level-1 heading block is it; otherwise the image
@@ -258,7 +264,7 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
         <div className={blockClass(block, `lp-cols-${block.columns}`)}>
           {block.items.map((it) => (
             <div key={it.id} className="lp-column">
-              {it.image && <Picture image={it.image} ctx={ctx} className="lp-column-image" />}
+              {hasLearnImage(it.image) && <Picture image={it.image} ctx={ctx} className="lp-column-image" />}
               {it.title && <h3>{it.title}</h3>}
               {it.text.trim() !== '' &&
                 learnRichParagraphs(it.text).map((lines, i) => (
@@ -314,7 +320,9 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
 function PersonCard({ person, ctx }: { person: Person; ctx: Ctx }) {
   return (
     <div className="lp-person">
-      {person.photo && <Picture image={{ ...person.photo, alt: person.photo.alt || person.name }} ctx={ctx} />}
+      {hasLearnImage(person.photo) && (
+        <Picture image={{ ...person.photo, alt: person.photo.alt || person.name }} ctx={ctx} />
+      )}
       <div className="row">
         <div>
           <span className="name">{person.name}</span>

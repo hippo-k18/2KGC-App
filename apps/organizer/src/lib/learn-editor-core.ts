@@ -1,4 +1,6 @@
+import { isSafeHref } from '@kgc/shared';
 import type {
+  Columns,
   LearnBlock,
   LearnPageContent,
   LearnSection,
@@ -354,6 +356,10 @@ export function blockSummary(block: LearnBlock): string {
 
 // ─── New blocks ───────────────────────────────────────────────────────────────
 
+/**
+ * An image not chosen yet. The server stores it in the draft, so autosave keeps
+ * going while an Image block is unfinished, and refuses to publish it.
+ */
 export const EMPTY_IMAGE: PageImage = { src: '', alt: '', width: 0, height: 0 };
 
 export function createBlock(kind: BlockKind): LearnBlock {
@@ -432,10 +438,13 @@ export interface Warning {
 /** Things worth fixing before publish. Not a validator: the server has the last word. */
 export function contentWarnings(content: LearnPageContent): Warning[] {
   const out: Warning[] = [];
-  for (const s of content.sections) {
+  content.sections.forEach((s, i) => {
+    const name = s.label.trim() || `Section ${i + 1}`;
     for (const b of s.blocks) {
       if (b.kind === 'image') {
-        if (!b.image.src) out.push({ sectionId: s.id, blockId: b.id, message: 'Image has no picture yet' });
+        // Publish refuses these (`publishBlockers`); the wording matches.
+        if (!b.image.src)
+          out.push({ sectionId: s.id, blockId: b.id, message: `The Image block in "${name}" has no image yet` });
         else if (!b.image.alt.trim())
           out.push({ sectionId: s.id, blockId: b.id, message: 'Image needs a description (alt text)' });
       }
@@ -451,11 +460,50 @@ export function contentWarnings(content: LearnPageContent): Warning[] {
             out.push({ sectionId: s.id, blockId: b.id, message: 'A column image needs a description' });
         }
       }
-      if (b.kind === 'video' && b.url && !videoEmbedUrl(b.url))
+      if (b.kind === 'video' && !b.url.trim())
+        out.push({ sectionId: s.id, blockId: b.id, message: `The Video block in "${name}" has no video link yet` });
+      else if (b.kind === 'video' && !videoEmbedUrl(b.url))
         out.push({ sectionId: s.id, blockId: b.id, message: 'Video link must be YouTube or Vimeo' });
     }
-  }
+  });
   return out;
+}
+
+// ─── Values the preview puts into markup ─────────────────────────────────────
+
+/*
+ * The preview draws whatever content it is handed: the draft (validated on
+ * load and on every save) but also a version from the history list. Nothing
+ * stored goes into an `href`, a `style` or a `className` without passing
+ * through one of these first, so a hand-written document cannot inject CSS
+ * (a `url()` in a custom property fetches from anywhere) or a script link.
+ */
+
+/** A link the preview may render, or `undefined` for none. */
+export function previewHref(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() !== '' && isSafeHref(v) ? v : undefined;
+}
+
+/** One of `allowed`, or `fallback`. For every enum that becomes a class name. */
+export function previewPick<T extends string | number>(v: unknown, allowed: readonly T[], fallback: T): T {
+  return (allowed as readonly unknown[]).includes(v) ? (v as T) : fallback;
+}
+
+const COLUMN_COUNTS = [1, 2, 3, 4] as const;
+
+/** A column count for `--lp-cols`: 1 to 4, else 1. */
+export function previewColumns(v: unknown): Columns {
+  return previewPick<Columns>(v, COLUMN_COUNTS, 1);
+}
+
+/** A focal point fraction, clamped to 0..1; 0.5 for anything that is not a number. */
+export function previewFraction(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.5;
+}
+
+/** An image dimension in pixels, or 0 for unknown. */
+export function previewPixels(v: unknown): number {
+  return typeof v === 'number' && Number.isInteger(v) && v > 0 && v <= 20_000 ? v : 0;
 }
 
 /** YouTube or Vimeo page URL to its embed URL, or null for anything else. */

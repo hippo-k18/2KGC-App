@@ -12,12 +12,16 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
-import { isSafeHref } from '@kgc/shared';
 import type { LearnBlock, LearnSection, LinkButton, PageImage, ImageShape, Person } from '@kgc/shared';
 import {
   blockSummary,
   kindLabel,
   markdownToDoc,
+  previewColumns,
+  previewFraction,
+  previewHref,
+  previewPick,
+  previewPixels,
   videoEmbedUrl,
   type BlockOf,
   type EditAction,
@@ -58,6 +62,25 @@ function waveUrl(siteOrigin: string, name: string): string {
   return `url(${JSON.stringify(`${siteOrigin}/kgc/${name}`)})`;
 }
 
+// Every stored enum that ends up in a class name, checked against its fixed
+// list (`previewPick`), so the preview never trusts the content's shape.
+const ALIGNS = ['left', 'center', 'right'] as const;
+const SPACINGS = ['none', 'small', 'medium', 'large'] as const;
+const TEXT_SIZES = ['small', 'normal', 'large', 'x-large'] as const;
+const IMAGE_WIDTHS = ['small', 'medium', 'large', 'full'] as const;
+const IMAGE_SHAPES = ['square', 'rounded', 'circle', 'original'] as const;
+const BUTTON_STYLES = ['primary', 'secondary', 'text'] as const;
+const BACKGROUNDS = ['plain', 'white-wave', 'light-blue-wave', 'blue', 'grey-wave'] as const;
+const SECTION_WIDTHS = ['narrow', 'normal', 'wide'] as const;
+const LEVELS = [1, 2, 3] as const;
+const KINDS = ['heading', 'text', 'image', 'buttons', 'people', 'list', 'columns', 'video', 'divider', 'spacer'] as const;
+
+/** The grid custom properties for a people or columns block, from a column count of 1 to 4 only. */
+function gridVars(columns: unknown): CSSProperties {
+  const n = previewColumns(columns);
+  return cssVars({ '--lp-cols': n, '--lp-cols-t': Math.min(n, 2) });
+}
+
 // ─── Rich text ──────────────────────────────────────────────────────────────
 
 function renderNodes(nodes: InlineNode[] | undefined): ReactNode[] {
@@ -66,7 +89,8 @@ function renderNodes(nodes: InlineNode[] | undefined): ReactNode[] {
     let out: ReactNode = n.text ?? '';
     const marks = n.marks ?? [];
     const link = marks.find((m) => m.type === 'link');
-    if (link?.attrs?.href && isSafeHref(link.attrs.href)) out = <a href={link.attrs.href}>{out}</a>;
+    const href = previewHref(link?.attrs?.href);
+    if (href) out = <a href={href}>{out}</a>;
     if (marks.some((m) => m.type === 'italic')) out = <em>{out}</em>;
     if (marks.some((m) => m.type === 'bold')) out = <strong>{out}</strong>;
     return <Fragment key={i}>{out}</Fragment>;
@@ -113,28 +137,32 @@ function Picture({
   siteOrigin: string;
   className?: string;
 }) {
-  const crop = shape === 'square' || shape === 'circle';
-  const ratio = image.width > 0 && image.height > 0 ? `${image.width} / ${image.height}` : undefined;
-  if (!image.src) {
+  const safeShape = previewPick(shape, IMAGE_SHAPES, 'original');
+  const crop = safeShape === 'square' || safeShape === 'circle';
+  const width = previewPixels(image.width);
+  const height = previewPixels(image.height);
+  const ratio = width > 0 && height > 0 ? `${width} / ${height}` : undefined;
+  if (!image.src || typeof image.src !== 'string') {
+    // Not chosen yet: stored in the draft, refused at publish, skipped on www.
     return (
-      <div className={`lp-img-empty lp-shape-${shape} ${className ?? ''}`} style={{ aspectRatio: crop ? '1 / 1' : ratio ?? '16 / 9' }}>
-        No image yet
+      <div className={`lp-img-empty lp-shape-${safeShape} ${className ?? ''}`} style={{ aspectRatio: crop ? '1 / 1' : ratio ?? '16 / 9' }}>
+        Choose an image
       </div>
     );
   }
   const style: CSSProperties = {
-    objectPosition: `${(image.focusX ?? 0.5) * 100}% ${(image.focusY ?? 0.5) * 100}%`,
+    objectPosition: `${previewFraction(image.focusX) * 100}% ${previewFraction(image.focusY) * 100}%`,
     aspectRatio: crop ? '1 / 1' : ratio,
   };
   return (
     // Site assets and Storage URLs from any origin; next/image would need each host configured.
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      className={`lp-img lp-shape-${shape} ${className ?? ''}`}
+      className={`lp-img lp-shape-${safeShape} ${className ?? ''}`}
       src={resolveSrc(image.src, siteOrigin)}
-      alt={image.alt}
-      width={image.width || undefined}
-      height={image.height || undefined}
+      alt={typeof image.alt === 'string' ? image.alt : ''}
+      width={width || undefined}
+      height={height || undefined}
       style={style}
       loading="lazy"
       decoding="async"
@@ -143,8 +171,9 @@ function Picture({
 }
 
 function LinkedInIcon({ href }: { href: string }) {
+  // An unsafe link renders as the icon with no link, as on the website.
   return (
-    <a className="lp-li" href={href} aria-label="LinkedIn profile">
+    <a className="lp-li" href={previewHref(href)} aria-label="LinkedIn profile">
       <svg width="20" height="20" viewBox="0 0 448 512" fill="currentColor" aria-hidden="true">
         <path d="M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8a53.79 53.79 0 0 1 107.58 0c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.29 0-55.69 37.7-55.69 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.69-48.3 87.88-48.3 94 0 111.28 61.9 111.28 142.3V448z" />
       </svg>
@@ -154,7 +183,7 @@ function LinkedInIcon({ href }: { href: string }) {
 
 function TextLink({ link }: { link: LinkButton }) {
   return (
-    <a className="lp-textlink" href={isSafeHref(link.href) ? link.href : undefined}>
+    <a className="lp-textlink" href={previewHref(link.href)}>
       {link.label}
     </a>
   );
@@ -204,24 +233,25 @@ const HEADING_DEFAULT_SIZE = { 1: 'x-large', 2: 'large', 3: 'normal' } as const;
 function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOrigin: string; selected: boolean }) {
   switch (block.kind) {
     case 'heading': {
-      const Tag = `h${block.level}` as 'h1' | 'h2' | 'h3';
+      const level = previewPick(block.level, LEVELS, 2);
+      const Tag = `h${level}` as 'h1' | 'h2' | 'h3';
       return (
-        <Tag className={`lp-heading lp-h-${block.size ?? HEADING_DEFAULT_SIZE[block.level]}`}>
+        <Tag className={`lp-heading lp-h-${previewPick(block.size, TEXT_SIZES, HEADING_DEFAULT_SIZE[level])}`}>
           <RichInline text={block.text} />
         </Tag>
       );
     }
     case 'text':
       return (
-        <div className={`lp-text lp-t-${block.size ?? 'normal'}`}>
+        <div className={`lp-text lp-t-${previewPick(block.size, TEXT_SIZES, 'normal')}`}>
           <RichParagraphs text={block.text} />
         </div>
       );
     case 'image': {
       const pic = <Picture image={block.image} shape={block.shape} siteOrigin={siteOrigin} />;
       return (
-        <figure className={`lp-figure lp-w-${block.width}`}>
-          {block.href ? <a href={isSafeHref(block.href) ? block.href : undefined}>{pic}</a> : pic}
+        <figure className={`lp-figure lp-w-${previewPick(block.width, IMAGE_WIDTHS, 'medium')}`}>
+          {block.href ? <a href={previewHref(block.href)}>{pic}</a> : pic}
           {block.caption && <figcaption className="lp-caption">{block.caption}</figcaption>}
         </figure>
       );
@@ -230,7 +260,7 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
       return (
         <div className="lp-buttons">
           {block.buttons.map((b, i) => (
-            <a key={i} className={`lp-btn lp-btn-${b.style}`} href={isSafeHref(b.href) ? b.href : undefined}>
+            <a key={i} className={`lp-btn lp-btn-${previewPick(b.style, BUTTON_STYLES, 'primary')}`} href={previewHref(b.href)}>
               {b.label}
             </a>
           ))}
@@ -239,7 +269,7 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
     case 'people':
       if (block.style === 'list') {
         return (
-          <div className="lp-roster" style={cssVars({ '--lp-cols': block.columns })}>
+          <div className="lp-roster" style={cssVars({ '--lp-cols': previewColumns(block.columns) })}>
             {block.people.map((p) => (
               <div key={p.id}>
                 <span className="lp-roster-name">{p.name}</span>
@@ -251,10 +281,7 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
         );
       }
       return (
-        <div
-          className="lp-people"
-          style={cssVars({ '--lp-cols': block.columns, '--lp-cols-t': Math.min(block.columns, 2) })}
-        >
+        <div className="lp-people" style={gridVars(block.columns)}>
           {block.people.map((p) => (
             <PersonCard key={p.id} person={p} siteOrigin={siteOrigin} />
           ))}
@@ -289,10 +316,7 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
     }
     case 'columns':
       return (
-        <div
-          className="lp-columns"
-          style={cssVars({ '--lp-cols': block.columns, '--lp-cols-t': Math.min(block.columns, 2) })}
-        >
+        <div className="lp-columns" style={gridVars(block.columns)}>
           {block.items.map((item) => (
             <div key={item.id} className="lp-col">
               {item.image && <Picture image={item.image} shape="original" siteOrigin={siteOrigin} className="lp-col-img" />}
@@ -322,7 +346,7 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
               style={selected ? undefined : { pointerEvents: 'none' }}
             />
           ) : (
-            <div className="lp-video-empty">Paste a YouTube or Vimeo link</div>
+            <div className="lp-video-empty">{block.url.trim() ? 'Use a YouTube or Vimeo link' : 'Add a video link'}</div>
           )}
           {block.caption && <figcaption className="lp-caption">{block.caption}</figcaption>}
         </figure>
@@ -331,7 +355,7 @@ function BlockBody({ block, siteOrigin, selected }: { block: LearnBlock; siteOri
     case 'divider':
       return <hr className="lp-hr" />;
     case 'spacer':
-      return <div className={`lp-spacer lp-spacer-${block.size}`} aria-hidden="true" />;
+      return <div className={`lp-spacer lp-spacer-${previewPick(block.size, SPACINGS, 'medium')}`} aria-hidden="true" />;
   }
 }
 
@@ -403,7 +427,7 @@ const BlockView = memo(function BlockView({
   let body: ReactNode;
   if (editing && block.kind === 'heading') {
     body = (
-      <div className={`lp-heading lp-h-${block.size ?? HEADING_DEFAULT_SIZE[block.level]} lp-editing`}>
+      <div className={`lp-heading lp-h-${previewPick(block.size, TEXT_SIZES, HEADING_DEFAULT_SIZE[previewPick(block.level, LEVELS, 2)])} lp-editing`}>
         <RichInlineEditor
           text={block.text}
           single
@@ -419,7 +443,7 @@ const BlockView = memo(function BlockView({
     );
   } else if (editing && block.kind === 'text') {
     body = (
-      <div className={`lp-text lp-t-${(block as BlockOf<'text'>).size ?? 'normal'} lp-editing`}>
+      <div className={`lp-text lp-t-${previewPick((block as BlockOf<'text'>).size, TEXT_SIZES, 'normal')} lp-editing`}>
         <RichInlineEditor
           text={block.text}
           single={false}
@@ -437,10 +461,10 @@ const BlockView = memo(function BlockView({
 
   const classes = [
     'lp-block',
-    `lp-block-${block.kind}`,
-    `lp-al-${block.align ?? 'left'}`,
-    `lp-sa-${block.spaceAbove ?? 'none'}`,
-    block.spaceBelow ? `lp-sb-${block.spaceBelow}` : 'lp-sb-default',
+    `lp-block-${previewPick(block.kind, KINDS, 'text')}`,
+    `lp-al-${previewPick(block.align, ALIGNS, 'left')}`,
+    `lp-sa-${previewPick(block.spaceAbove, SPACINGS, 'none')}`,
+    block.spaceBelow ? `lp-sb-${previewPick(block.spaceBelow, SPACINGS, 'none')}` : 'lp-sb-default',
   ].join(' ');
 
   return (
@@ -507,21 +531,23 @@ const SectionView = memo(function SectionView({
     />
   );
 
+  const width = previewPick(section.width, SECTION_WIDTHS, 'normal');
+  const background = previewPick(section.background, BACKGROUNDS, 'plain');
   const wrap = (blocks: LearnBlock[], key: string) => (
-    <div key={key} className={`lp-wrap lp-width-${section.width}`}>
+    <div key={key} className={`lp-wrap lp-width-${width}`}>
       <div className="lp-measure">{blocks.map(block)}</div>
     </div>
   );
 
   const artIndex =
-    section.background === 'grey-wave' && section.waveBehindFirstImage
+    background === 'grey-wave' && section.waveBehindFirstImage
       ? section.blocks.findIndex((b) => b.kind === 'image')
       : -1;
 
   let inner: ReactNode;
   if (section.blocks.length === 0) {
     inner = (
-      <div className={`lp-wrap lp-width-${section.width}`}>
+      <div className={`lp-wrap lp-width-${width}`}>
         <div className="lp-measure lp-section-empty">Empty section. Add a block from the panel.</div>
       </div>
     );
@@ -540,9 +566,9 @@ const SectionView = memo(function SectionView({
   }
 
   const bgImage =
-    section.background === 'white-wave' || section.background === 'light-blue-wave'
+    background === 'white-wave' || background === 'light-blue-wave'
       ? waveUrl(siteOrigin, 'wave-3.png')
-      : section.background === 'grey-wave' && artIndex < 0
+      : background === 'grey-wave' && artIndex < 0
         ? waveUrl(siteOrigin, 'wave-13.png')
         : undefined;
 
@@ -566,7 +592,7 @@ const SectionView = memo(function SectionView({
         </span>
       )}
       <section
-        className={`lp-section lp-bg-${section.background} lp-pt-${section.paddingTop} lp-pb-${section.paddingBottom}`}
+        className={`lp-section lp-bg-${background} lp-pt-${previewPick(section.paddingTop, SPACINGS, 'large')} lp-pb-${previewPick(section.paddingBottom, SPACINGS, 'large')}`}
         data-hidden={section.hidden || undefined}
         aria-label={`${section.label || 'Section'}${section.hidden ? ' (hidden)' : ''}`}
         style={bgImage ? { backgroundImage: bgImage } : undefined}

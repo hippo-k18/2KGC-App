@@ -7,16 +7,16 @@ import { requireOrganizer } from '@/lib/auth';
 import { recordError } from '@/lib/errors';
 import {
   LearnVersionMissing,
+  learnValidateOptions,
   loadLearnEditor,
   publishLearnPage,
   restoreLearnVersion,
   revertLearnDraft,
   saveLearnDraft,
   uploadLearnImage,
-  usingStorageEmulator,
   type LearnEditorState,
 } from '@/lib/learn-page';
-import { LEARN_LIMITS, LearnConflict, validateLearnContent } from '@/lib/learn-page-core';
+import { LEARN_LIMITS, LearnConflict, LearnNotReady, LearnUnreadable, validateLearnContent } from '@/lib/learn-page-core';
 import { ROUTES } from '@/lib/nav';
 import { UploadRejected, UploadUnavailable } from '@/lib/uploads';
 
@@ -46,15 +46,23 @@ function failure(err: unknown, what: string): LearnResult<never> {
   if (err instanceof LearnConflict) {
     return { ok: false, error: err.message, conflict: true, currentRevision: err.currentRevision };
   }
-  if (err instanceof LearnVersionMissing || err instanceof UploadRejected || err instanceof UploadUnavailable) {
+  if (
+    err instanceof LearnVersionMissing ||
+    err instanceof LearnNotReady ||
+    err instanceof UploadRejected ||
+    err instanceof UploadUnavailable
+  ) {
     return { ok: false, error: err.message };
+  }
+  if (err instanceof LearnUnreadable) {
+    return { ok: false, error: err.message, problems: err.problems.slice(0, 10) };
   }
   recordError(`learn page ${what} failed`, err);
   return { ok: false, error: `Could not ${what}. Nothing was changed. Try again in a moment.` };
 }
 
 function checkContent(content: unknown): { ok: true; content: LearnPageContent } | LearnResult<never> {
-  const v = validateLearnContent(content, { allowEmulator: usingStorageEmulator() });
+  const v = validateLearnContent(content, learnValidateOptions());
   if (!v.ok) {
     return { ok: false, error: 'Some parts of the page need fixing before it can be saved.', problems: v.problems };
   }
@@ -157,7 +165,8 @@ export async function restoreLearnVersionAction(
 ): Promise<LearnResult<{ revision: number; draft: LearnPageContent }>> {
   const actor = await requireOrganizer();
   try {
-    const doc = await restoreLearnVersion(String(versionId ?? ''), actor);
+    // Checked inside (`isLearnVersionId`): anything but a plain id is refused there.
+    const doc = await restoreLearnVersion(versionId, actor);
     await appendAudit({
       actor,
       action: 'learnPage.restore',

@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { LearnPageContent } from '@kgc/shared';
 import { summarizeChanges, type Selection, type Warning } from '@/lib/learn-editor-core';
+import { publishBlockers } from '@/lib/learn-page-core';
 import { loadLearnVersionAction, restoreLearnVersionAction, type LearnVersionSummary } from './api';
 import { LearnPreview } from './preview';
 
@@ -132,6 +133,8 @@ export function PublishDialog({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const s = summarizeChanges(before, after);
+  // The server refuses these too (`planPublish`); saying so here saves a round trip.
+  const blockers = publishBlockers(after);
 
   const go = async () => {
     setBusy(true);
@@ -170,7 +173,7 @@ export function PublishDialog({
             type="button"
             className="whova-btn-main small"
             onClick={() => void go()}
-            disabled={busy || (s.total === 0 && before !== null)}
+            disabled={busy || blockers.length > 0 || (s.total === 0 && before !== null)}
           >
             {busy ? 'Publishing...' : 'Publish now'}
           </button>
@@ -202,6 +205,19 @@ export function PublishDialog({
           <ChangeGroup title="Blocks removed" items={s.blocksRemoved} />
           <ChangeGroup title="Blocks changed" items={s.blocksEdited} />
           <ChangeGroup title="Blocks moved" items={s.blocksMoved} />
+        </div>
+      )}
+
+      {blockers.length > 0 && (
+        <div className="whova-banner danger" role="alert">
+          <div>
+            <strong>Finish these blocks to publish</strong>
+            <ul className="le-problems">
+              {blockers.map((message, i) => (
+                <li key={i}>{message}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 

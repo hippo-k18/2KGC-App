@@ -8,6 +8,11 @@ import {
   createBlock,
   docToMarkdown,
   markdownToDoc,
+  previewColumns,
+  previewFraction,
+  previewHref,
+  previewPick,
+  previewPixels,
   pushEdit,
   redo,
   repairSelection,
@@ -235,6 +240,40 @@ describe('warnings', () => {
       { id: 'vd', kind: 'video', url: 'https://example.com/v' },
     );
     expect(contentWarnings(c).map((w) => w.blockId)).toEqual(['im', 'vd']);
+  });
+
+  it('names a new Image or Video block that is not filled in yet (T314 F1)', () => {
+    const c = page();
+    c.sections[0].blocks.push(createBlock('image'), createBlock('video'));
+    expect(contentWarnings(c).map((w) => w.message)).toEqual([
+      'The Image block in "Hero" has no image yet',
+      'The Video block in "Hero" has no video link yet',
+    ]);
+  });
+});
+
+describe('preview sanitising (T314 security 2 and 3)', () => {
+  it('renders only safe links', () => {
+    expect(previewHref('https://www.linkedin.com/in/x')).toBe('https://www.linkedin.com/in/x');
+    expect(previewHref('mailto:a@b.c')).toBe('mailto:a@b.c');
+    expect(previewHref('/tickets')).toBe('/tickets');
+    for (const bad of ['javascript:alert(1)', 'data:text/html,x', 'vbscript:x', '//evil.example', '\\\\evil', ' ', '', null, 42, { href: '/' }]) {
+      expect(previewHref(bad), String(bad)).toBeUndefined();
+    }
+  });
+
+  it('keeps stored values out of style attributes and class names', () => {
+    expect(previewColumns(3)).toBe(3);
+    for (const bad of [0, 5, 2.5, '3', '1;background:url(https://evil.example/x)', null]) expect(previewColumns(bad)).toBe(1);
+    expect(previewPick('center', ['left', 'center', 'right'] as const, 'left')).toBe('center');
+    expect(previewPick('center x-evil', ['left', 'center', 'right'] as const, 'left')).toBe('left');
+    expect(previewFraction(0.25)).toBe(0.25);
+    expect(previewFraction(7)).toBe(1);
+    expect(previewFraction(-1)).toBe(0);
+    expect(previewFraction('0%;color:red')).toBe(0.5);
+    expect(previewFraction(Number.NaN)).toBe(0.5);
+    expect(previewPixels(800)).toBe(800);
+    for (const bad of [0, -1, 1.5, '800', 1e9]) expect(previewPixels(bad)).toBe(0);
   });
 });
 

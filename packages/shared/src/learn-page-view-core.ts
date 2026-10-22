@@ -309,6 +309,25 @@ export function learnRichParagraphs(text: string): InlineSpan[][][] {
     .map((lines) => lines.map((line) => parseInline(line)));
 }
 
+/**
+ * May this block be drawn? Hidden blocks are not, and neither are an Image
+ * block whose image has not been chosen (`src` empty, which the editor's
+ * draft may hold) or a Video block with no link. The website's route has
+ * already dropped those through `parseLearnPageContent`; this is for a
+ * renderer handed a raw draft.
+ */
+export function isDrawableLearnBlock(block: LearnBlock): boolean {
+  if (block.hidden) return false;
+  if (block.kind === "image") return typeof block.image?.src === "string" && block.image.src.trim() !== "";
+  if (block.kind === "video") return typeof block.url === "string" && block.url.trim() !== "";
+  return true;
+}
+
+/** An optional image (a person's photo, a column's picture) that has a file to show. */
+export function hasLearnImage(image: PageImage | undefined): image is PageImage {
+  return !!image && typeof image.src === "string" && image.src.trim() !== "";
+}
+
 /** CSS `object-position` for an image's focal point. */
 export function focalPosition(image: PageImage): string | undefined {
   if (image.focusX === undefined && image.focusY === undefined) return undefined;

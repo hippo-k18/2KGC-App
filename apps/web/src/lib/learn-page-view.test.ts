@@ -44,6 +44,37 @@ describe('LearnPageView', () => {
     expect(html).toContain('&lt;script&gt;');
   });
 
+  it('skips an Image or Video block not filled in yet, and an empty optional image, without throwing (T314 F1)', () => {
+    const team = LEARN_PAGE_DEFAULT.sections[1]!;
+    const html = render({
+      ...LEARN_PAGE_DEFAULT,
+      sections: [
+        {
+          ...team,
+          blocks: [
+            { id: 'ei', kind: 'image', image: { src: '', alt: 'Empty one', width: 0, height: 0 }, width: 'medium', shape: 'original' },
+            { id: 'ev', kind: 'video', url: '', caption: 'Empty video' },
+            {
+              id: 'pp',
+              kind: 'people',
+              style: 'cards',
+              columns: 2,
+              people: [{ id: 'p', name: 'Ada', role: 'Teacher', photo: { src: '', alt: '', width: 0, height: 0 } }],
+            },
+            { id: 'tx', kind: 'text', text: 'Still here' },
+          ],
+        },
+        { ...team, id: 'only-empty', waveBehindFirstImage: true, blocks: [{ id: 'e2', kind: 'image', image: { src: '', alt: '', width: 0, height: 0 }, width: 'large', shape: 'original' }] },
+      ],
+    });
+    expect(html).toContain('Still here');
+    expect(html).toContain('Ada');
+    expect(html).not.toContain('Empty one');
+    expect(html).not.toContain('Empty video');
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('only-empty');
+  });
+
   it('falls back to the default page for an invalid document', () => {
     expect(render(learnPageOrDefault({ seoTitle: 42, sections: 'nope' }))).toBe(render());
   });

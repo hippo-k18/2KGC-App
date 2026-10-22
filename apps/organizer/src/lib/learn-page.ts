@@ -14,14 +14,19 @@ import {
   LEARN_LIMITS,
   LEARN_VERSIONS_KEPT,
   LearnConflict,
+  LearnUnreadable,
   effectiveDoc,
   fitWidth,
   hasUnpublishedChanges,
+  isLearnVersionId,
   planPublish,
   planReplaceDraft,
   planSave,
+  readStoredDoc,
   revertTarget,
+  validateLearnContent,
   versionsToPrune,
+  type LearnValidateOptions,
 } from './learn-page-core';
 import { UploadRejected, UploadUnavailable, storageBucketName } from './uploads';
 
@@ -65,20 +70,40 @@ export function usingStorageEmulator(): boolean {
   return Boolean(process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? process.env.STORAGE_EMULATOR_HOST);
 }
 
+/**
+ * What the validator needs to know about this server: whether the Storage
+ * emulator's URLs count, and which bucket uploaded images must be in.
+ */
+export function learnValidateOptions(): LearnValidateOptions {
+  return { allowEmulator: usingStorageEmulator(), bucket: storageBucketName() };
+}
+
 export async function listLearnVersions(limit = LEARN_VERSIONS_KEPT): Promise<LearnVersionSummary[]> {
   const snap = await versionsRef().orderBy('publishedAt', 'desc').limit(limit).get();
   return snap.docs.map((d) => {
-    const v = d.data() as LearnPageVersion;
-    const out: LearnVersionSummary = { id: d.id, publishedAt: v.publishedAt, publishedBy: v.publishedBy };
-    if (v.note) out.note = v.note;
+    const v = d.data() as Partial<LearnPageVersion>;
+    // Only the summary's own fields, typed: the history list renders them as text.
+    const out: LearnVersionSummary = {
+      id: d.id,
+      publishedAt: typeof v.publishedAt === 'number' ? v.publishedAt : 0,
+      publishedBy: typeof v.publishedBy === 'string' ? v.publishedBy : '',
+    };
+    if (typeof v.note === 'string' && v.note) out.note = v.note;
     return out;
   });
 }
 
+/**
+ * The editor's starting state. Throws `LearnUnreadable` when the stored draft
+ * does not pass the validator, so the page can offer to discard or restore
+ * instead of failing with a 500.
+ */
 export async function loadLearnEditor(): Promise<LearnEditorState> {
   const [snap, versions] = await Promise.all([docRef().get(), listLearnVersions()]);
   const exists = snap.exists;
-  const doc = effectiveDoc(exists ? (snap.data() as LearnPageDoc) : null);
+  const read = readStoredDoc(exists ? snap.data() : null, learnValidateOptions());
+  if (!read.ok) throw new LearnUnreadable('This draft could not be read.', read.problems);
+  const doc = read.doc;
   return { doc, exists, versions, hasUnpublishedChanges: hasUnpublishedChanges(doc, exists) };
 }
 
@@ -118,6 +143,16 @@ export async function publishLearnPage(input: {
     } else {
       base = effectiveDoc(stored);
       if (base.revision !== input.baseRevision) throw new LearnConflict(base.revision);
+      // The draft was validated when it was saved, but it may have been
+      // written some other way since; www must only ever get validated content.
+      const checked = validateLearnContent(base.draft, learnValidateOptions());
+      if (!checked.ok) {
+        throw new LearnUnreadable(
+          'The saved draft has problems, so it cannot be published. Reload the page.',
+          checked.problems,
+        );
+      }
+      base = { ...base, draft: checked.content };
     }
     const { doc, version } = planPublish(base, input.actor, now, input.note);
     tx.set(docRef(), doc);
@@ -144,7 +179,7 @@ export async function revertLearnDraft(actor: string): Promise<LearnPageDoc> {
   return db().runTransaction(async (tx) => {
     const snap = await tx.get(docRef());
     const stored = snap.exists ? (snap.data() as LearnPageDoc) : null;
-    const next = planReplaceDraft(stored, revertTarget(stored), actor, Date.now());
+    const next = planReplaceDraft(stored, revertTarget(stored, learnValidateOptions()), actor, Date.now());
     tx.set(docRef(), next);
     return next;
   });
@@ -157,13 +192,29 @@ export class LearnVersionMissing extends Error {
   }
 }
 
+/** A published version's content, validated, for the history preview. */
+export async function loadLearnVersion(versionId: unknown): Promise<LearnPageContent> {
+  if (!isLearnVersionId(versionId)) throw new LearnVersionMissing();
+  const snap = await versionsRef().doc(versionId).get();
+  if (!snap.exists) throw new LearnVersionMissing();
+  return readVersionContent(snap.get('content'));
+}
+
+function readVersionContent(raw: unknown): LearnPageContent {
+  const v = validateLearnContent(raw, learnValidateOptions());
+  if (!v.ok) {
+    throw new LearnUnreadable('That version could not be read, so it cannot be shown or restored. Pick another version.', v.problems);
+  }
+  return v.content;
+}
+
 /** Copy a published version into the draft. Not published until somebody presses Publish. */
-export async function restoreLearnVersion(versionId: string, actor: string): Promise<LearnPageDoc> {
-  if (!/^[A-Za-z0-9]{1,64}$/.test(versionId)) throw new LearnVersionMissing();
+export async function restoreLearnVersion(versionId: unknown, actor: string): Promise<LearnPageDoc> {
+  if (!isLearnVersionId(versionId)) throw new LearnVersionMissing();
   return db().runTransaction(async (tx) => {
     const [snap, version] = await Promise.all([tx.get(docRef()), tx.get(versionsRef().doc(versionId))]);
     if (!version.exists) throw new LearnVersionMissing();
-    const content = (version.data() as LearnPageVersion).content;
+    const content = readVersionContent(version.get('content'));
     const next = planReplaceDraft(snap.exists ? (snap.data() as LearnPageDoc) : null, content, actor, Date.now());
     tx.set(docRef(), next);
     return next;

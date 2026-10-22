@@ -2,6 +2,7 @@ import {
   LEARN_IMAGE_PREFIX,
   LEARN_PAGE_DEFAULT,
   isSafeHref,
+  learnPageOrDefault,
   type LearnBlock,
   type LearnPageContent,
   type LearnPageDoc,
@@ -96,7 +97,18 @@ const EMULATOR_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
  * including another folder of the same bucket, is refused: an image is
  * rendered on www and must not become a way to show somebody else's file there.
  */
-export function isAllowedLearnImageSrc(src: string, opts: { allowEmulator?: boolean } = {}): boolean {
+export interface LearnValidateOptions {
+  /** Accept image URLs from a local Storage emulator; the server passes it only when the emulator is configured. */
+  allowEmulator?: boolean;
+  /**
+   * The project's own Storage bucket. When given, an uploaded image must be in
+   * it: the `pageLayouts/learn/` folder of somebody else's bucket is not ours.
+   * The server always passes it (`learnValidateOptions()` in `learn-page.ts`).
+   */
+  bucket?: string;
+}
+
+export function isAllowedLearnImageSrc(src: string, opts: LearnValidateOptions = {}): boolean {
   if (typeof src !== 'string' || src.length > LEARN_LIMITS.href) return false;
   if (src.startsWith('/kgc/')) {
     return /^\/kgc\/[A-Za-z0-9._\-/]+$/.test(src) && !src.includes('..') && !src.includes('//');
@@ -110,11 +122,12 @@ export function isAllowedLearnImageSrc(src: string, opts: { allowEmulator?: bool
   const originOk =
     STORAGE_ORIGINS.includes(url.origin) || (opts.allowEmulator === true && EMULATOR_ORIGIN.test(url.origin));
   if (!originOk) return false;
-  const match = /^\/v0\/b\/[a-z0-9._-]+\/o\/([^/]+)$/.exec(url.pathname);
+  const match = /^\/v0\/b\/([a-z0-9._-]+)\/o\/([^/]+)$/.exec(url.pathname);
   if (!match) return false;
+  if (opts.bucket !== undefined && match[1] !== opts.bucket) return false;
   let objectPath: string;
   try {
-    objectPath = decodeURIComponent(match[1]);
+    objectPath = decodeURIComponent(match[2]);
   } catch {
     return false;
   }
@@ -150,6 +163,7 @@ function oneOf<T extends string | number>(v: unknown, allowed: readonly T[]): v 
 interface Ctx {
   p: Problems;
   allowEmulator: boolean;
+  bucket: string | undefined;
   sectionIds: Set<string>;
   blockIds: Set<string>;
 }
@@ -217,13 +231,29 @@ function bool(v: unknown): boolean | undefined {
   return v === true ? true : undefined;
 }
 
+/**
+ * An image not chosen yet: what the editor's new Image block and its Remove
+ * button hold (`EMPTY_IMAGE`, `{ src: '', width: 0, height: 0 }`). It is
+ * stored in the draft so autosave keeps working while the block is
+ * unfinished; publish refuses it (`publishBlockers`) and the renderers skip
+ * it. Any image whose `src` is exactly `''` counts, whatever its size says,
+ * and is stored with a size of 0 by 0: a stale size on an empty image is not
+ * worth stopping autosave over.
+ */
+export function isEmptyLearnImage(v: unknown): boolean {
+  return isObj(v) && v.src === '';
+}
+
 function image(ctx: Ctx, where: string, v: unknown): PageImage {
   if (!isObj(v)) {
     ctx.p.add(where, 'image is missing.');
     return { src: '', alt: '', width: 1, height: 1 };
   }
+  if (isEmptyLearnImage(v)) {
+    return { src: '', alt: str(ctx, where, 'Alt text', v.alt ?? '', LEARN_LIMITS.alt) ?? '', width: 0, height: 0 };
+  }
   const src = str(ctx, where, 'Image', v.src, LEARN_LIMITS.href, { required: true }) ?? '';
-  if (src && !isAllowedLearnImageSrc(src, { allowEmulator: ctx.allowEmulator })) {
+  if (src && !isAllowedLearnImageSrc(src, { allowEmulator: ctx.allowEmulator, bucket: ctx.bucket })) {
     ctx.p.add(where, 'image must be uploaded here or be a /kgc/ site image.');
   }
   const out: PageImage = {
@@ -287,7 +317,8 @@ function person(ctx: Ctx, where: string, v: unknown, seen: Set<string>): Person 
     name: str(ctx, where, 'Name', v.name, LEARN_LIMITS.shortText, { required: true }) ?? '',
     role: str(ctx, where, 'Role', v.role ?? '', LEARN_LIMITS.shortText) ?? '',
   };
-  if (v.photo !== undefined && v.photo !== null) out.photo = image(ctx, where, v.photo);
+  // An optional image that was never chosen is simply absent.
+  if (v.photo !== undefined && v.photo !== null && !isEmptyLearnImage(v.photo)) out.photo = image(ctx, where, v.photo);
   const li = href(ctx, where, 'LinkedIn link', v.linkedin);
   if (li !== undefined) out.linkedin = li;
   const bio = str(ctx, where, 'Bio', v.bio, LEARN_LIMITS.bio);
@@ -416,7 +447,7 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
             id: id(ctx, w, x.id, seen),
             text: str(ctx, w, 'Text', x.text, LEARN_LIMITS.richText, { required: true }) ?? '',
           };
-          if (x.image !== undefined && x.image !== null) item.image = image(ctx, w, x.image);
+          if (x.image !== undefined && x.image !== null && !isEmptyLearnImage(x.image)) item.image = image(ctx, w, x.image);
           const title = str(ctx, w, 'Title', x.title, LEARN_LIMITS.heading);
           if (title) item.title = title;
           if (x.link !== undefined && x.link !== null) item.link = button(ctx, w, x.link);
@@ -425,8 +456,11 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       };
     }
     case 'video': {
-      const url = str(ctx, where, 'Video link', v.url, LEARN_LIMITS.href, { required: true }) ?? '';
-      if (!/^https:\/\/[^\s]+$/.test(url) || !isSafeHref(url)) ctx.p.add(where, 'Video link must start with https://.');
+      const raw = str(ctx, where, 'Video link', v.url, LEARN_LIMITS.href, { required: true }) ?? '';
+      // An empty link is a video block not filled in yet: stored, refused at publish.
+      const url = raw.trim() === '' ? '' : raw;
+      if (url !== '' && (!/^https:\/\/[^\s]+$/.test(url) || !isSafeHref(url)))
+        ctx.p.add(where, 'Video link must start with https://.');
       const out: LearnBlock = { ...b, kind: 'video', url };
       const caption = str(ctx, where, 'Caption', v.caption, LEARN_LIMITS.caption);
       if (caption) out.caption = caption;
@@ -468,12 +502,14 @@ function section(ctx: Ctx, where: string, v: unknown): LearnSection | null {
  * Rebuild `input` as a `LearnPageContent`, or say what is wrong with it.
  *
  * `allowEmulator` accepts image URLs from a local Storage emulator; the server
- * passes it only when the emulator is configured.
+ * passes it only when the emulator is configured. `bucket` pins uploaded
+ * images to the project's own bucket.
  */
-export function validateLearnContent(input: unknown, opts: { allowEmulator?: boolean } = {}): LearnValidation {
+export function validateLearnContent(input: unknown, opts: LearnValidateOptions = {}): LearnValidation {
   const ctx: Ctx = {
     p: new Problems(),
     allowEmulator: opts.allowEmulator === true,
+    bucket: opts.bucket,
     sectionIds: new Set(),
     blockIds: new Set(),
   };
@@ -508,7 +544,13 @@ export function validateLearnContent(input: unknown, opts: { allowEmulator?: boo
 
 /** The stored document, or what an editor sees when there is none yet. */
 export function effectiveDoc(stored: LearnPageDoc | null | undefined): LearnPageDoc {
-  if (stored) return stored;
+  if (isObj(stored)) {
+    // A revision that is not a whole number (a hand-edited doc) would make
+    // every later write `NaN` or a string; count it as 0 so a discard or a
+    // restore can still repair the document.
+    const r = (stored as LearnPageDoc).revision;
+    return Number.isInteger(r) && r >= 0 ? stored : { ...stored, revision: 0 };
+  }
   return {
     draft: LEARN_PAGE_DEFAULT,
     published: null,
@@ -554,13 +596,58 @@ export function planSave(
   return docOf({ ...cur, draft: content, draftUpdatedAt: now, draftUpdatedBy: actor, revision: cur.revision + 1 });
 }
 
-/** Copy the draft to published. The caller writes `version` beside it. */
+/**
+ * Blocks that cannot go on the website yet: an Image block with no image
+ * chosen, a Video block with no link. The draft may hold them (autosave must
+ * not stop while someone is still filling a block in), but publish refuses
+ * them with these messages, which name the block and its section.
+ */
+export function publishBlockers(content: LearnPageContent): string[] {
+  const out: string[] = [];
+  content.sections.forEach((s, i) => {
+    const name = s.label.trim() || `Section ${i + 1}`;
+    for (const b of s.blocks) {
+      if (b.kind === 'image' && !b.image.src) {
+        out.push(`The Image block in "${name}" has no image yet. Choose one or remove the block.`);
+      } else if (b.kind === 'video' && !b.url.trim()) {
+        out.push(`The Video block in "${name}" has no video link yet. Add one or remove the block.`);
+      }
+    }
+  });
+  return out;
+}
+
+/** Publish refused because some blocks are not filled in (`publishBlockers`). */
+export class LearnNotReady extends Error {
+  constructor(readonly problems: string[]) {
+    super(problems.join(' '));
+    this.name = 'LearnNotReady';
+  }
+}
+
+/** Stored content (the draft or a version) that no longer passes the validator. */
+export class LearnUnreadable extends Error {
+  constructor(
+    message: string,
+    readonly problems: string[] = [],
+  ) {
+    super(message);
+    this.name = 'LearnUnreadable';
+  }
+}
+
+/**
+ * Copy the draft to published. The caller writes `version` beside it.
+ * Throws `LearnNotReady` while an Image or Video block is still empty.
+ */
 export function planPublish(
   stored: LearnPageDoc,
   actor: string,
   now: number,
   note?: string,
 ): { doc: LearnPageDoc; version: { content: LearnPageContent; publishedAt: number; publishedBy: string; note?: string } } {
+  const blockers = publishBlockers(stored.draft);
+  if (blockers.length > 0) throw new LearnNotReady(blockers);
   const doc = docOf({ ...stored, published: stored.draft, publishedAt: now, publishedBy: actor });
   const version: { content: LearnPageContent; publishedAt: number; publishedBy: string; note?: string } = {
     content: stored.draft,
@@ -583,9 +670,59 @@ export function planReplaceDraft(
   return docOf({ ...cur, draft: content, draftUpdatedAt: now, draftUpdatedBy: actor, revision: cur.revision + 1 });
 }
 
-/** What revert puts back: the published copy, or the default page when nothing is published. */
-export function revertTarget(stored: LearnPageDoc | null | undefined): LearnPageContent {
-  return stored?.published ?? LEARN_PAGE_DEFAULT;
+/**
+ * What revert puts back: the published copy, or the default page when nothing
+ * is published or the published copy no longer passes the validator (a
+ * revert is how an unreadable draft gets repaired, so it must not copy
+ * unreadable content back in).
+ */
+export function revertTarget(stored: LearnPageDoc | null | undefined, opts: LearnValidateOptions = {}): LearnPageContent {
+  const published = isObj(stored) ? stored.published : null;
+  if (published === null || published === undefined) return LEARN_PAGE_DEFAULT;
+  const v = validateLearnContent(published, opts);
+  return v.ok ? v.content : LEARN_PAGE_DEFAULT;
+}
+
+/**
+ * A published version's id as Firestore makes it (20 letters and digits; up
+ * to 64 accepted). Checked before the id reaches `doc()`, which throws on a
+ * path with a slash, an empty id or a reserved `__name__`.
+ */
+export function isLearnVersionId(v: unknown): v is string {
+  return typeof v === 'string' && /^[A-Za-z0-9]{1,64}$/.test(v);
+}
+
+/**
+ * The stored document as the editor may open it: the draft rebuilt by the
+ * validator, or `unreadable` with the problems when it does not pass (a doc
+ * written by hand or by an older build). The published copy is only used to
+ * show what changed, so an unreadable one falls back to what www renders for
+ * it (`learnPageOrDefault`) rather than blocking the editor.
+ */
+export function readStoredDoc(
+  raw: unknown,
+  opts: LearnValidateOptions = {},
+): { ok: true; doc: LearnPageDoc } | { ok: false; problems: string[] } {
+  if (raw === null || raw === undefined) return { ok: true, doc: effectiveDoc(null) };
+  if (!isObj(raw)) return { ok: false, problems: ['The stored page is not a document.'] };
+  const stored = effectiveDoc(raw as unknown as LearnPageDoc);
+  const draft = validateLearnContent(stored.draft, opts);
+  if (!draft.ok) return { ok: false, problems: draft.problems };
+  let published: LearnPageContent | null = null;
+  if (stored.published !== null && stored.published !== undefined) {
+    const v = validateLearnContent(stored.published, opts);
+    published = v.ok ? v.content : learnPageOrDefault(stored.published);
+  }
+  const doc: LearnPageDoc = {
+    draft: draft.content,
+    published,
+    draftUpdatedAt: typeof stored.draftUpdatedAt === 'number' ? stored.draftUpdatedAt : 0,
+    draftUpdatedBy: typeof stored.draftUpdatedBy === 'string' ? stored.draftUpdatedBy : '',
+    revision: stored.revision,
+  };
+  if (typeof stored.publishedAt === 'number') doc.publishedAt = stored.publishedAt;
+  if (typeof stored.publishedBy === 'string') doc.publishedBy = stored.publishedBy;
+  return { ok: true, doc };
 }
 
 /** Ids of versions beyond the newest `keep`, given newest-first summaries. */

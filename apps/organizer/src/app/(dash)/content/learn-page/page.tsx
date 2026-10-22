@@ -1,6 +1,8 @@
 import { publicSiteOrigin } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { loadLearnEditor } from '@/lib/learn-page';
+import { listLearnVersions, loadLearnEditor } from '@/lib/learn-page';
+import { LearnUnreadable } from '@/lib/learn-page-core';
+import { UnreadableDraft } from './unreadable-draft';
 import { LearnEditor } from './learn-editor';
 
 export const dynamic = 'force-dynamic';
@@ -14,9 +16,20 @@ export const dynamic = 'force-dynamic';
  * published copy); the website renders the published one. The store and its
  * rules are T309's, the website renderer is T311's, and the contract between
  * all three is `packages/shared/src/learn-page.ts`.
+ *
+ * A stored draft that does not pass the validator (written by hand, or by an
+ * older build) gets a screen that can discard it or restore a version, rather
+ * than a 500 that would leave the owner no way back in (T320).
  */
 export default async function LearnPageEditorPage() {
   await requireOrganizer();
-  const initial = await loadLearnEditor();
+  let initial;
+  try {
+    initial = await loadLearnEditor();
+  } catch (err) {
+    if (!(err instanceof LearnUnreadable)) throw err;
+    const versions = await listLearnVersions();
+    return <UnreadableDraft problems={err.problems} versions={versions} siteOrigin={publicSiteOrigin()} />;
+  }
   return <LearnEditor initial={initial} siteOrigin={publicSiteOrigin()} />;
 }

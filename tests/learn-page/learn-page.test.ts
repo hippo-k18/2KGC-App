@@ -15,7 +15,9 @@ import { COLLECTIONS, type LearnPageContent, type LearnPageDoc, type LearnPageVe
 import { db } from '@/lib/firestore';
 import {
   LearnVersionMissing,
+  learnValidateOptions,
   loadLearnEditor,
+  loadLearnVersion,
   publishLearnPage,
   restoreLearnVersion,
   revertLearnDraft,
@@ -26,6 +28,8 @@ import {
   LEARN_PAGE_DEFAULT,
   LEARN_VERSIONS_KEPT,
   LearnConflict,
+  LearnNotReady,
+  LearnUnreadable,
   isAllowedLearnImageSrc,
 } from '@/lib/learn-page-core';
 import { UploadRejected } from '@/lib/uploads';
@@ -377,5 +381,113 @@ describe('clearing a setting (AGENTS gotcha 9, T313)', () => {
     expect(reloaded).not.toHaveProperty('align');
     expect(reloaded).not.toHaveProperty('spaceAbove');
     expect(reloaded).toEqual(cleared.sections[0].blocks[0]);
+  });
+});
+
+// ─── T320: unfinished blocks, unreadable stored content, odd ids ─────────────
+
+/** A valid page with a new, empty Image block and Video block in its first section. */
+function unfinished(n: number | string): LearnPageContent {
+  const p = page(n);
+  p.sections[0].blocks.push(
+    { id: 'new-image', kind: 'image', image: { src: '', alt: '', width: 0, height: 0 }, width: 'medium', shape: 'original' },
+    { id: 'new-video', kind: 'video', url: '' },
+  );
+  return p;
+}
+
+describe('blocks not filled in yet (T314 F1)', () => {
+  it('saves into the draft, and publish refuses them with or without content', async () => {
+    await saveLearnDraft(unfinished(1), 0, ACTOR);
+    expect((await stored())?.draft).toEqual(unfinished(1));
+
+    const plain = await publishLearnPage({ baseRevision: 1, actor: ACTOR }).catch((e: unknown) => e);
+    expect(plain).toBeInstanceOf(LearnNotReady);
+    expect((plain as LearnNotReady).problems).toEqual([
+      'The Image block in "Hero" has no image yet. Choose one or remove the block.',
+      'The Video block in "Hero" has no video link yet. Add one or remove the block.',
+    ]);
+    const withContent = await publishLearnPage({ baseRevision: 1, content: unfinished(2), actor: ACTOR }).catch(
+      (e: unknown) => e,
+    );
+    expect(withContent).toBeInstanceOf(LearnNotReady);
+
+    // Nothing written by either refusal.
+    expect(await versionCount()).toBe(0);
+    const after = await stored();
+    expect(after?.revision).toBe(1);
+    expect(after?.published).toBeNull();
+    expect(after?.draft).toEqual(unfinished(1));
+  });
+});
+
+describe('unreadable stored content (T314 security 4 and 5)', () => {
+  const malformed = { seoTitle: 'Broken', sections: [{ id: 's', blocks: [{ id: 'b', kind: 'people', columns: 'url(//evil)' }] }] };
+
+  it('loadLearnEditor throws LearnUnreadable for a wrong-shaped draft, and revert repairs it', async () => {
+    await publishLearnPage({ baseRevision: 0, content: page('live'), actor: ACTOR });
+    await docRef().update({ draft: malformed, revision: 'x' });
+    const err = await loadLearnEditor().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LearnUnreadable);
+    expect((err as LearnUnreadable).problems.length).toBeGreaterThan(0);
+
+    await revertLearnDraft(ACTOR);
+    const state = await loadLearnEditor();
+    expect(state.doc.draft).toEqual(page('live'));
+    expect(state.doc.revision).toBe(1);
+  });
+
+  it('revert falls back to the default page when the published copy is unreadable too', async () => {
+    await saveLearnDraft(page(1), 0, ACTOR);
+    await docRef().update({ draft: malformed, published: { seoTitle: 3 } });
+    await revertLearnDraft(ACTOR);
+    expect((await stored())?.draft).toEqual(LEARN_PAGE_DEFAULT);
+  });
+
+  it('publish without content refuses a stored draft that no longer validates', async () => {
+    await saveLearnDraft(page(1), 0, ACTOR);
+    const offBucket = page(2);
+    offBucket.sections[0].blocks[0] = {
+      id: 'hero-wordmark',
+      kind: 'image',
+      image: {
+        src: 'https://firebasestorage.googleapis.com/v0/b/someone-else.appspot.com/o/pageLayouts%2Flearn%2Fa.png?alt=media&token=t',
+        alt: 'x',
+        width: 10,
+        height: 10,
+      },
+      width: 'large',
+      shape: 'original',
+    };
+    await docRef().update({ draft: offBucket });
+    const err = await publishLearnPage({ baseRevision: 1, actor: ACTOR }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LearnUnreadable);
+    expect(await versionCount()).toBe(0);
+    expect((await stored())?.published).toBeNull();
+  });
+
+  it('restore refuses a version whose content no longer validates, and changes nothing', async () => {
+    const { versionId } = await publishLearnPage({ baseRevision: 0, content: page('one'), actor: ACTOR });
+    await versionsRef().doc(versionId).update({ content: malformed });
+    const err = await restoreLearnVersion(versionId, ACTOR).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LearnUnreadable);
+    expect((err as Error).message).toMatch(/could not be read/);
+    await expect(loadLearnVersion(versionId)).rejects.toBeInstanceOf(LearnUnreadable);
+    const after = await stored();
+    expect(after?.revision).toBe(1);
+    expect(after?.draft).toEqual(page('one'));
+  });
+
+  it('refuses odd version ids cleanly, on restore and on preview', async () => {
+    await publishLearnPage({ baseRevision: 0, content: page('one'), actor: ACTOR });
+    for (const id of ['__proto__', 'null', 'constructor', '', 'x'.repeat(65), 'a/b', '../x', '__x__', null, undefined, 42, {}]) {
+      await expect(restoreLearnVersion(id, ACTOR), String(id)).rejects.toBeInstanceOf(LearnVersionMissing);
+      await expect(loadLearnVersion(id), String(id)).rejects.toBeInstanceOf(LearnVersionMissing);
+    }
+    expect((await stored())?.revision).toBe(1);
+  });
+
+  it('passes the project bucket to the validator', () => {
+    expect(learnValidateOptions()).toEqual({ allowEmulator: true, bucket: 'demo-learn-page.appspot.com' });
   });
 });
