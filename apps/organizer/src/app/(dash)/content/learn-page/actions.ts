@@ -12,7 +12,6 @@ import {
   LearnVersionMissing,
   learnValidateOptions,
   loadLearnEditor,
-  loadLearnLibrarySections,
   publishLearnPage,
   restoreLearnVersion,
   revertLearnDraft,
@@ -66,10 +65,13 @@ function failure(err: unknown, what: string): LearnResult<never> {
   return { ok: false, error: `Could not ${what}. Nothing was changed. Try again in a moment.` };
 }
 
-/** Validated against the saved sections that exist now, so a reusable block can never point nowhere. */
+/**
+ * Validated before anything is stored. A Saved section block pointing at a
+ * section since deleted from the library is saved (Undo can bring one back,
+ * T324 F7) and refused at publish, which checks against the library then.
+ */
 async function checkContent(content: unknown): Promise<{ ok: true; content: LearnPageContent } | LearnResult<never>> {
-  const libraryIds = new Set((await loadLearnLibrarySections()).keys());
-  const v = validateLearnContent(content, { ...learnValidateOptions(), libraryIds });
+  const v = validateLearnContent(content, learnValidateOptions());
   if (!v.ok) {
     return { ok: false, error: 'Some parts of the page need fixing before it can be saved.', problems: v.problems };
   }

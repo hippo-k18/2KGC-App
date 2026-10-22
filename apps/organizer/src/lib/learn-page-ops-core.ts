@@ -1,10 +1,11 @@
 import { expandReusableBlocks, type LearnPageContent, type LearnPageDoc, type LearnSection } from '@kgc/shared';
 import {
   LearnConflict,
+  LearnNotReady,
   docOf,
   effectiveDoc,
   planPublish,
-  publishBlockers,
+  publishProblems,
   validateLearnContent,
   withoutSchedule,
   type LearnValidateOptions,
@@ -91,6 +92,8 @@ export type ScheduledPublishPlan =
       message: string;
       problems: string[];
       draftChanged: boolean;
+      /** Set when the run threw rather than finding a problem: for the error log, never shown. */
+      error?: unknown;
     };
 
 /** How many problems the failure note names before "and N more". */
@@ -122,6 +125,13 @@ function failureMessage(lead: string, problems: readonly string[]): string {
  * again (and, before this, threw inside the transaction on every tick). The
  * editor shows `scheduleFailure` so the organizer knows to fix it and publish
  * or schedule again.
+ *
+ * The blockers are checked on the draft that gets published, with the
+ * library, as well as on the expanded page (`publishProblems`). Checking only
+ * the expanded page missed an empty Saved section block, which expands to
+ * nothing, and `planPublish` then threw on the draft inside the cron
+ * transaction every minute (T324 X1). Anything that still throws here takes
+ * the same failure path, with a plain message and the error kept for the log.
  */
 export function planScheduledPublish(
   stored: LearnPageDoc | null | undefined,
@@ -133,32 +143,47 @@ export function planScheduledPublish(
   const base = effectiveDoc(stored);
   const draftChanged = base.scheduledRevision !== undefined && base.scheduledRevision !== base.revision;
   const actor = base.scheduledBy || 'scheduled publish';
-  const fail = (lead: string, problems: string[]): ScheduledPublishPlan => {
+  const fail = (lead: string, problems: string[], error?: unknown): ScheduledPublishPlan => {
     const message = failureMessage(lead, problems);
-    return { ok: false, doc: { ...withoutSchedule(base), scheduleFailure: { at: now, message } }, message, problems, draftChanged };
+    const plan: ScheduledPublishPlan = {
+      ok: false,
+      doc: { ...withoutSchedule(base), scheduleFailure: { at: now, message } },
+      message,
+      problems,
+      draftChanged,
+    };
+    if (error !== undefined) plan.error = error;
+    return plan;
   };
 
-  const checked = validateLearnContent(base.draft, opts);
-  if (!checked.ok) return fail('The saved draft has problems:', checked.problems);
-  const expanded = validateLearnContent(expandReusableBlocks(checked.content, library), opts);
-  if (!expanded.ok) return fail('With its saved sections filled in, the page does not pass the checks:', expanded.problems);
-  // Checked on the expanded page, so an empty block inside a saved section counts as well.
-  const blockers = publishBlockers(expanded.content);
-  if (blockers.length > 0) return fail('Some blocks are not filled in yet.', blockers);
+  try {
+    const checked = validateLearnContent(base.draft, opts);
+    if (!checked.ok) return fail('The saved draft has problems:', checked.problems);
+    const expanded = validateLearnContent(expandReusableBlocks(checked.content, library), opts);
+    if (!expanded.ok) return fail('With its saved sections filled in, the page does not pass the checks:', expanded.problems);
+    const blockers = publishProblems(checked.content, library, expanded.content);
+    if (blockers.length > 0) return fail(NOT_READY_LEAD, blockers);
 
-  const planned = planPublish(
-    { ...base, draft: checked.content },
-    actor,
-    now,
-    draftChanged ? SCHEDULED_CHANGED_NOTE : SCHEDULED_NOTE,
-  );
-  return {
-    ok: true,
-    doc: { ...planned.doc, published: expanded.content },
-    version: { ...planned.version, content: expanded.content },
-    draftChanged,
-  };
+    const planned = planPublish(
+      { ...base, draft: checked.content },
+      actor,
+      now,
+      draftChanged ? SCHEDULED_CHANGED_NOTE : SCHEDULED_NOTE,
+    );
+    return {
+      ok: true,
+      doc: { ...planned.doc, published: expanded.content },
+      version: { ...planned.version, content: expanded.content },
+      draftChanged,
+    };
+  } catch (err) {
+    if (err instanceof LearnNotReady) return fail(NOT_READY_LEAD, err.problems, err);
+    return fail(UNEXPECTED_LEAD, [], err);
+  }
 }
+
+const NOT_READY_LEAD = 'Some blocks are not filled in yet.';
+const UNEXPECTED_LEAD = 'Something went wrong while publishing. Open the editor and press Publish, or schedule it again.';
 
 // ---------------------------------------------------------------------------
 // Draft preview link

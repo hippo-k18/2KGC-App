@@ -70,6 +70,8 @@ export interface ScheduledRunResult {
   /** What the editor shows (`scheduleFailure.message`). */
   message?: string;
   problems?: string[];
+  /** What threw, when the run failed that way: for the error log only. */
+  error?: unknown;
 }
 
 /**
@@ -105,6 +107,7 @@ export async function runScheduledLearnPublish(now: number = Date.now()): Promis
         draftChanged: plan.draftChanged,
         scheduledBy: stored.scheduledBy,
         revision: plan.doc.revision,
+        error: plan.error,
       };
     }
     tx.set(versionRef, plan.version);
@@ -173,7 +176,10 @@ export async function runLearnPageCronStep(now: number = Date.now()): Promise<Sc
   } else if (result.failed) {
     // Nobody is watching when the timer fires, so the dashboard's error log
     // and the audit log are where "why did the page not go live" is answered.
-    recordError('learn page scheduled publish did not run', new Error(result.message ?? 'The draft could not be published.'));
+    recordError(
+      'learn page scheduled publish did not run',
+      result.error ?? new Error(result.message ?? 'The draft could not be published.'),
+    );
     await appendAudit({
       actor: 'system:schedule',
       action: 'learnPage.scheduledPublishFailed',

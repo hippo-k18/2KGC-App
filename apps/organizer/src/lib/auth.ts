@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createHash, randomBytes } from 'node:crypto';
 import { checkCode, issueCode, lookupAllowed } from './access-code';
+import { appendAudit } from './audit';
 import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -226,7 +227,18 @@ export async function signOut(): Promise<void> {
 
 async function rotateOwnerEpoch(email: string): Promise<boolean> {
   try {
-    await ownerRef(email).set({ epoch: randomBytes(16).toString('hex'), updatedAt: new Date() }, { merge: true });
+    const ref = ownerRef(email);
+    await ref.set({ epoch: randomBytes(16).toString('hex'), updatedAt: new Date() }, { merge: true });
+    // The same entry a member's "Sign out on all devices" writes (`endMemberSessions`),
+    // so the audit log answers "who ended these sessions" for owners too.
+    await appendAudit({
+      actor: email,
+      action: 'team.signOutEverywhere',
+      targetPath: `${COLLECTIONS.ownerSessions}/${ref.id}`,
+      targetId: ref.id,
+      before: {},
+      after: { email, owner: true },
+    });
     return true;
   } catch (err) {
     console.error('[auth] could not rotate the owner epoch', err);

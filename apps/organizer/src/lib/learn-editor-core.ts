@@ -1,4 +1,4 @@
-import { isSafeHref } from '@kgc/shared';
+import { defaultEmbedTitle, isSafeHref, learnEmbedLinkProblem, learnEmbedSrc } from '@kgc/shared';
 import type {
   Columns,
   LearnBlock,
@@ -8,6 +8,7 @@ import type {
   RichContent,
 } from '@kgc/shared';
 import { richOneLine } from './learn-rich';
+import { isUnfinishedHref } from './learn-page-core';
 
 /**
  * The Learn page editor's pure half: every edit, the undo stack and the
@@ -695,7 +696,7 @@ export function createBlock(kind: BlockKind): LearnBlock {
     case 'logos':
       return { id, kind, grayscale: false, items: [], align: 'center' };
     case 'embed':
-      return { id, kind, provider: 'google-maps', url: '', aspect: '16:9', title: 'Map' };
+      return { id, kind, provider: 'google-maps', url: '', aspect: '16:9', title: defaultEmbedTitle('google-maps') };
     case 'countdown':
       return { id, kind, until: 0, label: 'Starts in', doneText: 'It has started.', align: 'center' };
     case 'table':
@@ -804,11 +805,13 @@ export function contentWarnings(content: LearnPageContent): Warning[] {
         case 'quote':
           if (b.photo?.src && !b.photo.alt.trim()) warn('The quote photo needs a description');
           break;
-        case 'embed':
-          if (!b.url.trim()) warn('Embed has no link yet');
-          else if (!embedSrc(b.provider, b.url)) warn(`That link is not a ${EMBED_PROVIDERS[b.provider].label} link`);
+        case 'embed': {
+          const status = embedStatus(b.provider, b.url);
+          if (status.state === 'empty') warn('Embed has no link yet');
+          else if (status.state === 'bad') warn(status.message);
           if (!b.title.trim()) warn('Embed needs a title for screen readers');
           break;
+        }
         case 'countdown':
           if (!b.until) warn('Countdown has no date yet');
           break;
@@ -816,6 +819,7 @@ export function contentWarnings(content: LearnPageContent): Warning[] {
           if (!b.libraryId) warn('Choose a saved section to show here');
           break;
       }
+      if (hasUnfinishedLink(b)) warn('A link is not finished yet');
     }
   });
   return out;
@@ -864,7 +868,11 @@ export type EmbedProvider = BlockOf<'embed'>['provider'];
 export const EMBED_PROVIDERS: Record<EmbedProvider, { label: string; hint: string; hosts: string[] }> = {
   youtube: { label: 'YouTube', hint: 'https://www.youtube.com/watch?v=...', hosts: ['youtube.com', 'youtu.be', 'youtube-nocookie.com'] },
   vimeo: { label: 'Vimeo', hint: 'https://vimeo.com/123456789', hosts: ['vimeo.com', 'player.vimeo.com'] },
-  'google-maps': { label: 'Google Maps', hint: 'Share > Embed a map > copy the link inside src', hosts: ['google.com', 'maps.google.com'] },
+  'google-maps': {
+    label: 'Google Maps',
+    hint: 'Find the place in Google Maps, then copy the address from the browser\'s address bar',
+    hosts: ['google.com', 'maps.google.com', 'maps.app.goo.gl'],
+  },
   'google-forms': { label: 'Google Forms', hint: 'https://docs.google.com/forms/d/e/.../viewform', hosts: ['docs.google.com', 'forms.gle'] },
   'google-docs': { label: 'Google Docs', hint: 'File > Share > Publish to web, then copy the link', hosts: ['docs.google.com'] },
   'google-slides': { label: 'Google Slides', hint: 'File > Share > Publish to web, then copy the link', hosts: ['docs.google.com'] },
@@ -890,6 +898,7 @@ export function embedProviderFromUrl(url: string): EmbedProvider | null {
   }
   if (host === 'forms.gle') return 'google-forms';
   if ((host === 'google.com' || host === 'maps.google.com') && u.pathname.startsWith('/maps')) return 'google-maps';
+  if (host === 'maps.app.goo.gl' || (host === 'goo.gl' && u.pathname.startsWith('/maps'))) return 'google-maps';
   for (const [p, info] of Object.entries(EMBED_PROVIDERS) as [EmbedProvider, (typeof EMBED_PROVIDERS)[EmbedProvider]][]) {
     if (p.startsWith('google-')) continue;
     if (info.hosts.some((h) => host === h || host.endsWith(`.${h}`))) return p;
@@ -898,21 +907,81 @@ export function embedProviderFromUrl(url: string): EmbedProvider | null {
 }
 
 /**
- * The iframe address for a pasted link, or null when the link is not that
- * provider's. A courtesy for the editor's status line; T315's server allowlist
- * decides what is stored, and T319's renderer what is drawn.
+ * The iframe address for a pasted link, or null when the website could not
+ * show it. The same allowlist www renders with (`learnEmbedSrc`), so the
+ * preview and the status line never say a link works when the page would
+ * draw nothing (T324 D2: a Google Maps place link was "found" and then
+ * refused).
  */
 export function embedSrc(provider: EmbedProvider, url: string): string | null {
-  let u: URL;
-  try {
-    u = new URL(url.trim());
-  } catch {
-    return null;
+  return learnEmbedSrc(provider, url);
+}
+
+export interface EmbedStatus {
+  state: 'empty' | 'ok' | 'bad';
+  /** The status line under the link field, in plain words. */
+  message: string;
+}
+
+/**
+ * What the Embed settings say under the link: nothing pasted yet, a link that
+ * will show on the page, or why it will not (`learnEmbedLinkProblem`, the
+ * same words publish uses). A link that will not show still saves.
+ */
+export function embedStatus(provider: EmbedProvider, url: string): EmbedStatus {
+  const label = EMBED_PROVIDERS[provider]?.label ?? 'embed';
+  if (!url.trim()) return { state: 'empty', message: `Paste a ${label} link` };
+  if (embedSrc(provider, url)) {
+    return { state: 'ok', message: provider === 'google-maps' ? 'This map will show on the page.' : `This ${label} link will show on the page.` };
   }
-  if (u.protocol !== 'https:') return null;
-  if (provider === 'youtube' || provider === 'vimeo') return videoEmbedUrl(url);
-  if (embedProviderFromUrl(url) !== provider) return null;
-  return u.toString();
+  return { state: 'bad', message: learnEmbedLinkProblem(provider, url) ?? `That is not a ${label} link this page can show.` };
+}
+
+/**
+ * The patch for a pasted or typed embed link: the link, the service it
+ * belongs to when that is a different one, and a title that follows the
+ * service while it is still the default one (a YouTube link in a new Embed
+ * is announced as "Video", not "Map"). A title somebody wrote is kept.
+ */
+export function embedLinkPatch(
+  block: { provider: EmbedProvider; title: string },
+  url: string,
+): { url: string; provider?: EmbedProvider; title?: string } {
+  const p = embedProviderFromUrl(url);
+  if (!p || p === block.provider) return { url };
+  return { url, ...embedProviderPatch(block, p) };
+}
+
+/** Switching service by hand: the provider, and the title when it was the old service's default or empty. */
+export function embedProviderPatch(
+  block: { provider: EmbedProvider; title: string },
+  provider: EmbedProvider,
+): { provider: EmbedProvider; title?: string } {
+  const t = block.title.trim();
+  return t === '' || t === defaultEmbedTitle(block.provider) ? { provider, title: defaultEmbedTitle(provider) } : { provider };
+}
+
+/** Does the block hold a link with no address yet or one still being typed? Publish refuses it. */
+export function hasUnfinishedLink(b: LearnBlock): boolean {
+  const bad = (h: string | undefined) => h !== undefined && isUnfinishedHref(h);
+  switch (b.kind) {
+    case 'buttons':
+      return b.buttons.some((x) => bad(x.href));
+    case 'imageText':
+      return (b.buttons ?? []).some((x) => bad(x.href));
+    case 'image':
+      return bad(b.href);
+    case 'people':
+      return b.people.some((p) => bad(p.linkedin));
+    case 'list':
+    case 'columns':
+    case 'cards':
+      return (b.items as { link?: { href: string } }[]).some((i) => bad(i.link?.href));
+    case 'logos':
+      return b.items.some((i) => bad(i.href));
+    default:
+      return false;
+  }
 }
 
 /** YouTube or Vimeo page URL to its embed URL, or null for anything else. */

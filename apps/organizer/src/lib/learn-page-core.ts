@@ -7,12 +7,14 @@ import {
   isColorValue,
   isRichDoc,
   isSafeHref,
-  learnEmbedSrc,
+  isSafeRichHref,
+  learnEmbedLinkProblem,
   learnPageOrDefault,
   normalizeColor,
   validateRichDoc,
   type ColorValue,
   type LearnBlock,
+  type LearnLibrarySections,
   type LearnPageContent,
   type LearnPageDoc,
   type LearnSection,
@@ -41,6 +43,21 @@ import {
  * pass `isSafeHref`, and an image may only point at this page's own uploads or
  * at the site's own `/kgc/` assets. What gets stored is the rebuilt copy, never
  * the input.
+ *
+ * ── What refuses a save, and what only refuses publish (T325) ────────────────
+ *
+ * Autosave sends the draft while somebody is still typing, so a value that is
+ * merely unfinished must never refuse the whole draft: a new button with no
+ * address yet, `linkedin.com/in/x` before the https:// goes in, a Google Maps
+ * link the embed cannot show, an empty embed title, a link name half typed or
+ * the same as another, a countdown year being typed, a table with its last row
+ * deleted, a saved section that was deleted from the library. Those are stored
+ * as typed and `publishBlockers` refuses to publish them, naming the block.
+ * Only what no amount of typing produces refuses a save: the wrong type, an
+ * unknown kind or enum, over a size limit, an image from anywhere but our own
+ * uploads, and a link with a dangerous scheme (`javascript:`, `data:` and the
+ * like) or a scheme-relative `//host`. Every renderer checks links again with
+ * `isSafeHref`, so a half-typed address in the draft never reaches a visitor.
  *
  * v2 (T315) adds rich text (a `RichDoc` wherever the contract says
  * `RichContent`, checked by `validateRichDoc` from `@kgc/shared`), fourteen
@@ -123,19 +140,22 @@ const SECTION_LAYOUTS = ['single', 'two-equal', 'two-wide-left', 'two-wide-right
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const ANCHOR = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-/** Provider names as an organizer reads them, for the embed refusal message. */
-const EMBED_NAMES: Record<(typeof LEARN_EMBED_PROVIDERS)[number], string> = {
-  youtube: 'YouTube',
-  vimeo: 'Vimeo',
-  'google-maps': 'Google Maps embed',
-  'google-forms': 'Google Forms',
-  'google-docs': 'published Google Docs',
-  'google-slides': 'published Google Slides',
-  calendly: 'Calendly',
-  typeform: 'Typeform',
-  loom: 'Loom',
-  spotify: 'Spotify',
-};
+/**
+ * A link no editing step produces and no renderer may ever open: a script,
+ * data or file scheme (with the spaces and control characters a browser
+ * ignores taken out first, so `java script:` counts), or a scheme-relative
+ * `//host` or `\\host`. These refuse the save; any other link that is not
+ * safe yet is an unfinished one (`isUnfinishedHref`).
+ */
+export function isRefusedHref(v: string): boolean {
+  const squashed = v.replace(/[\u0000-\u0020\u007f]/g, '').toLowerCase();
+  return /^(javascript|vbscript|data|file|blob):/.test(squashed) || /^[/\\][/\\]/.test(squashed);
+}
+
+/** A stored link the site cannot open yet: empty, half typed, or not a safe address. Publish refuses it. */
+export function isUnfinishedHref(v: string): boolean {
+  return v.trim() === '' || !isSafeHref(v);
+}
 
 /** Hosts a stored image URL may come from: production, and the local Storage emulator. */
 const STORAGE_ORIGINS = ['https://firebasestorage.googleapis.com'];
@@ -159,8 +179,6 @@ export interface LearnValidateOptions {
    * The server always passes it (`learnValidateOptions()` in `learn-page.ts`).
    */
   bucket?: string;
-  /** The saved sections that exist; a `reusable` block naming any other id is refused. */
-  libraryIds?: ReadonlySet<string>;
   /** Validating a section on its way into the library: it may not hold a `reusable` block. */
   forLibrary?: boolean;
 }
@@ -227,8 +245,6 @@ interface Ctx {
   bucket: string | undefined;
   sectionIds: Set<string>;
   blockIds: Set<string>;
-  anchors: Set<string>;
-  libraryIds?: ReadonlySet<string>;
   forLibrary: boolean;
 }
 
@@ -239,8 +255,6 @@ function newCtx(opts: LearnValidateOptions): Ctx {
     bucket: opts.bucket,
     sectionIds: new Set(),
     blockIds: new Set(),
-    anchors: new Set(),
-    libraryIds: opts.libraryIds,
     forLibrary: opts.forLibrary === true,
   };
 }
@@ -279,12 +293,44 @@ function rich(
   opts: { required?: boolean; inline?: boolean } = {},
 ): RichContent | undefined {
   if (isRichDoc(v)) {
-    const r = validateRichDoc(v, { maxChars: max, inline: opts.inline === true });
+    const r = validateRichDoc(withoutUnfinishedLinks(v), { maxChars: max, inline: opts.inline === true });
     if (r.ok) return r.doc;
     for (const problem of r.problems) ctx.p.add(where, problem);
     return emptyRichDoc();
   }
   return str(ctx, where, name, v, max, opts);
+}
+
+/**
+ * The doc with every link mark whose address is unfinished taken off (the
+ * words stay). The editor's link dialog only applies a finished address, but
+ * pasted HTML can carry `href="page.html"`, and that must not stop autosave.
+ * The sanitizer every renderer runs drops such a link the same way. A refused
+ * address (`isRefusedHref`) or an oversized one is left for `validateRichDoc`
+ * to refuse. Never throws; anything that is not a mark list is left alone.
+ */
+function withoutUnfinishedLinks<T>(node: T): T {
+  if (Array.isArray(node)) return node.map(withoutUnfinishedLinks) as T;
+  if (!isObj(node)) return node;
+  const out: Obj = {};
+  for (const [k, val] of Object.entries(node)) {
+    if (k === 'marks' && Array.isArray(val)) {
+      out.marks = val.filter(
+        (m) =>
+          !(
+            isObj(m) &&
+            m.type === 'link' &&
+            typeof m.href === 'string' &&
+            m.href.length <= RICH_DOC_LIMITS.href &&
+            !isRefusedHref(m.href) &&
+            !isSafeRichHref(m.href)
+          ),
+      );
+    } else {
+      out[k] = withoutUnfinishedLinks(val);
+    }
+  }
+  return out as T;
 }
 
 function id(ctx: Ctx, where: string, v: unknown, seen?: Set<string>): string {
@@ -299,15 +345,22 @@ function id(ctx: Ctx, where: string, v: unknown, seen?: Set<string>): string {
   return v;
 }
 
-/** An in-page link target, unique across the whole page (sections and blocks). */
+/**
+ * An in-page link target. Stored as typed: the editor saves on every key, so
+ * `our-` on the way to `our-team`, or a name another block already has, is
+ * an unfinished link name, refused at publish (`publishBlockers`), not here.
+ * The website keeps only well-formed, first-seen anchors either way.
+ */
 function anchor(ctx: Ctx, where: string, v: unknown): string | undefined {
   if (v === undefined || v === null || v === '') return undefined;
-  if (typeof v !== 'string' || v.length > LEARN_LIMITS.anchor || !ANCHOR.test(v)) {
-    ctx.p.add(where, 'Anchor must be lower-case letters, digits and single dashes, at most 64 characters.');
+  if (typeof v !== 'string') {
+    ctx.p.add(where, 'Anchor must be text.');
     return undefined;
   }
-  if (ctx.anchors.has(v)) ctx.p.add(where, `uses the anchor "${v}" twice.`);
-  ctx.anchors.add(v);
+  if (v.length > LEARN_LIMITS.anchor) {
+    ctx.p.add(where, `Anchor is ${v.length} characters; the limit is ${LEARN_LIMITS.anchor}.`);
+    return undefined;
+  }
   return v;
 }
 
@@ -320,12 +373,19 @@ function color(ctx: Ctx, where: string, name: string, v: unknown): ColorValue | 
   return normalizeColor(v);
 }
 
+/**
+ * A link field, stored trimmed. An empty optional link is absent. An empty
+ * required one (a new button) or one still being typed is stored as it is and
+ * refused at publish (`publishBlockers`); only a refused scheme
+ * (`isRefusedHref`) refuses the save.
+ */
 function href(ctx: Ctx, where: string, name: string, v: unknown, opts: { required?: boolean } = {}): string | undefined {
   const s = str(ctx, where, name, v, LEARN_LIMITS.href, opts);
   if (s === undefined) return undefined;
-  if (s.trim() === '' && !opts.required) return undefined;
-  if (!isSafeHref(s)) ctx.p.add(where, `${name} "${s.slice(0, 80)}" is not a link the site can open.`);
-  return s.trim();
+  const t = s.trim();
+  if (t === '' && !opts.required) return undefined;
+  if (isRefusedHref(t)) ctx.p.add(where, `${name} "${t.slice(0, 80)}" is not a link the site can open.`);
+  return t;
 }
 
 function enumField<T extends string | number>(
@@ -629,10 +689,10 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
     }
     case 'video': {
       const raw = str(ctx, where, 'Video link', v.url, LEARN_LIMITS.href, { required: true }) ?? '';
-      // An empty link is a video block not filled in yet: stored, refused at publish.
+      // An empty link is a video block not filled in yet, and an http:// or
+      // half-typed one is unfinished: both stored, refused at publish.
       const url = raw.trim() === '' ? '' : raw;
-      if (url !== '' && (!/^https:\/\/[^\s]+$/.test(url) || !isSafeHref(url)))
-        ctx.p.add(where, 'Video link must start with https://.');
+      if (url !== '' && isRefusedHref(url)) ctx.p.add(where, 'Video link must start with https://.');
       const out: LearnBlock = { ...b, kind: 'video', url };
       const caption = str(ctx, where, 'Caption', v.caption, LEARN_LIMITS.caption);
       if (caption) out.caption = caption;
@@ -757,12 +817,14 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
     case 'embed': {
       const provider = enumField(ctx, where, 'Embed type', v.provider, LEARN_EMBED_PROVIDERS, { required: true })!;
       const url = (str(ctx, where, 'Embed link', v.url, LEARN_LIMITS.href, { required: true }) ?? '').trim();
-      // An empty link is "not added yet" (refused at publish, `publishBlockers`).
-      if (url !== '' && oneOf(v.provider, LEARN_EMBED_PROVIDERS) && !learnEmbedSrc(provider, url)) {
-        ctx.p.add(where, `Embed link is not a ${EMBED_NAMES[provider]} link this page can show.`);
-      }
-      const title = str(ctx, where, 'Embed title', v.title, LEARN_LIMITS.shortText, { required: true }) ?? '';
-      if (title.trim() === '') ctx.p.add(where, 'Embed title is empty; screen readers announce it.');
+      // An empty link is "not added yet", and one `learnEmbedSrc` cannot show
+      // (a short maps.app.goo.gl link, a half-pasted address) is unfinished:
+      // both stored and refused at publish (`publishBlockers`). The iframe
+      // address is always rebuilt from the allowlist, never taken from here.
+      if (url !== '' && isRefusedHref(url)) ctx.p.add(where, 'Embed link is not a link the site can open.');
+      // An empty title is allowed: the renderers fall back to `defaultEmbedTitle`
+      // and the Checker asks for a real one.
+      const title = str(ctx, where, 'Embed title', v.title ?? '', LEARN_LIMITS.shortText) ?? '';
       const out: LearnBlock = {
         ...b,
         kind: 'embed',
@@ -773,11 +835,10 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       };
       if (v.height !== undefined && v.height !== null) {
         const h = v.height;
-        if (typeof h !== 'number' || !Number.isInteger(h) || h < LEARN_LIMITS.embedHeightMin || h > LEARN_LIMITS.embedHeightMax) {
-          ctx.p.add(
-            where,
-            `Embed height must be a whole number of pixels from ${LEARN_LIMITS.embedHeightMin} to ${LEARN_LIMITS.embedHeightMax}.`,
-          );
+        // `6` on the way to `600` is stored and refused at publish; the
+        // renderers ignore a height outside their own range.
+        if (typeof h !== 'number' || !Number.isInteger(h) || h < 0 || h > EMBED_HEIGHT_STORED_MAX) {
+          ctx.p.add(where, 'Embed height must be a whole number of pixels.');
         } else {
           out.height = h;
         }
@@ -786,12 +847,11 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
     }
     case 'countdown': {
       const until = v.until;
-      // 0 is "no date chosen yet" (refused at publish, `publishBlockers`).
-      const chosen = until !== 0;
-      if (
-        chosen &&
-        (typeof until !== 'number' || !Number.isInteger(until) || until < LEARN_LIMITS.countdownFrom || until >= LEARN_LIMITS.countdownTo)
-      ) {
+      // 0 is "no date chosen yet", and a real date outside 2020 to 2099 is
+      // one being typed (the year field passes through 0002 on the way to
+      // 2027): both stored, refused at publish (`publishBlockers`). Only what
+      // is not a date at all refuses the save.
+      if (typeof until !== 'number' || !Number.isInteger(until) || Math.abs(until) > MAX_DATE_MS) {
         ctx.p.add(where, 'Countdown date must be a real date between 2020 and 2099.');
       }
       return compact({
@@ -807,10 +867,10 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       if (!isRichDoc(v.doc)) {
         ctx.p.add(where, 'Table is missing.');
       } else {
-        const r = validateRichDoc(v.doc, { maxChars: LEARN_LIMITS.tableChars });
+        const r = validateRichDoc(withoutUnfinishedLinks(v.doc), { maxChars: LEARN_LIMITS.tableChars });
         if (r.ok) {
+          // A table with every row deleted is unfinished, refused at publish.
           doc = r.doc;
-          if (!doc.content.some((n) => n.type === 'table')) ctx.p.add(where, 'Table has no rows.');
         } else {
           for (const problem of r.problems) ctx.p.add(where, problem);
         }
@@ -834,9 +894,10 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
         // autosave goes on, and publish refuses it (`publishBlockers`).
       } else if (!ID.test(libraryId)) {
         ctx.p.add(where, 'Saved section id is missing or malformed.');
-      } else if (ctx.libraryIds && !ctx.libraryIds.has(libraryId)) {
-        ctx.p.add(where, 'points to a saved section that no longer exists.');
       }
+      // A saved section deleted from the library (Undo can bring back a block
+      // that points at one) is not checked here: the draft saves, and publish
+      // refuses it by name (`publishBlockers` with the library).
       return { ...b, kind: 'reusable', libraryId };
     }
     default:
@@ -844,6 +905,11 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       return null;
   }
 }
+
+/** The largest embed height stored; the renderers use 100 to 2000 (`LEARN_LIMITS`). */
+const EMBED_HEIGHT_STORED_MAX = 100_000;
+/** The farthest a JavaScript date reaches either side of 1970. */
+const MAX_DATE_MS = 8.64e15;
 
 /** How many columns each section layout has; absent or `single` is one. */
 const LAYOUT_COLUMNS: Record<(typeof SECTION_LAYOUTS)[number], number> = {
@@ -855,9 +921,13 @@ const LAYOUT_COLUMNS: Record<(typeof SECTION_LAYOUTS)[number], number> = {
 };
 
 /**
- * Which column each block sits in. Only a multi-column layout may have one;
- * every key must be a block of this section and every value a column it has.
- * Blocks with no entry sit in the first column. An empty map is dropped.
+ * Which column each block sits in. Blocks with no entry sit in the first
+ * column. The map follows the section rather than refusing it: switching to
+ * fewer columns, or deleting a block, can leave entries behind, and that must
+ * not stop autosave. So an entry for a block the section does not hold is
+ * dropped, a column past the layout's last is moved into its last, and a
+ * one-column section keeps no map. An empty map is dropped. A value that is
+ * not a whole number is still refused: no editing step makes one.
  */
 function blockColumn(
   ctx: Ctx,
@@ -873,24 +943,21 @@ function blockColumn(
   }
   const keys = Object.keys(v);
   if (keys.length === 0) return undefined;
-  const columns = LAYOUT_COLUMNS[layout ?? 'single'];
-  if (columns < 2) {
-    ctx.p.add(where, 'places blocks in columns but the section has one column. Choose a column layout first.');
+  if (keys.length > LEARN_LIMITS.blocksPerSection) {
+    ctx.p.add(where, 'Block columns name more blocks than a section holds.');
     return undefined;
   }
+  const columns = LAYOUT_COLUMNS[layout ?? 'single'];
   const ids = new Set(blocks.map((b) => b.id));
   const out: Record<string, number> = {};
-  for (const key of keys.slice(0, LEARN_LIMITS.blocksPerSection)) {
+  for (const key of keys) {
     const col = v[key];
-    if (!ids.has(key)) {
-      ctx.p.add(where, `places "${key.slice(0, 64)}" in a column but no block in this section has that id.`);
-    } else if (typeof col !== 'number' || !Number.isInteger(col) || col < 0 || col >= columns) {
-      ctx.p.add(where, `places "${key}" in column ${String(col).slice(0, 20)}; this layout has columns 0 to ${columns - 1}.`);
-    } else {
-      out[key] = col;
+    if (typeof col !== 'number' || !Number.isInteger(col) || col < 0) {
+      ctx.p.add(where, `places "${key.slice(0, 64)}" in column ${String(col).slice(0, 20)}, which is not a column number.`);
+    } else if (ids.has(key) && columns > 1) {
+      out[key] = Math.min(col, columns - 1);
     }
   }
-  if (keys.length > LEARN_LIMITS.blocksPerSection) ctx.p.add(where, 'Block columns name more blocks than a section holds.');
   return out;
 }
 
@@ -966,7 +1033,8 @@ export function validateLearnContent(input: unknown, opts: LearnValidateOptions 
       .map((s, i) => section(ctx, `Section ${i + 1}`, s))
       .filter((s): s is LearnSection => s !== null),
   };
-  if (content.seoTitle.trim() === '') ctx.p.add('Search settings', 'Page title is empty.');
+  // An empty page title is refused at publish (`publishBlockers`), not here:
+  // clearing the field to type a new one must not stop autosave.
   const og = optImage(ctx, 'Sharing image', input.ogImage);
   if (og) content.ogImage = og;
   if (bool(input.noindex)) content.noindex = true;
@@ -1073,31 +1141,217 @@ export function planSave(
   return docOf({ ...cur, draft: content, draftUpdatedAt: now, draftUpdatedBy: actor, revision: cur.revision + 1 });
 }
 
+/** Each block kind as the Add block picker names it, for publish messages. */
+const KIND_LABEL: Record<LearnBlock['kind'], string> = {
+  heading: 'Heading',
+  text: 'Text',
+  image: 'Image',
+  buttons: 'Buttons',
+  people: 'People',
+  list: 'List',
+  columns: 'Columns',
+  video: 'Video',
+  divider: 'Divider',
+  spacer: 'Spacer',
+  imageText: 'Image and text',
+  gallery: 'Gallery',
+  quote: 'Quote',
+  callout: 'Callout',
+  accordion: 'Questions',
+  tabs: 'Tabs',
+  stats: 'Numbers',
+  cards: 'Cards',
+  logos: 'Logos',
+  embed: 'Embed',
+  countdown: 'Countdown',
+  table: 'Table',
+  toc: 'Contents',
+  reusable: 'Saved section',
+};
+
+function listOf<T>(v: T[] | undefined): T[] {
+  return Array.isArray(v) ? v : [];
+}
+
+/** Every link a block holds, with what the publish message calls it. */
+function blockLinks(b: LearnBlock): { href: unknown; noun: string }[] {
+  const link = (l: LinkButton | undefined) => (isObj(l) ? [{ href: l.href, noun: 'link' }] : []);
+  switch (b.kind) {
+    case 'buttons':
+      return listOf(b.buttons).flatMap(link);
+    case 'imageText':
+      return listOf(b.buttons).flatMap(link);
+    case 'image':
+      return b.href !== undefined ? [{ href: b.href, noun: 'link' }] : [];
+    case 'people':
+      return listOf(b.people).flatMap((p) => (isObj(p) && p.linkedin !== undefined ? [{ href: p.linkedin, noun: 'LinkedIn link' }] : []));
+    case 'list':
+    case 'columns':
+    case 'cards':
+      return listOf<{ link?: LinkButton }>(b.items).flatMap((i) => (isObj(i) ? link(i.link) : []));
+    case 'logos':
+      return listOf(b.items).flatMap((i) => (isObj(i) && i.href !== undefined ? [{ href: i.href, noun: 'link' }] : []));
+    default:
+      return [];
+  }
+}
+
+/** Shown in a message: what was typed, short. */
+function typed(v: string): string {
+  const t = v.trim();
+  return t.length > 60 ? `${t.slice(0, 57)}...` : t;
+}
+
 /**
- * Blocks that cannot go on the website yet: an Image block with no image
- * chosen, a Video or Embed block with no link, a Countdown with no date, a
- * Saved section block with no saved section chosen. The draft may hold them (autosave must
- * not stop while someone is still filling a block in), but publish refuses
- * them with these messages, which name the block and its section.
+ * Why one block (of the page or of a saved section it uses) cannot go on the
+ * website yet, as messages naming it and its section. Defensive about shape:
+ * a saved section comes from the library as stored.
  */
-export function publishBlockers(content: LearnPageContent): string[] {
+function blockBlockers(b: LearnBlock, name: string, out: string[], library: LearnLibrarySections | undefined) {
+  if (!isObj(b)) return;
+  const label = KIND_LABEL[b.kind] ?? 'A';
+  const where = `The ${label} block in "${name}"`;
+  for (const { href, noun } of blockLinks(b)) {
+    if (typeof href !== 'string' || href.trim() === '') {
+      out.push(`${where} has a ${noun} with no address yet. Add one or remove the ${noun}.`);
+    } else if (isUnfinishedHref(href)) {
+      out.push(`${where} has a ${noun} that is not finished: "${typed(href)}". Use a full address, like https://example.com.`);
+    }
+  }
+  switch (b.kind) {
+    case 'image':
+      if (!b.image?.src) out.push(`${where} has no image yet. Choose one or remove the block.`);
+      break;
+    case 'video': {
+      const url = typeof b.url === 'string' ? b.url.trim() : '';
+      if (!url) out.push(`${where} has no video link yet. Add one or remove the block.`);
+      else if (!/^https:\/\/[^\s]+$/.test(url) || !isSafeHref(url))
+        out.push(`${where} has a link that is not finished: "${typed(url)}". Use a YouTube or Vimeo link that starts with https://.`);
+      break;
+    }
+    case 'embed': {
+      const url = typeof b.url === 'string' ? b.url.trim() : '';
+      const problem = url ? learnEmbedLinkProblem(b.provider, url) : null;
+      if (!url) out.push(`${where} has no link yet. Add one or remove the block.`);
+      else if (problem) out.push(`${where} has a link that can't be shown. ${problem}`);
+      if (typeof b.height === 'number' && (b.height < LEARN_LIMITS.embedHeightMin || b.height > LEARN_LIMITS.embedHeightMax)) {
+        out.push(
+          `${where} is set to ${b.height} pixels tall. Use a height from ${LEARN_LIMITS.embedHeightMin} to ${LEARN_LIMITS.embedHeightMax}.`,
+        );
+      }
+      break;
+    }
+    case 'countdown':
+      if (!b.until) out.push(`${where} has no date yet. Choose one or remove the block.`);
+      else if (!(b.until >= LEARN_LIMITS.countdownFrom && b.until < LEARN_LIMITS.countdownTo))
+        out.push(`${where} has a date outside 2020 to 2099. Choose another date.`);
+      break;
+    case 'table':
+      if (!listOf(b.doc?.content).some((n) => n?.type === 'table'))
+        out.push(`${where} has no rows yet. Add a row or remove the block.`);
+      break;
+    case 'reusable': {
+      if (!b.libraryId) {
+        out.push(`${where} has no saved section chosen yet. Choose one or remove the block.`);
+        break;
+      }
+      if (!library) break;
+      const saved: LearnSection | undefined =
+        library instanceof Map
+          ? library.get(b.libraryId)
+          : Object.prototype.hasOwnProperty.call(library, b.libraryId)
+            ? (library as Readonly<Record<string, LearnSection>>)[b.libraryId]
+            : undefined;
+      if (!saved) {
+        out.push(`${where} shows a saved section that was deleted. Remove the block or choose another saved section.`);
+      } else if (!b.hidden) {
+        // What the saved section would put on the page, under this section's name
+        // (`expandReusableBlocks` drops a hidden one, and never nests them).
+        for (const inner of listOf(saved.blocks)) {
+          if (isObj(inner) && inner.kind !== 'reusable') {
+            blockBlockers(inner, name, out, undefined);
+            anchorBlockers(inner.anchor, name, out);
+          }
+        }
+      }
+      break;
+    }
+  }
+}
+
+function anchorBlockers(a: unknown, name: string, out: string[]) {
+  if (typeof a === 'string' && a !== '' && !ANCHOR.test(a)) {
+    out.push(`The link name "${typed(a)}" in "${name}" can only use lower-case letters, numbers and single dashes, like our-team.`);
+  }
+}
+
+/**
+ * Why the page cannot go on the website yet: blocks not filled in (an Image
+ * with no image, a Video, Embed or Countdown with nothing chosen, a Saved
+ * section block with none chosen), and since T325 everything the validator
+ * stores unfinished so autosave goes on: a link with no address or one still
+ * being typed, an embed link that cannot be shown, an embed height or a
+ * countdown date out of range, a table with no rows, a link name that is not
+ * well formed or is used twice, an empty page title. With `library`, a Saved
+ * section block pointing at a deleted section is refused too, and the blocks
+ * of each saved section it uses are checked under the host section's name.
+ *
+ * The draft keeps all of these (autosave must not stop while someone is still
+ * filling a block in); publish, scheduled or not, refuses them with these
+ * messages, which name the block and its section. The publish dialog runs the
+ * same function, so the two never disagree.
+ */
+export function publishBlockers(content: LearnPageContent, library?: LearnLibrarySections): string[] {
   const out: string[] = [];
-  content.sections.forEach((s, i) => {
-    const name = s.label.trim() || `Section ${i + 1}`;
-    for (const b of s.blocks) {
-      if (b.kind === 'image' && !b.image.src) {
-        out.push(`The Image block in "${name}" has no image yet. Choose one or remove the block.`);
-      } else if (b.kind === 'video' && !b.url.trim()) {
-        out.push(`The Video block in "${name}" has no video link yet. Add one or remove the block.`);
-      } else if (b.kind === 'embed' && !b.url.trim()) {
-        out.push(`The Embed block in "${name}" has no link yet. Add one or remove the block.`);
-      } else if (b.kind === 'countdown' && !b.until) {
-        out.push(`The Countdown block in "${name}" has no date yet. Choose one or remove the block.`);
-      } else if (b.kind === 'reusable' && !b.libraryId) {
-        out.push(`The Saved section block in "${name}" has no saved section chosen yet. Choose one or remove the block.`);
+  if (typeof content.seoTitle !== 'string' || content.seoTitle.trim() === '') {
+    out.push('The page title in Search settings is empty. Add one before publishing.');
+  }
+  const anchorCount = new Map<string, number>();
+  const count = (a: unknown) => {
+    if (typeof a === 'string' && a !== '') anchorCount.set(a, (anchorCount.get(a) ?? 0) + 1);
+  };
+  listOf(content.sections).forEach((s, i) => {
+    if (!isObj(s)) return;
+    const name = (typeof s.label === 'string' && s.label.trim()) || `Section ${i + 1}`;
+    anchorBlockers(s.anchor, name, out);
+    count(s.anchor);
+    for (const b of listOf(s.blocks)) {
+      if (!isObj(b)) continue;
+      blockBlockers(b, name, out, library);
+      if (b.kind !== 'reusable') {
+        anchorBlockers(b.anchor, name, out);
+        count(b.anchor);
       }
     }
   });
+  for (const [a, n] of anchorCount) {
+    if (n > 1) out.push(`The link name "${typed(a)}" is used ${n} times on the page. Each link name must be different.`);
+  }
+  return out;
+}
+
+/**
+ * What a publish checks, in one list: the draft with the library (empty and
+ * deleted saved sections, and what is inside each one used) and the expanded
+ * page that would go live. Both are checked so nothing the expansion drops
+ * (an empty Saved section block expands to nothing, T324 X1) or adds can
+ * slip past. The two lists mostly agree, so a message the expanded page
+ * repeats is counted against the draft's, not listed twice; two blocks with
+ * the same problem still give two messages.
+ */
+export function publishProblems(
+  draft: LearnPageContent,
+  library: LearnLibrarySections,
+  expanded: LearnPageContent,
+): string[] {
+  const out = publishBlockers(draft, library);
+  const unmatched = new Map<string, number>();
+  for (const m of out) unmatched.set(m, (unmatched.get(m) ?? 0) + 1);
+  for (const m of publishBlockers(expanded)) {
+    const n = unmatched.get(m) ?? 0;
+    if (n > 0) unmatched.set(m, n - 1);
+    else out.push(m);
+  }
   return out;
 }
 

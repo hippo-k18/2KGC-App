@@ -215,6 +215,45 @@ describe('planScheduledPublish makes the checks a press of Publish makes', () =>
     expect(plan.doc.published).toEqual(stored.published);
   });
 
+  it('an empty Saved section block clears the schedule with a failure, never throws (T324 X1)', () => {
+    const stored = scheduledWith({ id: 'r1', kind: 'reusable', libraryId: '' });
+    let plan: ReturnType<typeof planScheduledPublish> = null;
+    expect(() => (plan = planScheduledPublish(stored, NOW + HOUR, new Map()))).not.toThrow();
+    const failed = refused(stored, NOW + HOUR);
+    expect(plan).not.toBeNull();
+    expect(failed.problems).toEqual([
+      'The Saved section block in "extra" has no saved section chosen yet. Choose one or remove the block.',
+    ]);
+    expect(failed.message).toMatch(/^Some blocks are not filled in yet\. The Saved section block in "extra"/);
+    expect(failed.doc).not.toHaveProperty('scheduledPublishAt');
+    expect(failed.doc.scheduleFailure).toEqual({ at: NOW + HOUR, message: failed.message });
+    expect(planScheduledPublish(failed.doc, NOW + 2 * HOUR)).toBeNull();
+  });
+
+  it('a Saved section block whose section was deleted from the library fails the same way (T324 E F7)', () => {
+    const stored = scheduledWith({ id: 'r1', kind: 'reusable', libraryId: 'gone' });
+    const plan = refused(stored, NOW + HOUR, new Map([['other', section('saved', [])]]));
+    expect(plan.problems).toEqual([
+      'The Saved section block in "extra" shows a saved section that was deleted. Remove the block or choose another saved section.',
+    ]);
+  });
+
+  it('anything that throws during the run takes the failure path with a plain message (T324 X1)', () => {
+    class Boom extends Map<string, LearnSection> {
+      override get(): LearnSection | undefined {
+        throw new Error('library read went wrong');
+      }
+    }
+    const stored = scheduledWith({ id: 'r1', kind: 'reusable', libraryId: 'cta' });
+    const plan = refused(stored, NOW + HOUR, new Boom([['cta', section('saved', [])]]));
+    expect(plan.message).toBe('Something went wrong while publishing. Open the editor and press Publish, or schedule it again.');
+    expect(plan.problems).toEqual([]);
+    expect((plan.error as Error).message).toBe('library read went wrong');
+    expect(plan.doc).not.toHaveProperty('scheduledPublishAt');
+    expect(plan.doc.scheduleFailure).toEqual({ at: NOW + HOUR, message: plan.message });
+    expect(plan.doc.published).toEqual(stored.published);
+  });
+
   it('names at most five problems in the message', () => {
     const blocks = Array.from({ length: 7 }, (_, i) => ({ ...EMPTY_IMAGE, id: `img${i}` }));
     const plan = refused(scheduledWith(...blocks), NOW + HOUR);

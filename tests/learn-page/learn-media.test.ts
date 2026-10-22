@@ -166,7 +166,7 @@ describe('media library', () => {
     // In the draft, then published (live + version), then removed from the draft.
     await saveLearnDraft(pageWith(sectionOf('pics', [imageBlock('pic', a.image)])), 0, who.email);
     const where = await mediaActions.learnMediaUsesAction(a.mediaId);
-    expect(where).toEqual({ ok: true, uses: ['Draft: section 5 "pics", block 1 (image)'] });
+    expect(where).toEqual({ ok: true, uses: ['Draft: pics, image'] });
 
     await publishLearnPage({ baseRevision: 1, actor: who.email });
     await saveLearnDraft(pageWith(), 1, who.email);
@@ -174,8 +174,8 @@ describe('media library', () => {
     expect(refused.ok).toBe(false);
     if (!refused.ok) {
       expect(refused.error).toMatch(/is still used, so it was not deleted/);
-      expect(refused.error).toMatch(/Live page: section 5 "pics", block 1 \(image\)/);
-      expect(refused.error).toMatch(/Version of .* UTC: section 5/);
+      expect(refused.error).toMatch(/Live page: pics, image/);
+      expect(refused.error).toMatch(/Old version from .*: pics, image/);
     }
 
     // Only a kept version left: still refused (Restore could bring it back).
@@ -191,7 +191,7 @@ describe('media library', () => {
     const saved = await mediaActions.saveLearnLibraryItemAction({ name: 'Pics', section: sectionOf('lib', [imageBlock('pic', a.image)]) });
     expect(saved.ok).toBe(true);
     const libOnly = await mediaActions.learnMediaUsesAction(a.mediaId);
-    expect(libOnly).toEqual({ ok: true, uses: ['Saved section "Pics": section, block 1 (image)'] });
+    expect(libOnly).toEqual({ ok: true, uses: ['Saved section "Pics": image'] });
     expect((await mediaActions.deleteLearnMediaAction(a.mediaId)).ok).toBe(false);
   });
 
@@ -264,10 +264,14 @@ describe('saved sections', () => {
     expect((await mediaActions.renameLearnLibraryItemAction('missing', 'x')).ok).toBe(false);
   });
 
-  it('refuses a draft pointing at a saved section that does not exist', async () => {
+  // Undo can bring back a link to a saved section deleted since (T324 E F7): it saves, and publish names it.
+  it('saves a draft pointing at a saved section that does not exist, and refuses to publish it', async () => {
     const r = await pageActions.saveLearnDraftAction(pageWith(sectionOf('s', [{ id: 'r', kind: 'reusable', libraryId: 'gone' }])), 0);
-    expect(r.ok).toBe(false);
-    expect(await revision()).toBe(0);
+    expect(r).toMatchObject({ ok: true, revision: 1 });
+    const p = await pageActions.publishLearnPageAction({ baseRevision: 1 });
+    expect(p.ok).toBe(false);
+    if (!p.ok) expect(p.error).toMatch(/saved section that was deleted/);
+    expect((await docRef().get()).data()?.published ?? null).toBeNull();
   });
 
   it('expands reusable blocks into the live copy and the kept version, and refuses deleting one in use', async () => {
@@ -294,7 +298,7 @@ describe('saved sections', () => {
 
     const refused = await mediaActions.deleteLearnLibraryItemAction(saved.id);
     expect(refused.ok).toBe(false);
-    if (!refused.ok) expect(refused.error).toMatch(/Draft: section 5 "host", block 1/);
+    if (!refused.ok) expect(refused.error).toMatch(/Draft: host, saved section/);
   });
 });
 
@@ -309,6 +313,7 @@ describe('role gate on every Learn page action', () => {
       case 'restoreLearnVersionAction':
       case 'loadLearnVersionAction':
       case 'learnMediaUsesAction':
+      case 'learnImageEditStartAction':
       case 'deleteLearnMediaAction':
       case 'deleteLearnLibraryItemAction':
         return ['abc'];
@@ -338,6 +343,7 @@ describe('role gate on every Learn page action', () => {
         'backfillLearnMediaAction',
         'deleteLearnLibraryItemAction',
         'deleteLearnMediaAction',
+        'learnImageEditStartAction',
         'learnMediaUsesAction',
         'listLearnLibraryAction',
         'listLearnMediaAction',

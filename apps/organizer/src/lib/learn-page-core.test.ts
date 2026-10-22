@@ -12,8 +12,11 @@ import {
   isAllowedLearnImageSrc,
   isEmptyLearnImage,
   isLearnVersionId,
+  isRefusedHref,
+  isUnfinishedHref,
   planPublish,
   publishBlockers,
+  publishProblems,
   readStoredDoc,
   planReplaceDraft,
   planSave,
@@ -133,9 +136,14 @@ describe('validateLearnContent', () => {
     expect(problems.every((x) => x.includes('is not a link the site can open'))).toBe(true);
   });
 
-  it('refuses a video that is not https', () => {
+  it('saves a video link that is not https yet and refuses it at publish (T325)', () => {
     const p = page();
     (p.sections[0].blocks[7] as { url: string }).url = 'http://youtube.com/x';
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual([
+      'The Video block in "Hero" has a link that is not finished: "http://youtube.com/x". Use a YouTube or Vimeo link that starts with https://.',
+    ]);
+    (p.sections[0].blocks[7] as { url: string }).url = 'javascript:alert(1)';
     expect(problemsOf(p)).toEqual(['Section 1, block 8: Video link must start with https://.']);
   });
 
@@ -210,10 +218,7 @@ describe('validateLearnContent', () => {
 
   it('refuses something that is not a page at all', () => {
     expect(problemsOf(null)).toEqual(['The page content is missing or malformed.']);
-    expect(problemsOf({ seoTitle: '', sections: 'x' })).toEqual([
-      'sections must be a list.',
-      'Search settings: Page title is empty.',
-    ]);
+    expect(problemsOf({ seoTitle: '', sections: 'x' })).toEqual(['sections must be a list.']);
   });
 });
 
@@ -362,7 +367,7 @@ function block<K extends LearnBlock['kind']>(p: LearnPageContent, kind: K): Extr
 
 describe('validateLearnContent, v2 (T315)', () => {
   it('accepts every v2 block kind and field and returns an equal copy', () => {
-    const r = validateLearnContent(kitchenSink(), { libraryIds: new Set(['footer-cta']) });
+    const r = validateLearnContent(kitchenSink());
     expect(r.ok ? [] : r.problems).toEqual([]);
     if (r.ok) expect(r.content).toEqual(kitchenSink());
   });
@@ -401,14 +406,14 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(Object.values(r.content.sections[0].blocks[3]).some((v) => v === undefined)).toBe(false);
   });
 
-  it('refuses an embed link that is not an accepted form of its provider', () => {
+  it('saves an embed link that is not an accepted form of its provider and refuses it at publish (T325)', () => {
     const bad: [string, string][] = [
       ['youtube', 'https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ'],
       ['youtube', 'https://evil.example/youtube.com/watch?v=dQw4w9WgXcQ'],
       ['youtube', 'https://youtube.com@evil.example/watch?v=dQw4w9WgXcQ'],
       ['youtube', 'http://youtu.be/dQw4w9WgXcQ'],
       ['vimeo', YT_URL],
-      ['google-maps', 'https://www.google.com/maps/place/Bryant+Park'],
+      ['google-maps', 'https://maps.app.goo.gl/AbC123'],
       ['google-forms', 'https://forms.gle/abc123'],
       ['google-docs', 'https://docs.google.com/document/d/abcdefghijklmnop/edit'],
       ['google-slides', 'https://docs.google.com/presentation/d/abcdefghijklmnop/edit'],
@@ -419,10 +424,28 @@ describe('validateLearnContent, v2 (T315)', () => {
     ];
     for (const [provider, url] of bad) {
       const p = sinkWith((p) => Object.assign(block(p, 'embed'), { provider, url }));
-      const problems = problemsOf(p);
-      expect(problems, `${provider} ${url}`).toHaveLength(1);
-      expect(problems[0]).toMatch(/^Section 1, block 12: Embed link is not a .* link this page can show\.$/);
+      expect(problemsOf(p), `${provider} ${url}`).toEqual([]);
+      expect(publishBlockers(p), `${provider} ${url}`).toEqual([
+        expect.stringMatching(/^The Embed block in "Everything" has a link that can't be shown\. ./),
+      ]);
     }
+    // A dangerous scheme is still refused at save.
+    expect(problemsOf(sinkWith((p) => (block(p, 'embed').url = 'javascript:alert(1)')))).toEqual([
+      'Section 1, block 12: Embed link is not a link the site can open.',
+    ]);
+  });
+
+  it('saves a normal Google Maps link, and a short one with a plain message at publish (T324 D2)', () => {
+    const place = 'https://www.google.com/maps/place/Bryant+Park/@40.75,-73.98,17z';
+    const ok = sinkWith((p) => Object.assign(block(p, 'embed'), { provider: 'google-maps', url: place }));
+    expect(problemsOf(ok)).toEqual([]);
+    expect(publishBlockers(ok)).toEqual([]);
+    const short = sinkWith((p) => Object.assign(block(p, 'embed'), { provider: 'google-maps', url: 'https://maps.app.goo.gl/AbC123' }));
+    expect(problemsOf(short)).toEqual([]);
+    expect(publishBlockers(short)).toEqual([
+      'The Embed block in "Everything" has a link that can\'t be shown. ' +
+        "Short Google Maps links can't be shown. Open the link, then copy the address from the browser's address bar.",
+    ]);
   });
 
   it('stores an accepted embed link as typed, trimmed, not rewritten', () => {
@@ -432,20 +455,42 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(r.ok && block(r.content, 'embed').url).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   });
 
-  it('refuses a bad embed provider, aspect, height or empty title', () => {
+  it('refuses a bad embed provider or aspect, and a height that is not a whole number', () => {
     const problems = problemsOf(
-      sinkWith((p) => Object.assign(block(p, 'embed'), { provider: 'iframe', aspect: '21:9', height: 50, title: ' ' })),
+      sinkWith((p) => Object.assign(block(p, 'embed'), { provider: 'iframe', aspect: '21:9', height: 'tall' })),
     );
     expect(problems.some((x) => x.includes('Embed type must be one of'))).toBe(true);
     expect(problems.some((x) => x.includes('Aspect must be one of'))).toBe(true);
-    expect(problems.some((x) => x.includes('Embed height must be a whole number of pixels from 100 to 2000.'))).toBe(true);
-    expect(problems.some((x) => x.includes('Embed title is empty'))).toBe(true);
+    expect(problems.some((x) => x.includes('Embed height must be a whole number of pixels.'))).toBe(true);
   });
 
-  it('refuses a countdown outside 2020 to 2099 or not a whole number', () => {
-    for (const until of [Date.UTC(2019, 11, 31), Date.UTC(2100, 0, 1), 1.5e12 + 0.5, '2027-05-01']) {
+  it('saves an empty embed title and a height being typed, and refuses the height at publish (T324 E F6)', () => {
+    const p = sinkWith((p) => Object.assign(block(p, 'embed'), { title: '', height: 6 }));
+    const r = validateLearnContent(p);
+    expect(r.ok ? [] : r.problems).toEqual([]);
+    expect(r.ok && block(r.content, 'embed')).toMatchObject({ title: '', height: 6 });
+    expect(publishBlockers(p)).toEqual([
+      'The Embed block in "Everything" is set to 6 pixels tall. Use a height from 100 to 2000.',
+    ]);
+    // A missing title is stored as empty, not refused.
+    const missing = sinkWith((p) => delete (block(p, 'embed') as { title?: string }).title);
+    expect(validateLearnContent(missing).ok && block((validateLearnContent(missing) as { content: LearnPageContent }).content, 'embed').title).toBe('');
+  });
+
+  it('refuses a countdown that is not a date at all', () => {
+    for (const until of [1.5e12 + 0.5, '2027-05-01', 9e15, Number.NaN]) {
       const problems = problemsOf(sinkWith((p) => Object.assign(block(p, 'countdown'), { until })));
       expect(problems, String(until)).toEqual(['Section 1, block 13: Countdown date must be a real date between 2020 and 2099.']);
+    }
+  });
+
+  it('saves a countdown date outside 2020 to 2099 (a year being typed) and refuses it at publish (T325)', () => {
+    for (const until of [Date.UTC(2019, 11, 31), Date.UTC(2100, 0, 1), Date.UTC(2, 0, 1), 5]) {
+      const p = sinkWith((p) => Object.assign(block(p, 'countdown'), { until }));
+      expect(problemsOf(p), String(until)).toEqual([]);
+      expect(publishBlockers(p), String(until)).toEqual([
+        'The Countdown block in "Everything" has a date outside 2020 to 2099. Choose another date.',
+      ]);
     }
   });
 
@@ -454,26 +499,33 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(problemsOf(sinkWith((_, __, s) => (s.overlay = -0.1)))).toHaveLength(1);
   });
 
-  it('refuses an anchor used twice across a section and a block', () => {
-    const problems = problemsOf(sinkWith((_, b) => (b[1].anchor = 'everything')));
-    expect(problems).toEqual(['Section 1, block 2: uses the anchor "everything" twice.']);
+  it('saves an anchor used twice across a section and a block, and refuses it at publish (T325)', () => {
+    const p = sinkWith((_, b) => (b[1].anchor = 'everything'));
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual(['The link name "everything" is used 2 times on the page. Each link name must be different.']);
     const s2 = sinkWith((p) => (p.sections[1].anchor = 'top'));
-    expect(problemsOf(s2)).toEqual(['Section 2: uses the anchor "top" twice.']);
+    expect(problemsOf(s2)).toEqual([]);
+    expect(publishBlockers(s2)).toEqual(['The link name "top" is used 2 times on the page. Each link name must be different.']);
   });
 
-  it('refuses a malformed anchor', () => {
-    for (const anchor of ['Top', 'a--b', '-a', 'a b', 'x'.repeat(65)]) {
-      expect(problemsOf(sinkWith((_, b) => (b[0].anchor = anchor))), anchor).toHaveLength(1);
+  it('saves an anchor being typed and refuses it at publish; refuses one too long or not text (T325)', () => {
+    for (const anchor of ['Top', 'a--b', '-a', 'our-', 'a b']) {
+      const p = sinkWith((_, b) => (b[0].anchor = anchor));
+      expect(problemsOf(p), anchor).toEqual([]);
+      expect(publishBlockers(p), anchor).toEqual([
+        `The link name "${anchor}" in "Everything" can only use lower-case letters, numbers and single dashes, like our-team.`,
+      ]);
     }
+    expect(problemsOf(sinkWith((_, b) => (b[0].anchor = 'x'.repeat(65))))).toHaveLength(1);
+    expect(problemsOf(sinkWith((_, b) => ((b[0] as { anchor: unknown }).anchor = 5)))).toEqual(['Section 1, block 1: Anchor must be text.']);
   });
 
-  it('refuses block columns on a single-column section', () => {
-    const p = sinkWith((_, __, s) => (s.layout = 'single'));
-    expect(problemsOf(p)).toEqual([
-      'Section 1: places blocks in columns but the section has one column. Choose a column layout first.',
-    ]);
-    const absent = sinkWith((_, __, s) => delete s.layout);
-    expect(problemsOf(absent)).toHaveLength(1);
+  it('drops block columns when the section goes back to one column, rather than refusing the save (T325)', () => {
+    const r = validateLearnContent(sinkWith((_, __, s) => (s.layout = 'single')));
+    expect(r.ok ? [] : r.problems).toEqual([]);
+    expect(r.ok && r.content.sections[0]).not.toHaveProperty('blockColumn');
+    const absent = validateLearnContent(sinkWith((_, __, s) => delete s.layout));
+    expect(absent.ok && absent.content.sections[0]).not.toHaveProperty('blockColumn');
   });
 
   it('drops an empty block column map', () => {
@@ -486,18 +538,18 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(r.ok && r.content.sections[0]).not.toHaveProperty('blockColumn');
   });
 
-  it('refuses a block column naming a block not in the section', () => {
-    expect(problemsOf(sinkWith((_, __, s) => (s.blockColumn = { z1: 1 })))).toEqual([
-      'Section 1: places "z1" in a column but no block in this section has that id.',
-    ]);
+  it('drops a block column naming a block not in the section', () => {
+    const r = validateLearnContent(sinkWith((_, __, s) => (s.blockColumn = { z1: 1, k2: 1 })));
+    expect(r.ok && r.content.sections[0].blockColumn).toEqual({ k2: 1 });
   });
 
-  it('refuses a column index the layout does not have', () => {
-    expect(problemsOf(sinkWith((_, __, s) => (s.blockColumn = { k2: 2 })))).toEqual([
-      'Section 1: places "k2" in column 2; this layout has columns 0 to 1.',
-    ]);
-    expect(problemsOf(sinkWith((p) => (p.sections[1].blockColumn = { z1: 3 })))).toHaveLength(1);
+  it('moves a column index past the layout into its last column; refuses one that is not a column number', () => {
+    const r = validateLearnContent(sinkWith((_, __, s) => (s.blockColumn = { k2: 2 })));
+    expect(r.ok && r.content.sections[0].blockColumn).toEqual({ k2: 1 });
+    const three = validateLearnContent(sinkWith((p) => (p.sections[1].blockColumn = { z1: 3 })));
+    expect(three.ok && three.content.sections[1].blockColumn).toEqual({ z1: 2 });
     expect(problemsOf(sinkWith((_, __, s) => (s.blockColumn = { k2: 0.5 })))).toHaveLength(1);
+    expect(problemsOf(sinkWith((_, __, s) => (s.blockColumn = { k2: -1 })))).toHaveLength(1);
   });
 
   it('refuses a colour that is not a brand colour or #rrggbb', () => {
@@ -556,10 +608,14 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(r.ok && r.content).toEqual(p);
   });
 
-  it('refuses a reusable block pointing at a saved section that is gone', () => {
+  it('saves a reusable block pointing at a saved section that is gone, and refuses it at publish (T324 E F7)', () => {
     expect(problemsOf(kitchenSink())).toEqual([]);
-    const r = validateLearnContent(kitchenSink(), { libraryIds: new Set(['other']) });
-    expect(r.ok ? [] : r.problems).toEqual(['Section 1, block 16: points to a saved section that no longer exists.']);
+    const gone = new Map<string, LearnSection>([['other', kitchenSink().sections[1]]]);
+    expect(publishBlockers(kitchenSink(), gone)).toEqual([
+      'The Saved section block in "Everything" shows a saved section that was deleted. Remove the block or choose another saved section.',
+    ]);
+    // Without the library the check cannot know, and says nothing.
+    expect(publishBlockers(kitchenSink())).toEqual([]);
     const bad = validateLearnContent(sinkWith((p) => (block(p, 'reusable').libraryId = 'no spaces')));
     expect(bad.ok ? [] : bad.problems).toEqual(['Section 1, block 16: Saved section id is missing or malformed.']);
   });
@@ -595,10 +651,10 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(problemsOf(p)).toEqual([`Section 1, block 9: has ${LEARN_LIMITS.stats + 1} figures; the limit is ${LEARN_LIMITS.stats}.`]);
   });
 
-  it('refuses a table block without a table, or without a doc', () => {
-    expect(problemsOf(sinkWith((p) => (block(p, 'table').doc = richText('no table'))))).toEqual([
-      'Section 1, block 14: Table has no rows.',
-    ]);
+  it('saves a table block with no rows and refuses it at publish; refuses one without a doc', () => {
+    const empty = sinkWith((p) => (block(p, 'table').doc = richText('no table')));
+    expect(problemsOf(empty)).toEqual([]);
+    expect(publishBlockers(empty)).toEqual(['The Table block in "Everything" has no rows yet. Add a row or remove the block.']);
     expect(problemsOf(sinkWith((p) => ((block(p, 'table') as { doc: unknown }).doc = 'a|b')))).toEqual([
       'Section 1, block 14: Table is missing.',
     ]);
@@ -621,7 +677,7 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(problemsOf(sinkWith((p) => (p.ogImage = { ...IMG, src: 'https://evil.example/a.png' })))).toEqual([
       'Sharing image: image must be uploaded here or be a /kgc/ site image.',
     ]);
-    const r = validateLearnContent(sinkWith((p) => ((p as { noindex: unknown }).noindex = 'yes')), { libraryIds: new Set(['footer-cta']) });
+    const r = validateLearnContent(sinkWith((p) => ((p as { noindex: unknown }).noindex = 'yes')));
     expect(r.ok && r.content).not.toHaveProperty('noindex');
   });
 });
@@ -645,15 +701,15 @@ describe('validateLearnSection', () => {
     const r = validateLearnSection(s, { forLibrary: true });
     expect(r.ok ? [] : r.problems).toEqual([`Section, block ${s.blocks.length}: A saved section cannot hold another saved section.`]);
     expect(validateLearnSection(s).ok).toBe(true);
-    expect(validateLearnSection(s, { libraryIds: new Set() }).ok).toBe(false);
   });
 
-  it('checks anchors and ids within the section only', () => {
+  it('checks ids within the section only; a repeated anchor is a publish check', () => {
     const s = sec();
     s.blocks[1].anchor = 'everything';
+    expect(validateLearnSection(s).ok).toBe(true);
+    s.blocks[1].id = s.blocks[0].id;
     const r = validateLearnSection(s);
-    expect(r.ok ? [] : r.problems).toEqual(['Section, block 2: uses the anchor "everything" twice.']);
-    expect(validateLearnSection(sec()).ok).toBe(true);
+    expect(r.ok ? [] : r.problems).toEqual([`Section, block 2: uses the id "${s.blocks[0].id}" twice.`]);
   });
 
   it('refuses something that is not a section', () => {
@@ -855,9 +911,10 @@ describe('publish refuses unfinished blocks (T314 F1)', () => {
       expect.stringMatching(/^The Embed block in ".*" has no link yet\./),
       expect.stringMatching(/^The Countdown block in ".*" has no date yet\./),
     ]);
-    // A wrong link or a date out of range is still refused at save.
-    expect(problemsOf(sinkWith((q) => (block(q, 'embed').url = 'https://evil.example/x')))).not.toEqual([]);
-    expect(problemsOf(sinkWith((q) => (block(q, 'countdown').until = 5)))).not.toEqual([]);
+    // Since T325 a wrong link or a date out of range saves too, and publish names it.
+    expect(problemsOf(sinkWith((q) => (block(q, 'embed').url = 'https://evil.example/x')))).toEqual([]);
+    expect(publishBlockers(sinkWith((q) => (block(q, 'embed').url = 'https://evil.example/x')))).toHaveLength(1);
+    expect(problemsOf(sinkWith((q) => (block(q, 'countdown').until = 5)))).toEqual([]);
   });
 
   it('names an unlabelled section by its position', () => {
@@ -949,5 +1006,134 @@ describe('unreadable stored content (T314 security 4 and 5)', () => {
     expect(revertTarget(good)).toEqual(page());
     // Validated against the bucket too: an image from another bucket is not put back.
     expect(revertTarget(good, { bucket: 'other' })).toBe(LEARN_PAGE_DEFAULT);
+  });
+});
+
+describe('unfinished values save and refuse publish, by name (T325, T324 D1)', () => {
+  /** Every link field on the page, set to `href`. */
+  function withLinks(href: string): LearnPageContent {
+    return sinkWith((p, b) => {
+      const pg = page().sections[0];
+      (pg.blocks[2] as { href?: string }).href = href; // image
+      (pg.blocks[3] as Extract<LearnBlock, { kind: 'buttons' }>).buttons[0].href = href;
+      (pg.blocks[4] as Extract<LearnBlock, { kind: 'people' }>).people[0].linkedin = href;
+      (pg.blocks[5] as Extract<LearnBlock, { kind: 'list' }>).items[0].link!.href = href;
+      (pg.blocks[6] as Extract<LearnBlock, { kind: 'columns' }>).items[0].link = { label: 'Go', href, style: 'text' };
+      p.sections.push({ ...pg, id: 'v1', label: 'Team', blocks: pg.blocks.filter((x) => x.kind !== 'video') });
+      block(p, 'imageText').buttons![0].href = href;
+      block(p, 'cards').items[0].link!.href = href;
+      block(p, 'logos').items[0].href = href;
+      void b;
+    });
+  }
+
+  it('saves an empty or half-typed address in every link field, stored trimmed', () => {
+    for (const href of ['example', 'linkedin.com/in/x', 'https:/', 'www.example.com:8080/x', 'mailto', ' https://exa ']) {
+      const r = validateLearnContent(withLinks(href));
+      expect(r.ok ? [] : r.problems, href).toEqual([]);
+      if (r.ok) expect(block(r.content, 'logos').items[0].href, href).toBe(href.trim());
+    }
+    // A new button or list link starts with no address: required links keep '' too.
+    const r = validateLearnContent(withLinks(''));
+    expect(r.ok ? [] : r.problems).toEqual([]);
+    if (r.ok) {
+      expect(block(r.content, 'cards').items[0].link!.href).toBe('');
+      expect(r.content.sections[2].blocks.find((x) => x.kind === 'buttons')).toMatchObject({ buttons: [{ href: '' }] });
+      // An empty optional link (image, logo, LinkedIn) is simply absent.
+      expect(block(r.content, 'logos').items[0]).not.toHaveProperty('href');
+    }
+  });
+
+  it('refuses publish for each unfinished link, naming the block, its section and what was typed', () => {
+    const blockers = publishBlockers(withLinks('linkedin.com/in/x'));
+    const tail = 'that is not finished: "linkedin.com/in/x". Use a full address, like https://example.com.';
+    expect(blockers).toEqual([
+      `The Image and text block in "Everything" has a link ${tail}`,
+      `The Cards block in "Everything" has a link ${tail}`,
+      `The Logos block in "Everything" has a link ${tail}`,
+      `The Image block in "Team" has a link ${tail}`,
+      `The Buttons block in "Team" has a link ${tail}`,
+      `The People block in "Team" has a LinkedIn link ${tail}`,
+      `The List block in "Team" has a link ${tail}`,
+      `The Columns block in "Team" has a link ${tail}`,
+    ]);
+    const empty = publishBlockers(withLinks(''));
+    expect(empty).toContain('The Buttons block in "Team" has a link with no address yet. Add one or remove the link.');
+    expect(empty).toContain('The Cards block in "Everything" has a link with no address yet. Add one or remove the link.');
+    expect(publishBlockers(withLinks('https://example.com/x'))).toEqual([]);
+    expect(publishBlockers(withLinks('/tickets'))).toEqual([]);
+  });
+
+  it('still refuses a dangerous scheme or a scheme-relative link at save, in every link field', () => {
+    for (const href of ['javascript:alert(1)', ' JavaScript:alert(1)', 'java\tscript:alert(1)', 'data:text/html,x', 'vbscript:x', '//evil.example', '\\\\evil.example', '/\\evil.example']) {
+      const problems = problemsOf(withLinks(href));
+      expect(problems.length, href).toBe(8);
+      expect(problems.every((x) => x.includes('is not a link the site can open')), href).toBe(true);
+    }
+  });
+
+  it('isRefusedHref and isUnfinishedHref split links three ways', () => {
+    for (const h of ['javascript:x', 'JAVASCRIPT:x', ' java script:x', 'data:x', 'file:///etc', '//x', '\\\\x']) expect(isRefusedHref(h), h).toBe(true);
+    for (const h of ['', 'example', 'https:/', 'linkedin.com/in/x', 'http://x.example', '/x', '#top']) expect(isRefusedHref(h), h).toBe(false);
+    for (const h of ['', ' ', 'example', 'https:/', 'linkedin.com/in/x']) expect(isUnfinishedHref(h), h).toBe(true);
+    for (const h of ['https://example.com', 'http://example.com', '/tickets', '#top', 'mailto:a@b.c', 'tel:+1212']) expect(isUnfinishedHref(h), h).toBe(false);
+  });
+
+  it('drops a half-typed rich text link (keeping its words) rather than refusing the save', () => {
+    const p = sinkWith((_, b) => {
+      (b[1] as { text: RichDoc }).text = richText('our site', [{ type: 'link', href: 'page.html' }, { type: 'bold' }]);
+    });
+    const r = validateLearnContent(p);
+    expect(r.ok ? [] : r.problems).toEqual([]);
+    expect(r.ok && block(r.content, 'text').text).toEqual(richText('our site', [{ type: 'bold' }]));
+    // A finished one is kept.
+    const fine = validateLearnContent(sinkWith((_, b) => ((b[1] as { text: RichDoc }).text = richText('x', [{ type: 'link', href: 'https://a.example' }]))));
+    expect(fine.ok && block(fine.content, 'text').text).toEqual(richText('x', [{ type: 'link', href: 'https://a.example' }]));
+  });
+
+  it('saves an empty page title and refuses it at publish', () => {
+    const p = page({ seoTitle: '  ' });
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual(['The page title in Search settings is empty. Add one before publishing.']);
+  });
+
+  it('checks the blocks inside each saved section a page uses, under the host section name', () => {
+    const saved: LearnSection = {
+      id: 'lib',
+      label: 'Library copy',
+      background: 'plain',
+      width: 'normal',
+      paddingTop: 'none',
+      paddingBottom: 'none',
+      blocks: [
+        { id: 'x1', kind: 'image', image: { src: '', alt: '', width: 0, height: 0 }, width: 'full', shape: 'original' },
+        { id: 'x2', kind: 'buttons', buttons: [{ label: 'Go', href: 'example', style: 'primary' }], anchor: 'Bad' },
+      ],
+    };
+    const lib = new Map([['footer-cta', saved]]);
+    expect(publishBlockers(kitchenSink(), lib)).toEqual([
+      'The Image block in "Everything" has no image yet. Choose one or remove the block.',
+      'The Buttons block in "Everything" has a link that is not finished: "example". Use a full address, like https://example.com.',
+      'The link name "Bad" in "Everything" can only use lower-case letters, numbers and single dashes, like our-team.',
+    ]);
+    // A hidden Saved section block puts nothing on the page, so nothing inside it is checked.
+    const hidden = sinkWith((p) => (block(p, 'reusable').hidden = true));
+    expect(publishBlockers(hidden, lib)).toEqual([]);
+    // A library entry of the wrong shape does not throw.
+    expect(() => publishBlockers(kitchenSink(), new Map([['footer-cta', { blocks: 'x' } as unknown as LearnSection]]))).not.toThrow();
+  });
+
+  it('publishProblems names an empty Saved section block alongside the other blockers (T324 N1)', () => {
+    const draft = sinkWith((p) => {
+      block(p, 'reusable').libraryId = '';
+      block(p, 'countdown').until = 0;
+    });
+    // The expanded page has no reusable block left, which is how it went missing.
+    const expanded = { ...draft, sections: draft.sections.map((s) => ({ ...s, blocks: s.blocks.filter((b) => b.kind !== 'reusable') })) };
+    expect(publishBlockers(expanded)).toEqual(['The Countdown block in "Everything" has no date yet. Choose one or remove the block.']);
+    expect(publishProblems(draft, new Map(), expanded)).toEqual([
+      'The Countdown block in "Everything" has no date yet. Choose one or remove the block.',
+      'The Saved section block in "Everything" has no saved section chosen yet. Choose one or remove the block.',
+    ]);
   });
 });

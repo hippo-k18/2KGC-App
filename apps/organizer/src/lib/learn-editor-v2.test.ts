@@ -11,8 +11,12 @@ import {
   coalesceKey,
   contentWarnings,
   createBlock,
+  embedLinkPatch,
   embedProviderFromUrl,
+  embedProviderPatch,
   embedSrc,
+  embedStatus,
+  hasUnfinishedLink,
   layoutColumns,
   searchBlockKinds,
   summarizeChanges,
@@ -213,8 +217,63 @@ describe('embeds', () => {
     const p = page();
     p.sections[0].blocks.push({ id: 'e', kind: 'embed', provider: 'spotify', url: 'https://example.com', aspect: '16:9', title: '' });
     const msgs = contentWarnings(p).map((w) => w.message);
-    expect(msgs).toContain('That link is not a Spotify link');
+    expect(msgs).toContain('That is not a Spotify link this page can show.');
     expect(msgs).toContain('Embed needs a title for screen readers');
+  });
+
+  it('only says a link works when the website would show it (T324 D2)', () => {
+    const place = 'https://www.google.com/maps/place/Bryant+Park/@40.75,-73.98,17z';
+    expect(embedSrc('google-maps', place)).toBe('https://www.google.com/maps?q=Bryant%20Park&z=17&output=embed');
+    expect(embedStatus('google-maps', place)).toEqual({ state: 'ok', message: 'This map will show on the page.' });
+    expect(embedStatus('google-maps', '')).toEqual({ state: 'empty', message: 'Paste a Google Maps link' });
+    expect(embedStatus('google-maps', 'https://maps.app.goo.gl/AbC123')).toEqual({
+      state: 'bad',
+      message: "Short Google Maps links can't be shown. Open the link, then copy the address from the browser's address bar.",
+    });
+    // Before T325 this was "found" and the preview framed a page Google refuses to frame.
+    expect(embedSrc('google-maps', 'https://www.google.com/maps/dir/A/B')).toBeNull();
+    expect(embedStatus('google-maps', 'https://www.google.com/maps/dir/A/B').state).toBe('bad');
+    expect(embedStatus('youtube', 'https://youtu.be/dQw4w9WgXcQ')).toEqual({ state: 'ok', message: 'This YouTube link will show on the page.' });
+    expect(embedProviderFromUrl('https://maps.app.goo.gl/AbC123')).toBe('google-maps');
+  });
+
+  it('lets the default title follow the service, and keeps one somebody wrote', () => {
+    const fresh = createBlock('embed') as Extract<LearnBlock, { kind: 'embed' }>;
+    expect(fresh.title).toBe('Map');
+    expect(embedLinkPatch(fresh, 'https://youtu.be/dQw4w9WgXcQ')).toEqual({
+      url: 'https://youtu.be/dQw4w9WgXcQ',
+      provider: 'youtube',
+      title: 'Video',
+    });
+    expect(embedLinkPatch({ ...fresh, title: 'Our venue' }, 'https://youtu.be/dQw4w9WgXcQ')).toEqual({
+      url: 'https://youtu.be/dQw4w9WgXcQ',
+      provider: 'youtube',
+    });
+    expect(embedLinkPatch(fresh, 'https://www.google.com/maps/place/X')).toEqual({ url: 'https://www.google.com/maps/place/X' });
+    expect(embedProviderPatch({ provider: 'youtube', title: '' }, 'calendly')).toEqual({ provider: 'calendly', title: 'Calendar' });
+  });
+});
+
+describe('unfinished links (T325)', () => {
+  it('finds a link with no address or one still being typed, in every kind that has links', () => {
+    const btn = (href: string) => ({ label: 'Go', href, style: 'primary' as const });
+    const cases: [LearnBlock, boolean][] = [
+      [{ id: 'a', kind: 'buttons', buttons: [btn('')] }, true],
+      [{ id: 'a', kind: 'buttons', buttons: [btn('https://x.example')] }, false],
+      [{ id: 'a', kind: 'image', image: { src: '/kgc/a.png', alt: 'a', width: 1, height: 1 }, width: 'full', shape: 'original', href: 'example' }, true],
+      [{ id: 'a', kind: 'people', style: 'cards', columns: 3, people: [{ id: 'p', name: 'A', role: '', linkedin: 'linkedin.com/in/x' }] }, true],
+      [{ id: 'a', kind: 'list', ordered: false, items: [{ id: 'i', text: 'x', link: btn('https:/') }] }, true],
+      [{ id: 'a', kind: 'cards', columns: 2, items: [{ id: 'c', title: 't', text: 'x', link: btn('/tickets') }] }, false],
+      [{ id: 'a', kind: 'logos', grayscale: false, items: [{ id: 'l', src: '/kgc/a.png', alt: 'a', width: 1, height: 1, href: 'acme' }] }, true],
+      [{ id: 'a', kind: 'divider' }, false],
+    ];
+    for (const [b, want] of cases) expect(hasUnfinishedLink(b), JSON.stringify(b)).toBe(want);
+  });
+
+  it('warns in the editor before publish refuses', () => {
+    const p = page();
+    p.sections[0].blocks.push({ id: 'bb', kind: 'buttons', buttons: [{ label: 'Go', href: '', style: 'primary' }] });
+    expect(contentWarnings(p).map((w) => w.message)).toContain('A link is not finished yet');
   });
 });
 

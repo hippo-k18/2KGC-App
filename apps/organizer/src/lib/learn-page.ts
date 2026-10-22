@@ -26,7 +26,7 @@ import {
   hasUnpublishedChanges,
   isLearnVersionId,
   planPublish,
-  publishBlockers,
+  publishProblems,
   planReplaceDraft,
   planSave,
   readStoredDoc,
@@ -182,11 +182,14 @@ export async function publishLearnPage(input: {
     // Saved sections are expanded into the live copy and the kept version, so www
     // and Restore never depend on the library (`learn-reusable-core.ts`). The
     // expanded page is checked again: a saved section can be older than today's rules.
-    const expanded = expandReusableBlocks(base.draft, await loadLearnLibrarySections(tx));
+    const library = await loadLearnLibrarySections(tx);
+    const expanded = expandReusableBlocks(base.draft, library);
     const check = validateLearnContent(expanded, learnValidateOptions());
     if (!check.ok) throw new LearnPublishInvalid(check.problems);
-    // An empty Image or Video block inside a saved section blocks publishing too.
-    const blockers = publishBlockers(check.content);
+    // The draft with the library and the expanded page, in one list: an empty
+    // or deleted Saved section block is named alongside every other blocker
+    // (T324 N1), and an unfinished block inside a saved section counts too.
+    const blockers = publishProblems(base.draft, library, check.content);
     if (blockers.length > 0) throw new LearnNotReady(blockers);
     const planned = planPublish(base, input.actor, now, input.note);
     const doc: LearnPageDoc = { ...planned.doc, published: check.content };
