@@ -6,14 +6,18 @@ import {
   cleanName,
   cleanTags,
   contentImages,
+  dedupeMediaRows,
   imageUseMap,
   inUseMessage,
   isRowId,
   learnImageObjectPath,
   mediaIdForPath,
   mediaSources,
+  parseMediaRow,
   queryMedia,
+  savedSectionUses,
   uploadName,
+  versionLabel,
   type MediaRow,
 } from './learn-media-core';
 
@@ -56,6 +60,14 @@ describe('object paths and ids', () => {
     expect(isRowId('../x')).toBe(false);
     expect(isRowId(5)).toBe(false);
   });
+
+  it('refuses ids Firestore reserves, such as __proto__ (U5)', () => {
+    expect(isRowId('__proto__')).toBe(false);
+    expect(isRowId('__name__')).toBe(false);
+    expect(isRowId('__x__')).toBe(false);
+    expect(isRowId('constructor')).toBe(true);
+    expect(isRowId('__half')).toBe(true);
+  });
 });
 
 describe('where an image is used', () => {
@@ -96,14 +108,50 @@ describe('where an image is used', () => {
       }),
     );
     expect(map.get(`pageLayouts/learn/${ID}.webp`)).toEqual([
-      'Draft: section 1 "Team", block 1 (image)',
-      'Draft: section 1 "Team", block 2 (people), Maru',
-      'Version of 2026-10-20 14:05 UTC: section 1 "Team", block 1 (image)',
-      'Version of 2026-10-20 14:05 UTC: section 1 "Team", block 2 (people), Maru',
-      'Saved section "Hero": section, block 1 (image)',
+      'Draft: Team, image',
+      'Draft: Team, photo of Maru',
+      'Old version from Oct 20, 2026: Team, image',
+      'Old version from Oct 20, 2026: Team, photo of Maru',
+      'Saved section "Hero": image',
     ]);
+    expect(map.get('pageLayouts/learn/bg.webp')).toEqual(['Draft: Team, background image', 'Old version from Oct 20, 2026: Team, background image']);
+    expect(map.get('pageLayouts/learn/c1.webp')?.[0]).toBe('Draft: Team, card 1');
     // The default page uses only /kgc/ assets, which are not in the library.
     expect([...map.values()].flat().some((w) => w.startsWith('Live page'))).toBe(false);
+  });
+
+  it('names a section with no label by its place, in plain words (D13)', () => {
+    const p: LearnPageContent = {
+      ...page,
+      ogImage: undefined,
+      sections: [section([], { label: '' }), section([{ id: 'i', kind: 'image', image: img(url()), width: 'full', shape: 'original' }], { label: '' })],
+    };
+    expect(contentImages(p).map((x) => x.where)).toEqual(['Section 2, image']);
+    expect(versionLabel(Date.UTC(2026, 9, 22, 5, 43))).toBe('Old version from Oct 22, 2026');
+    expect(versionLabel('x')).toBe('Old version');
+  });
+
+  it('reads a page, version or saved section of the wrong shape without throwing', () => {
+    const bad = [
+      { sections: 'nope' },
+      { sections: [null, 5, { blocks: 'x' }, { blocks: [null, { kind: 'people', people: 'x' }, { kind: 'gallery', images: [null] }, { kind: 'image', image: { src: 5 } }] }] },
+    ] as unknown as LearnPageContent[];
+    for (const c of bad) expect(contentImages(c)).toEqual([]);
+    expect(() =>
+      imageUseMap(
+        mediaSources({
+          versions: [{ id: 'v', publishedAt: NaN, content: null as unknown as LearnPageContent }],
+          library: [{ id: 'l', item: { name: 5, section: null } as unknown as never }],
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('names where a saved section is used, in the same words', () => {
+    const p = { sections: [{ label: 'Programmes', blocks: [{ kind: 'reusable', libraryId: 'lib1' }, { kind: 'reusable', libraryId: 'x' }] }, { blocks: [{ kind: 'reusable', libraryId: 'lib1' }] }] };
+    expect(savedSectionUses(p, 'lib1')).toEqual(['Programmes, saved section', 'Section 2, saved section']);
+    expect(savedSectionUses({ sections: 7 }, 'lib1')).toEqual([]);
+    expect(savedSectionUses(null, 'lib1')).toEqual([]);
   });
 
   it('writes a refusal that lists five places and counts the rest', () => {
@@ -159,5 +207,63 @@ describe('names, tags and search', () => {
 
   it('lists every tag once, alphabetically', () => {
     expect(allTags(rows)).toEqual(['paris', 'team']);
+  });
+});
+
+describe('stored rows of the wrong shape', () => {
+  const good = { image: { src: url(), alt: 'a', width: 40, height: 30 }, fileName: 'a.jpg', bytes: 5, uploadedAt: 2, uploadedBy: 'u' };
+
+  it('keeps a good row as it is', () => {
+    expect(parseMediaRow('a', good)).toEqual({ ok: true, row: { id: 'a', ...good } });
+  });
+
+  it('refuses a row with no usable image, so the caller can skip it', () => {
+    for (const bad of [null, 5, {}, { image: null }, { image: { src: 5, width: 1, height: 1 } }, { image: { src: '', width: 1, height: 1 } }, { image: { src: url() } }, { image: { src: url(), width: 0, height: 4 } }]) {
+      expect(parseMediaRow('x', bad).ok).toBe(false);
+    }
+  });
+
+  it('fills in a missing name, size, date or tags rather than dropping the image', () => {
+    const r = parseMediaRow('x', { image: { src: url(), width: 4, height: 3 }, fileName: 7, bytes: 'big', tags: ['a', 5] });
+    expect(r).toEqual({
+      ok: true,
+      row: { id: 'x', image: { src: url(), alt: '', width: 4, height: 3 }, fileName: `${ID}.webp`, bytes: 0, uploadedAt: 0, uploadedBy: '', tags: ['a'] },
+    });
+  });
+
+  it('sorts and searches parsed rows whatever was stored', () => {
+    const rows = [good, { image: { src: url('b'), width: 4, height: 3 } }, { image: { src: 'x', width: 4, height: 3 }, fileName: '' }].flatMap((d, i) => {
+      const p = parseMediaRow(`r${i}`, d);
+      return p.ok ? [p.row] : [];
+    });
+    for (const sort of ['newest', 'oldest', 'name', 'largest', 'smallest'] as const) {
+      expect(() => queryMedia(rows, { sort, search: 'a', tag: 't' })).not.toThrow();
+      expect(queryMedia(rows, { sort })).toHaveLength(3);
+    }
+  });
+
+  it('keeps an edited copy\'s link to its original only when it is well formed', () => {
+    const editedFrom = { image: { src: url('o'), width: 100, height: 50 }, crop: { x: 0, y: 0, width: 0.5, height: 1 }, rotate: 90, flipX: false, flipY: true };
+    const r = parseMediaRow('c', { ...good, editedFrom });
+    expect(r.ok && r.row.editedFrom).toEqual(editedFrom);
+    const bad = parseMediaRow('c', { ...good, editedFrom: { ...editedFrom, crop: { x: 0.8, y: 0, width: 0.5, height: 1 } } });
+    expect(bad.ok && bad.row.editedFrom).toBeUndefined();
+  });
+});
+
+describe('one row per stored file (M3)', () => {
+  const r = (id: string, file: string, uploadedAt: number): MediaRow => ({ id, fileName: id, bytes: 1, uploadedAt, uploadedBy: '', image: img(url(file)) });
+
+  it('keeps the row named after the file, then the older one', () => {
+    const rows = [r('auto1', ID, 1), r(ID, ID, 9), r('other', 'zz', 3), r('dupe', 'zz', 2)];
+    const out = dedupeMediaRows(rows);
+    expect(out.rows.map((x) => x.id)).toEqual([ID, 'dupe']);
+    expect(out.duplicates.map((x) => x.id).sort()).toEqual(['auto1', 'other']);
+  });
+
+  it('never merges rows that are not stored files', () => {
+    const a = { ...r('a', ID, 1), image: img('/kgc/a.png') };
+    const b = { ...r('b', ID, 1), image: img('/kgc/a.png') };
+    expect(dedupeMediaRows([a, b]).rows).toHaveLength(2);
   });
 });

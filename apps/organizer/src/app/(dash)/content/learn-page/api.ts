@@ -18,6 +18,7 @@ export {
   updateLearnMediaAction,
   deleteLearnMediaAction,
   backfillLearnMediaAction,
+  learnImageEditStartAction,
   listLearnLibraryAction,
   saveLearnLibraryItemAction,
   renameLearnLibraryItemAction,

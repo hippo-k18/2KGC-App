@@ -33,6 +33,10 @@ import {
   type CropRect,
   type MediaLike,
   type Transform,
+  NO_EDIT,
+  fromCopyToOriginal,
+  fromOriginalToCopy,
+  isAtStart,
 } from './learn-media-ui-core';
 
 const row = (fileName: string, over: Partial<MediaLike> = {}): MediaLike => ({
@@ -362,5 +366,35 @@ describe('imageEditOps', () => {
     expect(imageEditOps({ x: 0.0001, y: 0, width: 0.9995, height: 1 }, { ...none, flipY: true }, 800, 600)).toEqual([
       { op: 'flip', direction: 'vertical' },
     ]);
+  });
+});
+
+describe('editing a copy from its original (T325, D8)', () => {
+  const start = { crop: { x: 0.2, y: 0.1, width: 0.5, height: 0.6 }, t: { rotate: 90 as const, flipX: true, flipY: false } };
+
+  it('maps a focal point of the copy into the original and back', () => {
+    for (const p of [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 0.3, y: 0.8 }, { x: 0.5, y: 0.5 }]) {
+      const o = fromCopyToOriginal(p, start);
+      expect(o.x).toBeGreaterThanOrEqual(start.crop.x - 1e-9);
+      expect(o.x).toBeLessThanOrEqual(start.crop.x + start.crop.width + 1e-9);
+      expect(fromOriginalToCopy(o, start)).toEqual(p);
+    }
+    // With no starting crop, a point is itself.
+    expect(fromCopyToOriginal({ x: 0.3, y: 0.7 }, NO_EDIT)).toEqual({ x: 0.3, y: 0.7 });
+    expect(fromOriginalToCopy({ x: 0.3, y: 0.7 }, NO_EDIT)).toEqual({ x: 0.3, y: 0.7 });
+  });
+
+  it('keeps a point of the original that is outside the copy inside it', () => {
+    expect(fromOriginalToCopy({ x: 0, y: 0 }, { crop: { x: 0.5, y: 0.5, width: 0.5, height: 0.5 }, t: NO_EDIT.t })).toEqual({ x: 0, y: 0 });
+  });
+
+  it('says whether the crop and turn are still the starting ones', () => {
+    expect(isAtStart(start.crop, start.t, start)).toBe(true);
+    expect(isAtStart({ ...start.crop, x: start.crop.x + 0.001 }, start.t, start)).toBe(true);
+    expect(isAtStart({ ...start.crop, x: start.crop.x + 0.01 }, start.t, start)).toBe(false);
+    expect(isAtStart(start.crop, { ...start.t, flipY: true }, start)).toBe(false);
+    // Reset: the whole original is not the copy's start.
+    expect(isAtStart(NO_EDIT.crop, NO_EDIT.t, start)).toBe(false);
+    expect(isAtStart(NO_EDIT.crop, NO_EDIT.t, NO_EDIT)).toBe(true);
   });
 });

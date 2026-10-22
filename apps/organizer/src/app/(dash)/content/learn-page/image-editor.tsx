@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useEffect,
   useId,
   useRef,
   useState,
@@ -13,11 +14,14 @@ import type { PageImage } from '@kgc/shared';
 import {
   ASPECT_PRESETS,
   FULL_CROP,
+  NO_EDIT,
   cropToPixels,
   fitCropToAspect,
   focalFromCrop,
+  fromCopyToOriginal,
+  fromOriginalToCopy,
   imageEditOps,
-  isFullCrop,
+  isAtStart,
   moveCrop,
   pointInCrop,
   resizeCrop,
@@ -29,9 +33,11 @@ import {
   toOriginalRect,
   type Corner,
   type CropRect,
+  type EditStart,
   type Transform,
 } from '@/lib/learn-media-ui-core';
-import { editLearnImageAction } from './api';
+import type { LearnImageEditState } from '@/lib/learn-image-edit-core';
+import { editLearnImageAction, learnImageEditStartAction } from './api';
 import { Modal } from './dialogs';
 import { resolveSrc } from './editor-types';
 import './media.css';
@@ -45,6 +51,10 @@ import './media.css';
  * Crop and focal point are held in the original picture's coordinates and
  * converted to what is on screen only for drawing (see learn-media-ui-core), so
  * turning or flipping never moves the part of the picture that was chosen.
+ *
+ * Editing an edited copy opens the original it was cut from, with the copy's
+ * crop and turn already set (T325, D8), so changing your mind never crops the
+ * copy again and loses pixels. Reset goes back to the whole original.
  */
 
 const STEP = 0.02;
@@ -63,34 +73,79 @@ export interface ImageEditorProps {
   onClose: () => void;
 }
 
-export function ImageEditor({ image, siteOrigin, onDone, onClose }: ImageEditorProps) {
+type Origin = { image: PageImage; state: LearnImageEditState };
+
+/** Asks the server whether `image` is an edited copy with its original still stored, then opens the editor. */
+export function ImageEditor(props: ImageEditorProps) {
+  const [origin, setOrigin] = useState<Origin | null | undefined>(undefined);
+  const src = props.image.src;
+
+  useEffect(() => {
+    let alive = true;
+    learnImageEditStartAction(src)
+      .then((res) => alive && setOrigin(res.ok ? res.start : null))
+      // Without the answer the copy itself is edited, as before.
+      .catch(() => alive && setOrigin(null));
+    return () => {
+      alive = false;
+    };
+  }, [src]);
+
+  if (origin === undefined) {
+    return (
+      <Modal
+        title="Edit image"
+        onClose={props.onClose}
+        wide
+        footer={
+          <button type="button" className="btn btn-default" onClick={props.onClose}>
+            Cancel
+          </button>
+        }
+      >
+        <p className="le-imged-size" role="status">
+          Loading the image...
+        </p>
+      </Modal>
+    );
+  }
+  return <ImageEditorBody {...props} origin={origin} />;
+}
+
+function ImageEditorBody({ image, siteOrigin, onDone, onClose, origin }: ImageEditorProps & { origin: Origin | null }) {
   const uid = useId();
   const stageRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
-  const initialFocus =
+  // What is on screen: the original when `image` is an edited copy of it.
+  const work: PageImage = origin ? { ...origin.image, alt: image.alt } : image;
+  const start: EditStart = origin
+    ? { crop: origin.state.crop, t: { rotate: origin.state.rotate, flipX: origin.state.flipX, flipY: origin.state.flipY } }
+    : NO_EDIT;
+  const imageFocus =
     image.focusX !== undefined || image.focusY !== undefined
       ? { x: image.focusX ?? 0.5, y: image.focusY ?? 0.5 }
       : null;
+  // Held in the coordinates of the picture on screen, like the crop.
+  const initialFocus = imageFocus && origin ? fromCopyToOriginal(imageFocus, start) : imageFocus;
 
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [t, setT] = useState<Transform>(NO_TURN);
-  const [crop, setCrop] = useState<CropRect>(FULL_CROP);
+  const [t, setT] = useState<Transform>(start.t);
+  const [crop, setCrop] = useState<CropRect>(start.crop);
   const [aspectId, setAspectId] = useState('free');
   const [focus, setFocus] = useState<{ x: number; y: number } | null>(initialFocus);
   const [mode, setMode] = useState<'crop' | 'focus'>('crop');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
-  const w = natural?.w || image.width || 1;
-  const h = natural?.h || image.height || 1;
+  const w = natural?.w || work.width || 1;
+  const h = natural?.h || work.height || 1;
   const disp = rotateSize(w, h, t.rotate);
   const dispCrop = toDisplayRect(crop, t);
   const dispFocus = focus ? toDisplayPoint(focus, t) : null;
   const ratio = ASPECT_PRESETS.find((p) => p.id === aspectId)?.ratio ?? null;
   const ready = !!natural && !loadFailed;
-  const geometryChanged = !isFullCrop(crop) || t.rotate !== 0 || t.flipX || t.flipY;
+  const geometryChanged = !isAtStart(crop, t, start);
   const focusChanged = focus?.x !== initialFocus?.x || focus?.y !== initialFocus?.y;
   const px = cropToPixels(toDisplayRect(crop, t), disp.width, disp.height);
 
@@ -121,6 +176,7 @@ export function ImageEditor({ image, siteOrigin, onDone, onClose }: ImageEditorP
     setError(null);
   }
 
+  /** Back to the whole picture: for an edited copy, the whole original. */
   function reset() {
     setT(NO_TURN);
     setCrop(FULL_CROP);
@@ -208,15 +264,26 @@ export function ImageEditor({ image, siteOrigin, onDone, onClose }: ImageEditorP
   /** The image as it is, with only the focal point changed. */
   function focalOnly(): PageImage {
     // With a crop that could not be saved, its middle is the best guess at what matters.
-    const f = focus ?? (isFullCrop(crop) ? null : { x: focalFromCrop(crop).focusX, y: focalFromCrop(crop).focusY });
+    const f = focus ?? (!geometryChanged ? null : { x: focalFromCrop(crop).focusX, y: focalFromCrop(crop).focusY });
     if (!f) return image;
-    return { ...image, focusX: round2(f.x), focusY: round2(f.y) };
+    const c = fromOriginalToCopy(f, start);
+    return { ...image, focusX: c.x, focusY: c.y };
   }
 
   async function save() {
     const ops = geometryChanged ? imageEditOps(crop, t, w, h) : [];
-    // Turns and flips that cancel out leave the picture as it was: no new file.
     if (ops.length === 0) {
+      // Back to the whole original: use it as it is, no new file.
+      if (origin && geometryChanged) {
+        const out: PageImage = { ...work };
+        if (focus) {
+          out.focusX = round2(focus.x);
+          out.focusY = round2(focus.y);
+        }
+        onDone(out);
+        return;
+      }
+      // Turns and flips that cancel out leave the picture as it was: no new file.
       onDone(focalOnly());
       return;
     }
@@ -226,7 +293,10 @@ export function ImageEditor({ image, siteOrigin, onDone, onClose }: ImageEditorP
       // The server makes a new file and its library row and keeps the original,
       // so the pages and versions that use the original are unaffected. It
       // refuses the website's own /kgc/ images; that message is shown as sent.
-      const res = await editLearnImageAction({ src: image.src, edit: { ops, format: 'keep' }, alt: image.alt });
+      // `state` is kept on the copy's library row, so editing the copy again
+      // opens `work` with this crop and turn (the server checks it gives `ops`).
+      const state: LearnImageEditState = { crop, rotate: t.rotate, flipX: t.flipX, flipY: t.flipY };
+      const res = await editLearnImageAction({ src: work.src, edit: { ops, format: 'keep', state }, alt: image.alt });
       if (!res.ok) {
         setError(res.error || 'The edited image could not be saved.');
         return;
@@ -284,79 +354,93 @@ export function ImageEditor({ image, siteOrigin, onDone, onClose }: ImageEditorP
     >
       <div className="le-imged">
         <div className="le-imged-view">
-          <div
-            ref={stageRef}
-            className={`le-imged-stage${mode === 'focus' ? ' is-focus' : ''}`}
-            style={{ '--le-imged-ar': ar } as CSSProperties}
-            onClick={onStageClick}
-            onKeyDown={onFocusKey}
-            {...(mode === 'focus'
-              ? {
-                  role: 'slider',
-                  tabIndex: 0,
-                  'aria-label': 'Focal point. Use the arrow keys to move it.',
-                  'aria-valuemin': 0,
-                  'aria-valuemax': 100,
-                  'aria-valuenow': Math.round((dispFocus?.x ?? 0.5) * 100),
-                  'aria-valuetext': dispFocus
-                    ? `${Math.round(dispFocus.x * 100)}% from the left, ${Math.round(dispFocus.y * 100)}% from the top`
-                    : 'Not set, the middle is used',
-                }
-              : {})}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- a Storage or site URL, sized by CSS */}
-            <img
-              className="le-imged-img"
-              src={resolveSrc(image.src, siteOrigin)}
-              alt=""
-              draggable={false}
-              style={imgStyle}
-              onLoad={(e) => {
-                const el = e.currentTarget;
-                if (el.naturalWidth && el.naturalHeight) setNatural({ w: el.naturalWidth, h: el.naturalHeight });
-              }}
-              onError={() => setLoadFailed(true)}
-            />
-            {ready && (
-              <div
-                className={`le-imged-crop${mode === 'focus' ? ' is-passive' : ''}`}
-                style={{
-                  left: pct(dispCrop.x),
-                  top: pct(dispCrop.y),
-                  width: pct(dispCrop.width),
-                  height: pct(dispCrop.height),
+          {origin && (
+            <p className="le-imged-hint le-imged-origin">
+              This image is an edited copy. You are working on the original it came from, so Reset shows the
+              whole picture.
+            </p>
+          )}
+          {/* The frame does not clip, so the crop handles show whole at the picture's edge. */}
+          <div className="le-imged-frame" style={{ '--le-imged-ar': ar } as CSSProperties}>
+            <div
+              ref={stageRef}
+              className={`le-imged-stage${mode === 'focus' ? ' is-focus' : ''}`}
+              onClick={onStageClick}
+              onKeyDown={onFocusKey}
+              {...(mode === 'focus'
+                ? {
+                    role: 'slider',
+                    tabIndex: 0,
+                    'aria-label': 'Focal point. Use the arrow keys to move it.',
+                    'aria-valuemin': 0,
+                    'aria-valuemax': 100,
+                    'aria-valuenow': Math.round((dispFocus?.x ?? 0.5) * 100),
+                    'aria-valuetext': dispFocus
+                      ? `${Math.round(dispFocus.x * 100)}% from the left, ${Math.round(dispFocus.y * 100)}% from the top`
+                      : 'Not set, the middle is used',
+                  }
+                : {})}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- a Storage or site URL, sized by CSS */}
+              <img
+                className="le-imged-img"
+                src={resolveSrc(work.src, siteOrigin)}
+                alt=""
+                draggable={false}
+                style={imgStyle}
+                onLoad={(e) => {
+                  const el = e.currentTarget;
+                  if (el.naturalWidth && el.naturalHeight) setNatural({ w: el.naturalWidth, h: el.naturalHeight });
                 }}
-                role={mode === 'crop' ? 'group' : undefined}
-                tabIndex={mode === 'crop' ? 0 : -1}
-                aria-label={mode === 'crop' ? 'Crop box' : undefined}
-                aria-describedby={mode === 'crop' ? `${helpId} ${sizeId}` : undefined}
-                onPointerDown={(e) => onCropPointerDown(e, 'move')}
-                onPointerMove={onCropPointerMove}
-                onPointerUp={onCropPointerUp}
-                onPointerCancel={onCropPointerUp}
-                onKeyDown={mode === 'crop' ? onCropKey : undefined}
-              >
-                <span className="le-imged-thirds" aria-hidden="true" />
-                {mode === 'crop' &&
-                  CORNERS.map((c) => (
-                    <span
-                      key={c}
-                      className={`le-imged-handle ${c}`}
-                      aria-hidden="true"
-                      onPointerDown={(e) => onCropPointerDown(e, c)}
-                      onPointerMove={onCropPointerMove}
-                      onPointerUp={onCropPointerUp}
-                      onPointerCancel={onCropPointerUp}
-                    />
-                  ))}
-              </div>
-            )}
-            {ready && (mode === 'focus' || dispFocus) && (
-              <span
-                className={`le-imged-dot${dispFocus ? '' : ' unset'}`}
-                style={{ left: pct(dispFocus?.x ?? 0.5), top: pct(dispFocus?.y ?? 0.5) }}
-                aria-hidden="true"
+                onError={() => setLoadFailed(true)}
               />
+              {ready && (
+                <div
+                  className={`le-imged-crop${mode === 'focus' ? ' is-passive' : ''}`}
+                  style={{
+                    left: pct(dispCrop.x),
+                    top: pct(dispCrop.y),
+                    width: pct(dispCrop.width),
+                    height: pct(dispCrop.height),
+                  }}
+                  role={mode === 'crop' ? 'group' : undefined}
+                  tabIndex={mode === 'crop' ? 0 : -1}
+                  aria-label={mode === 'crop' ? 'Crop box' : undefined}
+                  aria-describedby={mode === 'crop' ? `${helpId} ${sizeId}` : undefined}
+                  onPointerDown={(e) => onCropPointerDown(e, 'move')}
+                  onPointerMove={onCropPointerMove}
+                  onPointerUp={onCropPointerUp}
+                  onPointerCancel={onCropPointerUp}
+                  onKeyDown={mode === 'crop' ? onCropKey : undefined}
+                >
+                  <span className="le-imged-thirds" aria-hidden="true" />
+                </div>
+              )}
+              {ready && (mode === 'focus' || dispFocus) && (
+                <span
+                  className={`le-imged-dot${dispFocus ? '' : ' unset'}`}
+                  style={{ left: pct(dispFocus?.x ?? 0.5), top: pct(dispFocus?.y ?? 0.5) }}
+                  aria-hidden="true"
+                />
+              )}
+            </div>
+            {ready && mode === 'crop' && (
+              <div
+                className="le-imged-handles"
+                aria-hidden="true"
+                style={{ left: pct(dispCrop.x), top: pct(dispCrop.y), width: pct(dispCrop.width), height: pct(dispCrop.height) }}
+              >
+                {CORNERS.map((c) => (
+                  <span
+                    key={c}
+                    className={`le-imged-handle ${c}`}
+                    onPointerDown={(e) => onCropPointerDown(e, c)}
+                    onPointerMove={onCropPointerMove}
+                    onPointerUp={onCropPointerUp}
+                    onPointerCancel={onCropPointerUp}
+                  />
+                ))}
+              </div>
             )}
           </div>
           {loadFailed ? (

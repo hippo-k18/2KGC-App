@@ -620,6 +620,21 @@ function MediaDetails({
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [refusal, setRefusal] = useState<string[] | null>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const refusalRef = useRef<HTMLDivElement>(null);
+  /** Bumped when a delete is refused, so the message is shown even when its text is the same as last time. */
+  const [deleteRefused, setDeleteRefused] = useState(0);
+
+  // On a phone the details are taller than the dialog, and a refusal under the
+  // Delete button sits below the footer: bring it into view and move focus to
+  // it, so Delete never looks like it did nothing (T325, D7).
+  useEffect(() => {
+    if (!deleteRefused) return;
+    const el = refusalRef.current ?? errorRef.current;
+    if (!el) return;
+    el.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    el.focus({ preventScroll: true });
+  }, [deleteRefused]);
 
   // The draft as it is on screen (it may not be saved yet), plus what only the
   // server can see: kept versions and saved sections. The server's own Draft
@@ -722,8 +737,10 @@ function MediaDetails({
       // The server checks every place the image is used and names them in the error.
       setError(res.error || 'The image could not be deleted.');
       setConfirming(false);
+      setDeleteRefused((n) => n + 1);
     } catch {
       setError('The image could not be deleted. Check your connection and try again.');
+      setDeleteRefused((n) => n + 1);
     } finally {
       setBusy(false);
     }
@@ -734,6 +751,7 @@ function MediaDetails({
     if (usedIn.length > 0) {
       setRefusal(usedIn);
       setConfirming(false);
+      setDeleteRefused((n) => n + 1);
     } else {
       setRefusal(null);
       setConfirming(true);
@@ -896,7 +914,7 @@ function MediaDetails({
         {note}
       </p>
       {error && (
-        <p className="le-media-error" role="alert">
+        <p ref={errorRef} className="le-media-error" role="alert" tabIndex={-1}>
           {error}
         </p>
       )}
@@ -935,7 +953,7 @@ function MediaDetails({
       )}
 
       {refusal && (
-        <div className="le-media-confirm" role="alert">
+        <div ref={refusalRef} className="le-media-confirm" role="alert" tabIndex={-1}>
           <p>This image is still used, so it cannot be deleted. Remove it from these places first:</p>
           <ul className="le-media-used">
             {refusal.map((u, i) => (

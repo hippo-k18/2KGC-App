@@ -2,9 +2,10 @@ import 'server-only';
 
 import { randomUUID } from 'node:crypto';
 import { getStorage } from 'firebase-admin/storage';
-import { LEARN_PAGE_MEDIA, type LearnMediaItem, type PageImage } from '@kgc/shared';
+import { LEARN_PAGE_MEDIA, type PageImage } from '@kgc/shared';
 import { db } from './firestore';
-import { editedFileName, planLearnImageEdit, type LearnImageOp } from './learn-image-edit-core';
+import { editedFileName, editedFromFor, planLearnImageEdit, type LearnImageOp } from './learn-image-edit-core';
+import { mediaIdForPath, parseMediaRow, type MediaRow } from './learn-media-core';
 import { usingStorageEmulator } from './learn-page';
 import { LEARN_LIMITS, isAllowedLearnImageSrc } from './learn-page-core';
 import { UploadRejected, UploadUnavailable, storageBucketName } from './uploads';
@@ -15,7 +16,11 @@ import { UploadRejected, UploadUnavailable, storageBucketName } from './uploads'
  * The edited picture is always a new file with a new name: the original may be
  * on the published page or in an older version, and the page files are cached
  * as immutable for a year, so overwriting one would change it under readers who
- * would never see the change. The copy gets its own row in the media library.
+ * would never see the change. The copy gets its own row in the media library,
+ * keyed by its file name like every other row, so Rescan never adds a second
+ * one (T325, M3). The row also records the file it was cut from and the
+ * editor's settings (`editedFrom`), so editing the copy again starts from the
+ * original rather than losing pixels on each round (D8).
  *
  * The plan (`learn-image-edit-core.ts`) is checked here again whatever the
  * browser already checked, because the sizes it measures against come from
@@ -202,16 +207,23 @@ export async function editLearnImage(input: {
   // Name the copy after the original's library row, or its file name when the
   // image was uploaded before the library existed.
   const media = db().collection(LEARN_PAGE_MEDIA);
-  const prior = await media.where('image.src', '==', src).limit(1).get();
-  const priorName = prior.empty ? undefined : (prior.docs[0].data() as Partial<LearnMediaItem>).fileName;
-  const item: LearnMediaItem = {
+  const sourceId = mediaIdForPath(sourcePath);
+  const own = sourceId ? await media.doc(sourceId).get() : null;
+  const priorSnap = own?.exists ? own : (await media.where('image.src', '==', src).limit(1).get()).docs[0];
+  const prior = priorSnap ? parseMediaRow(priorSnap.id, priorSnap.data()) : null;
+  const priorName = prior?.ok ? prior.row.fileName : undefined;
+  const mediaId = mediaIdForPath(path)!;
+  const item: Omit<MediaRow, 'id'> = {
     image,
-    fileName: editedFileName(typeof priorName === 'string' ? priorName : sourcePath.split('/').pop(), ext),
+    fileName: editedFileName(priorName ?? sourcePath.split('/').pop(), ext),
     bytes: out.length,
     uploadedAt: Date.now(),
     uploadedBy: input.actor,
   };
-  const row = await media.add(item);
+  const editedFrom = editedFromFor(input.edit, src, rotated ? h0 : w0, rotated ? w0 : h0);
+  if (editedFrom) item.editedFrom = editedFrom;
+  await media.doc(mediaId).create(item);
 
-  return { image, mediaId: row.id, path, bytes: out.length };
+  return { image, mediaId, path, bytes: out.length };
 }
+

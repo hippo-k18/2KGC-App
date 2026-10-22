@@ -462,11 +462,21 @@ textarea.le-media-input { resize: vertical; }
   flex-direction: column;
   align-items: center;
   min-width: 0;
+  /* Room for the half of a corner handle that sits outside the picture. */
+  padding: 10px;
+}
+
+.le-imged-origin { align-self: stretch; }
+
+/* Sized like the picture but not clipped, so the handles above it show whole. */
+.le-imged-frame {
+  position: relative;
+  width: min(100%, calc(var(--le-imged-ar, 1) * 56vh));
 }
 
 .le-imged-stage {
   position: relative;
-  width: min(100%, calc(var(--le-imged-ar, 1) * 56vh));
+  width: 100%;
   aspect-ratio: var(--le-imged-ar, 1);
   overflow: hidden;
   background: repeating-conic-gradient(#e6e6e6 0 25%, #fff 0 50%) 0 0 / 16px 16px;
@@ -514,6 +524,11 @@ textarea.le-media-input { resize: vertical; }
     linear-gradient(to bottom, transparent calc(33.333% - 0.5px), rgba(255, 255, 255, 0.45) 0, rgba(255, 255, 255, 0.45) calc(33.333% + 0.5px), transparent 0, transparent calc(66.666% - 0.5px), rgba(255, 255, 255, 0.45) 0, rgba(255, 255, 255, 0.45) calc(66.666% + 0.5px), transparent 0);
 }
 
+.le-imged-handles {
+  position: absolute;
+  pointer-events: none;
+}
+
 .le-imged-handle {
   position: absolute;
   width: 18px;
@@ -522,6 +537,14 @@ textarea.le-media-input { resize: vertical; }
   border-radius: 3px;
   background: var(--interactive);
   touch-action: none;
+  pointer-events: auto;
+}
+
+/* A larger target than the square drawn, for a finger. */
+.le-imged-handle::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
 }
 
 .le-imged-handle.nw { left: -9px; top: -9px; cursor: nwse-resize; }
@@ -604,5 +627,9 @@ textarea.le-media-input { resize: vertical; }
 
 @media (max-width: 760px) {
   .le-imged { grid-template-columns: minmax(0, 1fr); }
-  .le-imged-stage { width: min(100%, calc(var(--le-imged-ar, 1) * 46vh)); }
+  .le-imged-frame { width: min(100%, calc(var(--le-imged-ar, 1) * 46vh)); }
 }
+
+/* Focused from code when a delete is refused; the message itself is the cue. */
+.le-media-error:focus,
+.le-media-confirm:focus { outline: none; }

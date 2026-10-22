@@ -6,7 +6,6 @@ import type { File as StorageFile } from '@google-cloud/storage';
 import {
   LEARN_PAGE_LIBRARY,
   LEARN_PAGE_MEDIA,
-  reusableUses,
   type LearnLibraryItem,
   type LearnMediaItem,
   type LearnPageContent,
@@ -17,18 +16,23 @@ import {
 import { db } from './firestore';
 import { learnImageUrl, learnValidateOptions, loadSharp } from './learn-page';
 import { validateLearnSection } from './learn-page-core';
+import type { LearnImageEditState } from './learn-image-edit-core';
 import {
   MEDIA_LIMITS,
   allTags,
   cleanName,
   cleanTags,
+  dedupeMediaRows,
   imageUseMap,
   inUseMessage,
   isRowId,
   learnImageObjectPath,
   mediaIdForPath,
   mediaSources,
+  parseMediaRow,
   queryMedia,
+  savedSectionUses,
+  versionLabel,
   type MediaRow,
   type MediaSort,
 } from './learn-media-core';
@@ -80,15 +84,17 @@ async function loadSources(): Promise<{
     pageRef().collection('versions').get(),
     libraryCol().get(),
   ]);
-  const doc = page.exists ? (page.data() as LearnPageDoc) : null;
+  // Read loosely: every consumer (`mediaSources`, `savedSectionUses`) copes with
+  // a stored doc of the wrong shape, so one bad row costs only itself.
+  const doc = page.exists ? ((page.data() ?? null) as Partial<LearnPageDoc> | null) : null;
   return {
     draft: doc?.draft ?? null,
     published: doc?.published ?? null,
     versions: versions.docs.map((d) => {
-      const v = d.data() as LearnPageVersion;
-      return { id: d.id, publishedAt: v.publishedAt, content: v.content };
+      const v = (d.data() ?? {}) as Partial<LearnPageVersion>;
+      return { id: d.id, publishedAt: v.publishedAt as number, content: v.content as LearnPageContent };
     }),
-    library: library.docs.map((d) => ({ id: d.id, item: d.data() as LearnLibraryItem })),
+    library: library.docs.map((d) => ({ id: d.id, item: (d.data() ?? {}) as LearnLibraryItem })),
   };
 }
 
@@ -126,9 +132,22 @@ export async function recordLearnMedia(input: {
   return { id, ...row };
 }
 
-async function readRows(): Promise<MediaRow[]> {
+/** A row the library cannot use is skipped and logged, never thrown: one bad row must not hide the rest. */
+function parseOrWarn(id: string, data: unknown): MediaRow | null {
+  const parsed = parseMediaRow(id, data);
+  if (parsed.ok) return parsed.row;
+  console.warn(`[learn media] skipped row ${LEARN_PAGE_MEDIA}/${id}: ${parsed.reason}`);
+  return null;
+}
+
+/** Every usable row, including a second row for the same file (see `dedupeMediaRows`). */
+async function readAllRows(): Promise<MediaRow[]> {
   const snap = await mediaCol().limit(MEDIA_LIMITS.listed).get();
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as LearnMediaItem) }));
+  return snap.docs.flatMap((d) => parseOrWarn(d.id, d.data()) ?? []);
+}
+
+async function readRows(): Promise<MediaRow[]> {
+  return dedupeMediaRows(await readAllRows()).rows;
 }
 
 export async function listLearnMedia(opts: { search?: string; tag?: string; sort?: MediaSort } = {}): Promise<LearnMediaListing> {
@@ -155,8 +174,9 @@ async function usesOfRow(row: LearnMediaItem): Promise<string[]> {
 async function getRow(id: unknown): Promise<MediaRow> {
   if (!isRowId(id)) throw new LearnMediaRefused('That image is not in the library any more.');
   const snap = await mediaCol().doc(id).get();
-  if (!snap.exists) throw new LearnMediaRefused('That image is not in the library any more.');
-  return { id, ...(snap.data() as LearnMediaItem) };
+  const row = snap.exists ? parseOrWarn(id, snap.data()) : null;
+  if (!row) throw new LearnMediaRefused('That image is not in the library any more.');
+  return row;
 }
 
 export async function learnMediaUses(id: string): Promise<string[]> {
@@ -197,10 +217,11 @@ export async function updateLearnMedia(
   const ref = mediaCol().doc(id);
   return db().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists) throw new LearnMediaRefused('That image is not in the library any more.');
-    const before = snap.data() as LearnMediaItem;
+    const parsed = snap.exists ? parseOrWarn(id, snap.data()) : null;
+    if (!parsed) throw new LearnMediaRefused('That image is not in the library any more.');
+    const before = parsed;
     // A whole-document set, so a cleared tag list is really cleared (AGENTS.md gotcha 9).
-    const after: LearnMediaItem = {
+    const after: Omit<MediaRow, 'id'> = {
       image: alt === undefined ? before.image : { ...before.image, alt },
       fileName: next.fileName ?? before.fileName,
       bytes: before.bytes,
@@ -209,8 +230,9 @@ export async function updateLearnMedia(
     };
     const finalTags = tags ?? before.tags;
     if (finalTags && finalTags.length) after.tags = finalTags;
+    if (before.editedFrom) after.editedFrom = before.editedFrom;
     tx.set(ref, after);
-    return { before: { id, ...before }, after: { id, ...after } };
+    return { before, after: { id, ...after } };
   });
 }
 
@@ -229,8 +251,60 @@ export async function deleteLearnMedia(id: string): Promise<MediaRow> {
       if ((err as { code?: unknown } | null)?.code !== 404) throw err;
     }
   }
-  await mediaCol().doc(row.id).delete();
+  // Any other row for the same file (a pre-T325 Rescan duplicate) goes too,
+  // so no row is left pointing at the deleted file.
+  const batch = db().batch();
+  batch.delete(mediaCol().doc(row.id));
+  if (path) {
+    for (const other of await readAllRows()) {
+      if (other.id !== row.id && learnImageObjectPath(other.image.src) === path) batch.delete(mediaCol().doc(other.id));
+    }
+  }
+  await batch.commit();
   return row;
+}
+
+/**
+ * Where "Edit image" should start for `src` (T325, D8): when `src` is an
+ * edited copy whose original is still stored, the original and the crop,
+ * turn and flips that made the copy, so the editor works from the full
+ * picture instead of cropping the copy again. Null means edit `src` itself.
+ */
+export async function learnImageEditStart(
+  src: unknown,
+): Promise<{ image: PageImage; state: LearnImageEditState } | null> {
+  if (typeof src !== 'string') return null;
+  const path = learnImageObjectPath(src);
+  if (!path) return null;
+  const row = await rowForPath(path, src);
+  const from = row?.editedFrom;
+  if (!from) return null;
+  const originalPath = learnImageObjectPath(from.image.src);
+  if (!originalPath || originalPath === path) return null;
+  const original = await rowForPath(originalPath, from.image.src);
+  let image: PageImage;
+  if (original) {
+    image = { src: original.image.src, alt: '', width: original.image.width, height: original.image.height };
+  } else {
+    // An original from before the library has no row; use it while the file is there.
+    db();
+    const [exists] = await getStorage().bucket(storageBucketName()).file(originalPath).exists();
+    if (!exists) return null;
+    image = { src: from.image.src, alt: '', width: from.image.width, height: from.image.height };
+  }
+  return { image, state: { crop: from.crop, rotate: from.rotate, flipX: from.flipX, flipY: from.flipY } };
+}
+
+/** The row for a stored file: keyed by its file name, or (an older edited copy) found by its URL. */
+async function rowForPath(path: string, src: string): Promise<MediaRow | null> {
+  const id = mediaIdForPath(path);
+  if (id) {
+    const snap = await mediaCol().doc(id).get();
+    const row = snap.exists ? parseOrWarn(id, snap.data()) : null;
+    if (row) return row;
+  }
+  const q = await mediaCol().where('image.src', '==', src).limit(1).get();
+  return q.empty ? null : parseOrWarn(q.docs[0].id, q.docs[0].data());
 }
 
 /**
@@ -250,13 +324,22 @@ export async function backfillLearnMedia(): Promise<{ added: number; skipped: nu
     if ((err as { code?: unknown } | null)?.code === 404) return { added: 0, skipped: 0 };
     throw err;
   }
-  const existing = new Set((await mediaCol().select().get()).docs.map((d) => d.id));
+  // A file is skipped when a row has its name as id, or when any row (an
+  // edited copy from before T325 has an auto id) already points at it.
+  const snap = await mediaCol().get();
+  const existing = new Set(snap.docs.map((d) => d.id));
+  const referenced = new Set<string>();
+  for (const d of snap.docs) {
+    const src = (d.data() as { image?: { src?: unknown } } | undefined)?.image?.src;
+    const p = typeof src === 'string' ? learnImageObjectPath(src) : null;
+    if (p) referenced.add(p);
+  }
   const sharp = await loadSharp();
   let added = 0;
   let skipped = 0;
   for (const file of files) {
     const id = mediaIdForPath(file.name);
-    if (!id || existing.has(id)) {
+    if (!id || existing.has(id) || referenced.has(file.name)) {
       skipped++;
       continue;
     }
@@ -319,21 +402,30 @@ function libraryUses(
   sources: { draft: LearnPageContent | null; published: LearnPageContent | null; versions: { publishedAt: number; content: LearnPageContent }[] },
 ): string[] {
   const out: string[] = [];
-  for (const w of reusableUses(sources.draft, id)) out.push(`Draft: ${w}`);
-  for (const w of reusableUses(sources.published, id)) out.push(`Live page: ${w}`);
+  for (const w of savedSectionUses(sources.draft, id)) out.push(`Draft: ${w}`);
+  for (const w of savedSectionUses(sources.published, id)) out.push(`Live page: ${w}`);
   for (const v of sources.versions) {
-    for (const w of reusableUses(v.content, id)) {
-      out.push(`Version of ${new Date(v.publishedAt).toISOString().slice(0, 16).replace('T', ' ')} UTC: ${w}`);
-    }
+    for (const w of savedSectionUses(v.content, id)) out.push(`${versionLabel(v.publishedAt)}: ${w}`);
   }
   return out;
 }
 
+/** A saved section the editor can list: a name and a section with blocks. Others are skipped and logged. */
+function usableLibraryItem(id: string, item: unknown): item is LearnLibraryItem {
+  const i = item as Partial<LearnLibraryItem> | null;
+  const ok =
+    !!i && typeof i.name === 'string' && !!i.section && typeof i.section === 'object' && Array.isArray(i.section.blocks);
+  if (!ok) console.warn(`[learn media] skipped saved section ${LEARN_PAGE_LIBRARY}/${id}: not the right shape`);
+  return ok;
+}
+
 export async function listLearnLibrary(): Promise<LearnLibraryRow[]> {
   const sources = await loadSources();
+  const time = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
   return sources.library
+    .filter(({ id, item }) => usableLibraryItem(id, item))
     .map(({ id, item }) => ({ id, ...item, uses: libraryUses(id, sources) }))
-    .sort((a, b) => b.createdAt - a.createdAt || a.name.localeCompare(b.name));
+    .sort((a, b) => time(b.createdAt) - time(a.createdAt) || a.name.localeCompare(b.name));
 }
 
 /**
@@ -389,6 +481,8 @@ export async function deleteLearnLibraryItem(id: string): Promise<LearnLibraryRo
   if (!isRowId(id)) throw new LearnMediaRefused('That saved section no longer exists.');
   const sources = await loadSources();
   const found = sources.library.find((l) => l.id === id);
+  // A saved section of the wrong shape can still be deleted, which is the way to clear it.
+  if (found && typeof found.item.name !== 'string') found.item = { ...found.item, name: 'Untitled' };
   if (!found) throw new LearnMediaRefused('That saved section no longer exists.');
   const uses = libraryUses(id, sources);
   if (uses.length) throw new LearnMediaRefused(inUseMessage(`The saved section "${found.item.name}"`, uses));

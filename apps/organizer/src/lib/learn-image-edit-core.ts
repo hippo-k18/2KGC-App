@@ -1,4 +1,5 @@
 import { LEARN_LIMITS } from './learn-page-core';
+import { imageEditOps } from './learn-media-ui-core';
 
 /**
  * The plan for editing a Learn page image (T316): crop, rotate, flip, resize
@@ -177,4 +178,74 @@ export function editedFileName(original: string | undefined, ext: string): strin
   while (base.endsWith(EDITED_SUFFIX)) base = base.slice(0, -EDITED_SUFFIX.length).trimEnd();
   if (base.length > MAX_BASE_NAME) base = base.slice(0, MAX_BASE_NAME).trimEnd();
   return `${base || 'image'}${EDITED_SUFFIX}.${cleanExt}`;
+}
+
+// ---------------------------------------------------------------------------
+// Where an edited copy came from (T325, D8)
+// ---------------------------------------------------------------------------
+
+/**
+ * The editor's settings for an edit, as it holds them: a crop in fractions of
+ * the ORIGINAL picture, then a clockwise turn, then flips (the order
+ * `imageEditOps` turns them into ops). Stored on the copy's media row with the
+ * original it was cut from, so "Edit image" on the copy can open the original
+ * with this crop already drawn instead of cropping the copy again and losing
+ * pixels each time.
+ */
+export interface LearnImageEditState {
+  crop: { x: number; y: number; width: number; height: number };
+  rotate: 0 | 90 | 180 | 270;
+  flipX: boolean;
+  flipY: boolean;
+}
+
+/** On an edited copy's media row: the file it was made from, and the settings used. */
+export interface LearnImageEditedFrom extends LearnImageEditState {
+  image: { src: string; width: number; height: number };
+}
+
+const EDGE = 1e-6;
+
+/** Editor settings from the browser or a stored row, or null when anything is off. */
+export function parseLearnImageEditState(input: unknown): LearnImageEditState | null {
+  if (!isRecord(input) || !isRecord(input.crop)) return null;
+  const { x, y, width, height } = input.crop;
+  const nums = [x, y, width, height];
+  if (!nums.every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
+  const [cx, cy, cw, ch] = nums as number[];
+  if (cx < 0 || cy < 0 || cw <= 0 || ch <= 0 || cx + cw > 1 + EDGE || cy + ch > 1 + EDGE) return null;
+  const rotate = input.rotate;
+  if (rotate !== 0 && !ROTATIONS.includes(rotate as (typeof ROTATIONS)[number])) return null;
+  if (typeof input.flipX !== 'boolean' || typeof input.flipY !== 'boolean') return null;
+  return {
+    crop: { x: cx, y: cy, width: cw, height: ch },
+    rotate: rotate as LearnImageEditState['rotate'],
+    flipX: input.flipX,
+    flipY: input.flipY,
+  };
+}
+
+/** A stored `editedFrom`, or null when it is missing or not the right shape. */
+export function parseLearnImageEditedFrom(input: unknown): LearnImageEditedFrom | null {
+  if (!isRecord(input) || !isRecord(input.image)) return null;
+  const { src, width, height } = input.image;
+  if (typeof src !== 'string' || src === '' || !isInt(width) || !isInt(height) || width < 1 || height < 1) return null;
+  const state = parseLearnImageEditState(input);
+  return state ? { image: { src, width, height }, ...state } : null;
+}
+
+/**
+ * The `editedFrom` to keep on the copy's row, or null. The editor sends its
+ * settings as `edit.state`; they are kept only when they are well formed and
+ * give exactly the ops that were run, so a reopened editor shows the crop that
+ * made this copy and never a different one.
+ */
+export function editedFromFor(edit: unknown, src: string, width: number, height: number): LearnImageEditedFrom | null {
+  if (typeof src !== 'string' || src === '' || typeof edit !== 'object' || edit === null) return null;
+  const e = edit as { state?: unknown; ops?: unknown };
+  const state = parseLearnImageEditState(e.state);
+  if (!state) return null;
+  const expected = imageEditOps(state.crop, { rotate: state.rotate, flipX: state.flipX, flipY: state.flipY }, width, height);
+  if (JSON.stringify(expected) !== JSON.stringify(e.ops ?? [])) return null;
+  return { image: { src, width, height }, ...state };
 }

@@ -371,3 +371,42 @@ export function imageEditOps(crop: CropRect, t: Transform, w: number, h: number)
   if (!both && t.flipY) ops.push({ op: 'flip', direction: 'vertical' });
   return ops;
 }
+
+// ─── Editing a copy from its original (T325, D8) ─────────────────────────────
+
+/** The editor's starting crop and turn: the whole picture, or the settings that made a copy. */
+export interface EditStart {
+  crop: CropRect;
+  t: Transform;
+}
+
+export const NO_EDIT: EditStart = { crop: FULL_CROP, t: { rotate: 0, flipX: false, flipY: false } };
+
+/** True when the crop and turn are the starting ones, give or take rounding. */
+export function isAtStart(crop: CropRect, t: Transform, start: EditStart): boolean {
+  const e = 0.002;
+  const c = start.crop;
+  return (
+    t.rotate === start.t.rotate &&
+    t.flipX === start.t.flipX &&
+    t.flipY === start.t.flipY &&
+    Math.abs(crop.x - c.x) < e &&
+    Math.abs(crop.y - c.y) < e &&
+    Math.abs(crop.width - c.width) < e &&
+    Math.abs(crop.height - c.height) < e
+  );
+}
+
+/**
+ * A point of the copy (its focal point) as a point of the original the copy
+ * was cut from with `start`: the reverse of `fromOriginalToCopy`.
+ */
+export function fromCopyToOriginal(p: { x: number; y: number }, start: EditStart): { x: number; y: number } {
+  const d = toDisplayRect(start.crop, start.t);
+  return toOriginalPoint({ x: d.x + p.x * d.width, y: d.y + p.y * d.height }, start.t);
+}
+
+/** A point of the original as a point of the copy cut from it with `start`, kept inside the copy. */
+export function fromOriginalToCopy(p: { x: number; y: number }, start: EditStart): { x: number; y: number } {
+  return pointInCrop(toDisplayPoint(p, start.t), toDisplayRect(start.crop, start.t));
+}

@@ -1,6 +1,6 @@
 'use server';
 
-import { LEARN_PAGE_LIBRARY, LEARN_PAGE_MEDIA } from '@kgc/shared';
+import { LEARN_PAGE_LIBRARY, LEARN_PAGE_MEDIA, type PageImage } from '@kgc/shared';
 import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
 import { recordError } from '@/lib/errors';
@@ -9,6 +9,7 @@ import {
   backfillLearnMedia,
   deleteLearnLibraryItem,
   deleteLearnMedia,
+  learnImageEditStart,
   learnMediaUses,
   listLearnLibrary,
   listLearnMedia,
@@ -18,6 +19,7 @@ import {
   type LearnLibraryRow,
   type LearnMediaListing,
 } from '@/lib/learn-media';
+import type { LearnImageEditState } from '@/lib/learn-image-edit-core';
 import { MEDIA_SORTS, type MediaRow, type MediaSort } from '@/lib/learn-media-core';
 import type { LearnResult } from './actions';
 
@@ -63,6 +65,22 @@ export async function learnMediaUsesAction(id: string): Promise<LearnResult<{ us
     return { ok: true, uses: await learnMediaUses(id) };
   } catch (err) {
     return failure(err, 'check where that image is used');
+  }
+}
+
+/**
+ * Where "Edit image" starts: for an edited copy whose original is still
+ * stored, the original and the settings that made the copy; otherwise null,
+ * and the editor opens the image itself. A read, so not audit-logged.
+ */
+export async function learnImageEditStartAction(
+  src: string,
+): Promise<LearnResult<{ start: { image: PageImage; state: LearnImageEditState } | null }>> {
+  await requireOrganizer();
+  try {
+    return { ok: true, start: await learnImageEditStart(src) };
+  } catch (err) {
+    return failure(err, 'open the original image');
   }
 }
 
@@ -196,7 +214,7 @@ export async function deleteLearnLibraryItemAction(id: string): Promise<LearnRes
       targetPath: `${LEARN_PAGE_LIBRARY}/${row.id}`,
       subject: SUBJECT,
       targetId: row.id,
-      before: { name: row.name, blocks: row.section.blocks.length },
+      before: { name: row.name, blocks: Array.isArray(row.section?.blocks) ? row.section.blocks.length : 0 },
       after: {},
     });
     return { ok: true };

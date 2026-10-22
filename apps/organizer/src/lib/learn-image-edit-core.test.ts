@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { LEARN_IMAGE_EDIT_MAX_OPS, editedFileName, planLearnImageEdit } from './learn-image-edit-core';
+import {
+  LEARN_IMAGE_EDIT_MAX_OPS,
+  editedFileName,
+  editedFromFor,
+  parseLearnImageEditState,
+  parseLearnImageEditedFrom,
+  planLearnImageEdit,
+} from './learn-image-edit-core';
+import { imageEditOps } from './learn-media-ui-core';
 import { LEARN_LIMITS } from './learn-page-core';
 
 function ok(input: unknown, w: number, h: number) {
@@ -198,5 +206,46 @@ describe('editedFileName', () => {
     expect(editedFileName('bad\u0000name.jpg', 'jpg')).toBe('badname (edited).jpg');
     const long = editedFileName(`${'x'.repeat(500)}.jpg`, 'webp');
     expect(long).toBe(`${'x'.repeat(100)} (edited).webp`);
+  });
+});
+
+describe('where an edited copy came from (T325, D8)', () => {
+  const state = { crop: { x: 0.25, y: 0, width: 0.5, height: 1 }, rotate: 90 as const, flipX: true, flipY: false };
+  const t = { rotate: state.rotate, flipX: state.flipX, flipY: state.flipY };
+  const SRC = 'https://firebasestorage.googleapis.com/v0/b/b/o/pageLayouts%2Flearn%2Fa.jpg?alt=media&token=t';
+
+  it('reads well-formed editor settings and refuses anything else', () => {
+    expect(parseLearnImageEditState(state)).toEqual(state);
+    expect(parseLearnImageEditState({ ...state, rotate: 0 })?.rotate).toBe(0);
+    for (const bad of [
+      null,
+      {},
+      { ...state, rotate: 45 },
+      { ...state, flipX: 'yes' },
+      { ...state, crop: { x: 0.6, y: 0, width: 0.5, height: 1 } },
+      { ...state, crop: { x: -0.1, y: 0, width: 0.5, height: 1 } },
+      { ...state, crop: { x: 0, y: 0, width: 0, height: 1 } },
+      { ...state, crop: { x: 0, y: 0, width: NaN, height: 1 } },
+    ]) {
+      expect(parseLearnImageEditState(bad)).toBeNull();
+    }
+  });
+
+  it('reads a stored editedFrom only with a source and a whole-pixel size', () => {
+    const from = { image: { src: SRC, width: 1599, height: 899 }, ...state };
+    expect(parseLearnImageEditedFrom(from)).toEqual(from);
+    expect(parseLearnImageEditedFrom({ ...from, image: { src: SRC, width: 1.5, height: 899 } })).toBeNull();
+    expect(parseLearnImageEditedFrom({ ...from, image: null })).toBeNull();
+    expect(parseLearnImageEditedFrom(undefined)).toBeNull();
+  });
+
+  it('keeps the settings only when they give exactly the ops that were run', () => {
+    const ops = imageEditOps(state.crop, t, 1599, 899);
+    expect(editedFromFor({ ops, format: 'keep', state }, SRC, 1599, 899)).toEqual({ image: { src: SRC, width: 1599, height: 899 }, ...state });
+    // Measured on a different size, the same settings make different ops.
+    expect(editedFromFor({ ops, state }, SRC, 800, 600)).toBeNull();
+    expect(editedFromFor({ ops: [{ op: 'rotate', degrees: 180 }], state }, SRC, 1599, 899)).toBeNull();
+    expect(editedFromFor({ ops }, SRC, 1599, 899)).toBeNull();
+    expect(editedFromFor(null, SRC, 1599, 899)).toBeNull();
   });
 });
