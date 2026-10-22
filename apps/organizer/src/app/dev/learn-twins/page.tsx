@@ -4,7 +4,6 @@ import {
   LEARN_LIBRARY_SAMPLE,
   LEARN_PAGE_KITCHEN_SINK_V2,
   parseLearnPageContent,
-  parseLearnSection,
 } from '@kgc/shared';
 import { previewFontClass } from '../../(dash)/content/learn-page/preview-blocks';
 import { LearnPageView } from './page-view';
@@ -25,11 +24,11 @@ export default async function LearnTwinsHarness({ searchParams }: { searchParams
   if (process.env.NODE_ENV === 'production' && process.env.KGC_DEV_PAGES !== '1') notFound();
   const { site } = await searchParams;
   const origin = site && /^https?:\/\/[\w.:-]+$/.test(site) ? site : 'https://www.knowledgegraph.tech';
-  const page = parseLearnPageContent(LEARN_PAGE_KITCHEN_SINK_V2)!;
-  const library = new Map(Object.entries(LEARN_LIBRARY_SAMPLE).map(([id, s]) => [id, parseLearnSection(s)]));
+  // What Publish stores: the draft with its saved sections expanded (T315).
+  const published = parseLearnPageContent(expandReusableBlocks(LEARN_PAGE_KITCHEN_SINK_V2, LEARN_LIBRARY_SAMPLE))!;
   return (
     <div className={`lp-site-base ${previewFontClass}`}>
-      <LearnPageView content={expandReusableBlocks(page, library)} assetOrigin={origin} />
+      <LearnPageView content={published} assetOrigin={origin} />
     </div>
   );
 }

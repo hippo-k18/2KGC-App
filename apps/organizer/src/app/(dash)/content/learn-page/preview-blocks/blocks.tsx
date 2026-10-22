@@ -2,8 +2,8 @@ import type { CSSProperties, ReactNode } from 'react';
 import {
   blockOptionClasses,
   embedBox,
-  embedSrc,
   EMBED_SANDBOX,
+  learnEmbedSrc,
   focalPosition,
   tocEntries,
   type LearnBlock,
@@ -66,7 +66,8 @@ export function blockAttrs(block: LearnBlock, ...extra: string[]) {
 
 /**
  * One v2 block. `content` is the whole page, which only the table of contents
- * reads. A reusable block never reaches here: the server expands it first.
+ * reads. A `reusable` block is not drawn: Publish expands it (T315), and the
+ * dashboard expands the draft before previewing.
  */
 export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: BlockCtx; content?: LearnPageContent }) {
   switch (block.kind) {
@@ -220,7 +221,9 @@ export function LearnV2Block({ block, ctx, content }: { block: V2Block; ctx: Blo
       );
 
     case 'embed': {
-      const src = embedSrc(block.provider, block.url);
+      // T315's allowlist turns the stored link into the frame address; the
+      // stored link itself never goes into the iframe.
+      const src = learnEmbedSrc(block.provider, block.url);
       if (!src) return null;
       const box = embedBox(block);
       return (

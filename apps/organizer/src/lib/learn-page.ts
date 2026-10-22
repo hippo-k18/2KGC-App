@@ -1,12 +1,17 @@
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
+import type { Transaction } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import {
   COLLECTIONS,
+  LEARN_PAGE_LIBRARY,
+  expandReusableBlocks,
+  type LearnLibraryItem,
   type LearnPageContent,
   type LearnPageDoc,
   type LearnPageVersion,
+  type LearnSection,
   type PageImage,
 } from '@kgc/shared';
 import { db } from './firestore';
@@ -21,6 +26,7 @@ import {
   planReplaceDraft,
   planSave,
   revertTarget,
+  validateLearnContent,
   versionsToPrune,
 } from './learn-page-core';
 import { UploadRejected, UploadUnavailable, storageBucketName } from './uploads';
@@ -75,11 +81,29 @@ export async function listLearnVersions(limit = LEARN_VERSIONS_KEPT): Promise<Le
   });
 }
 
+/** Saved sections by id. Read inside a transaction when `tx` is given. */
+export async function loadLearnLibrarySections(tx?: Transaction): Promise<Map<string, LearnSection>> {
+  const q = db().collection(LEARN_PAGE_LIBRARY);
+  const snap = tx ? await tx.get(q) : await q.get();
+  return new Map(snap.docs.map((d) => [d.id, (d.data() as LearnLibraryItem).section]));
+}
+
 export async function loadLearnEditor(): Promise<LearnEditorState> {
-  const [snap, versions] = await Promise.all([docRef().get(), listLearnVersions()]);
+  const [snap, versions, library] = await Promise.all([docRef().get(), listLearnVersions(), loadLearnLibrarySections()]);
   const exists = snap.exists;
   const doc = effectiveDoc(exists ? (snap.data() as LearnPageDoc) : null);
-  return { doc, exists, versions, hasUnpublishedChanges: hasUnpublishedChanges(doc, exists) };
+  // The live copy holds saved sections expanded, so the draft is compared the same way:
+  // a reusable block is not an unpublished change, and an edit to its saved section is.
+  const asPublished = { ...doc, draft: expandReusableBlocks(doc.draft, library) };
+  return { doc, exists, versions, hasUnpublishedChanges: hasUnpublishedChanges(asPublished, exists) };
+}
+
+/** Publishing would put a page on www that does not pass validation (a saved section changed under it). */
+export class LearnPublishInvalid extends Error {
+  constructor(readonly problems: string[]) {
+    super('The page with its saved sections filled in does not pass the checks, so it was not published.');
+    this.name = 'LearnPublishInvalid';
+  }
 }
 
 /** Save a validated draft. Throws `LearnConflict` on a stale `baseRevision`. */
@@ -119,7 +143,15 @@ export async function publishLearnPage(input: {
       base = effectiveDoc(stored);
       if (base.revision !== input.baseRevision) throw new LearnConflict(base.revision);
     }
-    const { doc, version } = planPublish(base, input.actor, now, input.note);
+    // Saved sections are expanded into the live copy and the kept version, so www
+    // and Restore never depend on the library (`learn-reusable-core.ts`). The
+    // expanded page is checked again: a saved section can be older than today's rules.
+    const expanded = expandReusableBlocks(base.draft, await loadLearnLibrarySections(tx));
+    const check = validateLearnContent(expanded, { allowEmulator: usingStorageEmulator() });
+    if (!check.ok) throw new LearnPublishInvalid(check.problems);
+    const planned = planPublish(base, input.actor, now, input.note);
+    const doc: LearnPageDoc = { ...planned.doc, published: check.content };
+    const version = { ...planned.version, content: check.content };
     tx.set(docRef(), doc);
     tx.set(versionRef, version);
     return doc;
@@ -183,7 +215,7 @@ type Sharp = typeof import('sharp');
  * without it the server cannot read an image's real size or format, and
  * storing bytes it cannot check is the thing `uploads.ts` exists to avoid.
  */
-async function loadSharp(): Promise<Sharp | null> {
+export async function loadSharp(): Promise<Sharp | null> {
   try {
     const mod = (await import('sharp')) as unknown as { default?: Sharp } & Sharp;
     return mod.default ?? mod;
@@ -292,8 +324,12 @@ export async function uploadLearnImage(file: File): Promise<{ image: PageImage; 
     throw err;
   }
 
+  return { image: { src: learnImageUrl(path, token), alt: '', width, height }, path, bytes: out.length, resized };
+}
+
+/** The token URL www renders a stored image through. */
+export function learnImageUrl(path: string, token: string): string {
   const emulator = (process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? process.env.STORAGE_EMULATOR_HOST)?.replace(/^https?:\/\//, '');
   const origin = emulator ? `http://${emulator}` : 'https://firebasestorage.googleapis.com';
-  const src = `${origin}/v0/b/${storageBucketName()}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
-  return { image: { src, alt: '', width, height }, path, bytes: out.length, resized };
+  return `${origin}/v0/b/${storageBucketName()}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
 }

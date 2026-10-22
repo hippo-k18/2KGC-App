@@ -8,7 +8,6 @@ import {
   LEARN_PAGE_KITCHEN_SINK,
   LEARN_PAGE_KITCHEN_SINK_V2,
   learnPageOrDefault,
-  parseLearnSection,
   type LearnBlock,
 } from '@kgc/shared';
 import { V2_BLOCK_KINDS } from '../components/learn-blocks/blocks';
@@ -64,11 +63,8 @@ describe('LearnPageView', () => {
 
 describe('LearnPageView, v2 (T319)', () => {
   const NOW = Date.UTC(2027, 3, 1, 12, 0, 0);
-  const sink = () => {
-    const page = learnPageOrDefault(LEARN_PAGE_KITCHEN_SINK_V2);
-    const library = new Map(Object.entries(LEARN_LIBRARY_SAMPLE).map(([id, s]) => [id, parseLearnSection(s)]));
-    return expandReusableBlocks(page, library);
-  };
+  // What Publish stores: the draft with its saved sections expanded (T315).
+  const sink = () => learnPageOrDefault(expandReusableBlocks(LEARN_PAGE_KITCHEN_SINK_V2, LEARN_LIBRARY_SAMPLE));
   const html = renderToStaticMarkup(createElement(LearnPageView, { content: sink(), now: NOW }));
 
   it('draws every v2 block kind, with its id for the editor', () => {
@@ -105,10 +101,13 @@ describe('LearnPageView, v2 (T319)', () => {
     expect(links).toContain('rich-text');
   });
 
-  it('expands a reusable block into the library section, server side', () => {
+  it('draws a page whose reusable block was expanded at publish, and never draws a reusable block itself', () => {
     expect(html).toContain('From the library: ready to start?');
     expect(html).toContain('data-block-id="v2-reuse--cta-h"');
     expect(html).not.toContain('lp-reusable');
+    const raw = renderToStaticMarkup(createElement(LearnPageView, { content: learnPageOrDefault(LEARN_PAGE_KITCHEN_SINK_V2), now: NOW }));
+    expect(raw).not.toContain('From the library');
+    expect(raw).not.toContain('data-block-id="v2-reuse"');
   });
 
   it('applies section and block options as classes', () => {

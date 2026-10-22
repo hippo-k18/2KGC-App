@@ -134,6 +134,18 @@ export interface AuditEntry {
     | 'learnPage.revert'
     | 'learnPage.restore'
     | 'learnPage.uploadImage'
+    /**
+     * The Learn page's media library and saved sections (T315). A delete is
+     * refused while anything uses the image or section, so these record names
+     * and sizes, not content.
+     */
+    | 'learnMedia.update'
+    | 'learnMedia.remove'
+    | 'learnMedia.backfill'
+    | 'learnSection.save'
+    | 'learnSection.update'
+    | 'learnSection.rename'
+    | 'learnSection.remove'
     /** The entities the later dashboard screens author. */
     | 'exhibitor.create'
     | 'exhibitor.update'

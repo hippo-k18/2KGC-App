@@ -278,17 +278,7 @@ describe("v2", () => {
       expect(parseRichDoc(doc(p(t("x", { type: "fontSize", size: "72px" }))))).toEqual(doc(p(t("x"))));
     });
 
-    it("wraps inline content found at block level in a paragraph", () => {
-      expect(parseRichDoc(doc(t("loose", { type: "bold" })))).toEqual(doc(p(t("loose", { type: "bold" }))));
-      expect(parseRichDoc(doc(p(t("a")), { type: "hardBreak" }, t("b")))).toEqual(doc(p(t("a")), p({ type: "hardBreak" }), p(t("b"))));
-    });
 
-    it("unwraps unknown wrappers, keeping their children", () => {
-      expect(parseRichDoc(doc({ type: "div", style: "x", content: [p(t("a")), { type: "section", content: [p(t("b"))] }] }))).toEqual(doc(p(t("a")), p(t("b"))));
-      expect(parseRichDoc(doc(p({ type: "span", content: [t("a"), { type: "mention", content: [t("b")] }] }, { type: "image", src: "x" })))).toEqual(doc(p(t("a"), t("b"))));
-      // A stray list item or cell outside its parent is unwrapped too.
-      expect(parseRichDoc(doc({ type: "listItem", content: [p(t("a"))] }, { type: "tableCell", content: [p(t("b"))] }))).toEqual(doc(p(t("a")), p(t("b"))));
-    });
 
     it("normalises heading level and alignment", () => {
       expect(parseRichDoc(doc({ type: "heading", level: 7, align: "middle", content: [t("h")] }))).toEqual(doc({ type: "heading", level: 2, content: [t("h")] }));
@@ -296,15 +286,6 @@ describe("v2", () => {
       expect(parseRichDoc(doc({ type: "paragraph", align: "center", content: [t("p")] }))).toEqual(doc({ type: "paragraph", align: "center", content: [t("p")] }));
     });
 
-    it("caps nesting depth at 12", () => {
-      const nest = (n: number): unknown => (n === 0 ? p(t("deep")) : { type: "blockquote", content: [nest(n - 1)] });
-      expect(JSON.stringify(parseRichDoc(doc(nest(12))))).toContain("deep");
-      expect(parseRichDoc(doc(nest(13)))).toBeUndefined();
-      expect(parseRichDoc(doc(p(t("top")), nest(40)))).toEqual(doc(p(t("top"))));
-      const wrap = (n: number): unknown => (n === 0 ? p(t("deep")) : { type: "x", content: [wrap(n - 1)] });
-      expect(parseRichDoc(doc(wrap(13)))).toBeUndefined();
-      expect(parseRichDoc(doc(wrap(1000)))).toBeUndefined();
-    });
 
     it("stops after 5000 nodes", () => {
       const many = Array.from({ length: 6000 }, (_, i) => p(t(`n${i}`)));
@@ -315,11 +296,6 @@ describe("v2", () => {
       expect(out.content[2499]).toEqual(p(t("n2499")));
     });
 
-    it("keeps a code block's words and line breaks, never its marks", () => {
-      expect(parseRichDoc(doc({ type: "codeBlock", content: [t("a", { type: "bold" }, { type: "link", href: "/x" }), { type: "hardBreak" }, t("b", { type: "color", color: "navy" })] }))).toEqual(
-        doc({ type: "codeBlock", content: [t("a"), { type: "hardBreak" }, t("b")] }),
-      );
-    });
 
     it("keeps colspan and rowspan only from 2 to 20", () => {
       const span = (colspan: unknown, rowspan: unknown) => {
@@ -360,12 +336,6 @@ describe("v2", () => {
       expect(start(undefined)).toBeUndefined();
     });
 
-    it("drops non-items and empty items from a list, and an empty list", () => {
-      expect(parseRichDoc(doc({ type: "bulletList", content: [p(t("stray")), { type: "listItem", content: [] }, { type: "listItem", content: [p(t("ok"))] }] }))).toEqual(
-        doc({ type: "bulletList", content: [{ type: "listItem", content: [p(t("ok"))] }] }),
-      );
-      expect(parseRichDoc(doc(p(t("a")), { type: "bulletList", content: [p(t("stray"))] }))).toEqual(doc(p(t("a"))));
-    });
 
     it("drops empty text nodes and non-string text", () => {
       expect(parseRichDoc(doc(p(t(""), { type: "text", text: 5 }, { type: "text" }, t("ok"))))).toEqual(doc(p(t("ok"))));

@@ -23,8 +23,8 @@
  * - A section: `sectionShell(section)` for its classes and `--lp-band`,
  *   `<SectionBackground>` for the photo and overlay, `<SectionLayout>` for
  *   multi-column layouts (pass your own block renderer).
- * - `reusable` blocks are not drawn here: expand them first with
- *   `expandReusableBlocks` from `@kgc/shared`, as the website does.
+ * - `reusable` blocks are not drawn here: expand the draft first with
+ *   `expandReusableBlocks` from `@kgc/shared` (T315), the function Publish uses.
  */
 
 import { headingIds, type LearnPageContent } from '@kgc/shared';

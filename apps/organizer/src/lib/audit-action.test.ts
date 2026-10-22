@@ -29,4 +29,14 @@ describe('describeAction', () => {
     expect(describeAction('learnPage.restore')).toBe('Restored learn page');
     expect(describeAction('learnPage.uploadImage')).toBe('Uploaded an image for learn page');
   });
+
+  it('reads the Learn page media library and saved sections (T315)', () => {
+    expect(describeAction('learnMedia.update')).toBe('Updated learn media');
+    expect(describeAction('learnMedia.remove')).toBe('Removed learn media');
+    expect(describeAction('learnMedia.backfill')).toBe('Indexed the older files of learn media');
+    expect(describeAction('learnSection.save')).toBe('Saved learn section');
+    expect(describeAction('learnSection.update')).toBe('Updated learn section');
+    expect(describeAction('learnSection.rename')).toBe('Renamed learn section');
+    expect(describeAction('learnSection.remove')).toBe('Removed learn section');
+  });
 });

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { LearnBlock, LearnPageContent, LearnSection } from "./learn-page.js";
-import { LEARN_LIBRARY_SAMPLE, LEARN_PAGE_KITCHEN_SINK_V2 } from "./learn-page-sample.js";
-import { parseLearnPageContent, parseLearnSection } from "./learn-page-view-core.js";
+import { LEARN_EMBED_PROVIDERS } from "./learn-embed-core.js";
+import { LEARN_PAGE_KITCHEN_SINK_V2 } from "./learn-page-sample.js";
+import { parseLearnPageContent } from "./learn-page-view-core.js";
 import {
   ANCHOR_RE,
   EMBED_DEFAULT_HEIGHT,
-  EMBED_PROVIDERS,
   EMBED_SANDBOX,
   LEARN_COLORS,
   SECTION_LAYOUT_COLUMNS,
@@ -14,20 +14,15 @@ import {
   colorHex,
   countdownParts,
   embedBox,
-  embedSrc,
-  expandReusableBlocks,
   headingIds,
   isAnchor,
   isColorToken,
   isDarkBackground,
   learnColor,
   parseColorValue,
-  reusableIds,
-  richPlainText,
   sectionColumns,
   sectionIsDark,
   sectionOptionClasses,
-  slugifyAnchor,
   tocEntries,
   videoEmbedSrc,
 } from "./learn-render-core.js";
@@ -46,7 +41,6 @@ const pageOf = (...sections: LearnSection[]): LearnPageContent => ({ seoTitle: "
 const heading = (id: string, text: string, extra: Partial<LearnBlock> = {}, level: 1 | 2 | 3 | 4 = 2): LearnBlock =>
   ({ id, kind: "heading", level, text, ...extra }) as LearnBlock;
 const text = (id: string, t: string, extra: Partial<LearnBlock> = {}): LearnBlock => ({ id, kind: "text", text: t, ...extra }) as LearnBlock;
-const reusable = (id: string, libraryId: string): LearnBlock => ({ id, kind: "reusable", libraryId });
 type Embed = Extract<LearnBlock, { kind: "embed" }>;
 const embed = (extra: Partial<Embed>): Embed => ({ id: "e", kind: "embed", provider: "youtube", url: "", aspect: "16:9", title: "E", ...extra });
 
@@ -120,50 +114,8 @@ describe("anchors", () => {
     for (const bad of ["", "-a", "a-", "A", "a b", "a_b", "é", "x".repeat(65), "#a", 1, null]) expect(isAnchor(bad)).toBe(false);
     expect(ANCHOR_RE.test("ok")).toBe(true);
   });
-
-  it("slugifies accents, punctuation and case", () => {
-    expect(slugifyAnchor("Héllo, Wörld!")).toBe("hello-world");
-    expect(slugifyAnchor("François Scharffe")).toBe("francois-scharffe");
-    expect(slugifyAnchor("  --What's new?--  ")).toBe("what-s-new");
-    expect(slugifyAnchor("KGC | Learn & 2027")).toBe("kgc-learn-2027");
-    expect(slugifyAnchor("!!!")).toBe("");
-    expect(slugifyAnchor("日本語")).toBe("");
-  });
-
-  it("cuts at 60 characters and never ends on a dash", () => {
-    expect(slugifyAnchor("a".repeat(100))).toBe("a".repeat(60));
-    const cut = slugifyAnchor(`${"a".repeat(59)} bcd`);
-    expect(cut).toBe("a".repeat(59));
-    expect(isAnchor(cut)).toBe(true);
-    for (const s of ["word ".repeat(30), "Aé ".repeat(40), "x-".repeat(50)]) {
-      const slug = slugifyAnchor(s);
-      expect(slug.length).toBeLessThanOrEqual(60);
-      expect(isAnchor(slug)).toBe(true);
-    }
-  });
 });
 
-describe("richPlainText", () => {
-  it("strips v1 Markdown and folds whitespace", () => {
-    expect(richPlainText(undefined)).toBe("");
-    expect(richPlainText("Meet the **KGC | Learn**\nTeam")).toBe("Meet the KGC | Learn Team");
-    expect(richPlainText("A [link](/tickets) and *em* and `code`")).toBe("A link and em and code");
-  });
-
-  it("joins a document's words, with a space between blocks and for a line break", () => {
-    expect(
-      richPlainText({
-        type: "doc",
-        content: [
-          { type: "paragraph", content: [{ type: "text", text: "One" }, { type: "hardBreak" }, { type: "text", text: "two", marks: [{ type: "bold" }] }] },
-          { type: "paragraph", content: [{ type: "text", text: "Three" }] },
-          { type: "horizontalRule" },
-          { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "four" }] }] }] },
-        ],
-      }),
-    ).toBe("One two Three four");
-  });
-});
 
 describe("headingIds and tocEntries", () => {
   it("uses a heading's own anchor, else its slug, unique against every anchor on the page", () => {
@@ -239,189 +191,11 @@ describe("countdownParts", () => {
   });
 });
 
-describe("embedSrc", () => {
-  it("lists ten providers, each with a default height", () => {
-    expect(EMBED_PROVIDERS).toHaveLength(10);
-    for (const p of EMBED_PROVIDERS) expect(EMBED_DEFAULT_HEIGHT[p]).toBeGreaterThan(0);
+describe("embed frames", () => {
+  it("has a default height for each of T315's providers, and never lets a frame navigate the page", () => {
+    expect(LEARN_EMBED_PROVIDERS).toHaveLength(10);
+    for (const p of LEARN_EMBED_PROVIDERS) expect(EMBED_DEFAULT_HEIGHT[p]).toBeGreaterThan(0);
     expect(EMBED_SANDBOX).not.toContain("allow-top-navigation");
-  });
-
-  it("youtube", () => {
-    const out = "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ";
-    for (const url of [
-      "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10",
-      "https://youtube.com/watch?v=dQw4w9WgXcQ",
-      "https://m.youtube.com/watch?v=dQw4w9WgXcQ",
-      "https://youtu.be/dQw4w9WgXcQ",
-      "https://www.youtube.com/embed/dQw4w9WgXcQ",
-      "https://www.youtube.com/shorts/dQw4w9WgXcQ",
-      "https://www.youtube.com/live/dQw4w9WgXcQ",
-      "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
-      "  https://youtu.be/dQw4w9WgXcQ  ",
-    ]) {
-      expect(embedSrc("youtube", url)).toBe(out);
-    }
-    for (const url of [
-      "http://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ",
-      "https://evil.example/embed/dQw4w9WgXcQ",
-      "https://www.youtube.com/watch?v=<script>",
-      "https://www.youtube.com/watch/dQw4w9WgXcQ",
-      "https://www.youtube.com/channel/dQw4w9WgXcQ",
-      "javascript:alert(1)",
-      "not a url",
-      "https://vimeo.com/76979871",
-    ]) {
-      expect(embedSrc("youtube", url)).toBeNull();
-    }
-  });
-
-  it("vimeo", () => {
-    const out = "https://player.vimeo.com/video/76979871?dnt=1";
-    expect(embedSrc("vimeo", "https://vimeo.com/76979871")).toBe(out);
-    expect(embedSrc("vimeo", "https://www.vimeo.com/76979871")).toBe(out);
-    expect(embedSrc("vimeo", "https://player.vimeo.com/video/76979871?h=abc")).toBe(out);
-    expect(embedSrc("vimeo", "https://vimeo.com/channels/staffpicks/76979871")).toBe(out);
-    for (const url of ["http://vimeo.com/76979871", "https://vimeo.com/about", "https://vimeo.com.evil.example/76979871", "https://youtu.be/dQw4w9WgXcQ"]) {
-      expect(embedSrc("vimeo", url)).toBeNull();
-    }
-  });
-
-  it("google-maps keeps only the embed address and its pb parameter", () => {
-    const pb = "!1m18!1m12!1m3!1d3022.3!2d-73.98!3d40.75!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1";
-    const out = `https://www.google.com/maps/embed?pb=${pb}`;
-    expect(embedSrc("google-maps", `https://www.google.com/maps/embed?pb=${pb}`)).toBe(out);
-    expect(embedSrc("google-maps", `https://google.com/maps/embed?pb=${pb}&extra=<x>`)).toBe(out);
-    expect(embedSrc("google-maps", "https://www.google.com/maps/embed?pb=a:b*c")).toBe("https://www.google.com/maps/embed?pb=a:b*c");
-    for (const url of [
-      `http://www.google.com/maps/embed?pb=${pb}`,
-      `https://maps.google.com/maps/embed?pb=${pb}`,
-      `https://www.google.com.evil.example/maps/embed?pb=${pb}`,
-      `https://www.google.com/maps/embed/extra?pb=${pb}`,
-      "https://www.google.com/maps/place/Bryant+Park",
-      "https://www.google.com/maps/embed",
-      "https://www.google.com/maps/embed?pb=",
-      "https://www.google.com/maps/embed?pb=a%22onload%3D",
-      "https://www.google.com/maps/embed?pb=a<b",
-    ]) {
-      expect(embedSrc("google-maps", url)).toBeNull();
-    }
-  });
-
-  it("google-forms", () => {
-    expect(embedSrc("google-forms", "https://docs.google.com/forms/d/e/1FAIpQLSf_abc-123/viewform?usp=sf_link")).toBe(
-      "https://docs.google.com/forms/d/e/1FAIpQLSf_abc-123/viewform?embedded=true",
-    );
-    expect(embedSrc("google-forms", "https://docs.google.com/forms/d/1AbC_def-9/edit")).toBe("https://docs.google.com/forms/d/1AbC_def-9/viewform?embedded=true");
-    for (const url of [
-      "http://docs.google.com/forms/d/e/abc/viewform",
-      "https://docs.google.com.evil.example/forms/d/e/abc/viewform",
-      "https://evil.example/forms/d/e/abc/viewform",
-      "https://docs.google.com/forms/d/e",
-      "https://docs.google.com/document/d/abc/edit",
-      "https://docs.google.com/forms/x/abc",
-      "https://docs.google.com/forms/d/a.b/edit",
-      "javascript:alert(1)",
-    ]) {
-      expect(embedSrc("google-forms", url)).toBeNull();
-    }
-  });
-
-  it("google-docs", () => {
-    expect(embedSrc("google-docs", "https://docs.google.com/document/d/1AbC_def-9/edit?usp=sharing")).toBe("https://docs.google.com/document/d/1AbC_def-9/preview");
-    expect(embedSrc("google-docs", "https://docs.google.com/document/d/e/2PACX-1vT/pub")).toBe("https://docs.google.com/document/d/e/2PACX-1vT/pub?embedded=true");
-    for (const url of [
-      "http://docs.google.com/document/d/abc/edit",
-      "https://docs.google.com.evil.example/document/d/abc/edit",
-      "https://docs.google.com/spreadsheets/d/abc/edit",
-      "https://docs.google.com/document/abc",
-      "https://docs.google.com/document/d/a%20b/edit",
-    ]) {
-      expect(embedSrc("google-docs", url)).toBeNull();
-    }
-  });
-
-  it("google-slides", () => {
-    expect(embedSrc("google-slides", "https://docs.google.com/presentation/d/1AbC_def-9/edit#slide=id.p")).toBe("https://docs.google.com/presentation/d/1AbC_def-9/embed");
-    expect(embedSrc("google-slides", "https://docs.google.com/presentation/d/e/2PACX-1vT/pub?start=false")).toBe("https://docs.google.com/presentation/d/e/2PACX-1vT/embed");
-    for (const url of [
-      "http://docs.google.com/presentation/d/abc/edit",
-      "https://docs.google.com.evil.example/presentation/d/abc/edit",
-      "https://docs.google.com/document/d/abc/edit",
-      "https://docs.google.com/presentation/abc",
-    ]) {
-      expect(embedSrc("google-slides", url)).toBeNull();
-    }
-  });
-
-  it("calendly", () => {
-    expect(embedSrc("calendly", "https://calendly.com/kgc")).toBe("https://calendly.com/kgc?hide_gdpr_banner=1");
-    expect(embedSrc("calendly", "https://www.calendly.com/kgc/30min?month=2027-05")).toBe("https://calendly.com/kgc/30min?hide_gdpr_banner=1");
-    for (const url of [
-      "http://calendly.com/kgc",
-      "https://calendly.com",
-      "https://calendly.com/kgc/30min/extra",
-      "https://calendly.com.evil.example/kgc",
-      "https://evilcalendly.com/kgc",
-      "https://calendly.com/k.g.c",
-    ]) {
-      expect(embedSrc("calendly", url)).toBeNull();
-    }
-  });
-
-  it("typeform, including on a subdomain, never a lookalike", () => {
-    const out = "https://form.typeform.com/to/AbC123";
-    expect(embedSrc("typeform", "https://form.typeform.com/to/AbC123")).toBe(out);
-    expect(embedSrc("typeform", "https://kgc.typeform.com/to/AbC123?typeform-source=x")).toBe(out);
-    expect(embedSrc("typeform", "https://typeform.com/to/AbC123")).toBe(out);
-    for (const url of [
-      "http://form.typeform.com/to/AbC123",
-      "https://typeform.com.evil.example/to/AbC123",
-      "https://eviltypeform.com/to/AbC123",
-      "https://evil-typeform.com/to/AbC123",
-      "https://typeform.co/to/AbC123",
-      "https://form.typeform.com/AbC123",
-      "https://form.typeform.com/to/",
-    ]) {
-      expect(embedSrc("typeform", url)).toBeNull();
-    }
-  });
-
-  it("loom", () => {
-    const out = "https://www.loom.com/embed/abc123def";
-    expect(embedSrc("loom", "https://www.loom.com/share/abc123def?sid=1")).toBe(out);
-    expect(embedSrc("loom", "https://loom.com/embed/abc123def")).toBe(out);
-    for (const url of ["http://www.loom.com/share/abc123def", "https://www.loom.com/looms/abc123def", "https://loom.com.evil.example/share/abc", "https://www.loom.com/share/"]) {
-      expect(embedSrc("loom", url)).toBeNull();
-    }
-  });
-
-  it("spotify", () => {
-    expect(embedSrc("spotify", "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC?si=x")).toBe("https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC");
-    expect(embedSrc("spotify", "https://open.spotify.com/embed/episode/abc")).toBe("https://open.spotify.com/embed/episode/abc");
-    for (const kind of ["album", "playlist", "show", "artist"]) {
-      expect(embedSrc("spotify", `https://open.spotify.com/${kind}/abc`)).toBe(`https://open.spotify.com/embed/${kind}/abc`);
-    }
-    for (const url of [
-      "http://open.spotify.com/track/abc",
-      "https://spotify.com/track/abc",
-      "https://open.spotify.com.evil.example/track/abc",
-      "https://open.spotify.com/user/abc",
-      "https://open.spotify.com/track/abc/extra",
-      "https://open.spotify.com/intl-de/track/abc",
-      "https://open.spotify.com/track",
-    ]) {
-      expect(embedSrc("spotify", url)).toBeNull();
-    }
-  });
-
-  it("refuses non-https schemes and garbage for every provider", () => {
-    for (const p of EMBED_PROVIDERS) {
-      for (const url of ["javascript:alert(1)", "data:text/html,<script>", "", "   ", "//evil.example/x", "ftp://docs.google.com/forms/d/abc"]) {
-        expect(embedSrc(p, url)).toBeNull();
-      }
-    }
-    expect(embedSrc("nope" as never, "https://youtu.be/dQw4w9WgXcQ")).toBeNull();
   });
 });
 
@@ -448,104 +222,7 @@ describe("embedBox", () => {
   });
 });
 
-describe("expandReusableBlocks", () => {
-  const lib = (): Record<string, LearnSection | undefined> => ({
-    "lib-cta": parseLearnSection(LEARN_LIBRARY_SAMPLE["lib-cta"]),
-    "lib-mixed": section("lib-mixed", [
-      text("keep", "Kept", { anchor: "lib-anchor" }),
-      text("hid", "Hidden", { hidden: true }),
-      reusable("nested", "lib-cta"),
-    ]),
-    "lib-hidden": section("lib-hidden", [text("h", "H")], { hidden: true }),
-    "lib-deleted": undefined,
-  });
 
-  it("returns the same object when there is nothing to expand", () => {
-    const content = pageOf(section("s", [text("a", "A")]));
-    expect(expandReusableBlocks(content, lib())).toBe(content);
-    expect(expandReusableBlocks(content, new Map())).toBe(content);
-  });
-
-  it("replaces a reusable block with the library blocks, ids prefixed", () => {
-    const untouched = section("s0", [text("x", "X")]);
-    const content = pageOf(untouched, section("s1", [text("a", "A"), reusable("r1", "lib-cta"), text("b", "B")]));
-    const out = expandReusableBlocks(content, lib());
-    expect(out).not.toBe(content);
-    expect(out.sections[0]).toBe(untouched);
-    expect(out.sections[1]!.blocks.map((b) => b.id)).toEqual(["a", "r1--cta-h", "r1--cta-b", "b"]);
-    expect(out.sections[1]!.blocks[1]).toMatchObject({ kind: "heading", text: "From the library: ready to start?" });
-    // The input is not mutated.
-    expect(content.sections[1]!.blocks.map((b) => b.id)).toEqual(["a", "r1", "b"]);
-  });
-
-  it("keeps ids unique when one library section is used twice", () => {
-    const out = expandReusableBlocks(pageOf(section("s", [reusable("r1", "lib-cta"), reusable("r2", "lib-cta")])), lib());
-    const ids = out.sections[0]!.blocks.map((b) => b.id);
-    expect(ids).toEqual(["r1--cta-h", "r1--cta-b", "r2--cta-h", "r2--cta-b"]);
-  });
-
-  it("drops hidden inner blocks, inner anchors, and does not follow a nested reusable", () => {
-    const out = expandReusableBlocks(pageOf(section("s", [reusable("r", "lib-mixed")])), lib());
-    expect(out.sections[0]!.blocks).toHaveLength(1);
-    expect(out.sections[0]!.blocks[0]).toMatchObject({ id: "r--keep", kind: "text" });
-    expect(out.sections[0]!.blocks[0]!.anchor).toBeUndefined();
-  });
-
-  it("drops a block whose library entry is missing, deleted or hidden, and a section left empty", () => {
-    const content = pageOf(
-      section("s1", [reusable("a", "nope"), reusable("b", "lib-deleted"), reusable("c", "lib-hidden")]),
-      section("s2", [text("t", "T"), reusable("d", "nope")]),
-    );
-    const out = expandReusableBlocks(content, lib());
-    expect(out.sections.map((s) => s.id)).toEqual(["s2"]);
-    expect(out.sections[0]!.blocks.map((b) => b.id)).toEqual(["t"]);
-  });
-
-  it("does not read the library object's prototype", () => {
-    const out = expandReusableBlocks(pageOf(section("s", [text("t", "T"), reusable("r", "toString")])), {});
-    expect(out.sections[0]!.blocks.map((b) => b.id)).toEqual(["t"]);
-  });
-
-  it("takes a Map as well as a record", () => {
-    const out = expandReusableBlocks(pageOf(section("s", [reusable("r", "lib-cta")])), new Map(Object.entries(lib())));
-    expect(out.sections[0]!.blocks.map((b) => b.id)).toEqual(["r--cta-h", "r--cta-b"]);
-  });
-
-  it("puts expanded blocks in the reusable block's column", () => {
-    const content = pageOf(
-      section("s", [text("a", "A"), reusable("r", "lib-cta")], { layout: "two-equal", blockColumn: { a: 0, r: 1 } }),
-    );
-    const before = { ...content.sections[0]!.blockColumn };
-    const out = expandReusableBlocks(content, lib());
-    expect(out.sections[0]!.blockColumn).toMatchObject({ a: 0, "r--cta-h": 1, "r--cta-b": 1 });
-    expect(content.sections[0]!.blockColumn).toEqual(before);
-    const cols = sectionColumns(out.sections[0]!.layout, out.sections[0]!.blocks, out.sections[0]!.blockColumn);
-    expect(cols.map((c) => c.map((b) => b.id))).toEqual([["a"], ["r--cta-h", "r--cta-b"]]);
-  });
-
-  it("leaves blockColumn absent when the section had none", () => {
-    const out = expandReusableBlocks(pageOf(section("s", [reusable("r", "lib-cta")])), lib());
-    expect(out.sections[0]!.blockColumn).toBeUndefined();
-  });
-
-  it("expands the v2 kitchen sink with its library", () => {
-    const content = parseLearnPageContent(LEARN_PAGE_KITCHEN_SINK_V2)!;
-    expect(reusableIds(content)).toEqual(["lib-cta"]);
-    const out = expandReusableBlocks(content, lib());
-    expect(reusableIds(out)).toEqual([]);
-    const ids = out.sections.flatMap((s) => s.blocks.map((b) => b.id));
-    expect(ids).toContain("v2-reuse--cta-h");
-    expect(ids).not.toContain("v2-reuse");
-  });
-});
-
-describe("reusableIds", () => {
-  it("lists each library id once, in page order", () => {
-    const content = pageOf(section("s1", [reusable("a", "x"), text("t", "T"), reusable("b", "y")]), section("s2", [reusable("c", "x")]));
-    expect(reusableIds(content)).toEqual(["x", "y"]);
-    expect(reusableIds(pageOf(section("s", [text("t", "T")])))).toEqual([]);
-  });
-});
 
 describe("sectionColumns", () => {
   const blocks = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
@@ -619,35 +296,3 @@ describe("sectionOptionClasses", () => {
   });
 });
 
-describe("fixes found while testing", () => {
-  it("refuses a Google Docs or Slides address with `e` and no id", () => {
-    expect(embedSrc("google-docs", "https://docs.google.com/document/d/e")).toBeNull();
-    expect(embedSrc("google-slides", "https://docs.google.com/presentation/d/e/")).toBeNull();
-    expect(embedSrc("google-forms", "https://docs.google.com/forms/d/e//viewform")).toBeNull();
-  });
-
-  it("does not read a reusable block's column from the object prototype, and drops its own key", () => {
-    const content: LearnPageContent = {
-      seoTitle: "T",
-      seoDescription: "",
-      sections: [
-        {
-          id: "s",
-          label: "S",
-          background: "plain",
-          width: "normal",
-          paddingTop: "none",
-          paddingBottom: "none",
-          blockColumn: { r: 1 },
-          blocks: [
-            { id: "toString", kind: "reusable", libraryId: "L" },
-            { id: "r", kind: "reusable", libraryId: "L" },
-          ],
-        },
-      ],
-    };
-    const lib = { L: { id: "L", label: "", background: "plain", width: "normal", paddingTop: "none", paddingBottom: "none", blocks: [{ id: "x", kind: "divider" }] } as LearnSection };
-    const out = expandReusableBlocks(content, lib).sections[0]!;
-    expect(out.blockColumn).toEqual({ "r--x": 1 });
-  });
-});

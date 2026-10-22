@@ -15,14 +15,9 @@
  */
 
 import { isSafeHref, parseInline, type InlineSpan } from "./rich-text-core.js";
-import {
-  EMBED_PROVIDERS,
-  embedSrc,
-  isAnchor,
-  parseColorValue,
-  videoEmbedSrc,
-  type EmbedProvider,
-} from "./learn-render-core.js";
+import { isLearnEmbedProvider, learnEmbedSrc } from "./learn-embed-core.js";
+import { isAnchor, parseColorValue, videoEmbedSrc } from "./learn-render-core.js";
+import { isRichContentEmpty, isRichDoc, sanitizeRichDoc } from "./rich-doc-core.js";
 import {
   LEARN_PAGE_DEFAULT,
   type Align,
@@ -38,10 +33,7 @@ import {
   type Person,
   type RichContent,
   type RichDoc,
-  type RichMark,
-  type RichNode,
   type Spacing,
-  type TextAlign,
   type TextSize,
 } from "./learn-page.js";
 
@@ -53,7 +45,6 @@ const IMAGE_WIDTHS: readonly ImageWidth[] = ["small", "medium", "large", "full"]
 const IMAGE_SHAPES: readonly ImageShape[] = ["square", "rounded", "circle", "original"];
 const SECTION_WIDTHS: readonly LearnSection["width"][] = ["narrow", "normal", "wide"];
 const BUTTON_STYLES: readonly LinkButton["style"][] = ["primary", "secondary", "text"];
-const TEXT_ALIGNS: readonly TextAlign[] = ["left", "center", "right", "justify"];
 /** "all" is the default, so only the two restrictions are kept. */
 const SHOWN_ON = ["desktop", "mobile"] as const;
 const MAX_WIDTHS = ["small", "medium", "large", "full"] as const;
@@ -368,9 +359,9 @@ function parseBlockV2(v: Obj, base: Base): LearnBlock | undefined {
       return { ...base, kind: "logos", grayscale: v.grayscale === true, items: list };
     }
     case "embed": {
-      const provider = maybeOneOf<EmbedProvider>(v.provider, EMBED_PROVIDERS);
+      const provider = isLearnEmbedProvider(v.provider) ? v.provider : undefined;
       const url = str(v.url)?.trim();
-      if (!provider || !url || !embedSrc(provider, url)) return undefined;
+      if (!provider || !url || !learnEmbedSrc(provider, url)) return undefined;
       const height = positive(v.height);
       return compact({
         ...base,
@@ -531,16 +522,12 @@ export function focalPosition(image: PageImage): string | undefined {
 
 /* ── Rich text documents (v2) ─────────────────────────────────────────────
  *
- * The renderer's own reading of a `RichDoc`: forgiving, like the rest of this
- * file. A node, mark or attribute the contract does not list is dropped (its
- * text kept where it has some), never passed through, so nothing a newer or
- * broken editor stores can reach the page as markup or as free CSS. The
- * server's strict check is `rich-doc-core` (T315); this one only has to make
- * whatever is stored safe to draw.
+ * A stored `RichDoc` goes through T315's lenient `sanitizeRichDoc`
+ * (rich-doc-core.ts), the same whitelist the server validates against: a
+ * node, mark or attribute the contract does not list is dropped, never
+ * passed through. A doc with no words is treated as absent, like an empty
+ * string.
  */
-
-const RICH_MAX_DEPTH = 12;
-const RICH_MAX_NODES = 5000;
 
 /** Text or a document, with nothing to show treated as absent. */
 export function parseRichContent(v: unknown): RichContent | undefined {
@@ -549,155 +536,7 @@ export function parseRichContent(v: unknown): RichContent | undefined {
 }
 
 export function parseRichDoc(v: unknown): RichDoc | undefined {
-  if (!isObj(v) || v.type !== "doc") return undefined;
-  const budget = { left: RICH_MAX_NODES };
-  const content = richBlocks(v.content, 0, budget);
-  if (!content.some(hasVisibleContent)) return undefined;
-  return { type: "doc", content };
-}
-
-function hasVisibleContent(n: RichNode): boolean {
-  if (n.type === "text") return n.text.trim() !== "";
-  if (n.type === "horizontalRule") return true;
-  if (n.type === "hardBreak") return false;
-  return (n.content ?? []).some(hasVisibleContent);
-}
-
-function parseMark(v: unknown): RichMark | undefined {
-  if (!isObj(v)) return undefined;
-  switch (v.type) {
-    case "bold":
-    case "italic":
-    case "underline":
-    case "strike":
-    case "code":
-    case "superscript":
-    case "subscript":
-      return { type: v.type };
-    case "link": {
-      const href = str(v.href)?.trim();
-      if (!href || !isSafeHref(href)) return undefined;
-      return v.newTab === true ? { type: "link", href, newTab: true } : { type: "link", href };
-    }
-    case "color":
-    case "highlight": {
-      const color = parseColorValue(v.color);
-      return color ? { type: v.type, color } : undefined;
-    }
-    case "fontSize": {
-      const size = maybeOneOf(v.size, TEXT_SIZES);
-      return size ? { type: "fontSize", size } : undefined;
-    }
-    default:
-      return undefined;
-  }
-}
-
-/** Inline content: text and line breaks. Anything else inline is unwrapped to its text. */
-function richInline(v: unknown, depth: number, budget: { left: number }): RichNode[] {
-  const out: RichNode[] = [];
-  for (const n of arr(v)) {
-    if (budget.left-- <= 0 || !isObj(n)) continue;
-    if (n.type === "text") {
-      const text = str(n.text);
-      if (!text) continue;
-      const seen = new Set<string>();
-      const marks = arr(n.marks)
-        .map(parseMark)
-        .filter((m): m is RichMark => !!m && !seen.has(m.type) && !!seen.add(m.type));
-      out.push(marks.length ? { type: "text", text, marks } : { type: "text", text });
-    } else if (n.type === "hardBreak") {
-      out.push({ type: "hardBreak" });
-    } else if (depth < RICH_MAX_DEPTH) {
-      out.push(...richInline(n.content, depth + 1, budget));
-    }
-  }
-  return out;
-}
-
-const cellSpan = (v: unknown): number | undefined =>
-  typeof v === "number" && Number.isInteger(v) && v > 1 && v <= 20 ? v : undefined;
-
-/** Block content: paragraphs, headings, lists, quotes, code, rules and tables. */
-function richBlocks(v: unknown, depth: number, budget: { left: number }): RichNode[] {
-  const out: RichNode[] = [];
-  if (depth > RICH_MAX_DEPTH) return out;
-  for (const n of arr(v)) {
-    if (budget.left-- <= 0 || !isObj(n)) continue;
-    const align = maybeOneOf(n.align, TEXT_ALIGNS);
-    switch (n.type) {
-      case "paragraph":
-        out.push(compact({ type: "paragraph" as const, align, content: richInline(n.content, depth + 1, budget) }));
-        break;
-      case "heading": {
-        const level: 1 | 2 | 3 | 4 = n.level === 1 || n.level === 3 || n.level === 4 ? n.level : 2;
-        out.push(compact({ type: "heading" as const, level, align, content: richInline(n.content, depth + 1, budget) }));
-        break;
-      }
-      case "bulletList":
-      case "orderedList": {
-        const content = richListItems(n.content, depth + 1, budget);
-        if (content.length === 0) break;
-        if (n.type === "orderedList") {
-          const start = typeof n.start === "number" && Number.isInteger(n.start) && n.start >= 0 && n.start !== 1 ? n.start : undefined;
-          out.push(compact({ type: "orderedList" as const, start, content }));
-        } else out.push({ type: "bulletList", content });
-        break;
-      }
-      case "blockquote": {
-        const content = richBlocks(n.content, depth + 1, budget);
-        if (content.length) out.push({ type: "blockquote", content });
-        break;
-      }
-      case "codeBlock": {
-        // Code keeps its words and line breaks, never its marks.
-        const content = richInline(n.content, depth + 1, budget).map((c) =>
-          c.type === "text" ? { type: "text" as const, text: c.text } : c,
-        );
-        out.push({ type: "codeBlock", content });
-        break;
-      }
-      case "horizontalRule":
-        out.push({ type: "horizontalRule" });
-        break;
-      case "table": {
-        const rows = arr(n.content)
-          .filter((r): r is Obj => isObj(r) && r.type === "tableRow")
-          .map((r) => ({
-            type: "tableRow" as const,
-            content: arr(r.content)
-              .filter((c): c is Obj => isObj(c) && (c.type === "tableCell" || c.type === "tableHeader"))
-              .map((c) =>
-                compact({
-                  type: c.type as "tableCell" | "tableHeader",
-                  colspan: cellSpan(c.colspan),
-                  rowspan: cellSpan(c.rowspan),
-                  content: richBlocks(c.content, depth + 2, budget),
-                }),
-              ),
-          }))
-          .filter((r) => r.content.length > 0);
-        if (rows.length) out.push({ type: "table", content: rows });
-        break;
-      }
-      case "text":
-      case "hardBreak": {
-        // Inline content at block level: wrap it in a paragraph rather than lose it.
-        const inline = richInline([n], depth + 1, budget);
-        if (inline.length) out.push({ type: "paragraph", content: inline });
-        break;
-      }
-      default:
-        // An unknown wrapper keeps its children.
-        if (Array.isArray(n.content)) out.push(...richBlocks(n.content, depth + 1, budget));
-    }
-  }
-  return out;
-}
-
-function richListItems(v: unknown, depth: number, budget: { left: number }): RichNode[] {
-  return arr(v)
-    .filter((it): it is Obj => isObj(it) && it.type === "listItem")
-    .map((it) => ({ type: "listItem" as const, content: richBlocks(it.content, depth + 1, budget) }))
-    .filter((it) => it.content.length > 0);
+  if (!isRichDoc(v)) return undefined;
+  const doc = sanitizeRichDoc(v);
+  return isRichContentEmpty(doc) && !doc.content.some((n) => n.type === "horizontalRule") ? undefined : doc;
 }

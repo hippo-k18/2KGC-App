@@ -10,6 +10,8 @@
  */
 
 import { contrastRatio } from "./brand-theme.js";
+import type { LearnEmbedProvider } from "./learn-embed-core.js";
+import { isColorValue, normalizeColor, richContentToPlainText, slugifyAnchor } from "./rich-doc-core.js";
 import type {
   ColorValue,
   LearnBlock,
@@ -41,9 +43,7 @@ export function isColorToken(v: unknown): v is LearnColorToken {
 
 /** A brand name, or a custom colour in exactly `#rrggbb` form (lower-cased). */
 export function parseColorValue(v: unknown): ColorValue | undefined {
-  if (isColorToken(v)) return v;
-  if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase() as ColorValue;
-  return undefined;
+  return isColorValue(v) ? normalizeColor(v) : undefined;
 }
 
 /**
@@ -85,48 +85,6 @@ export function isAnchor(v: unknown): v is string {
   return typeof v === "string" && ANCHOR_RE.test(v);
 }
 
-/** Text as an anchor: lower case, ASCII letters and digits, dashes between words. */
-export function slugifyAnchor(text: string): string {
-  return text
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60)
-    .replace(/-+$/, "");
-}
-
-/* ── Rich content as plain text ───────────────────────────────────────── */
-
-/**
- * The words of a rich value, for a table of contents, a label or a title.
- * Markdown punctuation is dropped from a v1 string, line breaks become spaces.
- */
-export function richPlainText(v: RichContent | undefined): string {
-  if (v === undefined) return "";
-  if (typeof v === "string") {
-    return v
-      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-      .replace(/(\*\*|\*|_|`)/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-  const out: string[] = [];
-  const walk = (nodes: RichNode[] | undefined, sep: string) => {
-    for (const n of nodes ?? []) {
-      if (n.type === "text") out.push(n.text);
-      else if (n.type === "hardBreak") out.push(" ");
-      else if ("content" in n) {
-        walk(n.content, " ");
-        out.push(sep);
-      }
-    }
-  };
-  walk(v.content, " ");
-  return out.join("").replace(/\s+/g, " ").trim();
-}
-
 /* ── Table of contents ────────────────────────────────────────────────── */
 
 export interface TocEntry {
@@ -156,7 +114,7 @@ export function headingIds(content: LearnPageContent): Map<string, string> {
         ids.set(b.id, b.anchor);
         continue;
       }
-      const base = slugifyAnchor(richPlainText(b.text)) || "section";
+      const base = slugifyAnchor(richContentToPlainText(b.text, { oneLine: true })) || "section";
       let id = base;
       for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
       taken.add(id);
@@ -174,7 +132,7 @@ export function tocEntries(content: LearnPageContent, ids: ReadonlyMap<string, s
     for (const b of s.blocks) {
       if (b.hidden || b.kind !== "heading" || b.level === 1) continue;
       const id = ids.get(b.id);
-      const text = richPlainText(b.text);
+      const text = richContentToPlainText(b.text, { oneLine: true });
       if (id && text) out.push({ id, text, level: b.level });
     }
   }
@@ -205,23 +163,13 @@ export function countdownParts(until: number, now: number): CountdownParts {
 
 /* ── Embeds ───────────────────────────────────────────────────────────── */
 
-export type EmbedProvider = Extract<LearnBlock, { kind: "embed" }>["provider"];
-
-export const EMBED_PROVIDERS: readonly EmbedProvider[] = [
-  "youtube",
-  "vimeo",
-  "google-maps",
-  "google-forms",
-  "google-docs",
-  "google-slides",
-  "calendly",
-  "typeform",
-  "loom",
-  "spotify",
-];
+/*
+ * Which addresses may be framed, and the iframe `src` for each, is T315's
+ * `learnEmbedSrc` (learn-embed-core.ts). These are only the frame's shape.
+ */
 
 /** The height an `auto` embed takes when the block gives none, per provider. */
-export const EMBED_DEFAULT_HEIGHT: Record<EmbedProvider, number> = {
+export const EMBED_DEFAULT_HEIGHT: Record<LearnEmbedProvider, number> = {
   youtube: 450,
   vimeo: 450,
   "google-maps": 450,
@@ -241,90 +189,6 @@ export const EMBED_DEFAULT_HEIGHT: Record<EmbedProvider, number> = {
  */
 export const EMBED_SANDBOX =
   "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-presentation";
-
-const seg = /^[\w-]{1,128}$/;
-
-/**
- * A pasted link as the address to frame, or `null` when it is not one of the
- * provider's own forms. Only `https`, only the provider's host, and the path
- * rebuilt from checked pieces, so a link can never frame anything else.
- */
-export function embedSrc(provider: EmbedProvider, url: string): string | null {
-  let u: URL;
-  try {
-    u = new URL(url.trim());
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:") return null;
-  const host = u.hostname.toLowerCase();
-  // An empty segment (`//`) is never part of a provider's address.
-  if (/\/\//.test(u.pathname)) return null;
-  const parts = u.pathname.split("/").filter(Boolean);
-  const ok = (...xs: (string | undefined)[]) => xs.every((x) => x !== undefined && seg.test(x));
-
-  switch (provider) {
-    case "youtube":
-    case "vimeo": {
-      const v = videoEmbedSrc(u);
-      return v && v.provider === provider ? v.src : null;
-    }
-    case "google-maps": {
-      // Only the "Embed a map" address, whose `pb` parameter is the map.
-      if (host !== "www.google.com" && host !== "google.com") return null;
-      if (u.pathname !== "/maps/embed") return null;
-      const pb = u.searchParams.get("pb");
-      if (!pb || !/^[\w!.:%*+-]{1,4000}$/.test(pb)) return null;
-      return `https://www.google.com/maps/embed?pb=${encodeURIComponent(pb).replace(/%21/g, "!").replace(/%3A/gi, ":").replace(/%2A/gi, "*")}`;
-    }
-    case "google-forms": {
-      if (host !== "docs.google.com" || parts[0] !== "forms") return null;
-      if (parts[1] === "d" && parts[2] === "e" && ok(parts[3])) {
-        return `https://docs.google.com/forms/d/e/${parts[3]}/viewform?embedded=true`;
-      }
-      if (parts[1] === "d" && ok(parts[2]) && parts[2] !== "e") {
-        return `https://docs.google.com/forms/d/${parts[2]}/viewform?embedded=true`;
-      }
-      return null;
-    }
-    case "google-docs": {
-      if (host !== "docs.google.com" || parts[0] !== "document" || parts[1] !== "d") return null;
-      if (parts[2] === "e") return ok(parts[3]) ? `https://docs.google.com/document/d/e/${parts[3]}/pub?embedded=true` : null;
-      if (ok(parts[2])) return `https://docs.google.com/document/d/${parts[2]}/preview`;
-      return null;
-    }
-    case "google-slides": {
-      if (host !== "docs.google.com" || parts[0] !== "presentation" || parts[1] !== "d") return null;
-      if (parts[2] === "e") return ok(parts[3]) ? `https://docs.google.com/presentation/d/e/${parts[3]}/embed` : null;
-      if (ok(parts[2])) return `https://docs.google.com/presentation/d/${parts[2]}/embed`;
-      return null;
-    }
-    case "calendly": {
-      if (host !== "calendly.com" && host !== "www.calendly.com") return null;
-      if (parts.length < 1 || parts.length > 2 || !ok(...parts)) return null;
-      return `https://calendly.com/${parts.join("/")}?hide_gdpr_banner=1`;
-    }
-    case "typeform": {
-      if (!/^([\w-]+\.)?typeform\.com$/.test(host)) return null;
-      if (parts[0] !== "to" || !ok(parts[1])) return null;
-      return `https://form.typeform.com/to/${parts[1]}`;
-    }
-    case "loom": {
-      if (host !== "www.loom.com" && host !== "loom.com") return null;
-      if ((parts[0] !== "share" && parts[0] !== "embed") || !ok(parts[1])) return null;
-      return `https://www.loom.com/embed/${parts[1]}`;
-    }
-    case "spotify": {
-      if (host !== "open.spotify.com") return null;
-      const rest = parts[0] === "embed" ? parts.slice(1) : parts;
-      const kinds = ["track", "album", "playlist", "episode", "show", "artist"];
-      if (!kinds.includes(rest[0] ?? "") || !ok(rest[1]) || rest.length !== 2) return null;
-      return `https://open.spotify.com/embed/${rest[0]}/${rest[1]}`;
-    }
-    default:
-      return null;
-  }
-}
 
 /** YouTube or Vimeo, shared with v1's `videoEmbed`. */
 export function videoEmbedSrc(u: URL): { provider: "youtube" | "vimeo"; src: string } | null {
@@ -360,61 +224,6 @@ export function embedBox(block: Extract<LearnBlock, { kind: "embed" }>): { ratio
     return { height: h };
   }
   return { ratio: block.aspect.replace(":", " / ") };
-}
-
-/* ── Reusable sections ────────────────────────────────────────────────── */
-
-/**
- * Replace every `reusable` block with the blocks of the library section it
- * points at. Runs on the server before rendering, so visitors get plain
- * blocks. Inner ids are prefixed with the reusable block's id so a section
- * used twice on one page keeps unique ids. A missing library entry drops the
- * block; a reusable inside a library section is not followed (no loops). A
- * section left with no blocks is dropped.
- *
- * `library` maps a library id to its section, already through the page
- * parser (or `undefined` when it was deleted).
- */
-export function expandReusableBlocks(
-  content: LearnPageContent,
-  library: ReadonlyMap<string, LearnSection | undefined> | Record<string, LearnSection | undefined>,
-): LearnPageContent {
-  const get = (id: string): LearnSection | undefined =>
-    library instanceof Map
-      ? (library as ReadonlyMap<string, LearnSection | undefined>).get(id)
-      : Object.prototype.hasOwnProperty.call(library, id)
-        ? (library as Record<string, LearnSection | undefined>)[id]
-        : undefined;
-  let changed = false;
-  const sections = content.sections
-    .map((s) => {
-      if (!s.blocks.some((b) => b.kind === "reusable")) return s;
-      changed = true;
-      const blockColumn = s.blockColumn ? { ...s.blockColumn } : undefined;
-      const blocks = s.blocks.flatMap((b): LearnBlock[] => {
-        if (b.kind !== "reusable") return [b];
-        const lib = get(b.libraryId);
-        if (!lib || lib.hidden) return [];
-        const inner = lib.blocks
-          .filter((x) => !x.hidden && x.kind !== "reusable")
-          .map((x) => ({ ...x, id: `${b.id}--${x.id}`, anchor: undefined }) as LearnBlock);
-        if (blockColumn && Object.prototype.hasOwnProperty.call(blockColumn, b.id)) {
-          for (const x of inner) blockColumn[x.id] = blockColumn[b.id]!;
-          delete blockColumn[b.id];
-        }
-        return inner;
-      });
-      return { ...s, blocks, ...(blockColumn ? { blockColumn } : {}) };
-    })
-    .filter((s) => s.blocks.length > 0);
-  return changed ? { ...content, sections } : content;
-}
-
-/** Library ids a page points at, to fetch before `expandReusableBlocks`. */
-export function reusableIds(content: LearnPageContent): string[] {
-  const ids = new Set<string>();
-  for (const s of content.sections) for (const b of s.blocks) if (b.kind === "reusable") ids.add(b.libraryId);
-  return [...ids];
 }
 
 /* ── Section layouts ──────────────────────────────────────────────────── */
