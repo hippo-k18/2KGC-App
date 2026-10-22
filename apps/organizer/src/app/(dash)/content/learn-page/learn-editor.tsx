@@ -9,13 +9,13 @@ import {
   pushEdit,
   redo,
   repairSelection,
-  replaceInHistory,
   startHistory,
   undo,
   type EditAction,
   type History,
   type Selection,
 } from '@/lib/learn-editor-core';
+import { autosaveStep, historyAfterServerReplace, type SaveState } from '@/lib/learn-autosave-core';
 import {
   loadLearnEditorAction,
   publishLearnPageAction,
@@ -26,6 +26,7 @@ import {
   type LearnVersionSummary,
 } from './api';
 import { DEVICE_WIDTH, type Device, type UploadImage } from './editor-types';
+import { AccountMenu } from '../../account-menu';
 import { DiscardDialog, HistoryDialog, PublishDialog } from './dialogs';
 import { Outline } from './outline';
 import { LearnPreview } from './preview';
@@ -47,12 +48,9 @@ import './editor.css';
  * keyboard cannot wander into chrome nobody can see.
  */
 
-type SaveState = 'saved' | 'unsaved' | 'saving' | 'error' | 'conflict';
 type MobileTab = 'outline' | 'preview' | 'settings';
 type Dialog = null | 'publish' | 'history' | 'discard';
 
-/** How long typing has to pause before the draft is saved. */
-const AUTOSAVE_MS = 1500;
 /** Below this window width the three panes become tabs. */
 const NARROW = 900;
 
@@ -102,18 +100,22 @@ function useNarrow(): boolean {
 
 /** Scales a fixed-width page frame down to fit its pane, like a browser's zoom. */
 function useFitScale(width: number) {
-  const ref = useRef<HTMLDivElement>(null);
+  // A callback ref, not a ref object: on a phone the preview pane unmounts
+  // when another tab is shown, and the pane that comes back is a new element
+  // that an effect keyed on `width` would never observe. The old one reports
+  // a width of 0 on its way out, which used to leave the preview at 20%.
+  const [el, ref] = useState<HTMLElement | null>(null);
   const [scale, setScale] = useState(1);
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
       const avail = entry.contentRect.width - 32;
+      if (avail <= 0) return;
       setScale(Math.min(1, Math.max(0.2, avail / width)));
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [width]);
+  }, [el, width]);
   return { ref, scale };
 }
 
@@ -142,12 +144,20 @@ export function LearnEditor({
   const [savedAt, setSavedAt] = useState<number | undefined>(initial.doc.draftUpdatedAt || undefined);
   const [error, setError] = useState<{ message: string; problems?: string[] } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  // Bumped whenever the draft is replaced from the server. The panes are keyed
+  // on it, so the in-place text editors start again too: their own undo would
+  // otherwise bring the replaced text back.
+  const [epoch, setEpoch] = useState(0);
 
   // What the server holds, so autosave sends only real changes. Refs, not
   // state: the save loop reads them after awaits, when state would be stale.
   const revision = useRef(initial.doc.revision);
   const lastSaved = useRef<LearnPageContent>(initial.doc.draft);
   const inFlight = useRef(false);
+  /** The content of the last save the server refused, so a fix is retried at once. */
+  const refused = useRef<LearnPageContent | null>(null);
+  /** Counts drafts replaced from the server; a save answered after one is stale. */
+  const generation = useRef(0);
   const latest = useRef(history.present);
   latest.current = history.present;
 
@@ -198,9 +208,15 @@ export function LearnEditor({
     }
     inFlight.current = true;
     setSaveState('saving');
+    const gen = generation.current;
     try {
       const res = await saveLearnDraftAction(plain(sending), revision.current);
+      // The draft was replaced while this was on its way. If it was saved,
+      // the server already has a newer revision than the one we now hold, and
+      // the next save will say so as a conflict.
+      if (gen !== generation.current) return false;
       if (res.ok) {
+        refused.current = null;
         revision.current = res.revision;
         lastSaved.current = sending;
         setSavedAt(res.savedAt);
@@ -213,10 +229,13 @@ export function LearnEditor({
         setSaveState('conflict');
         return false;
       }
+      refused.current = sending;
       setSaveState('error');
       setError({ message: res.error, problems: res.problems });
       return false;
     } catch {
+      if (gen !== generation.current) return false;
+      refused.current = null;
       setSaveState('error');
       setError({ message: 'Could not reach the server. Your changes are still here; we will try again.' });
       return false;
@@ -226,13 +245,18 @@ export function LearnEditor({
   }, []);
 
   useEffect(() => {
-    if (saveState === 'conflict') return;
-    if (contentEqual(content, lastSaved.current)) {
-      if (saveState === 'unsaved') setSaveState('saved');
+    const step = autosaveStep({ content, lastSaved: lastSaved.current, state: saveState, refused: refused.current });
+    if (step.kind === 'clean') {
+      // Back to what the server holds, for example by removing the block a
+      // refused save was about: nothing to send, and nothing wrong any more.
+      refused.current = null;
+      setError(null);
+      setSaveState('saved');
       return;
     }
+    if (step.kind === 'idle') return;
     if (saveState === 'saved') setSaveState('unsaved');
-    const t = setTimeout(() => void save(), saveState === 'error' ? AUTOSAVE_MS * 4 : AUTOSAVE_MS);
+    const t = setTimeout(() => void save(), step.delay);
     return () => clearTimeout(t);
   }, [content, save, saveState]);
 
@@ -247,22 +271,36 @@ export function LearnEditor({
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
-  /** Fresh state from the server: after a conflict, or to start over. */
-  const adopt = useCallback((state: LearnEditorState, keepUndo: boolean) => {
-    revision.current = state.doc.revision;
-    lastSaved.current = state.doc.draft;
-    setHistory((h) => (keepUndo ? replaceInHistory(h, state.doc.draft) : startHistory(state.doc.draft)));
-    setPublished(state.doc.published);
-    setPublishedAt(state.doc.publishedAt);
-    setVersions(state.versions);
-    setSavedAt(state.doc.draftUpdatedAt || undefined);
+  /**
+   * The draft was replaced from the server (their version, a discard, a
+   * restore). Undo and redo start again from it: an undo that stepped back
+   * past it would bring back content that is not on the server any more and
+   * autosave it over whatever replaced it, at the new revision, with no
+   * conflict to warn anybody.
+   */
+  const replaceDraft = useCallback((draft: LearnPageContent, rev: number) => {
+    revision.current = rev;
+    lastSaved.current = draft;
+    refused.current = null;
+    generation.current += 1;
+    setHistory(historyAfterServerReplace(draft));
+    setEpoch((n) => n + 1);
     setSaveState('saved');
     setError(null);
   }, []);
 
+  /** Fresh state from the server: after a conflict, or to start over. */
+  const adopt = useCallback((state: LearnEditorState) => {
+    replaceDraft(state.doc.draft, state.doc.revision);
+    setPublished(state.doc.published);
+    setPublishedAt(state.doc.publishedAt);
+    setVersions(state.versions);
+    setSavedAt(state.doc.draftUpdatedAt || undefined);
+  }, [replaceDraft]);
+
   const loadTheirs = useCallback(async () => {
     const res = await loadLearnEditorAction();
-    if (res.ok) adopt(res.state, true);
+    if (res.ok) adopt(res.state);
     else setError({ message: res.error });
   }, [adopt]);
 
@@ -346,21 +384,18 @@ export function LearnEditor({
   const onDiscard = useCallback(async (): Promise<string | null> => {
     const res = await revertLearnDraftAction();
     if (!res.ok) return res.error;
-    revision.current = res.revision;
-    lastSaved.current = res.draft;
-    setHistory((h) => replaceInHistory(h, res.draft));
-    setSaveState('saved');
-    setFlash('Draft discarded. Undo brings your changes back.');
+    replaceDraft(res.draft, res.revision);
+    setFlash('Draft discarded. The editor now shows the live page.');
     return null;
-  }, []);
+  }, [replaceDraft]);
 
-  const onRestored = useCallback((draft: LearnPageContent, rev: number) => {
-    revision.current = rev;
-    lastSaved.current = draft;
-    setHistory((h) => replaceInHistory(h, draft));
-    setSaveState('saved');
-    setFlash('Version restored into the draft. Publish to make it live.');
-  }, []);
+  const onRestored = useCallback(
+    (draft: LearnPageContent, rev: number) => {
+      replaceDraft(draft, rev);
+      setFlash('Version restored into the draft. Publish to make it live.');
+    },
+    [replaceDraft],
+  );
 
   useEffect(() => {
     if (!flash) return;
@@ -455,6 +490,7 @@ export function LearnEditor({
           <button type="button" className="whova-btn-main small" onClick={() => setDialog('publish')} disabled={saveState === 'conflict'}>
             Publish
           </button>
+          <AccountMenu variant="editor" />
         </div>
       </header>
 
@@ -513,7 +549,7 @@ export function LearnEditor({
         </div>
       )}
 
-      <div className={`le-body${narrow ? ' is-narrow' : ''}`}>
+      <div className={`le-body${narrow ? ' is-narrow' : ''}`} key={epoch}>
         {show('outline') && (
           <aside className="le-pane le-pane-outline" id="le-pane-outline" aria-label="Page outline" role={narrow ? 'tabpanel' : undefined}>
             <Outline {...pane} />
