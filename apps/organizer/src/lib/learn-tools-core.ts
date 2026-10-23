@@ -495,7 +495,7 @@ export const ISSUE_RULE_LABEL: Record<IssueRule, string> = {
   contrast: 'Hard to read colours',
   'empty-link': 'Empty link',
   'vague-link': 'Unclear link text',
-  'embed-title': 'Embed without a title',
+  'embed-title': 'Map, form or video without a title',
   'table-header': 'Table without a header row',
 };
 
@@ -621,7 +621,7 @@ export function accessibilityIssues(content: LearnPageContent): Issue[] {
           richCheck(b.text, 'Quote');
           break;
         case 'callout':
-          richCheck(b.text, 'Callout');
+          richCheck(b.text, 'Note box');
           break;
         case 'accordion':
         case 'tabs':
@@ -781,7 +781,7 @@ export function pageLinks(content: LearnPageContent): PageLink[] {
           break;
         case 'quote':
         case 'callout':
-          rich(b.text, b.kind === 'quote' ? 'Quote' : 'Callout');
+          rich(b.text, b.kind === 'quote' ? 'Quote' : 'Note box');
           break;
         case 'accordion':
         case 'tabs':

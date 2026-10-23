@@ -2,7 +2,7 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { LEARN, OWNER } from './people';
-import { WEB, errorsOf, storageClear, storageList, fsDelete, fsGet, fsList, fsPatch, fsSet, learnDoc, openEditor, shot, signedIn, waitForWeb, waitSaved, webLearnHtml } from './helpers';
+import { WEB, errorsOf, storageClear, storageList, fsDelete, fsGet, fsList, fsPatch, fsSet, learnDoc, openEditor, openMoreOptions, shot, signedIn, waitForWeb, waitSaved, webLearnHtml } from './helpers';
 import { SETTINGS, addBlock, caretEnd, moreMenu, publish, selectText, tool } from './editor-moves';
 
 /**
@@ -26,7 +26,7 @@ test.beforeEach(async ({ context }) => {
   await context.addInitScript(() => {
     // Embedded iframes have an opaque origin, where localStorage throws.
     try {
-      localStorage.setItem('kgc-learn-tour-v2', '1');
+      localStorage.setItem('kgc-learn-tour-v3', '1');
     } catch {}
   });
 });
@@ -36,7 +36,7 @@ async function editorAs(browser: import('@playwright/test').Browser, email: stri
   await ctx.addInitScript(() => {
     // Embedded iframes have an opaque origin, where localStorage throws.
     try {
-      localStorage.setItem('kgc-learn-tour-v2', '1');
+      localStorage.setItem('kgc-learn-tour-v3', '1');
     } catch {}
   });
   return { ctx, page: await openEditor(ctx) };
@@ -49,6 +49,7 @@ function noErrors(page: Page) {
 test('rich text: every toolbar feature is saved, published and drawn on /learn', async ({ browser }) => {
   const { ctx, page } = await editorAs(browser, OWNER);
   await addBlock(page, 'Programmes', 'Text');
+  await openMoreOptions(page);
   const field = page.locator(`${SETTINGS} .rt-content`).first();
   await field.click();
   await page.keyboard.press('Meta+a');
@@ -146,9 +147,9 @@ test('rich text: every toolbar feature is saved, published and drawn on /learn',
 
 const V2_KINDS: [label: string, kind: string][] = [
   ['Quote', 'quote'],
-  ['Callout', 'callout'],
+  ['Note box', 'callout'],
   ['Table', 'table'],
-  ['Contents', 'toc'],
+  ['Contents list', 'toc'],
   ['Image and text', 'imageText'],
   ['Gallery', 'gallery'],
   ['Logos', 'logos'],
@@ -158,7 +159,7 @@ const V2_KINDS: [label: string, kind: string][] = [
   ['Questions', 'accordion'],
   ['Tabs', 'tabs'],
   ['Countdown', 'countdown'],
-  ['Embed', 'embed'],
+  ['Map, form or video', 'embed'],
 ];
 
 test('the block picker adds each of the 14 new kinds, and every one autosaves', async ({ browser }) => {
@@ -340,6 +341,7 @@ async function runCron(): Promise<{ status: number; body: string }> {
 test('schedule a publish, then the timer step publishes it; an unfinished draft is refused and said so', async ({ browser }) => {
   const { ctx, page } = await editorAs(browser, OWNER);
   await addBlock(page, 'Programmes', 'Text');
+  await openMoreOptions(page);
   await page.locator(`${SETTINGS} .rt-content`).first().click();
   await page.keyboard.press('Meta+a');
   await page.keyboard.type('SCHEDULEDW goes live by itself');
@@ -399,6 +401,7 @@ test('schedule a publish, then the timer step publishes it; an unfinished draft 
 test('a preview link shows the draft on www, then stops working when turned off', async ({ browser }) => {
   const { ctx, page } = await editorAs(browser, OWNER);
   await addBlock(page, 'Programmes', 'Text');
+  await openMoreOptions(page);
   await page.locator(`${SETTINGS} .rt-content`).first().click();
   await page.keyboard.press('Meta+a');
   await page.keyboard.type('DRAFTONLYW not live yet');
@@ -438,7 +441,7 @@ test('a preview link shows the draft on www, then stops working when turned off'
 
 test('a learn-only member can edit, use the media library and publish', async ({ browser }) => {
   const { ctx, page } = await editorAs(browser, LEARN);
-  await addBlock(page, 'Programmes', 'Callout');
+  await addBlock(page, 'Programmes', 'Note box');
   await waitSaved(page);
   await moreMenu(page, 'Media library');
   const lib = page.locator('[role=dialog]').filter({ hasText: 'Upload images' });

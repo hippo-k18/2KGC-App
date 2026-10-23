@@ -189,14 +189,14 @@ export function Toolbar(props: ToolbarProps) {
         <ToolButton label="Italic" keys="Cmd+I" pressed={s.italic} disabled={s.inCode} onClick={() => c().toggleItalic().run()}>
           <span className="rt-glyph rt-i">I</span>
         </ToolButton>
-        <ToolButton label="Underline" keys="Cmd+U" pressed={s.underline} disabled={s.inCode} onClick={() => c().toggleUnderline().run()}>
-          <span className="rt-glyph rt-u">U</span>
-        </ToolButton>
-        <ToolButton label="Strikethrough" keys="Cmd+Shift+S" pressed={s.strike} disabled={s.inCode} onClick={() => c().toggleStrike().run()}>
-          <span className="rt-glyph rt-s">S</span>
-        </ToolButton>
         {showRest && (
           <>
+            <ToolButton label="Underline" keys="Cmd+U" pressed={s.underline} disabled={s.inCode} onClick={() => c().toggleUnderline().run()}>
+              <span className="rt-glyph rt-u">U</span>
+            </ToolButton>
+            <ToolButton label="Strikethrough" keys="Cmd+Shift+S" pressed={s.strike} disabled={s.inCode} onClick={() => c().toggleStrike().run()}>
+              <span className="rt-glyph rt-s">S</span>
+            </ToolButton>
             <ToolButton label="Superscript" keys="Cmd+." pressed={s.superscript} disabled={s.inCode} onClick={() => c().unsetSubscript().toggleSuperscript().run()}>
               <span className="rt-glyph">
                 x<sup>2</sup>
@@ -217,10 +217,16 @@ export function Toolbar(props: ToolbarProps) {
 
       <div className="rt-group">
         <ColorMenu editor={editor} kind="text" current={s.color as ColorValue | null} />
-        <ColorMenu editor={editor} kind="highlight" current={s.highlight as ColorValue | null} />
+        {showRest && <ColorMenu editor={editor} kind="highlight" current={s.highlight as ColorValue | null} />}
         <ToolButton label={s.link ? 'Edit link' : 'Link'} keys="Cmd+K" pressed={s.link} disabled={s.inCode} onClick={props.onLink}>
           <Icon name="link" />
         </ToolButton>
+        {/* The short bubble over selected words: the common tools, the rest behind More (T329). */}
+        {compact && !more && !singleLine && (
+          <ToolButton label="Bulleted list" keys="Cmd+Shift+8" pressed={s.bullet} onClick={() => c().toggleBulletList().run()}>
+            <Icon name="bulletList" />
+          </ToolButton>
+        )}
         <Separator />
       </div>
 

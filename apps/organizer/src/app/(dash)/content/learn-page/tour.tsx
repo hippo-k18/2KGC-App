@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import './extras.css';
 
 /**
- * A six-step tour of the editor for someone opening it for the first time.
+ * A five-step tour of the editor for someone opening it for the first time.
  *
  * Each step points at an element the shell marks with `data-tour="..."`. The
  * tour looks them up rather than taking refs, so the shell only adds an
@@ -12,7 +12,8 @@ import './extras.css';
  * shows its card in the middle instead of pointing at nothing.
  */
 
-const STORAGE_KEY = 'kgc-learn-tour-v2';
+// v3 (T329): the tour now starts with editing on the page, so everyone sees it once more.
+const STORAGE_KEY = 'kgc-learn-tour-v3';
 
 export type TourAnchor = 'outline' | 'preview' | 'settings' | 'add' | 'publish' | 'help';
 
@@ -26,35 +27,30 @@ const MORE_BUTTON = '.le-menu-wrap > button[aria-haspopup="menu"]';
 
 const STEPS: Step[] = [
   {
-    anchor: 'outline',
-    title: 'Your page, piece by piece',
-    body: 'This list shows each section of the page and what is inside it. Click an item to work on it.',
-    phone: {
-      selector: '#le-tab-outline',
-      body: 'The Outline tab lists each section of the page and what is inside it. Tap an item to work on it.',
-    },
-  },
-  {
     anchor: 'preview',
-    title: 'The page as visitors see it',
-    body: 'Click any text here to change it in place. Click a picture or a section to select it.',
-  },
-  {
-    anchor: 'settings',
-    title: 'Options for what you selected',
-    body: 'Change colours, spacing, links and pictures here. The page updates as you go.',
+    title: 'Change the words right on the page',
+    body: 'Click any words on the page to change them, right where they are. Click a photo to replace it.',
     phone: {
-      selector: '#le-tab-settings',
-      body: 'The Settings tab has the options for what you selected: colours, spacing, links and pictures.',
+      selector: '#le-tab-preview',
+      body: 'In the Preview tab, tap any words on the page to change them, right where they are.',
     },
   },
   {
     anchor: 'add',
     title: 'Add something new',
-    body: 'Add a ready-made section, such as a team or a list of questions, or a single block like text or a picture.',
+    body: 'Use + to add a block, such as text or a photo, or a ready-made section, such as a team or a list of questions.',
     phone: {
       selector: '#le-tab-outline',
       body: 'Add a section at the bottom of the Outline tab: a ready-made one, such as a team or a list of questions, or a blank one.',
+    },
+  },
+  {
+    anchor: 'settings',
+    title: 'Layout and colours',
+    body: 'Layout and colours live here. You rarely need it.',
+    phone: {
+      selector: '#le-tab-settings',
+      body: 'Layout and colours live in the Settings tab. You rarely need it.',
     },
   },
   {

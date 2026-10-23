@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { OWNER } from './people';
-import { WEB, errorsOf, fsDelete, fsList, fsSet, learnDoc, openEditor, shot, signedIn, waitForWeb, waitSaved, webLearnHtml } from './helpers';
+import { WEB, errorsOf, fsDelete, fsList, fsSet, learnDoc, openEditor, openMoreOptions, shot, signedIn, waitForWeb, waitSaved, webLearnHtml } from './helpers';
 import { SETTINGS, addBlock, publish } from './editor-moves';
 
 /**
@@ -25,7 +25,7 @@ test.beforeEach(async ({ context }) => {
   await resetLearn();
   await context.addInitScript(() => {
     try {
-      localStorage.setItem('kgc-learn-tour-v2', '1');
+      localStorage.setItem('kgc-learn-tour-v3', '1');
     } catch {}
   });
 });
@@ -34,7 +34,7 @@ async function editor(browser: import('@playwright/test').Browser) {
   const ctx = await signedIn(browser, OWNER);
   await ctx.addInitScript(() => {
     try {
-      localStorage.setItem('kgc-learn-tour-v2', '1');
+      localStorage.setItem('kgc-learn-tour-v3', '1');
     } catch {}
   });
   return { ctx, page: await openEditor(ctx) };
@@ -85,6 +85,7 @@ test('3: a new button with no address, or half an address, still saves; publish 
   const { ctx, page } = await editor(browser);
   await addBlock(page, 'Programmes', 'Buttons');
   await waitSaved(page);
+  await openMoreOptions(page);
   await page.locator(SETTINGS).getByRole('button', { name: '+ Add button' }).click();
   await waitSaved(page);
   const newLink = page.locator(`${SETTINGS} .le-set-item`).last().getByLabel('Link', { exact: true });
@@ -105,7 +106,7 @@ test('3: a new button with no address, or half an address, still saves; publish 
 
 test('4: a normal Google Maps link saves, publishes as a map, and an empty title is fine', async ({ browser }) => {
   const { ctx, page } = await editor(browser);
-  await addBlock(page, 'Programmes', 'Embed');
+  await addBlock(page, 'Programmes', 'Map, form or video');
   await waitSaved(page);
   await page.locator(`${SETTINGS} input[type=url]`).first().fill('https://www.google.com/maps/place/Bryant+Park/@40.7536,-73.9832,17z/data=!3m1');
   await waitSaved(page);

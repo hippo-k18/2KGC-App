@@ -1,6 +1,7 @@
 'use client';
 
-import { useId, useState, type ReactNode } from 'react';
+import { createContext, useContext, useId, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { Align, BandBackground, Columns, ImageShape, ImageWidth, LinkButton, PageImage, Spacing, TextSize } from '@kgc/shared';
 import { resolveSrc } from './editor-types';
 import './settings.css';
@@ -148,6 +149,85 @@ export function Check({ label, checked, onChange }: { label: string; checked: bo
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span>{label}</span>
     </label>
+  );
+}
+
+// ─── More options ─────────────────────────────────────────────────────────────
+
+/*
+ * The panel shows the few options most people need first and keeps the rest
+ * under one "More options" disclosure. A form wraps its rarer fields in
+ * <More>, which moves them into that disclosure through a portal, so a form
+ * stays one component with one set of state while its fields sit in two
+ * places. Whether the disclosure is open is remembered for the whole panel.
+ */
+
+const MORE_KEY = 'learn-editor:more-options';
+const moreListeners = new Set<() => void>();
+let moreOpen: boolean | null = null;
+
+function getMoreOpen(): boolean {
+  if (moreOpen === null) {
+    try {
+      moreOpen = window.localStorage.getItem(MORE_KEY) === 'open';
+    } catch {
+      moreOpen = false;
+    }
+  }
+  return moreOpen;
+}
+
+function setMoreOpen(open: boolean) {
+  moreOpen = open;
+  try {
+    window.localStorage.setItem(MORE_KEY, open ? 'open' : 'closed');
+  } catch {
+    // Storage blocked: it stays as chosen until the page reloads.
+  }
+  moreListeners.forEach((l) => l());
+}
+
+function subscribeMoreOpen(l: () => void) {
+  moreListeners.add(l);
+  return () => {
+    moreListeners.delete(l);
+  };
+}
+
+/** undefined: no disclosure, render in place. null: the disclosure is not on screen yet. */
+const MoreSlot = createContext<HTMLElement | null | undefined>(undefined);
+
+/** Fields most people never need: shown under "More options" when the panel has one. */
+export function More({ children }: { children: ReactNode }) {
+  const slot = useContext(MoreSlot);
+  if (slot === undefined) return <>{children}</>;
+  return slot ? createPortal(children, slot) : null;
+}
+
+/** Wraps a panel body and adds the closed-by-default "More options" disclosure under it. */
+export function WithMoreOptions({ children }: { children: ReactNode }) {
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  const open = useSyncExternalStore(subscribeMoreOpen, getMoreOpen, () => false);
+  const bodyId = useId();
+  return (
+    <MoreSlot.Provider value={slot}>
+      {children}
+      <div className="le-set-more">
+        <button
+          type="button"
+          className="le-set-more-toggle"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setMoreOpen(!open)}
+        >
+          <span className="le-set-caret" aria-hidden="true">
+            {open ? '▾' : '▸'}
+          </span>
+          More options
+        </button>
+        <div id={bodyId} ref={setSlot} className="le-set-more-body" hidden={!open} />
+      </div>
+    </MoreSlot.Provider>
   );
 }
 

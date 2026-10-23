@@ -226,6 +226,9 @@ const COLS = 2;
 
 type Filter = 'All' | BlockCategory;
 
+/** The chip names, where the category id is not plain enough to show. */
+const FILTER_LABEL: Partial<Record<Filter, string>> = { Embed: 'Other sites' };
+
 /**
  * Add a block: search and categories over every block kind (T318). Typing
  * filters at once; arrow keys move from the search box into the grid and
@@ -337,7 +340,7 @@ export function AddBlockPicker({
               setQuery('');
             }}
           >
-            {c}
+            {FILTER_LABEL[c] ?? c}
           </button>
         ))}
       </div>

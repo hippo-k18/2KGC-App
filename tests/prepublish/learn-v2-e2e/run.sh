@@ -14,18 +14,25 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 
 export GCLOUD_PROJECT=demo-learn-v2-e2e
-export E2E_PORT=3323
-export WEB_PORT=3324
+# Ports can be moved (LEARN_E2E_*_PORT) so two worktrees can run this at once.
+FS_PORT="${LEARN_E2E_FS_PORT:-8323}"
+ST_PORT="${LEARN_E2E_STORAGE_PORT:-9323}"
+WS_PORT="${LEARN_E2E_WS_PORT:-9423}"
+HUB_PORT="${LEARN_E2E_HUB_PORT:-4423}"
+LOG_PORT="${LEARN_E2E_LOG_PORT:-4523}"
+export E2E_PORT="${LEARN_E2E_DASH_PORT:-3323}"
+export WEB_PORT="${LEARN_E2E_WEB_PORT:-3324}"
 export E2E_URL="http://localhost:$E2E_PORT"
 export WEB_URL="http://localhost:$WEB_PORT"
-export FIRESTORE_REST="http://127.0.0.1:8323"
+export FIRESTORE_REST="http://127.0.0.1:$FS_PORT"
+export STORAGE_REST="http://127.0.0.1:$ST_PORT"
 
 cat > "$HERE/.firebase.json" <<JSON
 { "firestore": { "rules": "$ROOT/firestore.rules" },
   "storage": { "rules": "$ROOT/storage.rules" },
-  "emulators": { "firestore": { "port": 8323, "host": "127.0.0.1", "websocketPort": 9423 },
-                 "storage": { "port": 9323, "host": "127.0.0.1" },
-                 "hub": { "port": 4423 }, "logging": { "port": 4523 },
+  "emulators": { "firestore": { "port": $FS_PORT, "host": "127.0.0.1", "websocketPort": $WS_PORT },
+                 "storage": { "port": $ST_PORT, "host": "127.0.0.1" },
+                 "hub": { "port": $HUB_PORT }, "logging": { "port": $LOG_PORT },
                  "ui": { "enabled": false }, "singleProjectMode": true } }
 JSON
 

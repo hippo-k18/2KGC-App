@@ -43,6 +43,7 @@ import {
   Area,
   Check,
   Group,
+  More,
   OptionalLink,
   RowTools,
   Segmented,
@@ -304,7 +305,7 @@ function AnchorField({
         hint={
           anchor && !problem
             ? `Link to it with #${anchor}`
-            : 'Lets a button or link jump straight here. Link to it with #name.'
+            : 'Lets you link to this part of the page.'
         }
         warn={problem}
       />
@@ -379,23 +380,29 @@ export function BlockCommonSettings({ block, upd }: { block: LearnBlock; upd: Up
   // and text colour set here would do nothing (T325, E F4).
   const linked = block.kind === 'reusable';
   return (
-    <Group title={linked ? 'Visibility' : 'Appearance and visibility'}>
-      <VisibleOnField value={block.visibleOn} onChange={(visibleOn) => upd({ visibleOn })} />
+    <>
       {!linked && (
-        <>
+        <Group title="Look">
           <Segmented legend="Width" value={block.maxWidth} options={MAX_WIDTHS} onChange={(maxWidth) => upd({ maxWidth })} />
-          <Check label="Put it in a light card" checked={!!block.boxed} onChange={(v) => upd({ boxed: v ? true : undefined })} />
-          <ColorField
-            legend="Text colour"
-            value={block.textColor}
-            onChange={(textColor) => upd({ textColor })}
-            against={section ? sectionBgHex(section) : undefined}
-          />
-        </>
+          <Check label="Show on a light card" checked={!!block.boxed} onChange={(v) => upd({ boxed: v ? true : undefined })} />
+        </Group>
       )}
-      <AnchorField value={block.anchor} ownerId={block.id} source={blockText(block)} onChange={(anchor) => upd({ anchor })} />
-      <NoteField value={block.note} onChange={(note) => upd({ note })} />
-    </Group>
+      <More>
+        <Group title="Extras">
+          {!linked && (
+            <ColorField
+              legend="Text colour"
+              value={block.textColor}
+              onChange={(textColor) => upd({ textColor })}
+              against={section ? sectionBgHex(section) : undefined}
+            />
+          )}
+          <VisibleOnField value={block.visibleOn} onChange={(visibleOn) => upd({ visibleOn })} />
+          <AnchorField value={block.anchor} ownerId={block.id} source={blockText(block)} onChange={(anchor) => upd({ anchor })} />
+          <NoteField value={block.note} onChange={(note) => upd({ note })} />
+        </Group>
+      </More>
+    </>
   );
 }
 
@@ -456,36 +463,42 @@ function ButtonsList({ buttons, onChange }: { buttons: LinkButton[]; onChange: (
 function ImageTextSettings({ block, upd }: { block: BlockOf<'imageText'>; upd: Upd }) {
   const { siteOrigin, uploadImage } = useServices();
   return (
-    <Group title="Image and text">
-      <ImageTools
-        image={block.image}
-        onChange={(img) => upd({ image: img ?? { ...EMPTY_IMAGE } })}
-        uploadImage={uploadImage}
-        siteOrigin={siteOrigin}
-      />
-      <Segmented
-        legend="Image side"
-        value={block.imageSide}
-        options={[
-          { value: 'left', label: 'Left' },
-          { value: 'right', label: 'Right' },
-        ]}
-        onChange={(imageSide) => imageSide && upd({ imageSide })}
-      />
-      <Segmented
-        legend="Image width"
-        value={block.imageWidth}
-        options={[
-          { value: 'third', label: 'One third' },
-          { value: 'half', label: 'Half' },
-        ]}
-        onChange={(imageWidth) => imageWidth && upd({ imageWidth })}
-      />
-      <ShapeTiles value={block.shape} onChange={(shape) => upd({ shape })} />
-      <RichField label="Text" rows={6} value={block.text} onChange={(text) => upd({ text })} />
-      <p className="le-set-label">Buttons (optional)</p>
-      <ButtonsList buttons={block.buttons ?? []} onChange={(buttons) => upd({ buttons })} />
-    </Group>
+    <>
+      <Group title="Image and text">
+        <ImageTools
+          image={block.image}
+          onChange={(img) => upd({ image: img ?? { ...EMPTY_IMAGE } })}
+          uploadImage={uploadImage}
+          siteOrigin={siteOrigin}
+        />
+        <Segmented
+          legend="Image side"
+          value={block.imageSide}
+          options={[
+            { value: 'left', label: 'Left' },
+            { value: 'right', label: 'Right' },
+          ]}
+          onChange={(imageSide) => imageSide && upd({ imageSide })}
+        />
+        <Segmented
+          legend="Image width"
+          value={block.imageWidth}
+          options={[
+            { value: 'third', label: 'One third' },
+            { value: 'half', label: 'Half' },
+          ]}
+          onChange={(imageWidth) => imageWidth && upd({ imageWidth })}
+        />
+        <ShapeTiles value={block.shape} onChange={(shape) => upd({ shape })} />
+      </Group>
+      <More>
+        <Group title="Words and buttons">
+          <RichField label="Text" rows={6} value={block.text} onChange={(text) => upd({ text })} />
+          <p className="le-set-label">Buttons (optional)</p>
+          <ButtonsList buttons={block.buttons ?? []} onChange={(buttons) => upd({ buttons })} />
+        </Group>
+      </More>
+    </>
   );
 }
 
@@ -618,32 +631,38 @@ function GallerySettings({ block, upd }: { block: BlockOf<'gallery'>; upd: Upd }
 function QuoteSettings({ block, upd }: { block: BlockOf<'quote'>; upd: Upd }) {
   const { siteOrigin, uploadImage } = useServices();
   return (
-    <Group title="Quote">
-      <RichField label="What they said" rows={4} value={block.text} onChange={(text) => upd({ text })} />
-      <Text label="Name (optional)" value={block.name ?? ''} onChange={(v) => upd({ name: v || undefined })} />
-      <Text label="Role or company (optional)" value={block.role ?? ''} onChange={(v) => upd({ role: v || undefined })} />
-      <div className="le-set-field">
-        <span className="le-set-label">Photo (optional)</span>
-        <ImageTools
-          compact
-          label={block.name ? `Photo of ${block.name}` : 'Photo'}
-          image={block.photo}
-          onChange={(photo) => upd({ photo })}
-          uploadImage={uploadImage}
-          siteOrigin={siteOrigin}
+    <>
+      <Group title="Quote">
+        <div className="le-set-field">
+          <span className="le-set-label">Photo (optional)</span>
+          <ImageTools
+            compact
+            label={block.name ? `Photo of ${block.name}` : 'Photo'}
+            image={block.photo}
+            onChange={(photo) => upd({ photo })}
+            uploadImage={uploadImage}
+            siteOrigin={siteOrigin}
+          />
+        </div>
+        <Segmented
+          legend="Style"
+          value={block.style}
+          options={[
+            { value: 'plain', label: 'Plain' },
+            { value: 'large', label: 'Large' },
+            { value: 'card', label: 'Card' },
+          ]}
+          onChange={(style) => style && upd({ style })}
         />
-      </div>
-      <Segmented
-        legend="Style"
-        value={block.style}
-        options={[
-          { value: 'plain', label: 'Plain' },
-          { value: 'large', label: 'Large' },
-          { value: 'card', label: 'Card' },
-        ]}
-        onChange={(style) => style && upd({ style })}
-      />
-    </Group>
+      </Group>
+      <More>
+        <Group title="Words">
+          <RichField label="What they said" rows={4} value={block.text} onChange={(text) => upd({ text })} />
+          <Text label="Name (optional)" value={block.name ?? ''} onChange={(v) => upd({ name: v || undefined })} />
+          <Text label="Role or company (optional)" value={block.role ?? ''} onChange={(v) => upd({ role: v || undefined })} />
+        </Group>
+      </More>
+    </>
   );
 }
 
@@ -656,20 +675,26 @@ const TONES: { value: BlockOf<'callout'>['tone']; label: string }[] = [
 
 function CalloutSettings({ block, upd }: { block: BlockOf<'callout'>; upd: Upd }) {
   return (
-    <Group title="Callout">
-      <Segmented
-        legend="Colour"
-        value={block.tone}
-        options={TONES.map((t) => ({
-          value: t.value,
-          label: t.label,
-          icon: <span className={`le-v2-tone le-v2-tone-${t.value}`} aria-hidden="true" />,
-        }))}
-        onChange={(tone) => tone && upd({ tone })}
-      />
-      <Text label="Title (optional)" value={block.title ?? ''} onChange={(v) => upd({ title: v || undefined })} />
-      <RichField label="Text" rows={4} value={block.text} onChange={(text) => upd({ text })} />
-    </Group>
+    <>
+      <Group title="Note box">
+        <Segmented
+          legend="Colour"
+          value={block.tone}
+          options={TONES.map((t) => ({
+            value: t.value,
+            label: t.label,
+            icon: <span className={`le-v2-tone le-v2-tone-${t.value}`} aria-hidden="true" />,
+          }))}
+          onChange={(tone) => tone && upd({ tone })}
+        />
+      </Group>
+      <More>
+        <Group title="Words">
+          <Text label="Title (optional)" value={block.title ?? ''} onChange={(v) => upd({ title: v || undefined })} />
+          <RichField label="Text" rows={4} value={block.text} onChange={(text) => upd({ text })} />
+        </Group>
+      </More>
+    </>
   );
 }
 
@@ -679,40 +704,46 @@ const MAX_ACCORDION = 30;
 function AccordionSettings({ block, upd }: { block: BlockOf<'accordion'>; upd: Upd }) {
   const set = (items: AccordionItem[]) => upd({ items });
   return (
-    <Group title="Questions and answers">
-      <Check
-        label="Let readers open more than one at a time"
-        checked={block.allowMany}
-        onChange={(allowMany) => upd({ allowMany })}
-      />
-      <ol className="le-set-items">
-        {block.items.map((it, i) => (
-          <li key={it.id} className="le-set-item">
-            <ItemHead title={`Item ${i + 1}`}>
-              <RowTools
-                index={i}
-                count={block.items.length}
-                name={`item ${i + 1}`}
-                onMove={(to) => set(move(block.items, i, to))}
-                onRemove={() => set(block.items.filter((x) => x.id !== it.id))}
-              />
-            </ItemHead>
-            <Text label="Title" value={it.title} onChange={(title) => set(replaceAt(block.items, i, { ...it, title }))} />
-            <RichField label="Text" value={it.text} onChange={(text) => set(replaceAt(block.items, i, { ...it, text }))} />
-            <Check
-              label="Open when the page loads"
-              checked={!!it.open}
-              onChange={(v) => set(replaceAt(block.items, i, v ? { ...it, open: true } : without(it, 'open')))}
-            />
-          </li>
-        ))}
-      </ol>
-      {block.items.length < MAX_ACCORDION ? (
-        <AddButton label="+ Add item" onClick={() => set([...block.items, { id: newId('i'), title: '', text: '' }])} />
-      ) : (
-        <MaxNote count={block.items.length} max={MAX_ACCORDION} what="items" />
-      )}
-    </Group>
+    <>
+      <Group title="Questions and answers">
+        <Check
+          label="Let readers open more than one at a time"
+          checked={block.allowMany}
+          onChange={(allowMany) => upd({ allowMany })}
+        />
+      </Group>
+      <More>
+        <Group title="Questions">
+          <ol className="le-set-items">
+            {block.items.map((it, i) => (
+              <li key={it.id} className="le-set-item">
+                <ItemHead title={`Item ${i + 1}`}>
+                  <RowTools
+                    index={i}
+                    count={block.items.length}
+                    name={`item ${i + 1}`}
+                    onMove={(to) => set(move(block.items, i, to))}
+                    onRemove={() => set(block.items.filter((x) => x.id !== it.id))}
+                  />
+                </ItemHead>
+                <Text label="Title" value={it.title} onChange={(title) => set(replaceAt(block.items, i, { ...it, title }))} />
+                <RichField label="Text" value={it.text} onChange={(text) => set(replaceAt(block.items, i, { ...it, text }))} />
+                <Check
+                  label="Open when the page loads"
+                  checked={!!it.open}
+                  onChange={(v) => set(replaceAt(block.items, i, v ? { ...it, open: true } : without(it, 'open')))}
+                />
+              </li>
+            ))}
+          </ol>
+          {block.items.length < MAX_ACCORDION ? (
+            <AddButton label="+ Add item" onClick={() => set([...block.items, { id: newId('i'), title: '', text: '' }])} />
+          ) : (
+            <MaxNote count={block.items.length} max={MAX_ACCORDION} what="items" />
+          )}
+        </Group>
+      </More>
+    </>
   );
 }
 
@@ -722,30 +753,32 @@ const MAX_TABS = 8;
 function TabsSettings({ block, upd }: { block: BlockOf<'tabs'>; upd: Upd }) {
   const set = (items: TabItem[]) => upd({ items });
   return (
-    <Group title="Tabs">
-      <ol className="le-set-items">
-        {block.items.map((it, i) => (
-          <li key={it.id} className="le-set-item">
-            <ItemHead title={`Tab ${i + 1}`}>
-              <RowTools
-                index={i}
-                count={block.items.length}
-                name={`tab ${i + 1}`}
-                onMove={(to) => set(move(block.items, i, to))}
-                onRemove={() => set(block.items.filter((x) => x.id !== it.id))}
-              />
-            </ItemHead>
-            <Text label="Tab name" value={it.title} onChange={(title) => set(replaceAt(block.items, i, { ...it, title }))} />
-            <RichField label="Text" value={it.text} onChange={(text) => set(replaceAt(block.items, i, { ...it, text }))} />
-          </li>
-        ))}
-      </ol>
-      {block.items.length < MAX_TABS ? (
-        <AddButton label="+ Add tab" onClick={() => set([...block.items, { id: newId('i'), title: '', text: '' }])} />
-      ) : (
-        <MaxNote count={block.items.length} max={MAX_TABS} what="tabs" />
-      )}
-    </Group>
+    <More>
+      <Group title="Tabs">
+        <ol className="le-set-items">
+          {block.items.map((it, i) => (
+            <li key={it.id} className="le-set-item">
+              <ItemHead title={`Tab ${i + 1}`}>
+                <RowTools
+                  index={i}
+                  count={block.items.length}
+                  name={`tab ${i + 1}`}
+                  onMove={(to) => set(move(block.items, i, to))}
+                  onRemove={() => set(block.items.filter((x) => x.id !== it.id))}
+                />
+              </ItemHead>
+              <Text label="Tab name" value={it.title} onChange={(title) => set(replaceAt(block.items, i, { ...it, title }))} />
+              <RichField label="Text" value={it.text} onChange={(text) => set(replaceAt(block.items, i, { ...it, text }))} />
+            </li>
+          ))}
+        </ol>
+        {block.items.length < MAX_TABS ? (
+          <AddButton label="+ Add tab" onClick={() => set([...block.items, { id: newId('i'), title: '', text: '' }])} />
+        ) : (
+          <MaxNote count={block.items.length} max={MAX_TABS} what="tabs" />
+        )}
+      </Group>
+    </More>
   );
 }
 
@@ -755,43 +788,49 @@ const MAX_STATS = 12;
 function StatsSettings({ block, upd }: { block: BlockOf<'stats'>; upd: Upd }) {
   const set = (items: StatItem[]) => upd({ items });
   return (
-    <Group title="Numbers">
-      <Segmented legend="Columns" value={block.columns} options={COLUMN_COUNTS} onChange={(columns) => columns && upd({ columns })} />
-      <ol className="le-set-items">
-        {block.items.map((it, i) => (
-          <li key={it.id} className="le-set-item">
-            <ItemHead title={`Number ${i + 1}`}>
-              <RowTools
-                index={i}
-                count={block.items.length}
-                name={`number ${i + 1}`}
-                onMove={(to) => set(move(block.items, i, to))}
-                onRemove={() => set(block.items.filter((x) => x.id !== it.id))}
-              />
-            </ItemHead>
-            <div className="le-v2-pair">
-              <Text
-                label="Number"
-                value={it.value}
-                placeholder="500+"
-                onChange={(value) => set(replaceAt(block.items, i, { ...it, value }))}
-              />
-              <Text
-                label="What it counts"
-                value={it.label}
-                placeholder="Learners"
-                onChange={(label) => set(replaceAt(block.items, i, { ...it, label }))}
-              />
-            </div>
-          </li>
-        ))}
-      </ol>
-      {block.items.length < MAX_STATS ? (
-        <AddButton label="+ Add number" onClick={() => set([...block.items, { id: newId('i'), value: '', label: '' }])} />
-      ) : (
-        <MaxNote count={block.items.length} max={MAX_STATS} what="numbers" />
-      )}
-    </Group>
+    <>
+      <Group title="Numbers">
+        <Segmented legend="Columns" value={block.columns} options={COLUMN_COUNTS} onChange={(columns) => columns && upd({ columns })} />
+      </Group>
+      <More>
+        <Group title="The numbers">
+          <ol className="le-set-items">
+            {block.items.map((it, i) => (
+              <li key={it.id} className="le-set-item">
+                <ItemHead title={`Number ${i + 1}`}>
+                  <RowTools
+                    index={i}
+                    count={block.items.length}
+                    name={`number ${i + 1}`}
+                    onMove={(to) => set(move(block.items, i, to))}
+                    onRemove={() => set(block.items.filter((x) => x.id !== it.id))}
+                  />
+                </ItemHead>
+                <div className="le-v2-pair">
+                  <Text
+                    label="Number"
+                    value={it.value}
+                    placeholder="500+"
+                    onChange={(value) => set(replaceAt(block.items, i, { ...it, value }))}
+                  />
+                  <Text
+                    label="What it counts"
+                    value={it.label}
+                    placeholder="Learners"
+                    onChange={(label) => set(replaceAt(block.items, i, { ...it, label }))}
+                  />
+                </div>
+              </li>
+            ))}
+          </ol>
+          {block.items.length < MAX_STATS ? (
+            <AddButton label="+ Add number" onClick={() => set([...block.items, { id: newId('i'), value: '', label: '' }])} />
+          ) : (
+            <MaxNote count={block.items.length} max={MAX_STATS} what="numbers" />
+          )}
+        </Group>
+      </More>
+    </>
   );
 }
 
@@ -804,56 +843,62 @@ function CardsSettings({ block, upd }: { block: BlockOf<'cards'>; upd: Upd }) {
   const set = (items: CardItem[]) => upd({ items });
   const setItem = (i: number, item: CardItem) => set(replaceAt(block.items, i, item));
   return (
-    <Group title="Cards">
-      <Segmented legend="Columns" value={block.columns} options={COLUMN_COUNTS} onChange={(columns) => columns && upd({ columns })} />
-      <ol className="le-set-items">
-        {block.items.map((it, i) => (
-          <li key={it.id} className="le-set-item">
-            <ItemHead title={`Card ${i + 1}`}>
-              <RowTools
-                index={i}
-                count={block.items.length}
-                name={`card ${i + 1}`}
-                onMove={(to) => set(move(block.items, i, to))}
-                onRemove={() => set(block.items.filter((x) => x.id !== it.id))}
-              />
-            </ItemHead>
-            <div className="le-set-field">
-              <span className="le-set-label">Image (optional)</span>
-              <ImageTools
-                compact
-                label={`Image for card ${i + 1}`}
-                image={it.image}
-                onChange={(img) => {
-                  // An upload finishes later; patch the card as it is then.
-                  const now = latest.current.find((x) => x.id === it.id);
-                  if (!now) return;
-                  const at = latest.current.indexOf(now);
-                  set(replaceAt(latest.current, at, img ? { ...now, image: img } : without(now, 'image')));
-                }}
-                uploadImage={uploadImage}
-                siteOrigin={siteOrigin}
-              />
-            </div>
-            <Text label="Title" value={it.title} onChange={(title) => setItem(i, { ...it, title })} />
-            <RichField label="Text" value={it.text} onChange={(text) => setItem(i, { ...it, text })} />
-            <Text
-              label="Label on the card (optional)"
-              value={it.badge ?? ''}
-              placeholder="New"
-              maxLength={30}
-              onChange={(v) => setItem(i, v ? { ...it, badge: v } : without(it, 'badge'))}
-            />
-            <OptionalLink link={it.link} onChange={(link) => setItem(i, link ? { ...it, link } : without(it, 'link'))} />
-          </li>
-        ))}
-      </ol>
-      {block.items.length < MAX_CARDS ? (
-        <AddButton label="+ Add card" onClick={() => set([...block.items, { id: newId('i'), title: '', text: '' }])} />
-      ) : (
-        <MaxNote count={block.items.length} max={MAX_CARDS} what="cards" />
-      )}
-    </Group>
+    <>
+      <Group title="Cards">
+        <Segmented legend="Columns" value={block.columns} options={COLUMN_COUNTS} onChange={(columns) => columns && upd({ columns })} />
+      </Group>
+      <More>
+        <Group title="What is on each card">
+          <ol className="le-set-items">
+            {block.items.map((it, i) => (
+              <li key={it.id} className="le-set-item">
+                <ItemHead title={`Card ${i + 1}`}>
+                  <RowTools
+                    index={i}
+                    count={block.items.length}
+                    name={`card ${i + 1}`}
+                    onMove={(to) => set(move(block.items, i, to))}
+                    onRemove={() => set(block.items.filter((x) => x.id !== it.id))}
+                  />
+                </ItemHead>
+                <div className="le-set-field">
+                  <span className="le-set-label">Image (optional)</span>
+                  <ImageTools
+                    compact
+                    label={`Image for card ${i + 1}`}
+                    image={it.image}
+                    onChange={(img) => {
+                      // An upload finishes later; patch the card as it is then.
+                      const now = latest.current.find((x) => x.id === it.id);
+                      if (!now) return;
+                      const at = latest.current.indexOf(now);
+                      set(replaceAt(latest.current, at, img ? { ...now, image: img } : without(now, 'image')));
+                    }}
+                    uploadImage={uploadImage}
+                    siteOrigin={siteOrigin}
+                  />
+                </div>
+                <Text label="Title" value={it.title} onChange={(title) => setItem(i, { ...it, title })} />
+                <RichField label="Text" value={it.text} onChange={(text) => setItem(i, { ...it, text })} />
+                <Text
+                  label="Label on the card (optional)"
+                  value={it.badge ?? ''}
+                  placeholder="New"
+                  maxLength={30}
+                  onChange={(v) => setItem(i, v ? { ...it, badge: v } : without(it, 'badge'))}
+                />
+                <OptionalLink link={it.link} onChange={(link) => setItem(i, link ? { ...it, link } : without(it, 'link'))} />
+              </li>
+            ))}
+          </ol>
+          {block.items.length < MAX_CARDS ? (
+            <AddButton label="+ Add card" onClick={() => set([...block.items, { id: newId('i'), title: '', text: '' }])} />
+          ) : (
+            <MaxNote count={block.items.length} max={MAX_CARDS} what="cards" />
+          )}
+        </Group>
+      </More>
+    </>
   );
 }
 
@@ -968,10 +1013,10 @@ function EmbedSettings({ block, upd }: { block: BlockOf<'embed'>; upd: Upd }) {
   const heightBad = height !== undefined && (height < MIN_HEIGHT || height > MAX_HEIGHT);
 
   return (
-    <Group title="Embed">
+    <Group title="Map, form or video from another site">
       <div className="le-set-field">
         <label className="le-set-label" htmlFor={selectId}>
-          Service
+          Site
         </label>
         <select
           id={selectId}
@@ -1002,10 +1047,10 @@ function EmbedSettings({ block, upd }: { block: BlockOf<'embed'>; upd: Upd }) {
         legend="Shape"
         value={block.aspect}
         options={[
-          { value: '16:9', label: 'Wide (16:9)' },
-          { value: '4:3', label: 'Standard (4:3)' },
+          { value: '16:9', label: 'Wide' },
+          { value: '4:3', label: 'Standard' },
           { value: '1:1', label: 'Square' },
-          { value: 'auto', label: 'Set height' },
+          { value: 'auto', label: 'Choose the height' },
         ]}
         onChange={(aspect) => aspect && upd(aspect === 'auto' ? { aspect, height: height ?? 600 } : { aspect, height: undefined })}
       />
@@ -1042,7 +1087,7 @@ function EmbedSettings({ block, upd }: { block: BlockOf<'embed'>; upd: Upd }) {
         placeholder={defaultEmbedTitle(block.provider)}
         onChange={(title) => upd({ title })}
         hint="Says what is inside, for people who cannot see it."
-        warn={block.title.trim() ? null : 'Add a title. Screen readers need it to describe the embed.'}
+        warn={block.title.trim() ? null : 'Add a title. Screen readers need it to say what this is.'}
       />
     </Group>
   );
@@ -1084,40 +1129,46 @@ function CountdownSettings({ block, upd }: { block: BlockOf<'countdown'>; upd: U
   }, []);
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return (
-    <Group title="Countdown">
-      <div className="le-set-field">
-        <label className="le-set-label" htmlFor={id}>
-          Count down to
-        </label>
-        <input
-          id={id}
-          type="datetime-local"
-          className="whova-text-input le-set-input"
-          value={toLocalInput(block.until)}
-          onChange={(e) => {
-            const ms = e.target.value ? new Date(e.target.value).getTime() : 0;
-            if (Number.isFinite(ms)) upd({ until: ms });
-          }}
+    <>
+      <Group title="Countdown">
+        <div className="le-set-field">
+          <label className="le-set-label" htmlFor={id}>
+            Count down to
+          </label>
+          <input
+            id={id}
+            type="datetime-local"
+            className="whova-text-input le-set-input"
+            value={toLocalInput(block.until)}
+            onChange={(e) => {
+              const ms = e.target.value ? new Date(e.target.value).getTime() : 0;
+              if (Number.isFinite(ms)) upd({ until: ms });
+            }}
+          />
+          <p className="le-set-hint">In your own time zone{zone ? ` (${zone.replace(/_/g, ' ')})` : ''}.</p>
+          {block.until > 0 ? (
+            <p className={`le-set-status${block.until > now ? ' ok' : ' bad'}`} role="status">
+              {fromNow(block.until, now)}
+            </p>
+          ) : (
+            <p className="le-set-warn" role="status">
+              Choose a date and time.
+            </p>
+          )}
+        </div>
+        <Text
+          label="Text once the time has passed (optional)"
+          value={block.doneText ?? ''}
+          placeholder="It has started."
+          onChange={(v) => upd({ doneText: v || undefined })}
         />
-        <p className="le-set-hint">In your own time zone{zone ? ` (${zone.replace(/_/g, ' ')})` : ''}.</p>
-        {block.until > 0 ? (
-          <p className={`le-set-status${block.until > now ? ' ok' : ' bad'}`} role="status">
-            {fromNow(block.until, now)}
-          </p>
-        ) : (
-          <p className="le-set-warn" role="status">
-            Choose a date and time.
-          </p>
-        )}
-      </div>
-      <Text label="Text above the clock (optional)" value={block.label ?? ''} placeholder="Starts in" onChange={(v) => upd({ label: v || undefined })} />
-      <Text
-        label="Text once the time has passed (optional)"
-        value={block.doneText ?? ''}
-        placeholder="It has started."
-        onChange={(v) => upd({ doneText: v || undefined })}
-      />
-    </Group>
+      </Group>
+      <More>
+        <Group title="Words">
+          <Text label="Text above the clock (optional)" value={block.label ?? ''} placeholder="Starts in" onChange={(v) => upd({ label: v || undefined })} />
+        </Group>
+      </More>
+    </>
   );
 }
 
@@ -1126,87 +1177,100 @@ function TableSettings({ block, upd }: { block: BlockOf<'table'>; upd: Upd }) {
   const set = (rows: string[][], header = grid.header) => upd({ doc: gridToDoc({ header, rows }) });
   const cols = grid.rows[0]?.length ?? 0;
   return (
-    <Group title="Table">
-      {grid.rich && (
-        <p className="le-set-warn" role="status">
-          Some cells have formatting or merged cells. Typing in a cell here keeps only its words.
-        </p>
-      )}
-      <Check label="First row is headings" checked={grid.header} onChange={(h) => set(grid.rows, h)} />
-      <div className="le-v2-tablegrid" role="group" aria-label="Table cells">
-        <table>
-          <tbody>
-            {grid.rows.map((r, i) => (
-              <tr key={i}>
-                {r.map((cell, j) => (
-                  <td key={j}>
-                    <input
-                      className="whova-text-input le-set-input"
-                      aria-label={`Row ${i + 1}, column ${j + 1}`}
-                      value={cell}
-                      onChange={(e) => set(grid.rows.map((row, x) => (x === i ? row.map((c, y) => (y === j ? e.target.value : c)) : row)))}
-                    />
-                  </td>
+    <>
+      <Group title="Table">
+        <Check label="First row is headings" checked={grid.header} onChange={(h) => set(grid.rows, h)} />
+        <Check label="Shade every other row" checked={block.striped} onChange={(striped) => upd({ striped })} />
+      </Group>
+      <More>
+        <Group title="Cells and caption">
+          {grid.rich && (
+            <p className="le-set-warn" role="status">
+              Some cells have formatting or merged cells. Typing in a cell here keeps only its words.
+            </p>
+          )}
+          <div className="le-v2-tablegrid" role="group" aria-label="Table cells">
+            <table>
+              <tbody>
+                {grid.rows.map((r, i) => (
+                  <tr key={i}>
+                    {r.map((cell, j) => (
+                      <td key={j}>
+                        <input
+                          className="whova-text-input le-set-input"
+                          aria-label={`Row ${i + 1}, column ${j + 1}`}
+                          value={cell}
+                          onChange={(e) => set(grid.rows.map((row, x) => (x === i ? row.map((c, y) => (y === j ? e.target.value : c)) : row)))}
+                        />
+                      </td>
+                    ))}
+                    <td>
+                      <button
+                        type="button"
+                        className="le-set-link danger"
+                        aria-label={`Remove row ${i + 1}`}
+                        disabled={grid.rows.length <= 1}
+                        onClick={() => set(removeRow(grid.rows, i))}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
                 ))}
-                <td>
-                  <button
-                    type="button"
-                    className="le-set-link danger"
-                    aria-label={`Remove row ${i + 1}`}
-                    disabled={grid.rows.length <= 1}
-                    onClick={() => set(removeRow(grid.rows, i))}
-                  >
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
-            <tr>
-              {Array.from({ length: cols }, (_, j) => (
-                <td key={j}>
-                  <button
-                    type="button"
-                    className="le-set-link danger"
-                    aria-label={`Remove column ${j + 1}`}
-                    disabled={cols <= 1}
-                    onClick={() => set(removeColumn(grid.rows, j))}
-                  >
-                    Remove
-                  </button>
-                </td>
-              ))}
-              <td />
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div className="le-v2-row">
-        <button type="button" className="btn btn-default btn-sm" disabled={grid.rows.length >= MAX_TABLE_ROWS} onClick={() => set(addRow(grid.rows))}>
-          + Add row
-        </button>
-        <button type="button" className="btn btn-default btn-sm" disabled={cols >= MAX_TABLE_COLUMNS} onClick={() => set(addColumn(grid.rows))}>
-          + Add column
-        </button>
-      </div>
-      <Check label="Shade every other row" checked={block.striped} onChange={(striped) => upd({ striped })} />
-      <Text
-        label="Caption (optional)"
-        value={block.caption ?? ''}
-        onChange={(v) => upd({ caption: v || undefined })}
-        hint="Shown under the table and read out first by screen readers."
-      />
-    </Group>
+                <tr>
+                  {Array.from({ length: cols }, (_, j) => (
+                    <td key={j}>
+                      <button
+                        type="button"
+                        className="le-set-link danger"
+                        aria-label={`Remove column ${j + 1}`}
+                        disabled={cols <= 1}
+                        onClick={() => set(removeColumn(grid.rows, j))}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  ))}
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="le-v2-row">
+            <button type="button" className="btn btn-default btn-sm" disabled={grid.rows.length >= MAX_TABLE_ROWS} onClick={() => set(addRow(grid.rows))}>
+              + Add row
+            </button>
+            <button type="button" className="btn btn-default btn-sm" disabled={cols >= MAX_TABLE_COLUMNS} onClick={() => set(addColumn(grid.rows))}>
+              + Add column
+            </button>
+          </div>
+          <Text
+            label="Caption (optional)"
+            value={block.caption ?? ''}
+            onChange={(v) => upd({ caption: v || undefined })}
+            hint="Shown under the table and read out first by screen readers."
+          />
+        </Group>
+      </More>
+    </>
   );
 }
 
 function TocSettings({ block, upd }: { block: BlockOf<'toc'>; upd: Upd }) {
   return (
-    <Group title="Contents list">
-      <Text label="Title (optional)" value={block.title ?? ''} placeholder="On this page" onChange={(v) => upd({ title: v || undefined })} />
-      <p className="le-set-hint">
-        Lists every heading that has a link name. To add a heading here, give it a link name in its settings.
-      </p>
-    </Group>
+    <>
+      <Group title="Contents list">
+        <p className="le-set-hint">
+          Lists every heading that has a link name. To add a heading here, give it a link name under More options in its
+          settings.
+        </p>
+      </Group>
+      <More>
+        <Group title="Words">
+          <Text label="Title (optional)" value={block.title ?? ''} placeholder="On this page" onChange={(v) => upd({ title: v || undefined })} />
+        </Group>
+      </More>
+    </>
   );
 }
 
@@ -1444,57 +1508,67 @@ export function SectionV2Settings({
             </p>
           )}
         </Group>
-        <Group title="Background extras">
-          <ColorField
-            legend="Background colour (overrides the style above)"
-            value={section.backgroundColor}
-            onChange={(backgroundColor) => upd({ backgroundColor })}
-            allowClear
-          />
-          <div className="le-set-field">
-            <span className="le-set-label">Background photo (optional)</span>
-            <ImageTools
-              label="Background photo"
-              image={section.backgroundImage}
-              onChange={(img) => upd(img ? { backgroundImage: img } : { backgroundImage: undefined, overlay: undefined })}
-              uploadImage={uploadImage}
-              siteOrigin={siteOrigin}
+      </fieldset>
+      <More>
+        <fieldset className="le-set-lockable" disabled={locked}>
+          <Group title="Background colour and photo">
+            <ColorField
+              legend="Your own background colour"
+              value={section.backgroundColor}
+              onChange={(backgroundColor) => upd({ backgroundColor })}
+              allowClear
             />
-          </div>
-          {hasImage && (
             <div className="le-set-field">
-              <label className="le-set-label" htmlFor={overlayId}>
-                Darken the photo
-                <span className="le-set-count">{Math.round(overlay * 100)}%</span>
-              </label>
-              <input
-                id={overlayId}
-                type="range"
-                className="le-v2-range"
-                min={0}
-                max={OVERLAY_MAX}
-                step={0.05}
-                value={overlay}
-                aria-valuetext={`${Math.round(overlay * 100)}%`}
-                onChange={(e) => {
-                  const v = Math.round(parseFloat(e.target.value) * 100) / 100;
-                  upd({ overlay: v > 0 ? Math.min(OVERLAY_MAX, v) : undefined });
-                }}
+              <span className="le-set-label">Background photo (optional)</span>
+              <ImageTools
+                label="Background photo"
+                image={section.backgroundImage}
+                onChange={(img) => upd(img ? { backgroundImage: img } : { backgroundImage: undefined, overlay: undefined })}
+                uploadImage={uploadImage}
+                siteOrigin={siteOrigin}
               />
             </div>
-          )}
-          {readWarn && !locked && (
-            <p className="le-set-warn" role="status">
-              {readWarn}
-            </p>
-          )}
+            {hasImage && (
+              <div className="le-set-field">
+                <label className="le-set-label" htmlFor={overlayId}>
+                  Darken the photo
+                  <span className="le-set-count">{Math.round(overlay * 100)}%</span>
+                </label>
+                <input
+                  id={overlayId}
+                  type="range"
+                  className="le-v2-range"
+                  min={0}
+                  max={OVERLAY_MAX}
+                  step={0.05}
+                  value={overlay}
+                  aria-valuetext={`${Math.round(overlay * 100)}%`}
+                  onChange={(e) => {
+                    const v = Math.round(parseFloat(e.target.value) * 100) / 100;
+                    upd({ overlay: v > 0 ? Math.min(OVERLAY_MAX, v) : undefined });
+                  }}
+                />
+              </div>
+            )}
+            {readWarn && !locked && (
+              <p className="le-set-warn" role="status">
+                {readWarn}
+              </p>
+            )}
+          </Group>
+        </fieldset>
+        <Group title="Extras">
+          <Text
+            label="Section name"
+            value={section.label}
+            onChange={(label) => upd({ label })}
+            hint="Only shown here in the editor, to help you find it."
+          />
+          <VisibleOnField value={section.visibleOn} onChange={(visibleOn) => upd({ visibleOn })} />
+          <AnchorField value={section.anchor} ownerId={section.id} source={section.label} onChange={(anchor) => upd({ anchor })} />
+          <NoteField value={section.note} onChange={(note) => upd({ note })} />
         </Group>
-      </fieldset>
-      <Group title="Visibility and links">
-        <VisibleOnField value={section.visibleOn} onChange={(visibleOn) => upd({ visibleOn })} />
-        <AnchorField value={section.anchor} ownerId={section.id} source={section.label} onChange={(anchor) => upd({ anchor })} />
-        <NoteField value={section.note} onChange={(note) => upd({ note })} />
-      </Group>
+      </More>
     </>
   );
 }

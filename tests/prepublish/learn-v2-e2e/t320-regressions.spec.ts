@@ -59,7 +59,7 @@ test.beforeEach(async ({ context }) => {
   await context.addInitScript(() => {
     // Embedded iframes have an opaque origin, where localStorage throws.
     try {
-      localStorage.setItem('kgc-learn-tour-v2', '1');
+      localStorage.setItem('kgc-learn-tour-v3', '1');
     } catch {}
   });
 });
@@ -69,7 +69,7 @@ async function signedInNoTour(browser: import('@playwright/test').Browser, email
   await ctx.addInitScript(() => {
     // Embedded iframes have an opaque origin, where localStorage throws.
     try {
-      localStorage.setItem('kgc-learn-tour-v2', '1');
+      localStorage.setItem('kgc-learn-tour-v3', '1');
     } catch {}
   });
   return ctx;

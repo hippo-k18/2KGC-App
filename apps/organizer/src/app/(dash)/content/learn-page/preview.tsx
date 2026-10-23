@@ -14,13 +14,14 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
-import { headingIds, isRichDoc, type LearnBlock, type LearnSection, type Person, type RichContent } from '@kgc/shared';
+import { headingIds, isRichDoc, sectionIsDark, type LearnBlock, type LearnSection, type Person, type RichContent } from '@kgc/shared';
 import { RichEditor } from '@/components/rich-editor';
 import { scrollIntoPane } from './scroll-into-pane';
 import {
   blockColumnOf,
   BLOCK_KINDS,
   blockSummary,
+  createBlock,
   kindLabel,
   layoutColumns,
   previewColumns,
@@ -28,7 +29,9 @@ import {
   previewHref,
   previewPick,
   videoEmbedUrl,
+  type BlockKind,
   type BlockOf,
+  type BlockPatch,
   type EditAction,
   type Selection,
 } from '@/lib/learn-editor-core';
@@ -41,6 +44,9 @@ import { ButtonRow, Picture, TextLink } from './preview-parts';
 import { RichBlocks, RichLine } from './preview-rich';
 import { PreviewBlockCtxContext, PreviewContentContext, PreviewLibraryContext, V2Body } from './preview-v2';
 import { useRichAnchors, useRichChange } from './rich-field';
+import { EditableBody, hasEditableBody } from './inline/editable-blocks';
+import { InlineBlockContext, placeCaretAt, type InlineBlockCtx } from './inline/fields';
+import { InsertGap } from './inline/insert-gap';
 import './preview.css';
 import './preview-v2.css';
 
@@ -407,7 +413,11 @@ const BlockView = memo(function BlockView({
   const onClick = (e: MouseEvent) => {
     e.stopPropagation();
     if ((e.shiftKey || e.metaKey || e.ctrlKey) && onBlockClick(sectionId, target, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey })) return;
-    select();
+    if (!selected) {
+      select();
+      // One click selects the block and puts the caret where it landed (T329).
+      if (!hostId) placeCaretAt(e.clientX, e.clientY, ref.current);
+    }
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -434,6 +444,14 @@ const BlockView = memo(function BlockView({
     [onEdit, sectionId, block.id],
   );
 
+  const patchBlock = useCallback(
+    (patch: BlockPatch) => onEdit({ type: 'updateBlock', sectionId, blockId: block.id, patch }),
+    [onEdit, sectionId, block.id],
+  );
+  const inlineCtx = useMemo<InlineBlockCtx>(() => ({ blockId: block.id, patch: patchBlock }), [block.id, patchBlock]);
+  /** Every other kind is typed in place too once selected (T329). */
+  const inline = selected && !hostId && !editing && hasEditableBody(block.kind);
+
   const onLevel = useCallback(
     (level: 1 | 2 | 3 | 4) => onEdit({ type: 'updateBlock', sectionId, blockId: block.id, patch: { level } }),
     [onEdit, sectionId, block.id],
@@ -453,6 +471,12 @@ const BlockView = memo(function BlockView({
       <div className={`lp-text lp-t-${previewPick((block as BlockOf<'text'>).size, TEXT_SIZES, 'normal')} lp-editing`}>
         <InPlaceText value={block.text} singleLine={false} ariaLabel="Text" onChange={onText} onExit={exit} autoFocus={shouldFocus()} />
       </div>
+    );
+  } else if (inline) {
+    body = (
+      <InlineBlockContext.Provider value={inlineCtx}>
+        <EditableBody block={block} siteOrigin={siteOrigin} />
+      </InlineBlockContext.Provider>
     );
   } else {
     body = <BlockBody block={block} siteOrigin={siteOrigin} selected={selected} />;
@@ -492,8 +516,9 @@ const BlockView = memo(function BlockView({
       data-offscreen={away || undefined}
       style={color ? ({ ['--lp-text' as string]: color, color } as CSSProperties) : undefined}
       tabIndex={0}
-      role="button"
-      aria-pressed={selected || multi}
+      // While its words are being typed it is a group of fields, not a button.
+      role={inline || editing ? 'group' : 'button'}
+      aria-pressed={inline || editing ? undefined : selected || multi}
       aria-label={`${hostId ? 'From a saved section: ' : ''}${blockSummary(block)}${block.hidden ? ' (hidden)' : ''}${away ? ` (${VISIBLE_TAG[block.visibleOn as 'desktop' | 'mobile'].toLowerCase()})` : ''}${warning ? ` (warning: ${warning})` : ''}, select to edit`}
       onClick={onClick}
       onKeyDown={onKeyDown}
@@ -639,13 +664,31 @@ const SectionView = memo(function SectionView({
     },
   });
 
+  /** Adds a block at a "+" on the page (T329), in the column it was pressed in. */
+  const insertAt = (kind: BlockKind, index: number, column: number) => {
+    const nb = createBlock(kind);
+    if (columns > 1) onEdit({ type: 'insertBlocks', sectionId: section.id, index, blocks: [nb], column });
+    else onEdit({ type: 'insertBlock', sectionId: section.id, index, block: nb });
+    onSelect({ kind: 'block', sectionId: section.id, blockId: nb.id });
+  };
+  /** Where a block goes when added at the end of a column: after that column's last block in the draft. */
+  const endIndex = (column: number) => {
+    let last = -1;
+    source.blocks.forEach((x, i) => {
+      if (columns <= 1 || blockColumnOf(source, x.id) === column) last = i;
+    });
+    return columns <= 1 ? source.blocks.length : last + 1 || source.blocks.length;
+  };
+
   const block = (b: LearnBlock, column: number) => {
     // A copy from a saved section is not in the draft, so nothing can be
     // dropped in front of it; it is selected, and warned about, as its host.
     const host = hosts.get(b.id);
     const id = host ?? b.id;
+    const at = host ? -1 : source.blocks.findIndex((x) => x.id === b.id);
     return (
       <div key={b.id} className="lp-drop-slot" {...(host ? {} : dragHandlers(column, b.id))}>
+        {at >= 0 && <InsertGap onInsert={(kind) => insertAt(kind, at, column)} />}
         {!host && dropAt?.column === column && dropAt.beforeId === b.id && <div className="lp-drop-line" aria-hidden="true" />}
         <BlockView
           block={b}
@@ -667,6 +710,7 @@ const SectionView = memo(function SectionView({
 
   const zoneEnd = (column: number) => (
     <div className="lp-drop-end" {...dragHandlers(column, null)}>
+      <InsertGap last onInsert={(kind) => insertAt(kind, endIndex(column), column)} />
       {dropAt?.column === column && dropAt.beforeId === null && <div className="lp-drop-line" aria-hidden="true" />}
     </div>
   );
@@ -690,7 +734,8 @@ const SectionView = memo(function SectionView({
     inner = (
       <div className={`lp-wrap lp-width-${width}`}>
         <div className="lp-measure lp-section-empty" {...dragHandlers(0, null)}>
-          Empty section. Add a block from the outline, or drag one here.
+          Empty section. Use + to add something, or drag a block here.
+          <InsertGap last onInsert={(kind) => insertAt(kind, 0, 0)} />
         </div>
       </div>
     );
@@ -776,7 +821,10 @@ const SectionView = memo(function SectionView({
       )}
       <section
         id={section.anchor ? `lp-anchor-${section.anchor}` : undefined}
-        className={`lp-section lp-bg-${background} lp-pt-${previewPick(section.paddingTop, SPACINGS, 'large')} lp-pb-${previewPick(section.paddingBottom, SPACINGS, 'large')}${photo ? ' lp-has-photo' : ''}`}
+        className={`lp-section lp-bg-${background} lp-pt-${previewPick(section.paddingTop, SPACINGS, 'large')} lp-pb-${previewPick(section.paddingBottom, SPACINGS, 'large')}${photo ? ' lp-has-photo' : ''}${
+          // White words on a dark colour or photo, as the website does (the twins' `lp-on-dark` rules).
+          sectionIsDark(section) ? ' lp-on-dark' : ''
+        }`}
         data-hidden={section.hidden || undefined}
         aria-label={`${section.label || 'Section'}${section.hidden ? ' (hidden)' : ''}`}
         style={Object.keys(style).length ? style : undefined}

@@ -140,6 +140,16 @@ export async function shot(page: Page, name: string, opts: { fullPage?: boolean 
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: opts.fullPage });
 }
 
+/**
+ * Opens the settings panel's "More options" (T329), where the rarer fields and a block's words now live.
+ * It remembers being open, so this clicks only when it is closed.
+ */
+export async function openMoreOptions(page: Page) {
+  const toggle = page.locator('.le-pane-settings .le-set-more-toggle');
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
+
 /** The save chip in the editor bar. */
 export const saveChip = (page: Page) => page.locator('.le-chips .le-chip').first();
 
@@ -157,7 +167,7 @@ export async function waitForWeb(pred: (html: string) => boolean, path = '/learn
   await expect.poll(async () => pred(await webLearnHtml(path)), { timeout, intervals: [1000, 2000, 3000] }).toBe(true);
 }
 
-const STORAGE = `http://127.0.0.1:9323/v0/b/${BUCKET}/o`;
+const STORAGE = `${process.env.STORAGE_REST ?? 'http://127.0.0.1:9323'}/v0/b/${BUCKET}/o`;
 
 /** The Learn page's files in the private Storage emulator. */
 export async function storageList(prefix = 'pageLayouts/learn/'): Promise<string[]> {

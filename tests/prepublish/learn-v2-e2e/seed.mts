@@ -9,8 +9,11 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { memberIdFor } from '../../../apps/organizer/src/lib/team-core.ts';
 import { AGENDA, LEARN, OWNER, ownerSessionId } from './people.ts';
 
-if (!process.env.FIRESTORE_EMULATOR_HOST || !/^(127\.0\.0\.1|localhost):8323$/.test(process.env.FIRESTORE_EMULATOR_HOST)) {
-  console.error('seed.mts only runs against the private emulator on 8323');
+// 8323 by default; run.sh may move it (LEARN_E2E_FS_PORT), never onto the shared 8080.
+const port = process.env.FIRESTORE_REST?.match(/:(\d+)$/)?.[1] ?? '8323';
+const emu = process.env.FIRESTORE_EMULATOR_HOST ?? '';
+if (port === '8080' || !new RegExp(`^(127\\.0\\.0\\.1|localhost):${port}$`).test(emu)) {
+  console.error(`seed.mts only runs against the private emulator on ${port}`);
   process.exit(1);
 }
 

@@ -218,7 +218,7 @@ describe('embeds', () => {
     p.sections[0].blocks.push({ id: 'e', kind: 'embed', provider: 'spotify', url: 'https://example.com', aspect: '16:9', title: '' });
     const msgs = contentWarnings(p).map((w) => w.message);
     expect(msgs).toContain('That is not a Spotify link this page can show.');
-    expect(msgs).toContain('Embed needs a title for screen readers');
+    expect(msgs).toContain('The map, form or video needs a title for screen readers');
   });
 
   it('only says a link works when the website would show it (T324 D2)', () => {

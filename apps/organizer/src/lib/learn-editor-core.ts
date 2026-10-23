@@ -461,9 +461,9 @@ export const BLOCK_KINDS: { kind: BlockKind; label: string; hint: string; catego
   { kind: 'text', label: 'Text', hint: 'Paragraphs with bold, italic and links', category: 'Text', keywords: 'paragraph body copy' },
   { kind: 'list', label: 'List', hint: 'Bulleted or numbered items', category: 'Text', keywords: 'bullets numbered' },
   { kind: 'quote', label: 'Quote', hint: 'A testimonial or a pull quote', category: 'Text', keywords: 'testimonial review' },
-  { kind: 'callout', label: 'Callout', hint: 'A coloured box for a note or warning', category: 'Text', keywords: 'note alert notice info' },
+  { kind: 'callout', label: 'Note box', hint: 'A coloured box for a note or warning', category: 'Text', keywords: 'callout note alert notice info' },
   { kind: 'table', label: 'Table', hint: 'Rows and columns of text', category: 'Text', keywords: 'grid schedule prices' },
-  { kind: 'toc', label: 'Contents', hint: 'Links to the headings on this page', category: 'Text', keywords: 'table of contents toc menu' },
+  { kind: 'toc', label: 'Contents list', hint: 'Links to the headings on this page', category: 'Text', keywords: 'table of contents toc menu' },
   { kind: 'image', label: 'Image', hint: 'A photo or graphic', category: 'Media', keywords: 'photo picture' },
   { kind: 'imageText', label: 'Image and text', hint: 'A picture beside a paragraph', category: 'Media', keywords: 'media side' },
   { kind: 'gallery', label: 'Gallery', hint: 'A grid or slideshow of photos', category: 'Media', keywords: 'photos carousel slideshow' },
@@ -474,13 +474,13 @@ export const BLOCK_KINDS: { kind: BlockKind; label: string; hint: string; catego
   { kind: 'stats', label: 'Numbers', hint: 'Big figures with a label', category: 'Layout', keywords: 'stats statistics figures counters' },
   { kind: 'buttons', label: 'Buttons', hint: 'One or more link buttons', category: 'Layout', keywords: 'cta call to action link' },
   { kind: 'divider', label: 'Divider', hint: 'A thin line', category: 'Layout', keywords: 'line rule separator' },
-  { kind: 'spacer', label: 'Spacer', hint: 'Empty space', category: 'Layout', keywords: 'gap space' },
+  { kind: 'spacer', label: 'Empty space', hint: 'A gap between blocks', category: 'Layout', keywords: 'spacer gap space' },
   { kind: 'reusable', label: 'Saved section', hint: 'A section from your library, kept in sync', category: 'Layout', keywords: 'library reusable shared' },
   { kind: 'people', label: 'People', hint: 'Cards with photo, name and role', category: 'People', keywords: 'team staff speakers' },
   { kind: 'accordion', label: 'Questions', hint: 'Answers that open on a click', category: 'Interactive', keywords: 'faq accordion collapse' },
   { kind: 'tabs', label: 'Tabs', hint: 'Panels you switch between', category: 'Interactive', keywords: 'tabbed panels' },
   { kind: 'countdown', label: 'Countdown', hint: 'Days and hours to a date', category: 'Interactive', keywords: 'timer deadline date' },
-  { kind: 'embed', label: 'Embed', hint: 'Maps, forms, docs, calendars and more', category: 'Embed', keywords: 'iframe google maps form calendly typeform loom spotify slides docs' },
+  { kind: 'embed', label: 'Map, form or video', hint: 'From Google Maps, Google Forms, Calendly and other sites', category: 'Embed', keywords: 'embed iframe google maps form calendly typeform loom spotify slides docs' },
 ];
 
 /** Picker search: label, hint, category and keywords, every word must match. */
@@ -789,7 +789,7 @@ export function contentWarnings(content: LearnPageContent): Warning[] {
       switch (b.kind) {
         case 'imageText':
           if (!b.image.src) warn('Image has no picture yet');
-          else if (!b.image.alt.trim()) warn('Image needs a description (alt text)');
+          else if (!b.image.alt.trim()) warn('Image needs a description');
           break;
         case 'gallery':
           if (b.images.length === 0) warn('Gallery has no photos yet');
@@ -807,9 +807,9 @@ export function contentWarnings(content: LearnPageContent): Warning[] {
           break;
         case 'embed': {
           const status = embedStatus(b.provider, b.url);
-          if (status.state === 'empty') warn('Embed has no link yet');
+          if (status.state === 'empty') warn('The map, form or video has no link yet');
           else if (status.state === 'bad') warn(status.message);
-          if (!b.title.trim()) warn('Embed needs a title for screen readers');
+          if (!b.title.trim()) warn('The map, form or video needs a title for screen readers');
           break;
         }
         case 'countdown':

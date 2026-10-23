@@ -426,7 +426,7 @@ describe('validateLearnContent, v2 (T315)', () => {
       const p = sinkWith((p) => Object.assign(block(p, 'embed'), { provider, url }));
       expect(problemsOf(p), `${provider} ${url}`).toEqual([]);
       expect(publishBlockers(p), `${provider} ${url}`).toEqual([
-        expect.stringMatching(/^The Embed block in "Everything" has a link that can't be shown\. ./),
+        expect.stringMatching(/^The Map, form or video block in "Everything" has a link that can't be shown\. ./),
       ]);
     }
     // A dangerous scheme is still refused at save.
@@ -443,7 +443,7 @@ describe('validateLearnContent, v2 (T315)', () => {
     const short = sinkWith((p) => Object.assign(block(p, 'embed'), { provider: 'google-maps', url: 'https://maps.app.goo.gl/AbC123' }));
     expect(problemsOf(short)).toEqual([]);
     expect(publishBlockers(short)).toEqual([
-      'The Embed block in "Everything" has a link that can\'t be shown. ' +
+      'The Map, form or video block in "Everything" has a link that can\'t be shown. ' +
         "Short Google Maps links can't be shown. Open the link, then copy the address from the browser's address bar.",
     ]);
   });
@@ -470,7 +470,7 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(r.ok ? [] : r.problems).toEqual([]);
     expect(r.ok && block(r.content, 'embed')).toMatchObject({ title: '', height: 6 });
     expect(publishBlockers(p)).toEqual([
-      'The Embed block in "Everything" is set to 6 pixels tall. Use a height from 100 to 2000.',
+      'The Map, form or video block in "Everything" is set to 6 pixels tall. Use a height from 100 to 2000.',
     ]);
     // A missing title is stored as empty, not refused.
     const missing = sinkWith((p) => delete (block(p, 'embed') as { title?: string }).title);
@@ -908,7 +908,7 @@ describe('publish refuses unfinished blocks (T314 F1)', () => {
     });
     expect(problemsOf(p)).toEqual([]);
     expect(publishBlockers(p)).toEqual([
-      expect.stringMatching(/^The Embed block in ".*" has no link yet\./),
+      expect.stringMatching(/^The Map, form or video block in ".*" has no link yet\./),
       expect.stringMatching(/^The Countdown block in ".*" has no date yet\./),
     ]);
     // Since T325 a wrong link or a date out of range saves too, and publish names it.

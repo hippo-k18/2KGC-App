@@ -304,7 +304,7 @@ export function ImageTools({
               className="le-set-img-preview"
               role="slider"
               tabIndex={0}
-              aria-label={`${label}: focal point, use arrow keys`}
+              aria-label={`${label}: most important part, use arrow keys`}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(fx * 100)}
@@ -368,7 +368,7 @@ export function ImageTools({
               </button>
               {focusSet && (
                 <button type="button" className="le-set-link" onClick={resetFocus}>
-                  Reset focal point
+                  Reset the centre point
                 </button>
               )}
             </div>
@@ -415,7 +415,7 @@ export function ImageTools({
       {img && (
         <div className="le-set-field">
           <label className="le-set-label" htmlFor={altId}>
-            Description for screen readers (alt text)
+            Description for screen readers
           </label>
           <input
             id={altId}

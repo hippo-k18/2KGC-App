@@ -137,8 +137,21 @@ const FindHighlight = Extension.create({
 
 /* ── Keys ──────────────────────────────────────────────────────────────── */
 
+/** Keys a host may take over, for a field that is one item of a list on the page (T329). */
+export type HostKey = 'Enter' | 'Backspace' | 'Tab' | 'ShiftTab' | 'ArrowUp' | 'ArrowDown';
+
+export interface CaretInfo {
+  /** The field holds no text at all. */
+  empty: boolean;
+  /** The caret, with nothing selected, is before the first character. */
+  atStart: boolean;
+  atEnd: boolean;
+}
+
 export interface RichKeyHandlers {
   singleLine: boolean;
+  /** True when the host handled the key, and the editor should not. */
+  onHostKey?: (key: HostKey, at: CaretInfo) => boolean;
   onExit: () => boolean;
   onLink: () => void;
   onFind: () => void;
@@ -153,6 +166,8 @@ export function clearFormatting(editor: Editor) {
 
 const RichKeys = Extension.create<{ handlers: () => RichKeyHandlers }>({
   name: 'richKeys',
+  // Ahead of the list and table keymaps, so a host's Tab and Enter come first.
+  priority: 1000,
   addOptions() {
     return {
       handlers: () => ({ singleLine: false, onExit: () => false, onLink: () => {}, onFind: () => {}, onHelp: () => {}, onFocusMode: () => {} }),
@@ -160,14 +175,29 @@ const RichKeys = Extension.create<{ handlers: () => RichKeyHandlers }>({
   },
   addKeyboardShortcuts() {
     const h = () => this.options.handlers();
+    const host = (key: HostKey) => {
+      const fn = h().onHostKey;
+      if (!fn) return false;
+      const { state } = this.editor;
+      const { selection, doc } = state;
+      const empty = doc.textContent.length === 0 && !doc.firstChild?.childCount;
+      const atStart = selection.empty && selection.from <= 1 + (doc.firstChild?.isTextblock ? 0 : 1);
+      const atEnd = selection.empty && selection.to >= doc.content.size - 1;
+      return fn(key, { empty, atStart, atEnd });
+    };
     return {
+      Tab: () => host('Tab'),
+      'Shift-Tab': () => host('ShiftTab'),
+      Backspace: () => host('Backspace'),
+      ArrowUp: () => host('ArrowUp'),
+      ArrowDown: () => host('ArrowDown'),
       'Mod-k': () => (h().onLink(), true),
       'Mod-f': () => (h().onFind(), true),
       'Mod-/': () => (h().onHelp(), true),
       'Mod-Shift-f': () => (h().onFocusMode(), true),
       'Mod-\\': () => clearFormatting(this.editor),
       Escape: () => h().onExit(),
-      Enter: () => (h().singleLine ? this.editor.commands.setHardBreak() : false),
+      Enter: () => host('Enter') || (h().singleLine ? this.editor.commands.setHardBreak() : false),
     };
   },
 });

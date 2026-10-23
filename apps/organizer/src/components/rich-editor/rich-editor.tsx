@@ -16,7 +16,7 @@ import {
 } from '../../lib/rich-editor/convert';
 import { keysFor } from './controls';
 import { FindBar, LinkDialog, ShortcutsDialog, type RichAnchor } from './dialogs';
-import { richExtensions, transformPastedHTML, type RichKeyHandlers } from './extensions';
+import { richExtensions, transformPastedHTML, type CaretInfo, type HostKey, type RichKeyHandlers } from './extensions';
 import { Icon } from './icons';
 import { Toolbar } from './toolbar';
 import './rich-editor.css';
@@ -49,6 +49,22 @@ export interface RichEditorProps {
   onExit?: () => void;
   autoFocus?: boolean;
   className?: string;
+  /**
+   * A field that is one item of a list on the page: Enter, Backspace, Tab and
+   * the up and down arrows go to the host first, which returns true when it
+   * handled the key (T329).
+   */
+  onHostKey?: (key: HostKey, at: CaretInfo) => boolean;
+  /** The TipTap editor once it exists (and null when it goes), for a host that adds rows to a table. */
+  onEditor?: (editor: Editor | null) => void;
+}
+
+/** The editor that owns a ProseMirror element, so a click on the page can put the caret where it landed. */
+const editorsByDom = new WeakMap<Element, Editor>();
+
+export function editorForElement(el: Element | null): Editor | undefined {
+  const pm = el?.closest('.ProseMirror');
+  return pm ? editorsByDom.get(pm) : undefined;
 }
 
 function docOf(value: RichContent, single: boolean): RichDoc {
@@ -83,6 +99,7 @@ export function RichEditor(props: RichEditorProps) {
 
   const handlers = useRef<() => RichKeyHandlers>(() => ({
     singleLine: !!latest.current.singleLine,
+    onHostKey: (key, at) => latest.current.onHostKey?.(key, at) ?? false,
     onExit: () => {
       if (ui.current.dialog) return false;
       if (ui.current.focusMode) {
@@ -141,6 +158,17 @@ export function RichEditor(props: RichEditorProps) {
 
   useEffect(() => {
     if (editor && latest.current.autoFocus) editor.commands.focus('end');
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    editorsByDom.set(dom, editor);
+    latest.current.onEditor?.(editor);
+    return () => {
+      editorsByDom.delete(dom);
+      latest.current.onEditor?.(null);
+    };
   }, [editor]);
 
   useEffect(() => {
@@ -224,7 +252,13 @@ export function RichEditor(props: RichEditorProps) {
             className="rt-bubble"
             updateDelay={0}
             options={{ placement: 'top-start', offset: 8, flip: true, shift: { padding: 8 } }}
-            shouldShow={({ view, element }) => view.editable && (view.hasFocus() || element.contains(document.activeElement))}
+            // Over selected words, as in a document editor; also in a table or
+            // on a link, where the tools are the way to change them (T329).
+            shouldShow={({ editor: e, view, state, element }) =>
+              view.editable &&
+              (element.contains(document.activeElement) ||
+                (view.hasFocus() && (!state.selection.empty || e.isActive('table') || e.isActive('link'))))
+            }
           >
             <LinkInfo editor={editor} onEdit={() => setLinkOpen(true)} />
             <Toolbar {...toolbarProps} compact />

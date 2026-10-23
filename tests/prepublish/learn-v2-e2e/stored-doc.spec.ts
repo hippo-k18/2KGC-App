@@ -138,7 +138,7 @@ async function visit(browser: Browser, url: string, opts: { as?: string; then?: 
   const ctx = opts.as ? await signedIn(browser, opts.as) : await browser.newContext();
   await ctx.addInitScript(() => {
     try {
-      localStorage.setItem('kgc-learn-tour-v2', '1');
+      localStorage.setItem('kgc-learn-tour-v3', '1');
     } catch {}
   });
   const page = await ctx.newPage();
