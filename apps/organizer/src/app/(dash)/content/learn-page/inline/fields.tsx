@@ -13,12 +13,13 @@ import {
   type FocusEvent,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import type { ImageShape, ImageWidth, LinkButton, PageImage, RichContent } from '@kgc/shared';
 import type { Editor } from '@tiptap/core';
 import { AllSelection, Selection } from '@tiptap/pm/state';
 import { RichEditor, editorForElement, type CaretInfo, type HostKey } from '@/components/rich-editor';
-import { isOffsite, normalizeLinkInput } from '@/lib/learn-inline-core';
+import { capInserted, isOffsite, normalizeLinkInput } from '@/lib/learn-inline-core';
 import type { BlockPatch } from '@/lib/learn-editor-core';
 import { isRefusedHref, LEARN_LIMITS } from '@/lib/learn-page-core';
 import { useEditorServices } from '../editor-context';
@@ -73,6 +74,68 @@ export type FocusMode = 'end' | 'start' | 'select';
 
 let pendingFocus: { key: string; mode: FocusMode } | null = null;
 
+/*
+ * Keys pressed in the moment between a click (or a removal) and the frame
+ * that puts the caret in its field went to the field the caret was leaving,
+ * or to the page, where a Backspace deleted the block (T342 N-B2, under about
+ * 10 ms). While a caret is on its way they are held, in order, and played into
+ * the field once it has the caret.
+ */
+let placing = 0;
+const heldKeys: globalThis.KeyboardEvent[] = [];
+let flushQueued = false;
+
+/** True while keys should be held: a caret is on its way, or held keys wait to be played. */
+function holdingKeys(): boolean {
+  return pendingFocus !== null || placing > 0 || heldKeys.length > 0;
+}
+
+/** Plays the held keys into whatever has the caret now. Called once a caret is placed. */
+function playHeldKeys() {
+  if (flushQueued) return;
+  flushQueued = true;
+  let left = 10;
+  const play = () => {
+    flushQueued = false;
+    if (pendingFocus !== null || placing > 0) return;
+    // A caret placed a frame late still gets them; after that they go where the focus is.
+    const a = document.activeElement as HTMLElement | null;
+    if ((!a || a === document.body) && left-- > 0) {
+      flushQueued = true;
+      requestAnimationFrame(play);
+      return;
+    }
+    const keys = heldKeys.splice(0);
+    for (const k of keys) replayKey(k);
+  };
+  queueMicrotask(play);
+}
+
+function replayKey(k: globalThis.KeyboardEvent) {
+  const target = (document.activeElement as HTMLElement | null) ?? document.body;
+  if (target === document.body) return;
+  const plain = k.key.length === 1 && !k.metaKey && !k.ctrlKey && !k.altKey;
+  if (plain) {
+    // Into a rich field through its editor: text put in its page by the
+    // browser was shown but not always taken in, and so not saved.
+    const editor = editorForElement(target.closest('.ProseMirror'));
+    if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.insertText(k.key));
+    else document.execCommand('insertText', false, k.key);
+    return;
+  }
+  const copy = new KeyboardEvent('keydown', { key: k.key, code: k.code, metaKey: k.metaKey, ctrlKey: k.ctrlKey, altKey: k.altKey, shiftKey: k.shiftKey, bubbles: true, cancelable: true });
+  if (!target.dispatchEvent(copy)) return;
+  // What the browser itself would have done with the key.
+  const sel = window.getSelection();
+  if (k.key === 'Backspace') document.execCommand('delete');
+  else if (k.key === 'Delete') document.execCommand('forwardDelete');
+  else if (sel && k.key.startsWith('Arrow')) {
+    const forward = k.key === 'ArrowRight' || k.key === 'ArrowDown';
+    const unit = k.metaKey ? (k.key === 'ArrowUp' || k.key === 'ArrowDown' ? 'documentboundary' : 'lineboundary') : k.key === 'ArrowUp' || k.key === 'ArrowDown' ? 'line' : k.altKey ? 'word' : 'character';
+    sel.modify(k.shiftKey ? 'extend' : 'move', forward ? 'forward' : 'backward', unit);
+  }
+}
+
 export function requestFieldFocus(key: string, mode: FocusMode = 'end') {
   const mine = { key, mode };
   pendingFocus = mine;
@@ -89,23 +152,41 @@ export function requestFieldFocus(key: string, mode: FocusMode = 'end') {
       if (--watch > 0) requestAnimationFrame(tick);
       return;
     }
+    // Claimed by the field itself as it was drawn: watch it the same way. Its
+    // editor can be taken down and put back just after (React does that in
+    // development), and the caret fell to the page (T343).
+    if (claimed === mine) {
+      claimed = null;
+      watch = 12;
+      requestAnimationFrame(tick);
+      return;
+    }
     if (pendingFocus !== mine) return;
     if (focusFieldNow(key, mode)) {
       pendingFocus = null;
+      playHeldKeys();
       watch = 12;
       requestAnimationFrame(tick);
       return;
     }
     if (--left > 0) requestAnimationFrame(tick);
-    else pendingFocus = null;
+    else {
+      pendingFocus = null;
+      playHeldKeys();
+    }
   };
   requestAnimationFrame(tick);
 }
 
+let claimed: { key: string; mode: FocusMode } | null = null;
+
 function claimFocus(key: string): FocusMode | null {
   if (pendingFocus?.key !== key) return null;
   const { mode } = pendingFocus;
+  claimed = pendingFocus;
   pendingFocus = null;
+  // The caller places the caret now, before the held keys play (a microtask).
+  playHeldKeys();
   return mode;
 }
 
@@ -149,9 +230,14 @@ export function removeKeepingCaret(gone: Element | null, remove: () => void) {
   if (pendingFocus) return;
   if (next) requestFieldFocus(next.key, next.mode);
   else if (blockId) {
-    requestAnimationFrame(() =>
-      document.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"] .lp-item-add`)?.focus({ preventScroll: true }),
-    );
+    // Keys pressed before the button has the focus are held, then dropped
+    // there: a Backspace on the page would delete the block (T343).
+    placing++;
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"] .lp-item-add`)?.focus({ preventScroll: true });
+      placing--;
+      playHeldKeys();
+    });
   }
 }
 
@@ -179,6 +265,15 @@ export function useCaretSafetyNet() {
       }
     };
     const onKey = (e: globalThis.KeyboardEvent) => {
+      if (!e.isTrusted) return;
+      if (holdingKeys() && !e.isComposing && !['Shift', 'Meta', 'Control', 'Alt', 'CapsLock', 'Process', 'Dead', 'Escape', 'Tab'].includes(e.key)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        heldKeys.push(e);
+        // Nothing on its way any more (a field that never came): play them where the caret is.
+        if (pendingFocus === null && placing === 0) playHeldKeys();
+        return;
+      }
       if (document.activeElement && document.activeElement !== document.body) return;
       if (e.metaKey || e.ctrlKey || e.altKey || e.key === 'Escape' || e.key === 'Tab') return;
       // A key between a removal and the frame that places the caret: place it now.
@@ -205,6 +300,81 @@ export function useCaretSafetyNet() {
       window.removeEventListener('keydown', onKey, true);
     };
   }, []);
+}
+
+/**
+ * On a wide screen an address box opens under its button and covered the
+ * block below, the section's + and a table's first row: a click there landed
+ * in the box (T342). Now the block makes room under itself for the box while
+ * it is open. When the box closes, the room stays until the click that closed
+ * it has put its caret, so nothing moves under that click (T343 N4).
+ */
+export function usePopRoom(root: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    let down = false;
+    let frame = 0;
+    const rooms = new Map<HTMLElement, number>();
+    const settle = () => {
+      frame = 0;
+      const wide = !window.matchMedia('(max-width: 700px)').matches;
+      const want = new Map<HTMLElement, number>();
+      if (wide) {
+        for (const pop of el.querySelectorAll<HTMLElement>('.lp-pop')) {
+          const block = pop.closest<HTMLElement>('.lp-block');
+          if (!block) continue;
+          // The page is drawn zoomed and the box is not: measured on screen,
+          // given in the page's own pixels, without the room already there.
+          const rect = block.getBoundingClientRect();
+          const zoom = block.offsetHeight ? rect.height / block.offsetHeight : 1;
+          const bottom = rect.bottom - (rooms.get(block) ?? 0) * zoom;
+          const need = Math.ceil((pop.getBoundingClientRect().bottom - bottom + 12) / (zoom || 1));
+          if (need > 0) want.set(block, Math.max(want.get(block) ?? 0, need));
+        }
+      }
+      for (const [block, px] of rooms) {
+        if (want.has(block)) continue;
+        // Keep it until the press is over and its caret is in place.
+        if (down || holdingKeys()) {
+          want.set(block, px);
+          continue;
+        }
+        block.style.removeProperty('padding-bottom');
+        block.removeAttribute('data-pop-room');
+      }
+      rooms.clear();
+      for (const [block, px] of want) {
+        rooms.set(block, px);
+        block.style.setProperty('padding-bottom', `${px}px`);
+        block.setAttribute('data-pop-room', '');
+      }
+      if (down || holdingKeys()) schedule();
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(settle);
+    };
+    const observer = new MutationObserver(schedule);
+    observer.observe(el, { childList: true, subtree: true });
+    const onDown = () => {
+      down = true;
+    };
+    const onUp = () => {
+      down = false;
+      // Two frames: the click's own caret placement runs in the first.
+      requestAnimationFrame(schedule);
+    };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('resize', schedule);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('resize', schedule);
+    };
+  }, [root]);
 }
 
 /** Selects every word of a plain editable element, so typing replaces starter words. */
@@ -246,13 +416,37 @@ export function placeCaretAt(x: number, y: number, root: Element | null, tries =
       ? { text: before.startContainer.textContent ?? '', offset: before.startOffset }
       : null;
 
+  placing++;
+  let ended = false;
+  const end = () => {
+    if (ended) return;
+    ended = true;
+    placing--;
+    playHeldKeys();
+  };
   const attempt = (left: number) => {
+    try {
+      place(left);
+    } finally {
+      if (!retrying) end();
+    }
+  };
+  let retrying = false;
+  const place = (left: number) => {
+    retrying = false;
+    // A field of the clicked block took the caret by itself (a text block's
+    // editor focuses as it is drawn): placed, so the held keys go there now.
+    const active = document.activeElement as HTMLElement | null;
+    if (left < tries && active?.isContentEditable && root?.contains(active)) return;
     const same = clicked ? sameWords(root, clicked.text, x, y) : null;
     const field = same?.field ?? fieldNear(x, y, root);
     // A rich text field is drawn a frame or two after its block: wait for its editor.
     const pm = field?.querySelector('.ProseMirror') ?? null;
     if (!field || (field.matches('.lp-rich-field') && !editorForElement(pm))) {
-      if (left > 0) requestAnimationFrame(() => attempt(left - 1));
+      if (left > 0) {
+        retrying = true;
+        requestAnimationFrame(() => attempt(left - 1));
+      }
       return;
     }
     // An image answers with its bar, as if it had been clicked again.
@@ -273,7 +467,12 @@ export function placeCaretAt(x: number, y: number, root: Element | null, tries =
         }
       }
       pos ??= editor.view.posAtCoords({ left: x, top: y })?.pos;
-      editor.chain().focus(pos ?? 'end', { scrollIntoView: false }).run();
+      // At once, not a frame later as TipTap's focus does: keys held since
+      // the click are played into it straight after (T343).
+      const { state, view } = editor;
+      const sel = pos === undefined ? Selection.atEnd(state.doc) : Selection.near(state.doc.resolve(Math.min(pos, state.doc.content.size)));
+      view.dispatch(state.tr.setSelection(sel));
+      view.focus();
       return;
     }
     const target = field.isContentEditable ? field : field.querySelector<HTMLElement>('[contenteditable]');
@@ -370,6 +569,44 @@ function caretInfo(el: HTMLElement): CaretInfo {
   return { empty: text === '', atStart: r.collapsed && offset === 0, atEnd: r.collapsed && offset === text.length };
 }
 
+/** Puts the caret `offset` characters into a plain editable element. */
+function caretAt(el: HTMLElement, offset: number) {
+  const sel = window.getSelection();
+  const node = el.firstChild;
+  if (!sel || !node || node.nodeType !== Node.TEXT_NODE) return caretToEnd(el);
+  sel.collapse(node, Math.min(offset, node.textContent?.length ?? 0));
+}
+
+const limitTimers = new WeakMap<HTMLElement, number>();
+
+/**
+ * The field's own note about its limit (T343): always while its words are over
+ * it (put there by Find and replace, a saved section or an older draft), and
+ * for a moment when typing stops at it. Drawn by CSS from the attribute, so
+ * the words in the field are never touched.
+ */
+function showLimit(el: HTMLElement, max: number | undefined, stopped = false) {
+  const len = (el.textContent ?? '').length;
+  const clear = () => {
+    window.clearTimeout(limitTimers.get(el));
+    limitTimers.delete(el);
+    el.removeAttribute('data-limit-note');
+  };
+  if (max && len > max) {
+    clear();
+    el.setAttribute('data-limit-note', `${len} characters; the limit is ${max}. Shorten it to publish.`);
+    el.setAttribute('data-limit-over', '');
+    return;
+  }
+  const wasOver = el.hasAttribute('data-limit-over');
+  el.removeAttribute('data-limit-over');
+  if (!max || wasOver) clear();
+  if (!max || !stopped) return;
+  clear();
+  el.setAttribute('data-limit-note', `The limit is ${max} characters.`);
+  limitTimers.set(el, window.setTimeout(clear, 2500));
+}
+
 /** How many characters of `el` the selection covers. */
 function selectedLength(el: HTMLElement): number {
   const sel = window.getSelection();
@@ -393,7 +630,8 @@ export interface PlainTextProps {
   /**
    * The server's limit for the field (`LEARN_LIMITS`). Typing stops there and
    * a paste is cut to fit, so one long field cannot hold up the page's
-   * autosave (T332).
+   * autosave (T332). Only what is being added is ever cut: words already in
+   * the field stay, even past the limit, and the field says so (T343).
    */
   maxLength?: number;
 }
@@ -409,6 +647,9 @@ export function PlainText({ value, onChange, fieldKey, label, placeholder, tag =
   const max = useRef(maxLength);
   max.current = maxLength;
 
+  // What the field held before the edit now arriving, to tell what was added.
+  const last = useRef(value);
+
   // The text is the element's own, not React's: React re-rendering children
   // under a caret moves the caret. It is written only when the stored value
   // changed from somewhere else (undo, the panel, find and replace).
@@ -416,7 +657,9 @@ export function PlainText({ value, onChange, fieldKey, label, placeholder, tag =
     const el = ref.current;
     if (!el) return;
     if ((el.textContent ?? '') !== value) el.textContent = value;
-  }, [value]);
+    last.current = value;
+    showLimit(el, maxLength);
+  }, [value, maxLength]);
 
   useEffect(() => {
     const el = ref.current;
@@ -429,15 +672,19 @@ export function PlainText({ value, onChange, fieldKey, label, placeholder, tag =
     }
   });
 
-  // Typing past the limit does nothing, as in a box with a maxlength.
+  // Typing past the limit does nothing, as in a box with a maxlength, and the
+  // field says where the limit is.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const onBefore = (e: InputEvent) => {
       const limit = max.current;
-      if (!limit || !e.inputType.startsWith('insert') || e.inputType === 'insertFromPaste') return;
+      if (!limit || e.isComposing || !e.inputType.startsWith('insert') || e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') return;
       const room = limit - (el.textContent ?? '').length + selectedLength(el);
-      if ((e.data ?? '').length > room) e.preventDefault();
+      if ((e.data ?? '').length > room) {
+        e.preventDefault();
+        showLimit(el, limit, true);
+      }
     };
     el.addEventListener('beforeinput', onBefore);
     return () => el.removeEventListener('beforeinput', onBefore);
@@ -470,12 +717,17 @@ export function PlainText({ value, onChange, fieldKey, label, placeholder, tag =
       onInput={(e) => {
         const el = e.currentTarget;
         let text = (el.textContent ?? '').replace(/\n/g, ' ');
-        // Whatever got past the guard above (a composed character, a drop).
-        if (maxLength && text.length > maxLength) {
-          text = text.slice(0, maxLength);
+        // A drop or a spelling fix can still add past the limit: only what it
+        // added is cut. Composed text (an IME) is never touched, while it is
+        // composed or after; it can leave the field over, which it then says.
+        const cut = maxLength && !(e.nativeEvent as InputEvent).isComposing ? capInserted(last.current, text, maxLength) : null;
+        if (cut) {
+          text = cut.text;
           el.textContent = text;
-          caretToEnd(el);
+          caretAt(el, cut.caret);
         }
+        last.current = text;
+        showLimit(el, maxLength, Boolean(cut));
         onChange(text);
       }}
       onKeyDown={onKeyDown}
@@ -483,7 +735,11 @@ export function PlainText({ value, onChange, fieldKey, label, placeholder, tag =
       onPaste={(e) => {
         e.preventDefault();
         let text = e.clipboardData.getData('text/plain').replace(/\s*\n\s*/g, ' ');
-        if (maxLength) text = text.slice(0, Math.max(0, maxLength - (e.currentTarget.textContent ?? '').length + selectedLength(e.currentTarget)));
+        if (maxLength) {
+          const room = Math.max(0, maxLength - (e.currentTarget.textContent ?? '').length + selectedLength(e.currentTarget));
+          if (text.length > room) showLimit(e.currentTarget, maxLength, true);
+          text = text.slice(0, room);
+        }
         if (text) document.execCommand('insertText', false, text);
       }}
     />
@@ -503,10 +759,12 @@ export interface InlineRichProps {
   onHostKey?: (key: HostKey, at: CaretInfo) => boolean;
   onEditor?: Parameters<typeof RichEditor>[0]['onEditor'];
   tableOnly?: boolean;
+  /** The server's limit in characters (T343); a table's or rich text's unless given. A bio passes its own. */
+  maxLength?: number;
 }
 
 /** T317's editor in its inline form, with the floating toolbar over selected words. */
-export function InlineRich({ value, onChange, fieldKey, label, placeholder, singleLine = false, className, onHostKey, onEditor, tableOnly }: InlineRichProps) {
+export function InlineRich({ value, onChange, fieldKey, label, placeholder, singleLine = false, className, onHostKey, onEditor, tableOnly, maxLength }: InlineRichProps) {
   const anchors = useRichAnchors();
   const change = useRichChange(value, singleLine, onChange);
   return (
@@ -522,6 +780,7 @@ export function InlineRich({ value, onChange, fieldKey, label, placeholder, sing
         onHostKey={onHostKey}
         floatingRoot={floatingLayer}
         tableOnly={tableOnly}
+        maxLength={maxLength ?? (tableOnly ? LEARN_LIMITS.tableChars : LEARN_LIMITS.richText)}
         onEditor={(editor) => {
           const mode = editor ? claimFocus(fieldKey) : null;
           if (editor && mode) focusEditorNow(editor, mode);

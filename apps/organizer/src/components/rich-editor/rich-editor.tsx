@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, useEditorState, type JSONContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
@@ -18,6 +18,7 @@ import { keysFor } from './controls';
 import { FindBar, LinkDialog, ShortcutsDialog, type RichAnchor } from './dialogs';
 import { richExtensions, transformPastedHTML, type CaretInfo, type HostKey, type RichKeyHandlers } from './extensions';
 import { Icon } from './icons';
+import { PasteLimit } from './paste-limit';
 import { Toolbar } from './toolbar';
 import './rich-editor.css';
 
@@ -65,6 +66,8 @@ export interface RichEditorProps {
   floatingRoot?: () => HTMLElement;
   /** The document is one table and nothing else, as a Table block stores it (T332). Read once, when the editor is made. */
   tableOnly?: boolean;
+  /** The field's limit in characters: a paste is cut to fit and typing stops there; text already over is kept (T343). */
+  maxLength?: number;
 }
 
 /** The height of a host's fixed bars at the top of the window, which the floating toolbar keeps clear of. */
@@ -87,6 +90,11 @@ function docOf(value: RichContent, single: boolean): RichDoc {
 function textOf(editor: Editor) {
   const { doc } = editor.state;
   return doc.textBetween(0, doc.content.size, '\n', '\n');
+}
+
+/** Keeps the editor's caret on a press that lands on a bar's background, not on one of its controls. */
+function keepCaretOnBackground(e: MouseEvent<HTMLDivElement>) {
+  if (!(e.target as HTMLElement).closest('input, select, textarea, [contenteditable="true"]')) e.preventDefault();
 }
 
 export function RichEditor(props: RichEditorProps) {
@@ -141,7 +149,10 @@ export function RichEditor(props: RichEditorProps) {
   const editor = useEditor({
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
-    extensions: richExtensions({ placeholder, handlers: () => handlers.current(), tableOnly: props.tableOnly }),
+    extensions: [
+      ...richExtensions({ placeholder, handlers: () => handlers.current(), tableOnly: props.tableOnly }),
+      PasteLimit.configure({ max: () => latest.current.maxLength }),
+    ],
     content: richToTiptap(docOf(value, singleLine)) as JSONContent,
     editorProps: {
       attributes: {
@@ -280,8 +291,13 @@ export function RichEditor(props: RichEditorProps) {
                 (view.hasFocus() && (!state.selection.empty || e.isActive('table') || e.isActive('link'))))
             }
           >
-            <LinkInfo editor={editor} onEdit={() => setLinkOpen(true)} />
-            <Toolbar {...toolbarProps} compact />
+            {/* A press on the bubble's own background keeps the caret where it
+                was: it took the focus from a table cell, and the next keys went
+                nowhere (T343). Its boxes and menus still take the focus. */}
+            <div className="rt-bubble-body" onMouseDown={keepCaretOnBackground}>
+              <LinkInfo editor={editor} onEdit={() => setLinkOpen(true)} />
+              <Toolbar {...toolbarProps} compact />
+            </div>
           </BubbleMenu>
         )}
         {full && editor && (

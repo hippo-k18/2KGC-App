@@ -183,3 +183,25 @@ export function normalizeLinkInput(input: string): LinkTargetResult {
 export function newButton(label = 'New button'): LinkButton {
   return { label, href: '', style: 'primary' };
 }
+
+/**
+ * Cuts what was just added to a plain field so it ends at `max`, and nothing
+ * else (T343). `prev` is the field before the edit, `next` after it. A field
+ * that shrank or kept its length (Backspace, Delete, a move) is left alone even
+ * when it is over the limit, so its words are never cut by a key that removes
+ * one character. Returns null when nothing is cut, else the text and where the
+ * caret goes (just after what was kept of the addition).
+ */
+export function capInserted(prev: string, next: string, max: number): { text: string; caret: number } | null {
+  if (next.length <= max || next.length <= prev.length) return null;
+  let start = 0;
+  while (start < prev.length && start < next.length && prev[start] === next[start]) start++;
+  let end = 0;
+  while (end < prev.length - start && end < next.length - start && prev[prev.length - 1 - end] === next[next.length - 1 - end]) end++;
+  const inserted = next.slice(start, next.length - end);
+  // What is left of the field around the change.
+  const room = Math.max(0, max - start - end);
+  if (inserted.length <= room) return null;
+  const add = inserted.slice(0, room);
+  return { text: next.slice(0, start) + add + next.slice(next.length - end), caret: start + add.length };
+}

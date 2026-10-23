@@ -7,7 +7,7 @@ import Blockquote from '@tiptap/extension-blockquote';
 import { ListItem } from '@tiptap/extension-list';
 import { TableCell, TableHeader, TableKit } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { ColorValue, TextSize } from '@kgc/shared';
 import { isColorValue } from '../../lib/rich-editor/convert';
@@ -185,19 +185,61 @@ const RichKeys = Extension.create<{ handlers: () => RichKeyHandlers }>({
       const atEnd = selection.empty && selection.to >= doc.content.size - 1;
       return fn(key, { empty, atStart, atEnd });
     };
+    // ArrowDown in a table's last row, or ArrowUp in its first, with nothing
+    // past the table: the caret goes to the end (or start) of its own cell.
+    // The browser otherwise sent it to the first header cell, where the next
+    // words went in front of the heading (T343).
+    const tableEdge = (dir: 'up' | 'down') => {
+      const { state, view } = this.editor;
+      const { selection } = state;
+      if (!selection.empty) return false;
+      const $from = selection.$from;
+      let cellDepth = -1;
+      for (let d = $from.depth; d > 0; d--) {
+        const name = $from.node(d).type.name;
+        if (name === 'tableCell' || name === 'tableHeader') {
+          cellDepth = d;
+          break;
+        }
+      }
+      if (cellDepth < 2) return false;
+      const tableDepth = cellDepth - 2;
+      const table = $from.node(tableDepth);
+      const rowIndex = $from.index(tableDepth);
+      if (dir === 'down' ? rowIndex !== table.childCount - 1 : rowIndex !== 0) return false;
+      const $table = state.doc.resolve($from.before(tableDepth));
+      if (dir === 'down' ? $table.nodeAfter !== table || state.doc.resolve($table.pos + table.nodeSize).nodeAfter : $table.nodeBefore) return false;
+      const cell = $from.node(cellDepth);
+      const index = $from.index(cellDepth);
+      if (dir === 'down' ? index !== cell.childCount - 1 : index !== 0) return false;
+      if (!view.endOfTextblock(dir)) return false;
+      const pos = dir === 'down' ? $from.end() : $from.start();
+      view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, pos)).scrollIntoView());
+      return true;
+    };
     return {
       Tab: () => host('Tab'),
       'Shift-Tab': () => host('ShiftTab'),
       Backspace: () => host('Backspace'),
-      ArrowUp: () => host('ArrowUp'),
-      ArrowDown: () => host('ArrowDown'),
+      ArrowUp: () => host('ArrowUp') || tableEdge('up'),
+      ArrowDown: () => host('ArrowDown') || tableEdge('down'),
       // In a table, Cmd+A selects the words of the cell the caret is in, and
       // only those, as a spreadsheet does, even when the cell is empty (T332):
       // typing over a whole-document selection would replace the table with
       // one line. Anywhere else the field's own words are all there is.
       'Mod-a': () => {
-        const { selection } = this.editor.state;
-        const $from = selection.$from;
+        const { state, view } = this.editor;
+        // The browser's selection, which a click a moment ago has already
+        // moved: ProseMirror's own may still be in the cell before (T343).
+        const dom = window.getSelection();
+        let $from = state.selection.$from;
+        if (dom?.anchorNode && view.dom.contains(dom.anchorNode)) {
+          try {
+            $from = state.doc.resolve(view.posAtDOM(dom.anchorNode, dom.anchorOffset));
+          } catch {
+            // Keep ProseMirror's.
+          }
+        }
         for (let d = $from.depth; d > 0; d--) {
           const name = $from.node(d).type.name;
           if (name !== 'tableCell' && name !== 'tableHeader') continue;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addChildAfter,
   addItemAfter,
+  capInserted,
   canIndentItem,
   indentItem,
   insertAt,
@@ -153,5 +154,28 @@ describe('a table block\'s document', () => {
   it('gives a table back when there is none', () => {
     expect(tableOnlyDoc({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Price' }] }] }, fallback)).toEqual(fallback());
     expect(tableOnlyDoc('plain words', fallback)).toEqual(fallback());
+  });
+});
+
+describe('cutting an addition to a plain field (T343)', () => {
+  it('cuts only the added characters, wherever they went', () => {
+    expect(capInserted('abcd', 'abXYZcd', 6)).toEqual({ text: 'abXYcd', caret: 4 });
+    expect(capInserted('abcd', 'XYZabcd', 5)).toEqual({ text: 'Xabcd', caret: 1 });
+    expect(capInserted('Begin yy IMETAIL', 'Begin かなyy IMETAIL', 17)).toEqual({ text: 'Begin かyy IMETAIL', caret: 7 });
+  });
+
+  it('never cuts a field that shrank or kept its length, even over the limit', () => {
+    const long = 'x'.repeat(52);
+    expect(capInserted(long, long.slice(0, 51), 40)).toBeNull();
+    expect(capInserted('abcdef', 'abfcde', 3)).toBeNull();
+  });
+
+  it('drops an addition to a field already over the limit, keeping its words', () => {
+    expect(capInserted('x'.repeat(45), 'x'.repeat(20) + 'Q' + 'x'.repeat(25), 40)).toEqual({ text: 'x'.repeat(45), caret: 20 });
+  });
+
+  it('keeps what fits of a replacement', () => {
+    expect(capInserted('hello world', 'hello there friend', 14)).toEqual({ text: 'hello there fd', caret: 13 });
+    expect(capInserted('ab', 'abc', 5)).toBeNull();
   });
 });

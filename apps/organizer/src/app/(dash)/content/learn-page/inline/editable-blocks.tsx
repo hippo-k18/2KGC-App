@@ -348,7 +348,7 @@ function PeopleEdit({ block, siteOrigin }: { block: BlockOf<'people'>; siteOrigi
             <LinkedInEdit person={p} onChange={(np) => set(i, np)} />
           </div>
           <div className="lp-person-bio">
-            <InlineRich value={p.bio ?? ''} onChange={(bio) => set(i, { ...p, bio })} fieldKey={`${blockId}:p:${p.id}:bio`} label="About this person" placeholder="A short bio (optional)" />
+            <InlineRich value={p.bio ?? ''} onChange={(bio) => set(i, { ...p, bio })} fieldKey={`${blockId}:p:${p.id}:bio`} label="About this person" placeholder="A short bio (optional)" maxLength={LEARN_LIMITS.bio} />
           </div>
         </div>
       ))}

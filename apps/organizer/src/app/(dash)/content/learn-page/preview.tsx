@@ -36,6 +36,7 @@ import {
   type Selection,
 } from '@/lib/learn-editor-core';
 import { colorHex, expandForPreview } from '@/lib/learn-tools-core';
+import { LEARN_LIMITS } from '@/lib/learn-page-core';
 import { resolveSrc, type Device, type PaneProps } from './editor-types';
 // Before the preview's own CSS: the twins' rules load first, so on a tie the
 // editor's shell rules win.
@@ -45,7 +46,7 @@ import { RichBlocks, RichLine } from './preview-rich';
 import { PreviewBlockCtxContext, PreviewContentContext, PreviewLibraryContext, V2Body } from './preview-v2';
 import { useRichAnchors, useRichChange } from './rich-field';
 import { EditableBody, hasEditableBody } from './inline/editable-blocks';
-import { floatingLayer, InlineBlockContext, placeCaretAt, useCaretSafetyNet, type InlineBlockCtx } from './inline/fields';
+import { floatingLayer, InlineBlockContext, placeCaretAt, useCaretSafetyNet, usePopRoom, type InlineBlockCtx } from './inline/fields';
 import { InsertGap } from './inline/insert-gap';
 import './preview.css';
 import './preview-v2.css';
@@ -322,6 +323,7 @@ function InPlaceText({
       anchors={anchors}
       ariaLabel={ariaLabel}
       placeholder={singleLine ? 'Heading' : 'Text'}
+      maxLength={singleLine ? LEARN_LIMITS.heading : LEARN_LIMITS.richText}
       onExit={onExit}
       autoFocus={autoFocus}
       floatingRoot={floatingLayer}
@@ -873,6 +875,7 @@ export function LearnPreview(props: LearnPreviewProps) {
   const { content: draft, selection, warnings, siteOrigin, device, multi, library } = props;
   const rootRef = useRef<HTMLDivElement>(null);
   useCaretSafetyNet();
+  usePopRoom(rootRef);
 
   const { content, hosts: freshHosts } = useMemo(() => expandForPreview(draft, library), [draft, library]);
   // The same map while the same blocks are expanded, so the memoised
