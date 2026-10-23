@@ -403,6 +403,23 @@ for (const [i, seed] of SEEDS.entries()) {
     // The embedded YouTube player's own console notes are not the editor's.
     expect(errorsOf(page).filter((e) => !/Permissions policy violation/.test(e))).toEqual([]);
 
+    // A person added with a role but no name is refused at publish, since
+    // www leaves them out (T343): name them first, as the course lead would.
+    const peopleBlocks = d.sections.flatMap((s) => s.blocks).filter((b) => b.kind === 'people' && (b.people as { name?: string }[] | undefined)?.some((p) => !p.name?.trim()));
+    for (const b of peopleBlocks) {
+      // Selecting the block draws its fields; the corner is clear of its words.
+      await page.locator(`${PREVIEW} [data-block-id="${b.id}"]`).first().click({ position: { x: 3, y: 3 } });
+      const nameless = page.locator(`${PREVIEW} [data-block-id="${b.id}"] [data-lp-field$=":name"]:empty`);
+      await expect(nameless.first()).toBeVisible();
+      for (let n = await nameless.count(); n > 0; n = await nameless.count()) {
+        await nameless.first().scrollIntoViewIfNeeded();
+        await nameless.first().click();
+        await page.keyboard.type('Named Person');
+      }
+      await page.keyboard.press('Escape');
+    }
+    if (peopleBlocks.length) await checkSaved('naming people');
+
     // Published, every word of the draft is on www.
     await publish(page);
     await expect

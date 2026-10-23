@@ -43,7 +43,9 @@ async function editorAs(browser: import('@playwright/test').Browser, email: stri
 }
 
 function noErrors(page: Page) {
-  expect(errorsOf(page), errorsOf(page).join('\n')).toEqual([]);
+  // The embedded YouTube player's own console notes are not the editor's.
+  const errors = errorsOf(page).filter((e) => !/Permissions policy violation/.test(e));
+  expect(errors, errors.join('\n')).toEqual([]);
 }
 
 test('rich text: every toolbar feature is saved, published and drawn on /learn', async ({ browser }) => {
