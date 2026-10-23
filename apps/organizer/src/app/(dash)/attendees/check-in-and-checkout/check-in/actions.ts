@@ -16,6 +16,7 @@ import { appendAudit } from '@/lib/audit';
 import { requiredConsentGaps } from '@/lib/consents';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
+import { kickHubspot } from '@/lib/hubspot-trigger';
 import { ROUTES } from '@/lib/nav';
 import {
   DEFAULT_LIST_ID,
@@ -293,6 +294,8 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
           before: {},
           after: { registrationId: match.row.id, listId: input.listId, stationId: input.deviceId },
         });
+        // Not awaited, so the door verdict never waits on it; kickHubspot never rejects.
+        void kickHubspot([match.row.id], 'checkin');
       }
     }
 
@@ -533,6 +536,7 @@ export async function checkInByIdAction(
         before: {},
         after: { stationId: 'dashboard' },
       });
+      void kickHubspot([registrationId], 'checkin');
     }
 
     revalidatePath(ROUTES.checkIn);
@@ -595,6 +599,7 @@ export async function undoCheckInAction(
       before: { checkedIn: true },
       after: {},
     });
+    void kickHubspot([registrationId], 'checkin');
 
     revalidatePath(ROUTES.checkIn);
     revalidatePath(ROUTES.warRoom);

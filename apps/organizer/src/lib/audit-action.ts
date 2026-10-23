@@ -93,7 +93,8 @@ function nounWords(part: string): string {
 
 /**
  * Actions that are not "a person did X to Y" and read better whole: the
- * website's own warnings and errors, and a person acting on their own sign-in.
+ * website's own warnings and errors, a person acting on their own sign-in,
+ * and the HubSpot actions, whose noun is a product name.
  */
 const WEBSITE_ACTION: Record<string, string> = {
   // Rows written before T142; new ones go to `stripeIgnored`, not the audit log.
@@ -104,6 +105,13 @@ const WEBSITE_ACTION: Record<string, string> = {
   'refund.notFromWebsite': 'Stripe refund not from ticketing (ignored)',
   // The actor column already names who; "+d" made it "SignOutEverywhered team" (T314).
   'team.signOutEverywhere': 'Signed out on all devices',
+  // The HubSpot sync (T333): "Hubspot: sync all" read like a field name.
+  'hubspot.connect': 'Connected HubSpot',
+  'hubspot.disconnect': 'Disconnected HubSpot',
+  'hubspot.test': 'Tested the HubSpot connection',
+  'hubspot.settings': 'Changed the HubSpot sync settings',
+  'hubspot.createProperties': 'Created the KGC properties in HubSpot',
+  'hubspot.syncAll': 'Sent all attendees to HubSpot',
 };
 
 export function describeAction(action: string): string {

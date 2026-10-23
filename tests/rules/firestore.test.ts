@@ -2151,6 +2151,52 @@ describe('the Learn page layout is closed to every client', () => {
 });
 
 
+/**
+ * The HubSpot sync (T333) is server-only. `integrations/hubspotSecret` holds
+ * the sealed access token, `integrations/hubspot` the settings and its `runs`
+ * the sync log with attendee emails, and `hubspotQueue` one document per
+ * queued registrant. All are written by the Admin SDK, so there is no `match`
+ * block, and this pins that default deny.
+ */
+describe('the HubSpot integration is closed to every client', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'integrations/hubspot'), { enabled: true, mapping: {}, mode: 'fill-empty' });
+      await setDoc(doc(db, 'integrations/hubspotSecret'), { sealed: 'v1.a.b.c', savedAt: 1 });
+      await setDoc(doc(db, 'integrations/hubspot/runs/r1'), { startedAt: 1, errors: [{ email: 'a@b.c', message: 'x' }] });
+      await setDoc(doc(db, 'hubspotQueue/reg_1'), { registrationId: 'reg_1', email: 'a@b.c', nextAttemptAt: 1 });
+    });
+  });
+
+  const clients = [
+    ['a signed-out visitor', () => unauth()],
+    ['a ticket holder', () => asA()],
+    ['an organizer', () => asOrg()],
+  ] as const;
+
+  for (const [who, client] of clients) {
+    it(`refuses ${who} a get or list of the token, settings, log and queue`, async () => {
+      await assertFails(getDoc(doc(client(), 'integrations/hubspotSecret')));
+      await assertFails(getDoc(doc(client(), 'integrations/hubspot')));
+      await assertFails(getDocs(collection(client(), 'integrations')));
+      await assertFails(getDocs(collection(client(), 'integrations/hubspot/runs')));
+      await assertFails(getDocs(collectionGroup(client(), 'runs')));
+      await assertFails(getDoc(doc(client(), 'hubspotQueue/reg_1')));
+      await assertFails(getDocs(collection(client(), 'hubspotQueue')));
+    });
+
+    it(`refuses ${who} a write to any of them`, async () => {
+      await assertFails(setDoc(doc(client(), 'integrations/hubspotSecret'), { sealed: 'x' }));
+      await assertFails(updateDoc(doc(client(), 'integrations/hubspot'), { enabled: false }));
+      await assertFails(deleteDoc(doc(client(), 'integrations/hubspot')));
+      await assertFails(setDoc(doc(client(), 'hubspotQueue/reg_2'), { email: 'x@y.z' }));
+      await assertFails(deleteDoc(doc(client(), 'hubspotQueue/reg_1')));
+    });
+  }
+});
+
+
 describe('the exhibitor hall', () => {
   // The projection exists because rules filter documents and not fields. Every
   // test below is one half of that argument: the slim listing is readable by a

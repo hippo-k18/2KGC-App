@@ -49,4 +49,13 @@ describe('describeAction', () => {
     expect(describeAction('learnSection.rename')).toBe('Renamed learn section');
     expect(describeAction('learnSection.remove')).toBe('Removed learn section');
   });
+
+  it('reads the HubSpot sync actions as sentences (T333)', () => {
+    expect(describeAction('hubspot.connect')).toBe('Connected HubSpot');
+    expect(describeAction('hubspot.disconnect')).toBe('Disconnected HubSpot');
+    expect(describeAction('hubspot.test')).toBe('Tested the HubSpot connection');
+    expect(describeAction('hubspot.settings')).toBe('Changed the HubSpot sync settings');
+    expect(describeAction('hubspot.createProperties')).toBe('Created the KGC properties in HubSpot');
+    expect(describeAction('hubspot.syncAll')).toBe('Sent all attendees to HubSpot');
+  });
 });

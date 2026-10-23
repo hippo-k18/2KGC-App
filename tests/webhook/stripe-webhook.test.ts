@@ -34,6 +34,9 @@ const mocks = vi.hoisted(() => ({
   tierFulfilment: vi.fn(),
   sessionsRetrieve: vi.fn(),
   fulfilPurchase: vi.fn(),
+  sessionsList: vi.fn(),
+  cartLines: vi.fn(),
+  queueAndKickHubspot: vi.fn(),
 }));
 
 vi.mock('@/lib/stripe', () => ({
@@ -42,7 +45,7 @@ vi.mock('@/lib/stripe', () => ({
   stripe: () => ({
     // The signature check is Stripe's; here the body is simply the event.
     webhooks: { constructEventAsync: async (raw: string) => JSON.parse(raw) },
-    checkout: { sessions: { retrieve: mocks.sessionsRetrieve, list: vi.fn() } },
+    checkout: { sessions: { retrieve: mocks.sessionsRetrieve, list: mocks.sessionsList } },
   }),
 }));
 vi.mock('@/lib/fulfil-order', () => ({
@@ -92,7 +95,9 @@ vi.mock('@/lib/firestore', () => ({
   db: () => ({ collection: () => ({ doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }) }) }),
 }));
 vi.mock('@/lib/order-token', () => ({ mintOrderToken: () => 'token' }));
-vi.mock('@/app/tickets/cart-order', () => ({ cartLines: vi.fn() }));
+vi.mock('@/app/tickets/cart-order', () => ({ cartLines: mocks.cartLines }));
+// The HubSpot sync (T333). Never reached for real: no settings read, no network.
+vi.mock('@kgc/scripts/src/lib/hubspot-sync', () => ({ queueAndKickHubspot: mocks.queueAndKickHubspot }));
 
 import { POST } from '../../apps/web/src/app/api/stripe/webhook/route';
 import { GET as checkoutReturn } from '../../apps/web/src/app/checkout/return/route';
@@ -160,6 +165,8 @@ beforeEach(() => {
   mocks.markInvoiceOrderPaid.mockResolvedValue('ord_in_1');
   mocks.tierFulfilment.mockResolvedValue({ onSale: true, remaining: undefined, entitlements: [] });
   mocks.fulfilPurchase.mockResolvedValue({ registrationId: 'reg_1' });
+  mocks.cartLines.mockResolvedValue([]);
+  mocks.queueAndKickHubspot.mockResolvedValue(undefined);
 });
 
 describe('which Checkout sessions become tickets', () => {
@@ -432,3 +439,130 @@ describe('a confirmation that has not gone out', () => {
   });
 });
 
+
+/**
+ * The HubSpot contact sync (T333). A paid checkout queues from inside
+ * `fulfilOrder`, which is mocked here; `fulfil-order-hubspot.test.ts` runs it
+ * for real. These cover the triggers in the route itself.
+ */
+describe('the HubSpot sync triggers (T333)', () => {
+  const refundOutcome = {
+    registrationId: 'reg_buyer',
+    orderId: 'ord_cs_live_test',
+    email: 'buyer@example.com',
+    name: 'Ada Buyer',
+    ticketType: 'Main Conference',
+    refundedCents: 79900,
+    currency: 'usd',
+    fullyRefunded: true,
+    newlyRefunded: true,
+    lines: [{ ticketTypeId: 'main-conference', quantity: 1 }],
+  };
+
+  function charge(over: Record<string, unknown> = {}) {
+    return {
+      id: 'ch_1',
+      object: 'charge',
+      payment_intent: 'pi_1',
+      amount_refunded: 79900,
+      currency: 'usd',
+      billing_details: { email: 'buyer@example.com', name: 'Ada Buyer' },
+      ...over,
+    };
+  }
+
+  beforeEach(() => {
+    mocks.sessionsList.mockResolvedValue({
+      data: [{ id: 'cs_live_test', metadata: { source: CHECKOUT_SOURCE, tier: 'main-conference', ticketType: 'Main Conference' } }],
+    });
+    mocks.cancelRegistrationByOrder.mockResolvedValue(refundOutcome);
+  });
+
+  it("charge.refunded queues the cancelled ticket with trigger 'refund'", async () => {
+    const res = await deliver({ id: 'evt_refund', type: 'charge.refunded', data: { object: charge() } });
+
+    expect(res.status).toBe(200);
+    expect(mocks.queueAndKickHubspot).toHaveBeenCalledTimes(1);
+    const [, ids, trigger] = mocks.queueAndKickHubspot.mock.calls[0]!;
+    expect(ids).toEqual(['reg_buyer']);
+    expect(trigger).toBe('refund');
+    // After the ticket was cancelled.
+    expect(mocks.cancelRegistrationByOrder.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.queueAndKickHubspot.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('charge.refunded still answers 200, unchanged, when the HubSpot module throws', async () => {
+    mocks.queueAndKickHubspot.mockRejectedValue(new Error('hubspot down'));
+    const res = await deliver({ id: 'evt_refund', type: 'charge.refunded', data: { object: charge() } });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ received: true, fullyRefunded: true, newlyRefunded: true });
+    expect(mocks.incrementSold).toHaveBeenCalledWith('main-conference', -1);
+    expect(mocks.recordError).toHaveBeenCalledWith('hubspot.trigger', expect.any(Error));
+  });
+
+  it('a refund that is not ticketing queues nothing', async () => {
+    mocks.sessionsList.mockResolvedValue({ data: [{ id: 'cs_other', metadata: {} }] });
+    const res = await deliver({ id: 'evt_refund', type: 'charge.refunded', data: { object: charge() } });
+    expect(res.status).toBe(200);
+    expect(mocks.queueAndKickHubspot).not.toHaveBeenCalled();
+  });
+
+  it("a chargeback that withdraws the tickets queues them with 'refund'", async () => {
+    const res = await deliver({
+      id: 'evt_dispute',
+      type: 'charge.dispute.created',
+      data: { object: { id: 'dp_1', payment_intent: 'pi_1', amount: 79900, currency: 'usd', reason: 'fraudulent' } },
+    });
+    expect(res.status).toBe(200);
+    expect(mocks.queueAndKickHubspot).toHaveBeenCalledTimes(1);
+    expect(mocks.queueAndKickHubspot.mock.calls[0]!.slice(1, 3)).toEqual([['reg_buyer'], 'refund']);
+  });
+
+  it("invoice.paid queues every seat with 'order', after the order is marked paid", async () => {
+    mocks.seatsFromOrder.mockResolvedValue([
+      { name: 'Ben', email: 'ben@example.com', ticketType: 'Main Conference', ticketTypeId: 'main-conference' },
+      { name: 'Cara', email: 'cara@example.com', ticketType: 'Main Conference', ticketTypeId: 'main-conference' },
+    ]);
+    const res = await deliver({
+      id: 'evt_inv',
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'in_1',
+          object: 'invoice',
+          total: 160000,
+          currency: 'usd',
+          total_taxes: [],
+          metadata: { source: 'kgc-web', kgcKind: 'group-registration' },
+        },
+      },
+    });
+    expect(res.status).toBe(200);
+    expect(mocks.queueAndKickHubspot).toHaveBeenCalledTimes(1);
+    expect(mocks.queueAndKickHubspot.mock.calls[0]!.slice(1, 3)).toEqual([
+      ['reg_ben@example.com', 'reg_cara@example.com'],
+      'order',
+    ]);
+    expect(mocks.markInvoiceOrderPaid.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.queueAndKickHubspot.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('invoice.paid still answers 200 when the HubSpot module throws', async () => {
+    mocks.queueAndKickHubspot.mockImplementation(() => {
+      throw new Error('hubspot exploded');
+    });
+    mocks.seatsFromOrder.mockResolvedValue([
+      { name: 'Ben', email: 'ben@example.com', ticketType: 'Main Conference', ticketTypeId: 'main-conference' },
+    ]);
+    const res = await deliver({
+      id: 'evt_inv',
+      type: 'invoice.paid',
+      data: { object: { id: 'in_1', object: 'invoice', total: 80000, currency: 'usd', total_taxes: [], metadata: { source: 'kgc-web' } } },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ registered: 1, orderId: 'ord_in_1' });
+  });
+});

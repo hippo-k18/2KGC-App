@@ -26,6 +26,7 @@ import { isOrderSettledError } from '@kgc/scripts/src/lib/fulfilment';
 import { countOrderSeatsOnce } from '@kgc/scripts/src/lib/order-claims';
 import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
+import { kickHubspot, kickHubspotForOrder } from '@/lib/hubspot-trigger';
 import { fulfilCheckoutSession } from '@/lib/checkout-fulfil';
 import { seatsFromInvoice } from '@/lib/invoicing';
 import { mintOrderToken } from '@/lib/order-token';
@@ -303,6 +304,13 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // HubSpot (T333): the order's tickets, and a transferred seat's holder.
+      // After every write above and before the mails, which may throw. On a
+      // replay too, because a partial refund changes the order. Never throws.
+      if (!outcome.unfulfilled) {
+        await kickHubspotForOrder(outcome.orderId, [outcome.registrationId, ...seatsCancelled], 'refund');
+      }
+
       /**
        * Who is told what.
        *
@@ -438,6 +446,10 @@ export async function POST(req: NextRequest) {
       if (outcome.unfulfilled) await warnUnfulfilled(event.type, outcome.orderId, sessionId, outcome.email);
       // Once, on the delivery that withdrew the tickets, not on Stripe's replays.
       const appAccessEnded = outcome.newlyRefunded ? await endAccessFor([outcome.registrationId, ...seatsCancelled]) : [];
+      // HubSpot (T333), as for a refund. Never throws.
+      if (outcome.newlyRefunded) {
+        await kickHubspotForOrder(outcome.orderId, [outcome.registrationId, ...seatsCancelled], 'refund');
+      }
 
       /**
        * A person has to answer a dispute in Stripe, with evidence, by its
@@ -820,6 +832,10 @@ export async function POST(req: NextRequest) {
         hostedInvoiceUrl: invoice.hosted_invoice_url ?? undefined,
         invoicePdfUrl: invoice.invoice_pdf ?? undefined,
       });
+
+      // HubSpot (T333): every seat, now the order says paid. Never throws; a
+      // redelivery queues the same documents again, which is harmless.
+      await kickHubspot(registered, 'order');
 
       // As for a card purchase: Stripe comes back until every seat's
       // confirmation has gone out or used up its attempts.

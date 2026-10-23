@@ -26,6 +26,7 @@ import {
 import { applyRuleTo } from './attendee-categories';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
+import { kickHubspot } from './hubspot-trigger';
 import { referralFor, type AttendeeReferral } from './referrals';
 import { db } from './firestore';
 
@@ -360,6 +361,7 @@ export async function updateAttendee(
     before: { name: reg.name ?? null, title: reg.title ?? null, company: reg.company ?? null },
     after: { name: details.name, title: details.title || null, company: details.company || null },
   });
+  await kickHubspot([rid], 'change');
 
   return { ok: true, registrationId: rid, message: `Saved ${details.name}.` };
 }
@@ -510,6 +512,7 @@ async function moveRegistration(
     before: { email: from.email, name: from.name ?? null, status: from.status },
     after: { email: details.email, name: details.name, registrationId: toId, ticketType },
   });
+  await kickHubspot([fromId, toId], 'change');
 
   return {
     ok: true,
@@ -682,6 +685,7 @@ export async function cancelAttendee(rid: string, actor: string): Promise<Attend
     before: { status: 'active' },
     after: { status: 'cancelled', seatReleased: seat ?? null, extraSeatsReleased: extraSeats, appAccess: access },
   });
+  await kickHubspot([rid], 'change');
 
   return {
     ok: true,
@@ -850,6 +854,7 @@ export async function reinstateAttendee(rid: string, actor: string): Promise<Att
     before: { status: reg.status },
     after: { status: 'active' },
   });
+  await kickHubspot([rid], 'change');
 
   return {
     ok: true,
@@ -887,6 +892,7 @@ export async function changeTicketType(
     before: { ticketType: reg.ticketType ?? null },
     after: { ticketType: next },
   });
+  await kickHubspot([rid], 'change');
 
   return {
     ok: true,
