@@ -483,14 +483,31 @@ export const BLOCK_KINDS: { kind: BlockKind; label: string; hint: string; catego
   { kind: 'embed', label: 'Map, form or video', hint: 'From Google Maps, Google Forms, Calendly and other sites', category: 'Embed', keywords: 'embed iframe google maps form calendly typeform loom spotify slides docs' },
 ];
 
-/** Picker search: label, hint, category and keywords, every word must match. */
+/**
+ * Picker search: label, hint, category and keywords, every word must match.
+ * Ranked by the name first (T332, D F10), so Enter on "Text" adds Text, not
+ * the Heading whose category is Text: the exact name, then names starting
+ * with the words, then names holding them, then everything else in
+ * catalogue order.
+ */
 export function searchBlockKinds(query: string): typeof BLOCK_KINDS {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return BLOCK_KINDS;
+  const q = words.join(' ');
+  const rank = (label: string) => {
+    const name = label.toLowerCase();
+    if (name === q) return 0;
+    if (name.startsWith(q)) return 1;
+    if (words.every((w) => name.includes(w))) return 2;
+    return 3;
+  };
   return BLOCK_KINDS.filter((k) => {
     const hay = `${k.label} ${k.hint} ${k.category} ${k.keywords ?? ''} ${k.kind}`.toLowerCase();
     return words.every((w) => hay.includes(w));
-  });
+  })
+    .map((k, i) => ({ k, i, r: rank(k.label) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map(({ k }) => k);
 }
 
 export function kindLabel(kind: BlockKind): string {
@@ -643,7 +660,15 @@ export function createBlock(kind: BlockKind): LearnBlock {
         imageSide: 'left',
         imageWidth: 'half',
         shape: 'rounded',
-        text: '## A short title\n\nA sentence or two about the picture.',
+        // A rich doc, not Markdown: the in-place editor showed "## " as typed
+        // characters (T332, D F11).
+        text: {
+          type: 'doc',
+          content: [
+            { type: 'heading', level: 2, content: [{ type: 'text', text: 'A short title' }] },
+            { type: 'paragraph', content: [{ type: 'text', text: 'A sentence or two about the picture.' }] },
+          ],
+        },
       };
     case 'gallery':
       return { id, kind, layout: 'grid', columns: 3, images: [], lightbox: true };

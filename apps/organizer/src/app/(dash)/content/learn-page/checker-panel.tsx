@@ -6,6 +6,8 @@ import type { LearnPageContent } from '@kgc/shared';
 import {
   accessibilityIssues,
   ISSUE_RULE_LABEL,
+  issueCounts,
+  issueSummary,
   pageLinks,
   type Issue,
   type IssueRule,
@@ -86,17 +88,10 @@ function AccessibilityTab({ content, onJump }: { content: LearnPageContent; onJu
       </div>
     );
 
-  const errors = issues.filter((i) => i.severity === 'error').length;
   return (
     <>
       <p className="le-tools-summary" role="status">
-        <strong>{issues.length === 1 ? '1 thing to fix' : `${issues.length} things to fix`}</strong>
-        {errors > 0 && errors < issues.length && (
-          <span className="le-muted">
-            {' '}
-            ({errors} {errors === 1 ? 'needs' : 'need'} fixing before you publish)
-          </span>
-        )}
+        <strong>{issueSummary(issueCounts(issues))}</strong>
       </p>
       {groups.map((g) => {
         const severity = g.items.some((i) => i.severity === 'error') ? 'error' : 'warning';
@@ -254,7 +249,8 @@ export function CheckerPanel({
   const ids = useId();
   const tabRefs = useRef<Record<CheckerTab, HTMLButtonElement | null>>({ accessibility: null, links: null });
   // Counts for the tab labels, so the other tab says whether it needs a visit.
-  const issueCount = useMemo(() => accessibilityIssues(content).length, [content]);
+  // A red count for what to fix, an amber one when only warnings are left.
+  const issueCount = useMemo(() => issueCounts(accessibilityIssues(content)), [content]);
   const linkProblems = useMemo(() => pageLinks(content).filter((l) => l.status !== 'ok').length, [content]);
 
   // Focus starts on the open tab, so a keyboard user lands inside the panel
@@ -297,7 +293,9 @@ export function CheckerPanel({
       </div>
       <div className="le-tools-tabs" role="tablist" aria-label="Checks">
         {TABS.map((t, i) => {
-          const n = t.id === 'accessibility' ? issueCount + blockers.length : linkProblems;
+          const fix = t.id === 'accessibility' ? issueCount.fix + blockers.length : linkProblems;
+          const look = t.id === 'accessibility' && fix === 0 ? issueCount.look : 0;
+          const n = fix || look;
           return (
             <button
               key={t.id}
@@ -316,9 +314,9 @@ export function CheckerPanel({
             >
               {t.label}
               {n > 0 && (
-                <span className="le-tools-tab-n">
+                <span className={`le-tools-tab-n${fix ? '' : ' is-look'}`}>
                   {n}
-                  <span className="le-tools-sr">{t.id === 'accessibility' ? ' to fix' : ' with a problem'}</span>
+                  <span className="le-tools-sr">{t.id === 'links' ? ' with a problem' : fix ? ' to fix' : ' worth a look'}</span>
                 </span>
               )}
             </button>

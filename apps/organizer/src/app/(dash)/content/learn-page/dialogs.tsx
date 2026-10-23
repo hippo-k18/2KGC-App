@@ -356,6 +356,45 @@ export function DiscardDialog({
   );
 }
 
+/**
+ * Leaving the editor when the latest words could not be saved (T332, E F2):
+ * a conflict, a refused save or no connection. Staying is the default.
+ */
+export function LeaveDialog({
+  conflict,
+  onLeave,
+  onClose,
+}: {
+  /** Someone else saved meanwhile, which is why the words are not saved. */
+  conflict: boolean;
+  onLeave: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      title="Leave without saving?"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn btn-default" onClick={onClose} data-autofocus>
+            Stay
+          </button>
+          <button type="button" className="btn btn-danger" onClick={onLeave}>
+            Leave anyway
+          </button>
+        </>
+      }
+    >
+      <p>Your latest changes are not saved. If you leave now, they are lost.</p>
+      <p className="le-muted">
+        {conflict
+          ? 'Someone else saved this page while you were editing. Stay, then choose which version to keep.'
+          : 'Stay and fix what the message at the top names, or try again in a moment.'}
+      </p>
+    </Modal>
+  );
+}
+
 /** The version preview is a desktop page drawn at this zoom, or smaller to fit its box (E F14). */
 const HISTORY_PAGE = 1280;
 const HISTORY_ZOOM = 0.42;

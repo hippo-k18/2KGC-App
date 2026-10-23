@@ -226,6 +226,11 @@
   font-size: 11px;
   line-height: 18px;
 }
+/* Only warnings left: worth a look, not red. */
+.le-tools-tab-n.is-look {
+  background: #fdebd0;
+  color: #7a4d00;
+}
 
 .le-tools-icon { flex: none; }
 .le-tools-icon.is-error { color: #c0392b; }

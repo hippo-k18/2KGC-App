@@ -665,6 +665,24 @@ export function accessibilityIssues(content: LearnPageContent): Issue[] {
   return out;
 }
 
+/**
+ * The checker's counts by severity (T332, C N1): a warning is "worth a look",
+ * never a thing to fix, so starter text no longer shows as a red "1 thing to
+ * fix" under a rule that says "Worth a look".
+ */
+export function issueCounts(issues: readonly Issue[]): { fix: number; look: number } {
+  const fix = issues.filter((i) => i.severity === 'error').length;
+  return { fix, look: issues.length - fix };
+}
+
+/** "2 things to fix, 1 worth a look", for the top of the checker. */
+export function issueSummary(counts: { fix: number; look: number }): string {
+  const parts: string[] = [];
+  if (counts.fix) parts.push(counts.fix === 1 ? '1 thing to fix' : `${counts.fix} things to fix`);
+  if (counts.look) parts.push(`${counts.look} worth a look`);
+  return parts.join(', ');
+}
+
 // ─── Link checker ────────────────────────────────────────────────────────────
 
 export type LinkStatus = 'ok' | 'warning' | 'error';

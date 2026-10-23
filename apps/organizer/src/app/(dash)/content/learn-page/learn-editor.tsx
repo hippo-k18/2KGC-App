@@ -60,7 +60,7 @@ import {
 import { AccountMenu } from '../../account-menu';
 import { CheckerPanel, type CheckerTab } from './checker-panel';
 import { CompareDialog } from './compare-dialog';
-import { DiscardDialog, HistoryDialog, PublishDialog } from './dialogs';
+import { DiscardDialog, HistoryDialog, LeaveDialog, PublishDialog } from './dialogs';
 import { EditorServicesContext, type EditorServices } from './editor-context';
 import { DEVICE_WIDTH, type Device, type UploadImage } from './editor-types';
 import { FindReplacePanel } from './find-replace';
@@ -106,7 +106,8 @@ type Dialog =
   | 'preview-link'
   | 'media'
   | { type: 'add-section'; index: number }
-  | { type: 'save-library'; sectionId: string };
+  | { type: 'save-library'; sectionId: string }
+  | { type: 'leave'; go: () => void };
 /** A tool that takes the settings column while it is open. */
 type SideTool = null | 'find' | { type: 'check'; tab: CheckerTab };
 
@@ -302,6 +303,7 @@ export function LearnEditor({
   const generation = useRef(0);
   const latest = useRef(history.present);
   latest.current = history.present;
+  const saveStateRef = useRef<SaveState>('saved');
 
   const content = history.present;
   const warnings = useMemo(() => contentWarnings(content), [content]);
@@ -441,6 +443,7 @@ export function LearnEditor({
     return () => clearTimeout(t);
   }, [content, save, saveState]);
 
+  saveStateRef.current = saveState;
   const dirty = saveState !== 'saved';
   useEffect(() => {
     if (!dirty) return;
@@ -485,7 +488,18 @@ export function LearnEditor({
     setSavedAt(state.doc.draftUpdatedAt || undefined);
   }, [replaceDraft]);
 
-  const loadTheirs = useCallback(async () => {
+  // "Load their version" asks first when it would throw away unsaved words (T332, E F8).
+  const [confirmTheirs, setConfirmTheirs] = useState(false);
+  useEffect(() => {
+    if (saveState !== 'conflict') setConfirmTheirs(false);
+  }, [saveState]);
+
+  const loadTheirs = useCallback(async (asked = false) => {
+    if (!asked && !contentEqual(latest.current, lastSaved.current)) {
+      setConfirmTheirs(true);
+      return;
+    }
+    setConfirmTheirs(false);
     const res = await loadLearnEditorAction();
     if (res.ok) adopt(res.state);
     else setError({ message: res.error });
@@ -504,6 +518,83 @@ export function LearnEditor({
     setSaveState('unsaved');
     void save();
   }, [save]);
+
+  // ── Leaving through the editor's own links (T332, E F2) ─────────────────
+  /**
+   * Sends what autosave is still waiting to send, after any save on its way.
+   * False when the words cannot be saved: a conflict, a refused save, no
+   * connection.
+   */
+  const flushForLeave = useCallback(async (): Promise<boolean> => {
+    for (let i = 0; inFlight.current && i < 100; i++) await new Promise((r) => setTimeout(r, 100));
+    if (inFlight.current) return false;
+    if (contentEqual(latest.current, lastSaved.current)) return true;
+    if (saveStateRef.current === 'conflict') return false;
+    return save();
+  }, [save]);
+
+  /*
+   * beforeunload covers a reload or a closed tab only. "< Dashboard", other
+   * in-app links and Sign out (a server-action form) are client-side, so they
+   * are caught here, before Next or React see them: the pending save goes
+   * first, then the navigation, and if the words cannot be saved the editor
+   * asks. Back in the browser cannot be held, so leaving any way at all still
+   * sends the pending save.
+   */
+  const passing = useRef(false);
+  const leaving = useRef(false);
+  useEffect(() => {
+    const pass = (go: () => void) => {
+      passing.current = true;
+      try {
+        go();
+      } finally {
+        passing.current = false;
+      }
+    };
+    const leave = (go: () => void) => {
+      if (leaving.current) return;
+      leaving.current = true;
+      void flushForLeave()
+        .catch(() => false)
+        .then((ok) => {
+          leaving.current = false;
+          if (ok) pass(go);
+          else setDialog({ type: 'leave', go: () => pass(go) });
+        });
+    };
+    const onClick = (e: MouseEvent) => {
+      if (passing.current || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.('a[href]');
+      if (!(a instanceof HTMLAnchorElement) || !rootRef.current?.contains(a)) return;
+      // Links in the page preview never navigate; new tabs and downloads leave nothing behind.
+      if (a.closest('.lp-root') || (a.target && a.target !== '_self') || a.hasAttribute('download')) return;
+      const url = new URL(a.href, window.location.href);
+      if (url.origin !== window.location.origin || (url.pathname === window.location.pathname && url.search === window.location.search)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      leave(() => a.click());
+    };
+    const onSubmit = (e: SubmitEvent) => {
+      const form = e.target;
+      if (passing.current || !(form instanceof HTMLFormElement) || !rootRef.current?.contains(form)) return;
+      // Only the account menu's Sign out forms leave the page; the editor's own forms are not real submits.
+      if (!form.closest('.acct')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const submitter = e.submitter instanceof HTMLElement ? e.submitter : null;
+      leave(() => form.requestSubmit(submitter));
+    };
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('submit', onSubmit, true);
+    return () => {
+      document.removeEventListener('click', onClick, true);
+      document.removeEventListener('submit', onSubmit, true);
+    };
+  }, [flushForLeave]);
+
+  // Leaving by Back, or anything else that unmounts the editor: send what is pending.
+  useEffect(() => () => void flushForLeave(), [flushForLeave]);
 
   // ── Selection helpers for bulk and keyboard actions ─────────────────────
   const selectedBlocks = useCallback((): LearnBlock[] => {
@@ -1031,19 +1122,26 @@ export function LearnEditor({
     setMenu(false);
     if (narrow) setTab('settings');
   };
+  // While a saved section is being changed, Publish and Schedule wait (C N3):
+  // either would put the linked copy live as it was, not the change.
+  const savedEditWait = savedEdit ? 'Save the saved section to the library, or cancel, first.' : undefined;
   const openDialog = (d: Dialog) => {
-    setDialog(d);
     setMenu(false);
+    if (savedEditWait && (d === 'publish' || d === 'schedule')) {
+      setFlash(savedEditWait);
+      return;
+    }
+    setDialog(d);
   };
 
-  const toolItems: { label: string; keys?: string; onClick: () => void }[] = [
+  const toolItems: ToolItem[] = [
     { label: 'Find and replace', keys: 'Mod+F', onClick: () => openSide('find') },
     { label: 'Check the page', keys: 'Shift+Mod+K', onClick: () => openSide({ type: 'check', tab: 'accessibility' }) },
     { label: 'Check links', onClick: () => openSide({ type: 'check', tab: 'links' }) },
     { label: 'Media library', keys: 'Shift+Mod+M', onClick: () => openDialog('media') },
     { label: 'Compare with a published version', onClick: () => openDialog('compare') },
     { label: 'Share the draft', onClick: () => openDialog('preview-link') },
-    { label: 'Schedule', onClick: () => openDialog('schedule') },
+    { label: 'Schedule', onClick: () => openDialog('schedule'), disabled: !!savedEdit, title: savedEditWait },
     { label: 'History', onClick: () => openDialog('history') },
     { label: 'Discard draft', onClick: () => openDialog('discard') },
     { label: 'Keyboard shortcuts', keys: 'Mod+/', onClick: () => openDialog('shortcuts') },
@@ -1165,7 +1263,13 @@ export function LearnEditor({
             <a className="btn btn-default btn-sm le-hide-mid" href={`${siteOrigin}/learn`} target="_blank" rel="noreferrer">
               View live page
             </a>
-            <button type="button" className="btn btn-default btn-sm le-hide-narrow" onClick={() => openDialog('schedule')}>
+            <button
+              type="button"
+              className="btn btn-default btn-sm le-hide-narrow"
+              onClick={() => openDialog('schedule')}
+              disabled={!!savedEdit}
+              title={savedEditWait}
+            >
               Schedule
             </button>
             <button
@@ -1174,7 +1278,7 @@ export function LearnEditor({
               data-tour="publish"
               onClick={() => setDialog('publish')}
               disabled={saveState === 'conflict' || !!savedEdit}
-              title={savedEdit ? 'Save the saved section to the library, or cancel, first.' : undefined}
+              title={savedEditWait}
             >
               Publish
             </button>
@@ -1229,14 +1333,26 @@ export function LearnEditor({
           <div className="whova-banner danger le-banner" role="alert">
             <div>
               <strong>Someone else saved this page while you were editing.</strong> Your latest changes are not saved yet.
-              <div className="le-banner-actions">
-                <button type="button" className="btn btn-default btn-sm" onClick={() => void loadTheirs()}>
-                  Load their version
-                </button>
-                <button type="button" className="btn btn-danger btn-sm" onClick={() => void keepMine()}>
-                  Keep mine and overwrite theirs
-                </button>
-              </div>
+              {confirmTheirs ? (
+                <div className="le-banner-actions le-conflict-confirm">
+                  <span>Load their version? This throws away your changes that are not saved yet.</span>
+                  <button type="button" className="btn btn-default btn-sm" onClick={() => setConfirmTheirs(false)} autoFocus>
+                    Cancel
+                  </button>
+                  <button type="button" className="btn btn-danger btn-sm" onClick={() => void loadTheirs(true)}>
+                    Throw away my changes
+                  </button>
+                </div>
+              ) : (
+                <div className="le-banner-actions">
+                  <button type="button" className="btn btn-default btn-sm" onClick={() => void loadTheirs()}>
+                    Load their version
+                  </button>
+                  <button type="button" className="btn btn-danger btn-sm" onClick={() => void keepMine()}>
+                    Keep mine and replace their saved changes
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1371,6 +1487,17 @@ export function LearnEditor({
           />
         )}
         {dialog === 'discard' && <DiscardDialog onDiscard={onDiscard} onClose={() => setDialog(null)} />}
+        {typeof dialog === 'object' && dialog?.type === 'leave' && (
+          <LeaveDialog
+            conflict={saveState === 'conflict'}
+            onLeave={() => {
+              const go = dialog.go;
+              setDialog(null);
+              go();
+            }}
+            onClose={() => setDialog(null)}
+          />
+        )}
         {dialog === 'history' && (
           <HistoryDialog
             versions={versions}
@@ -1487,19 +1614,21 @@ export function LearnEditor({
   );
 }
 
+type ToolItem = { label: string; keys?: string; onClick: () => void; disabled?: boolean; title?: string };
+
 /** The More menu: every page tool by name, for people who do not know the shortcuts. */
 function ToolsMenu({
   items,
   keys,
   onClose,
 }: {
-  items: { label: string; keys?: string; onClick: () => void }[];
+  items: ToolItem[];
   keys: (combo: string) => string;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    ref.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    ref.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not([disabled])')?.focus();
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.parentElement?.contains(e.target as Node)) onClose();
     };
@@ -1513,7 +1642,7 @@ function ToolsMenu({
       role="menu"
       aria-label="Page tools"
       onKeyDown={(e) => {
-        const list = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
+        const list = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])') ?? []);
         const i = list.indexOf(document.activeElement as HTMLButtonElement);
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
@@ -1525,7 +1654,7 @@ function ToolsMenu({
       }}
     >
       {items.map((it) => (
-        <button key={it.label} type="button" role="menuitem" className="le-menu-item" onClick={it.onClick}>
+        <button key={it.label} type="button" role="menuitem" className="le-menu-item" onClick={it.onClick} disabled={it.disabled} title={it.title}>
           <span>{it.label}</span>
           {it.keys && <kbd>{keys(it.keys)}</kbd>}
         </button>

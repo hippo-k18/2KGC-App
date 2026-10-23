@@ -122,6 +122,9 @@
   margin-top: 8px;
   flex-wrap: wrap;
 }
+/* "Load their version" asks before it throws away unsaved words (T332). */
+.le-conflict-confirm { align-items: center; }
+.le-conflict-confirm > span { flex: 1 1 100%; font-weight: 600; }
 .le-problems {
   margin: 6px 0 0;
   padding-left: 18px;
@@ -444,6 +447,7 @@ button.le-chip { cursor: pointer; }
 .le-menu-item:hover,
 .le-menu-item:focus-visible { background: #eef4fb; outline: none; }
 .le-menu-item kbd { font-family: inherit; font-size: 11px; color: var(--muted); }
+.le-menu-item:disabled { color: var(--muted); cursor: not-allowed; background: none; }
 
 .le-banner-tight { margin: 0; }
 
