@@ -26,16 +26,26 @@ async function editorAs(browser: Browser, email: string, width: number) {
     } catch {}
   });
   const page = await openEditor(ctx);
-  // Counts every click that lands in the settings panel, which this walkthrough must never need.
+  // Counts every press that lands in the settings panel, which this walkthrough must never need. At a
+  // phone width that panel is not even mounted until its tab is chosen, so a press on any phone tab but
+  // Preview counts too, and so does the Settings tab ever being the one shown (T331 H 3).
   await page.evaluate(() => {
-    (window as unknown as { panelClicks: number }).panelClicks = 0;
+    const w = window as unknown as { panelClicks: number; settingsShown: boolean };
+    w.panelClicks = 0;
+    w.settingsShown = false;
     document.addEventListener(
       'pointerdown',
       (e) => {
-        if ((e.target as HTMLElement).closest?.('.le-pane-settings')) (window as unknown as { panelClicks: number }).panelClicks++;
+        const t = e.target as HTMLElement;
+        if (t.closest?.('.le-pane-settings, .le-tabs [role="tab"]:not(#le-tab-preview)')) w.panelClicks++;
       },
       true,
     );
+    const look = () => {
+      if (document.querySelector('#le-tab-settings[aria-selected="true"]')) w.settingsShown = true;
+    };
+    look();
+    new MutationObserver(look).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-selected'] });
   });
   return { ctx, page };
 }
@@ -59,6 +69,41 @@ async function clickWords(page: Page, text: string, scope = PREVIEW) {
 }
 
 const draftText = async () => JSON.stringify((await learnDoc())?.draft ?? {});
+
+type Block = { id: string; kind: string } & Record<string, unknown>;
+type Published = { sections: { blocks: Block[] }[] };
+
+/**
+ * The three in-place changes `waitForWeb`'s text match cannot see, read from www's own DOM in a
+ * fresh browser: the button's address and new tab, the replaced photo, the removed list item and
+ * the table's added row (T331 H 3).
+ */
+async function checkOnWww(browser: Browser, published: Published, mark: string) {
+  const blocks = published.sections.flatMap((s) => s.blocks);
+  const buttons = blocks.find((b) => b.kind === 'buttons' && JSON.stringify(b).includes(`Brochure ${mark}`));
+  const table = blocks.find((b) => b.kind === 'table' && JSON.stringify(b).includes(`Cell ${mark}`));
+  const team = blocks.find((b) => b.id === 'team-founders') as (Block & { people: { name: string; photo?: { src?: string } }[] }) | undefined;
+  expect(buttons, 'the published Buttons block').toBeTruthy();
+  expect(table, 'the published Table block').toBeTruthy();
+  const photo = team?.people.find((p) => p.name === 'Tom Deely')?.photo?.src ?? '';
+  expect(photo, 'the published photo is the upload').toMatch(/pageLayouts(%2F|\/)learn/);
+
+  const ctx = await browser.newContext();
+  const web = await ctx.newPage();
+  await web.goto(`${WEB}/learn`);
+  const link = web.locator(`[data-block-id="${buttons!.id}"] a`).filter({ hasText: `Brochure ${mark}` });
+  await expect(link, 'the button on www').toHaveCount(1);
+  await expect(link).toHaveAttribute('href', 'https://example.org/brochure');
+  await expect(link, 'an off-site button opens a new tab').toHaveAttribute('target', '_blank');
+  const img = web.locator('[data-block-id="team-founders"] .lp-person').filter({ hasText: 'Tom Deely' }).locator('img');
+  await expect(img, 'the replaced photo on www').toHaveCount(1);
+  const src = (await img.getAttribute('src')) ?? '';
+  expect(src.includes(photo) || decodeURIComponent(src).includes(photo), `www img src ${src} shows ${photo}`).toBe(true);
+  expect(decodeURIComponent(src)).not.toContain('thomas-deely.jpg');
+  await expect(web.locator('[data-block-id="programmes-list"] > li'), 'the emptied list item is gone on www').toHaveCount(5);
+  await expect(web.locator(`[data-block-id="${table!.id}"] tr`), 'the added table row on www').toHaveCount(3);
+  await ctx.close();
+}
 
 for (const [who, email] of [
   ['owner', OWNER],
@@ -154,10 +199,12 @@ for (const [who, email] of [
       // 6. Publish, and www shows it.
       await publish(page, `Walkthrough ${mark}`);
       await step('published');
-      expect(await page.evaluate(() => (window as unknown as { panelClicks: number }).panelClicks), 'clicks in the side panel').toBe(0);
+      expect(await page.evaluate(() => (window as unknown as { panelClicks: number }).panelClicks), 'clicks in the side panel or its phone tabs').toBe(0);
+      expect(await page.evaluate(() => (window as unknown as { settingsShown: boolean }).settingsShown), 'the Settings tab was shown').toBe(false);
       await waitForWeb((html) => [`(${mark} edit)`, 'Tom Deely', `Brochure ${mark}`, `Cell ${mark}`, `New item, ${mark}`].every((s) => html.includes(s)));
       const live = await fsGet('pageLayouts/learn');
       expect(JSON.stringify(live?.published)).toContain('example.org/brochure');
+      await checkOnWww(browser, live?.published as Published, mark);
       if (SHOTS) {
         const web = await ctx.newPage();
         await web.goto(`${WEB}/learn`);

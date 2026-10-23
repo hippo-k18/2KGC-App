@@ -118,15 +118,23 @@ async function visit(browser: Browser, url: string, opts: { as?: string; then?: 
 test.describe.configure({ mode: 'serial' });
 test.setTimeout(600_000);
 
+/**
+ * Each saved section carries its own word in place of KGCSHOWN, so a test can tell
+ * which one drew: the page and the library names already hold KGCSHOWN (T331 G5).
+ */
+const LIB_OK = 'KGCLIBOK';
+const LIB_RAW = 'KGCLIBRW';
+const markedAs = <T,>(v: T, word: string): T => JSON.parse(JSON.stringify(v).replaceAll('KGCSHOWN', word)) as T;
+
 /** Saved sections: the sample made as hostile as the save allows, and a raw hostile one only a direct write can store. */
 async function seedLibrary() {
   const at = Date.now();
   for (const [id, section] of Object.entries(FIXTURES.hostileLibrary)) {
-    await fsSet(`pageLayouts/learn/library/${id}`, { name: `${MARKUP} saved`, section, createdAt: at, createdBy: OWNER });
+    await fsSet(`pageLayouts/learn/library/${id}`, { name: `${MARKUP} saved`, section: markedAs(section, LIB_OK), createdAt: at, createdBy: OWNER });
   }
   await fsSet('pageLayouts/learn/library/lib-raw', {
     name: MARKUP,
-    section: hostile(FIXTURES.library['lib-cta']) as Json,
+    section: markedAs(hostile(FIXTURES.library['lib-cta']) as Json, LIB_RAW),
     createdAt: at + 1,
     createdBy: OWNER,
   });
@@ -166,6 +174,10 @@ test('a stored doc full of hostile values draws safely on www and the preview li
   const www = await visit(browser, `${WEB}/learn`, { shotName: 'hostile-www' });
   quiet(www, 'www /learn');
   expect(www.text).toContain('KGCSHOWN');
+  // The live copy never holds a link to a saved section (Publish fills it in), so www draws
+  // neither saved section from a stored one: deliberately dropped, not fetched (T331 G5).
+  expect(www.text, 'www draws no saved section from a link').not.toContain(LIB_OK);
+  expect(www.text, 'www draws no saved section from a link').not.toContain(LIB_RAW);
 
   // Now the hostile page as the draft, behind the preview link: it must be the draft that draws, with the bar.
   await fsSet('pageLayouts/learn', { draft: bad, published: structuredClone(FIXTURES.sink24), revision: 5, previewToken: t });
@@ -177,6 +189,10 @@ test('a stored doc full of hostile values draws safely on www and the preview li
   });
   quiet(preview, 'preview link');
   expect(preview.text).toContain('KGCSHOWN');
+  // The preview shows what Publish would put live, so both saved sections are filled in:
+  // the valid one, and the raw one read leniently (its unsafe link dropped, its words as text).
+  expect(preview.text, 'preview link draws the valid saved section').toContain(LIB_OK);
+  expect(preview.text, 'preview link draws the raw saved section as text').toContain(LIB_RAW);
 });
 
 test('the most hostile page the save accepts draws safely in the editor, with hostile saved sections', async ({ browser }) => {
@@ -203,6 +219,11 @@ test('the most hostile page the save accepts draws safely in the editor, with ho
         await b.click({ position: { x: 4, y: 4 }, force: true });
         clicked++;
       }
+      // Both saved sections draw in the preview: the editor reads any saved section of the right
+      // shape and draws its words as text, so the raw one shows too, not a "missing" placeholder (T331 G5).
+      const pane = page.locator('.le-pane-preview');
+      await expect(pane, 'editor draws the valid saved section').toContainText(LIB_OK);
+      await expect(pane, 'editor draws the raw saved section as text').toContainText(LIB_RAW);
     },
   });
   quiet(editor, 'editor');
@@ -210,16 +231,22 @@ test('the most hostile page the save accepts draws safely in the editor, with ho
   expect(editor.text).toContain('KGCSHOWN');
 });
 
-test('Compare and History draw a hostile kept version, valid or not', async ({ browser }) => {
+test('Compare and History draw a valid hostile kept version, and refuse a raw one by name', async ({ browser }) => {
   await resetLearn();
   await seedLibrary();
   const raw = withRawLink(hostile(FIXTURES.sink24) as Page_);
   const valid = withRawLink(FIXTURES.hostileValid);
   await fsSet('pageLayouts/learn', { draft: structuredClone(FIXTURES.sink24), published: valid, revision: 6 });
   const now = Date.now();
+  // The note is hostile markup too, but without KGCSHOWN: it shows in the list and the picker,
+  // so it must not be what satisfies the check that the version's content drew (T331 S1).
+  const note = MARKUP.replace('KGCSHOWN', 'KGCNOTE');
   // Ids Firestore would make, so the editor reads them (T326 G2).
-  await fsSet('pageLayouts/learn/versions/vHostileValid0000001', { content: valid, publishedAt: now, publishedBy: OWNER, note: MARKUP });
-  await fsSet('pageLayouts/learn/versions/vHostileRaw000000002', { content: raw, publishedAt: now - 60_000, publishedBy: OWNER, note: MARKUP });
+  await fsSet('pageLayouts/learn/versions/vHostileValid0000001', { content: valid, publishedAt: now, publishedBy: OWNER, note });
+  await fsSet('pageLayouts/learn/versions/vHostileRaw000000002', { content: raw, publishedAt: now - 60_000, publishedBy: OWNER, note });
+  // One of the version's own blocks (not a saved section) that holds the marker: the draft shares its id, so look only in the version's pane.
+  const own = FIXTURES.hostileValid.sections.flatMap((s) => s.blocks).find((b) => b.kind === 'heading' && String(b.text).includes('KGCSHOWN'))!;
+  expect(own, 'a heading of the valid version holds KGCSHOWN').toBeTruthy();
 
   for (const which of [0, 1]) {
     for (const item of ['Compare with a published version', 'History']) {
@@ -235,12 +262,31 @@ test('Compare and History draw a hostile kept version, valid or not', async ({ b
           await dialog.waitFor();
           if (item === 'History') await dialog.getByRole('option').nth(which).click();
           else await dialog.locator('select').first().selectOption({ index: which });
-          await expect(dialog).toContainText('KGCSHOWN', { timeout: 15_000 });
+          // Only the version's own pane: History's preview, or Compare's "Published version" side.
+          const pane =
+            item === 'History'
+              ? dialog.locator('.le-history-preview')
+              : dialog.locator('.le-tools-cmp-pane').filter({ has: page.getByRole('heading', { name: 'Published version', exact: true }) });
+          await expect(pane).toHaveCount(1);
+          if (which === 0) {
+            await expect(pane.locator(`[data-block-id="${own.id}"]`).first(), 'the valid version draws its own content').toContainText('KGCSHOWN', {
+              timeout: 15_000,
+            });
+            await expect(pane).not.toContainText(/could not be (read|loaded)/);
+          } else {
+            // The raw version fails the check, so it is refused by name and nothing of it is drawn.
+            if (item === 'History') await expect(pane, 'History refuses the raw version').toContainText('That version could not be read', { timeout: 15_000 });
+            else {
+              await expect(pane, 'Compare refuses the raw version').toContainText('This version could not be loaded.', { timeout: 15_000 });
+              await expect(dialog.getByRole('alert').filter({ hasText: 'That version could not be read' })).toHaveCount(1);
+            }
+            await expect(pane.locator('[data-block-id]')).toHaveCount(0);
+            await expect(pane).not.toContainText('KGCSHOWN');
+          }
           await expect(dialog).not.toContainText('no longer exists');
         },
       });
       quiet(r, `${item}, ${which ? 'raw' : 'valid'} version`);
-      expect(r.text).toContain('KGCSHOWN');
     }
   }
 });
