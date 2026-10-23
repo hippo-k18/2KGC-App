@@ -498,7 +498,19 @@ export interface AuditEntry {
     | 'session.stream.delete'
     | 'session.recording.create'
     | 'session.recording.update'
-    | 'session.recording.delete';
+    | 'session.recording.delete'
+    /**
+     * The HubSpot contact sync (T333), owners only. A token is a key to the
+     * whole CRM, so connecting and disconnecting are recorded with the last
+     * four characters only, never the token. `syncAll` sends every attendee's
+     * details to a third party, so who pressed it and when is kept too.
+     */
+    | 'hubspot.connect'
+    | 'hubspot.disconnect'
+    | 'hubspot.test'
+    | 'hubspot.settings'
+    | 'hubspot.createProperties'
+    | 'hubspot.syncAll';
   /**
    * Which screen made the change, where more than one can. Only the blog
    * access list sets it today: `dashboard` for Admin Settings, `blog` for the

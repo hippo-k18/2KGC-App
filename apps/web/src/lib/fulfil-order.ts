@@ -17,6 +17,7 @@ import { incrementSold, overCapacity, tierFulfilment } from '@/lib/catalogue';
 import { sendPurchaseConfirmation, type SendOutcome } from '@/lib/email';
 import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
+import { kickHubspot } from '@/lib/hubspot-trigger';
 import { mintOrderToken } from '@/lib/order-token';
 import { claimAnswers } from '@/lib/question-forms';
 import { ensureRegistration, fulfilPurchase, orderIdFor } from '@/lib/registrations';
@@ -722,6 +723,15 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
       await recordError('referral.record', err, { path: 'orders', id: oid });
     }
   }
+
+  /**
+   * The HubSpot contact sync (T333): every registration this order made or
+   * touched. Here, after the seat list is on the order, because the sync reads
+   * it to split the amount per seat; before the buyer's account and
+   * confirmation, so a send that throws there does not skip it. Awaits only
+   * the queue write, never throws, and a second run queues the same documents.
+   */
+  await kickHubspot([...registrationIds, ...extendedOnly], 'order');
 
   /**
    * The buyer's account.

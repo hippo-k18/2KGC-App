@@ -255,7 +255,7 @@ export const NAV: NavNode[] = [
       { name: "ticket_tiering", title: "Ticket Tiering", slug: "ticket-tiering" },
       { name: "attendee_categories", title: "Attendee Categories", slug: "attendee-categories" }
     ] },
-    { name: "hubspot_guide", title: "HubSpot connection guide", slug: "hubspot-connection-guide" },
+    { name: "hubspot_guide", title: "HubSpot", slug: "hubspot-connection-guide" },
     { name: "memberclicks_export_guide", title: "MemberClicks connection guide", slug: "memberclicks-connection-guide" },
     { name: "zapier_export_guide", title: "Export to AMS/CRM", slug: "export-to-ams-crm" }
   ] },

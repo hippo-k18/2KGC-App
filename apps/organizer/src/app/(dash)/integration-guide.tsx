@@ -33,6 +33,7 @@ export async function IntegrationGuide({
   steps,
   effort,
   links,
+  native,
 }: {
   title: string;
   vendor: string;
@@ -51,6 +52,8 @@ export async function IntegrationGuide({
   steps?: ReactNode[];
   effort: string;
   links?: { label: string; href: string }[];
+  /** A real integration this guide leads to, shown first (Export to AMS/CRM › HubSpot, T333). */
+  native?: ReactNode;
 }) {
   await requireOrganizer();
 
@@ -69,6 +72,8 @@ export async function IntegrationGuide({
           </Link>
         ))}
       />
+
+      {native}
 
       <Panel>
         {whatItIs ? (

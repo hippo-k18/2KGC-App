@@ -51,6 +51,14 @@ export const COLLECTIONS = {
    */
   pageLayouts: "pageLayouts",
   /**
+   * Server-only. Third-party connections (T333): `integrations/hubspot` is the
+   * HubSpot sync settings, `integrations/hubspotSecret` the encrypted token,
+   * and `integrations/hubspot/runs` the sync log. See `hubspot.ts`.
+   */
+  integrations: "integrations",
+  /** Server-only. Contacts waiting to be sent to HubSpot, one per registration (T333). */
+  hubspotQueue: "hubspotQueue",
+  /**
    * Server-only. Carries the booking contact, the staff-pass allocation and
    * whether the space is confirmed or merely provisional — none of which an
    * attendee may see. The app reads `exhibitorListings` instead.

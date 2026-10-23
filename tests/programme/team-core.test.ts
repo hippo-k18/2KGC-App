@@ -97,6 +97,13 @@ describe('the other roles', () => {
     expect(canOpen(['finance'], CHECK_IN)).toBe(false);
   });
 
+  it('finance does not open Tickets › HubSpot, which is owners only (T335)', () => {
+    expect(canOpen(['finance'], 'tickets/hubspot-connection-guide')).toBe(false);
+    expect(canOpen(['finance'], '/tickets/hubspot-connection-guide/')).toBe(false);
+    expect(canOpen(['finance'], 'tickets/export-to-ams-crm')).toBe(true);
+    expect(canOpen(['owner'], 'tickets/hubspot-connection-guide')).toBe(true);
+  });
+
   it('agenda opens Content, less the branches that belong to other roles', () => {
     expect(canOpen(['agenda'], 'content/agenda-center/session-manager')).toBe(true);
     expect(canOpen(['agenda'], 'content/agenda-center/session-manager/new')).toBe(true);

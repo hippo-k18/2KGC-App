@@ -37,7 +37,7 @@ export const TEAM_ROLES: readonly TeamRole[] = [
 /** The name an owner reads when ticking a box, and what the box opens. */
 export const ROLE_LABELS: Record<TeamRole, { label: string; covers: string }> = {
   owner: { label: 'Owner', covers: 'Everything, including this screen' },
-  finance: { label: 'Finance', covers: 'Tickets and Pay' },
+  finance: { label: 'Finance', covers: 'Tickets and Pay, except HubSpot' },
   agenda: { label: 'Agenda', covers: 'Content, except sponsors, exhibitors, the call for speakers and the Learn page' },
   sponsors: { label: 'Sponsors', covers: 'Sponsor and exhibitor screens' },
   checkin: { label: 'Check-in only', covers: 'Check-in & Checkout and nothing else' },
@@ -58,10 +58,13 @@ const SPONSOR_BRANCHES = ['content/sponsor-center', 'content/exhibitor-center'];
 const REVIEW_BRANCH = 'content/call-for-speakers-abstracts';
 /** The KGC | Learn page editor. Not Whova's, and not agenda's either (T309). */
 const LEARN_BRANCH = 'content/learn-page';
+/** Tickets › HubSpot holds a key to the whole CRM: owners only, though it sits under Tickets (T333). */
+const HUBSPOT_BRANCH = 'tickets/hubspot-connection-guide';
 
 const RULES: Record<Exclude<TeamRole, 'owner'>, RoleRule> = {
   finance: {
     allow: ['tickets', 'pay'],
+    except: [HUBSPOT_BRANCH],
     home: 'tickets/orders-and-transactions/attendee-orders',
   },
   agenda: {

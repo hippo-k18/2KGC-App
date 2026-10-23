@@ -1,0 +1,20 @@
+# The HubSpot contact sync's retry timer (T333): every 10 minutes, send the
+# contacts that are due again. Reuses the call for papers timer's secret file,
+# so the only new thing on the droplet is this unit and its timer.
+#   cp kgc-hubspot-cron.service kgc-hubspot-cron.timer /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now kgc-hubspot-cron.timer
+# Needs /etc/kgc-cfp-cron.env (CRON_SECRET) and the same CRON_SECRET in
+# /opt/kgc/shared/organizer.env, both already there for kgc-cfp-cron. The
+# dashboard also needs WEB_ORDER_SECRET to read the stored token.
+[Unit]
+Description=KGC HubSpot sync retry
+After=network-online.target kgc-dashboard.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/kgc-cfp-cron.env
+# A drain of a few thousand contacts can take minutes; --max-time stops a hung one.
+TimeoutStartSec=12min
+# The live dashboard port, as in kgc-cfp-cron.service (`$$` is a literal `$`).
+# -o /dev/null: the JSON reply would otherwise fill the journal.
+ExecStart=/bin/sh -c 'curl -fsS -o /dev/null --max-time 600 -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:$$(cat /opt/kgc/live/organizer.port 2>/dev/null || echo 3100)/api/cron/hubspot'
