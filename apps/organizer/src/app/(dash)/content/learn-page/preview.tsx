@@ -45,7 +45,7 @@ import { RichBlocks, RichLine } from './preview-rich';
 import { PreviewBlockCtxContext, PreviewContentContext, PreviewLibraryContext, V2Body } from './preview-v2';
 import { useRichAnchors, useRichChange } from './rich-field';
 import { EditableBody, hasEditableBody } from './inline/editable-blocks';
-import { InlineBlockContext, placeCaretAt, type InlineBlockCtx } from './inline/fields';
+import { floatingLayer, InlineBlockContext, placeCaretAt, type InlineBlockCtx } from './inline/fields';
 import { InsertGap } from './inline/insert-gap';
 import './preview.css';
 import './preview-v2.css';
@@ -324,6 +324,7 @@ function InPlaceText({
       placeholder={singleLine ? 'Heading' : 'Text'}
       onExit={onExit}
       autoFocus={autoFocus}
+      floatingRoot={floatingLayer}
     />
   );
 }

@@ -586,7 +586,7 @@
 
 /* The picker a + opens, drawn over the editor rather than inside the zoomed preview. */
 .lp-gap-pick {
-  /* Above the editor's panes (1000 to 1050), below its dialogs (1100 and up). */
+  /* Inside the editor's layer: above its panes (up to 1050), below its dialogs (1100 and up). */
   z-index: 1080;
   overflow: auto;
   border-radius: 8px;

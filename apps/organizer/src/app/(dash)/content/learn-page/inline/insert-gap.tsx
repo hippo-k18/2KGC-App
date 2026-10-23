@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { BlockKind } from '@/lib/learn-editor-core';
 import { AddBlockPicker } from '../add-block-picker';
+import { floatingLayer } from './fields';
 
 const PICKER_WIDTH = 420;
 const MARGIN = 12;
@@ -76,7 +77,7 @@ export function InsertGap({ onInsert, last = false }: { onInsert: (kind: BlockKi
               }}
             />
           </div>,
-          document.body,
+          floatingLayer(),
         )}
     </div>
   );

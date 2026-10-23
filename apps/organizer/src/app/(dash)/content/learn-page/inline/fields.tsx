@@ -46,6 +46,16 @@ export function useInlineBlock(): InlineBlockCtx {
   return ctx;
 }
 
+/**
+ * Floating things (the formatting bubble, the block picker) mount in the
+ * editor's own full-window layer: outside the zoomed preview, so they keep
+ * their size, and in the same stacking layer as the editor's dialogs, which
+ * then cover them.
+ */
+export function floatingLayer(): HTMLElement {
+  return document.querySelector<HTMLElement>('.le-root') ?? document.body;
+}
+
 /* ── Where the caret goes next ──────────────────────────────────────────── */
 
 /**
@@ -318,6 +328,7 @@ export function InlineRich({ value, onChange, fieldKey, label, placeholder, sing
         ariaLabel={label}
         placeholder={placeholder ?? label}
         onHostKey={onHostKey}
+        floatingRoot={floatingLayer}
         onEditor={(editor) => {
           if (editor && claimFocus(fieldKey)) editor.commands.focus('end');
           onEditor?.(editor);

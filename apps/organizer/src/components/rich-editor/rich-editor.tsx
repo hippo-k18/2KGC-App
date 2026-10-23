@@ -57,6 +57,12 @@ export interface RichEditorProps {
   onHostKey?: (key: HostKey, at: CaretInfo) => boolean;
   /** The TipTap editor once it exists (and null when it goes), for a host that adds rows to a table. */
   onEditor?: (editor: Editor | null) => void;
+  /**
+   * Where the inline variant's floating toolbar is mounted: outside any zoomed
+   * or clipped container, inside the same stacking layer as the host's
+   * dialogs (so they cover it). Defaults to the page body.
+   */
+  floatingRoot?: () => HTMLElement;
 }
 
 /** The editor that owns a ProseMirror element, so a click on the page can put the caret where it landed. */
@@ -252,7 +258,7 @@ export function RichEditor(props: RichEditorProps) {
             // Outside any zoomed or clipped container (the Learn preview is
             // zoomed to fit), so it keeps its real size; `rt` carries the
             // toolbar's colours and type there.
-            appendTo={() => document.body}
+            appendTo={() => latest.current.floatingRoot?.() ?? document.body}
             className="rt rt-bubble rt-bubble-floating"
             updateDelay={0}
             options={{ placement: 'top-start', offset: 8, flip: true, shift: { padding: 8 } }}
