@@ -20,20 +20,21 @@ export NEXT_TELEMETRY_DISABLED=1
 (cd "$ROOT" && npx tsx "$HERE/seed.mts")
 
 # Their own build folders, so a dev server or build elsewhere is left alone.
-export ORGANIZER_DIST_DIR=.next-t323-e2e
-export WEB_DIST_DIR=.next-t323-e2e
+TAG="${LEARN_E2E_TAG:-}"
+export ORGANIZER_DIST_DIR=".next-t323-e2e$TAG"
+export WEB_DIST_DIR=".next-t323-e2e$TAG"
 ORG_NEXT="$ROOT/apps/organizer/node_modules/.bin/next"
 WEB_NEXT="$ROOT/apps/web/node_modules/.bin/next"
 if [ "${LEARN_E2E_BUILD:-}" = 1 ]; then
   if [ "${LEARN_E2E_SKIP_BUILD:-}" != 1 ]; then
-    "$ORG_NEXT" build "$ROOT/apps/organizer" > "$HERE/.org-build.log" 2>&1
-    "$WEB_NEXT" build "$ROOT/apps/web" > "$HERE/.web-build.log" 2>&1
+    "$ORG_NEXT" build "$ROOT/apps/organizer" > "$HERE/.org-build$TAG.log" 2>&1
+    "$WEB_NEXT" build "$ROOT/apps/web" > "$HERE/.web-build$TAG.log" 2>&1
   fi
-  "$ORG_NEXT" start "$ROOT/apps/organizer" --port "$E2E_PORT" > "$HERE/.org.log" 2>&1 & pids+=($!)
-  "$WEB_NEXT" start "$ROOT/apps/web" --port "$WEB_PORT" > "$HERE/.web.log" 2>&1 & pids+=($!)
+  "$ORG_NEXT" start "$ROOT/apps/organizer" --port "$E2E_PORT" > "$HERE/.org$TAG.log" 2>&1 & pids+=($!)
+  "$WEB_NEXT" start "$ROOT/apps/web" --port "$WEB_PORT" > "$HERE/.web$TAG.log" 2>&1 & pids+=($!)
 else
-  "$ORG_NEXT" dev "$ROOT/apps/organizer" --port "$E2E_PORT" > "$HERE/.org.log" 2>&1 & pids+=($!)
-  "$WEB_NEXT" dev "$ROOT/apps/web" --port "$WEB_PORT" > "$HERE/.web.log" 2>&1 & pids+=($!)
+  "$ORG_NEXT" dev "$ROOT/apps/organizer" --port "$E2E_PORT" > "$HERE/.org$TAG.log" 2>&1 & pids+=($!)
+  "$WEB_NEXT" dev "$ROOT/apps/web" --port "$WEB_PORT" > "$HERE/.web$TAG.log" 2>&1 & pids+=($!)
 fi
 
 for _ in $(seq 1 240); do

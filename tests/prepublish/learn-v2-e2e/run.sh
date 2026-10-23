@@ -27,7 +27,12 @@ export WEB_URL="http://localhost:$WEB_PORT"
 export FIRESTORE_REST="http://127.0.0.1:$FS_PORT"
 export STORAGE_REST="http://127.0.0.1:$ST_PORT"
 
-cat > "$HERE/.firebase.json" <<JSON
+# A run on moved ports keeps its own config, logs, build folder and TMPDIR,
+# so two runs can share a worktree.
+TAG=""
+[ "$E2E_PORT" != 3323 ] && TAG="-$E2E_PORT"
+export LEARN_E2E_TAG="$TAG"
+cat > "$HERE/.firebase$TAG.json" <<JSON
 { "firestore": { "rules": "$ROOT/firestore.rules" },
   "storage": { "rules": "$ROOT/storage.rules" },
   "emulators": { "firestore": { "port": $FS_PORT, "host": "127.0.0.1", "websocketPort": $WS_PORT },
@@ -37,8 +42,8 @@ cat > "$HERE/.firebase.json" <<JSON
 JSON
 
 # The Storage emulator keeps its files under TMPDIR; its own folder keeps it apart from any other.
-export TMPDIR="$HERE/.tmp"
+export TMPDIR="$HERE/.tmp$TAG"
 mkdir -p "$TMPDIR"
 cd "$ROOT"
-exec npx firebase emulators:exec --only firestore,storage --config "$HERE/.firebase.json" --project "$GCLOUD_PROJECT" \
+exec npx firebase emulators:exec --only firestore,storage --config "$HERE/.firebase$TAG.json" --project "$GCLOUD_PROJECT" \
   "bash '$HERE/inner.sh'"
