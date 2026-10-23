@@ -4,6 +4,7 @@ import {
   headingIds,
   isDrawableLearnBlock,
   learnRichParagraphs,
+  personInitials,
   videoEmbed,
   type LearnBlock,
   type LearnPageContent,
@@ -311,8 +312,13 @@ function Block({ block, ctx }: { block: LearnBlock; ctx: Ctx }) {
 function PersonCard({ person, ctx }: { person: Person; ctx: Ctx }) {
   return (
     <div className="lp-person">
-      {hasLearnImage(person.photo) && (
+      {hasLearnImage(person.photo) ? (
         <Picture image={{ ...person.photo, alt: person.photo.alt || person.name }} ctx={ctx} />
+      ) : (
+        // No photo: an initials tile, as the editor preview draws it (T324 D12).
+        <div className="lp-person-nophoto" aria-hidden="true">
+          {personInitials(person.name)}
+        </div>
       )}
       <div className="row">
         <div>

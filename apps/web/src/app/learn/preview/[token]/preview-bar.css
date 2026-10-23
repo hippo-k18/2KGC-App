@@ -9,3 +9,12 @@
   font: 600 15px/1.4 var(--font-open-sans), sans-serif;
   text-align: center;
 }
+
+/* A link that no longer works (T324 F13): a plain note, not the draft's orange. */
+.learn-preview-bar.is-off {
+  position: static;
+  background: #f1f3f6;
+  color: #263759;
+  font-weight: 400;
+  border-bottom: 1px solid #dde2ea;
+}

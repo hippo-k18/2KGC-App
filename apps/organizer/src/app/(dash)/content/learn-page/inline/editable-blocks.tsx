@@ -540,7 +540,8 @@ function ImageTextEdit({ block, siteOrigin }: { block: BlockOf<'imageText'>; sit
   return (
     <div className={twinClass(block, `lp-it-${block.imageSide}`, `lp-it-${block.imageWidth}`)}>
       <div className="lp-it-media">
-        <EditableImage image={block.image} shape={block.shape} siteOrigin={siteOrigin} className={`lp-shape-${block.shape}`} fieldKey={`${blockId}:image`} onChange={(image) => patch({ image })} />
+        {/* No picture is allowed (T328): the text then shows on its own on www. */}
+        <EditableImage image={block.image} shape={block.shape} siteOrigin={siteOrigin} className={`lp-shape-${block.shape}`} emptyText="+ Picture" fieldKey={`${blockId}:image`} onChange={(image) => patch({ image })} />
       </div>
       <div className="lp-it-body">
         <InlineRich value={block.text} onChange={(text) => patch({ text })} fieldKey={`${blockId}:text`} label="Text" />

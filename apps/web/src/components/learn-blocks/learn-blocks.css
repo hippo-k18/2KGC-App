@@ -313,6 +313,9 @@ ol.lp-rlist { list-style-type: decimal; }
   color: #1f1a11;
 }
 
+/* No picture yet: one column, as wide as a callout or an accordion */
+.lp-imageText.lp-it-noimage { grid-template-columns: minmax(0, 1fr); max-width: 880px; }
+
 .lp-it-third.lp-it-left { grid-template-columns: 1fr 2fr; }
 .lp-it-third.lp-it-right { grid-template-columns: 2fr 1fr; }
 .lp-it-right .lp-it-media { order: 2; }

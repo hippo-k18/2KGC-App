@@ -213,12 +213,12 @@ describe('embeds', () => {
     expect(embedSrc('loom', 'http://www.loom.com/share/x')).toBeNull();
   });
 
-  it('warns about an embed with the wrong link and no title', () => {
+  it('warns about an embed with the wrong link, but not about an empty title (T326 item 6)', () => {
     const p = page();
     p.sections[0].blocks.push({ id: 'e', kind: 'embed', provider: 'spotify', url: 'https://example.com', aspect: '16:9', title: '' });
     const msgs = contentWarnings(p).map((w) => w.message);
     expect(msgs).toContain('That is not a Spotify link this page can show.');
-    expect(msgs).toContain('The map, form or video needs a title for screen readers');
+    expect(msgs.filter((m) => /title/i.test(m))).toEqual([]);
   });
 
   it('only says a link works when the website would show it (T324 D2)', () => {

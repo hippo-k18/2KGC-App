@@ -42,3 +42,15 @@ export function learnPreviewMetadata(page: LearnPageContent): Metadata {
     referrer: 'no-referrer',
   };
 }
+
+/**
+ * The bar across the top of a preview link (T316). A turned-off or replaced
+ * link shows the public page, so its holder gets a plain note rather than a
+ * page that looks like the draft (T324 F13). A made-up link gets the same
+ * note, so it says nothing about whether a link ever existed.
+ */
+export function learnPreviewNotice(showsDraft: boolean): { className: string; text: string } {
+  return showsDraft
+    ? { className: 'learn-preview-bar', text: 'Preview, not published. This is the current draft; the public page may differ.' }
+    : { className: 'learn-preview-bar is-off', text: 'This preview link no longer works. It was turned off or replaced. Below is the public page.' };
+}

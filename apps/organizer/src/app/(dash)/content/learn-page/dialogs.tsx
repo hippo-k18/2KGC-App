@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import type { LearnPageContent } from '@kgc/shared';
+import type { LearnPageContent, LearnSection } from '@kgc/shared';
 import { summarizeChanges, type Selection, type Warning } from '@/lib/learn-editor-core';
 import type { PublishBlocker } from '@/lib/learn-library-edit-core';
 import { fitZoom } from '@/lib/learn-shell-core';
 import { loadLearnVersionAction, restoreLearnVersionAction, type LearnVersionSummary } from './api';
-import { LearnPreview } from './preview';
+import { ReadOnlyPreview } from './read-only-preview';
 
 /**
  * Open modals, newest last. Only the top one answers Escape and Tab, so the
@@ -375,12 +375,15 @@ function useBoxZoom(pageWidth: number, max: number) {
 export function HistoryDialog({
   versions,
   siteOrigin,
+  library = null,
   hasUnpublished = false,
   onRestored,
   onClose,
 }: {
   versions: LearnVersionSummary[];
   siteOrigin: string;
+  /** Saved sections, to draw the version's linked sections (null while loading). */
+  library?: ReadonlyMap<string, LearnSection> | null;
   /** The draft has changes that are not live; restoring replaces them, so it asks first. */
   hasUnpublished?: boolean;
   onRestored: (draft: LearnPageContent, revision: number) => void;
@@ -516,19 +519,16 @@ export function HistoryDialog({
             )}
             {loading && <p className="le-muted">Loading...</p>}
             {content && !loading && (
-              <div className="le-history-frame" inert>
-                <div style={{ width: HISTORY_PAGE, zoom: frame.zoom }}>
-                  <LearnPreview
-                    content={content}
-                    selection={{ kind: 'page' }}
-                    onSelect={() => {}}
-                    onEdit={() => {}}
-                    warnings={[]}
-                    siteOrigin={siteOrigin}
-                    device="desktop"
-                  />
-                </div>
-              </div>
+              <ReadOnlyPreview
+                content={content}
+                library={library}
+                what="version"
+                siteOrigin={siteOrigin}
+                device="desktop"
+                width={HISTORY_PAGE}
+                zoom={frame.zoom}
+                frameClassName="le-history-frame"
+              />
             )}
           </div>
         </div>

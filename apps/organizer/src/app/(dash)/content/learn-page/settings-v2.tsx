@@ -506,7 +506,7 @@ type GalleryImage = BlockOf<'gallery'>['images'][number];
 const MAX_GALLERY = 40;
 
 function GallerySettings({ block, upd }: { block: BlockOf<'gallery'>; upd: Upd }) {
-  const { siteOrigin, uploadImage, pickImage } = useServices();
+  const { siteOrigin, uploadImage } = useServices();
   const [open, setOpen] = useState<string | null>(null);
   const latest = useLatest(block.images);
   const set = (images: GalleryImage[]) => upd({ images });
@@ -609,19 +609,6 @@ function GallerySettings({ block, upd }: { block: BlockOf<'gallery'>; upd: Upd }
             uploadImage={uploadImage}
             siteOrigin={siteOrigin}
           />
-          {pickImage && (
-            <button
-              type="button"
-              className="le-set-link"
-              onClick={() =>
-                void pickImage({ title: 'Choose a photo for the gallery' }).then((img) => {
-                  if (img) append(img);
-                })
-              }
-            >
-              Choose from the media library
-            </button>
-          )}
         </div>
       )}
     </Group>
@@ -906,7 +893,7 @@ type LogoItem = BlockOf<'logos'>['items'][number];
 const MAX_LOGOS = 40;
 
 function LogosSettings({ block, upd }: { block: BlockOf<'logos'>; upd: Upd }) {
-  const { siteOrigin, uploadImage, pickImage } = useServices();
+  const { siteOrigin, uploadImage } = useServices();
   const latest = useLatest(block.items);
   const set = (items: LogoItem[]) => upd({ items });
   const setItem = (i: number, item: LogoItem) => set(replaceAt(block.items, i, item));
@@ -979,19 +966,6 @@ function LogosSettings({ block, upd }: { block: BlockOf<'logos'>; upd: Upd }) {
             uploadImage={uploadImage}
             siteOrigin={siteOrigin}
           />
-          {pickImage && (
-            <button
-              type="button"
-              className="le-set-link"
-              onClick={() =>
-                void pickImage({ title: 'Choose a logo' }).then((img) => {
-                  if (img) append(img);
-                })
-              }
-            >
-              Choose from the media library
-            </button>
-          )}
         </div>
       ) : (
         <MaxNote count={block.items.length} max={MAX_LOGOS} what="logos" />
@@ -1038,7 +1012,6 @@ function EmbedSettings({ block, upd }: { block: BlockOf<'embed'>; upd: Upd }) {
         placeholder="https://"
         // A new service brings its own screen-reader title, unless someone typed one (T325, D2/F6).
         onChange={(next) => upd(embedLinkPatch(block, next))}
-        hint="Paste the link from your browser's address bar, or a YouTube, Google Forms or Calendly link."
       />
       <p className={`le-set-status${status.state === 'ok' ? ' ok' : status.state === 'bad' ? ' bad' : ''}`} role="status" aria-live="polite">
         {status.message}
@@ -1086,8 +1059,8 @@ function EmbedSettings({ block, upd }: { block: BlockOf<'embed'>; upd: Upd }) {
         value={block.title}
         placeholder={defaultEmbedTitle(block.provider)}
         onChange={(title) => upd({ title })}
-        hint="Says what is inside, for people who cannot see it."
-        warn={block.title.trim() ? null : 'Add a title. Screen readers need it to say what this is.'}
+        // Optional: www uses the service's name when it is empty (T326 item 6).
+        hint={`Says what is inside, for people who cannot see it. If you leave it empty, "${defaultEmbedTitle(block.provider)}" is used.`}
       />
     </Group>
   );

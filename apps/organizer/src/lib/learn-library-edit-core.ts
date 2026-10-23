@@ -1,8 +1,14 @@
 import {
+  LEARN_SECTION_HOST_FIELDS,
+  asPublished,
   expandedBlockId,
   expandReusableBlocks,
+  finishSavedSectionEdit,
+  savedSectionEditOf,
+  withoutEditMarker,
   type LearnBlock,
   type LearnPageContent,
+  type LearnSavedSectionEdit,
   type LearnSection,
 } from '@kgc/shared';
 import { newId } from './learn-editor-core';
@@ -29,7 +35,8 @@ export function hasReusable(content: LearnPageContent): boolean {
  * library has loaded the draft comes back as it is.
  */
 export function expandForCompare(content: LearnPageContent, library: Library | null | undefined): LearnPageContent {
-  return library && hasReusable(content) ? expandReusableBlocks(content, library) : content;
+  const page = asPublished(content);
+  return library && hasReusable(page) ? expandReusableBlocks(page, library) : page;
 }
 
 function sortKeys(v: unknown): unknown {
@@ -103,7 +110,9 @@ function hostIds(content: LearnPageContent, library: Library): Map<string, strin
  * deleted (E F7). Each message comes with the block or section to show where
  * one can be found, by checking the blocks one at a time.
  */
-export function draftPublishBlockers(content: LearnPageContent, library: Library | null | undefined): PublishBlocker[] {
+export function draftPublishBlockers(draft: LearnPageContent, library: Library | null | undefined): PublishBlocker[] {
+  // A saved section being changed is published as its link (`asPublished`).
+  const content = asPublished(draft);
   const expanded = expandForCompare(content, library);
   const pool = library ? publishProblems(content, library, expanded) : publishBlockers(content);
   if (pool.length === 0) return [];
@@ -198,11 +207,11 @@ function remapColumns(saved: LearnSection, ids: Record<string, string>): Record<
   return Object.keys(out).length ? out : undefined;
 }
 
-const HOST_FIELDS = ['anchor', 'visibleOn', 'hidden', 'note'] as const;
+const HOST_FIELDS = LEARN_SECTION_HOST_FIELDS;
 
 /** The saved section's look and blocks under the host section's id, name and host-only fields. */
 function wholeSection(host: LearnSection, saved: LearnSection, blocks: LearnBlock[], ids: Record<string, string>): LearnSection {
-  const out: LearnSection = { ...structuredClone(saved), id: host.id, label: host.label, blocks };
+  const out: LearnSection = { ...structuredClone(withoutEditMarker(saved)), id: host.id, label: host.label, blocks };
   for (const k of HOST_FIELDS) delete out[k];
   delete out.blockColumn;
   for (const k of HOST_FIELDS) if (host[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = host[k];
@@ -276,24 +285,25 @@ export function unlinkReusable(
 // ─── Changing a saved section from the page ──────────────────────────────────
 
 /**
- * Editor state (never stored) while a saved section is being changed (E F1).
- * The section `sectionId` holds an editable copy; Save to library writes it
- * back under `libraryId`, and either way the link is put back as `restore`
- * says.
+ * A saved section being changed from the page (E F1). Since T328 it is stored
+ * on the copy's section (`libraryEdit`), so the edit survives a reload and
+ * Undo past the start ends it, and Publish, by hand or scheduled, puts the
+ * link back instead of the copy (`asPublished`).
  */
-export interface SavedSectionEdit {
-  libraryId: string;
-  name: string;
-  sectionId: string;
-  ids: Record<string, string>;
-  anchors: Record<string, string>;
-  restore:
-    /** The section was the link's whole section: put it back as it was. */
-    | { kind: 'whole'; host: LearnSection }
-    /** The link sat among other blocks: the copy got a section of its own, and the block goes back. */
-    | { kind: 'inPlace'; hostSectionId: string; index: number; column?: number; block: LearnBlock }
-    /** Opened from the library: the copy is removed. */
-    | { kind: 'none' };
+export type SavedSectionEdit = LearnSavedSectionEdit;
+
+// The pure halves live in `@kgc/shared` (`learn-saved-edit-core.ts`), so the
+// website's preview link resolves an edit the way Publish does.
+export { asPublished, finishSavedSectionEdit, savedSectionEditOf };
+
+/** The section, marked as the copy `edit` describes. */
+function marked(section: LearnSection, edit: SavedSectionEdit): LearnSection {
+  return { ...section, libraryEdit: edit };
+}
+
+/** True when Save to library on this section should save the edit, not make a second saved section (N2). */
+export function isSavedSectionCopy(content: LearnPageContent, sectionId: string): boolean {
+  return savedSectionEditOf(content)?.sectionId === sectionId;
 }
 
 /** Starts changing the saved section a Saved section block shows. Null when there is nothing to change. */
@@ -311,11 +321,8 @@ export function startEditFromBlock(
   const copies = copyBlocks(block.id, null, saved, usedAnchors(content));
   const base = { libraryId: block.libraryId, name, ids: copies.ids, anchors: copies.anchors };
   if (takesSavedLook(section, block.id)) {
-    const editing = wholeSection(section, saved, copies.blocks, copies.ids);
-    return {
-      content: withSection(content, si, editing),
-      edit: { ...base, sectionId: section.id, restore: { kind: 'whole', host: section } },
-    };
+    const edit: SavedSectionEdit = { ...base, sectionId: section.id, restore: { kind: 'whole', host: withoutEditMarker(section) } };
+    return { content: withSection(content, si, marked(wholeSection(section, saved, copies.blocks, copies.ids), edit)), edit };
   }
   const index = section.blocks.findIndex((b) => b.id === block.id);
   const column = section.blockColumn?.[block.id];
@@ -326,21 +333,19 @@ export function startEditFromBlock(
     if (Object.keys(cols).length) host.blockColumn = cols;
     else delete host.blockColumn;
   }
-  const editing = ownSection(saved, name, copies);
-  const sections = [...content.sections];
-  sections.splice(si, 1, host, editing);
-  return {
-    content: { ...content, sections },
-    edit: {
-      ...base,
-      sectionId: editing.id,
-      restore: { kind: 'inPlace', hostSectionId: section.id, index, column, block },
-    },
+  const own = ownSection(saved, name, copies);
+  const edit: SavedSectionEdit = {
+    ...base,
+    sectionId: own.id,
+    restore: { kind: 'inPlace', hostSectionId: section.id, index, column, block },
   };
+  const sections = [...content.sections];
+  sections.splice(si, 1, host, marked(own, edit));
+  return { content: { ...content, sections }, edit };
 }
 
 function ownSection(saved: LearnSection, name: string, copies: Copies): LearnSection {
-  const out: LearnSection = { ...structuredClone(saved), id: newId('s'), label: name, blocks: copies.blocks };
+  const out: LearnSection = { ...structuredClone(withoutEditMarker(saved)), id: newId('s'), label: name, blocks: copies.blocks };
   for (const k of HOST_FIELDS) delete out[k];
   delete out.blockColumn;
   const cols = remapColumns(saved, copies.ids);
@@ -357,13 +362,11 @@ export function startEditFromLibrary(
   name: string,
 ): { content: LearnPageContent; edit: SavedSectionEdit } {
   const copies = copyBlocks(newId('b'), null, saved, usedAnchors(content));
-  const editing = ownSection(saved, name, copies);
+  const own = ownSection(saved, name, copies);
+  const edit: SavedSectionEdit = { libraryId, name, sectionId: own.id, ids: copies.ids, anchors: copies.anchors, restore: { kind: 'none' } };
   const sections = [...content.sections];
-  sections.splice(Math.max(0, Math.min(index, sections.length)), 0, editing);
-  return {
-    content: { ...content, sections },
-    edit: { libraryId, name, sectionId: editing.id, ids: copies.ids, anchors: copies.anchors, restore: { kind: 'none' } },
-  };
+  sections.splice(Math.max(0, Math.min(index, sections.length)), 0, marked(own, edit));
+  return { content: { ...content, sections }, edit };
 }
 
 /**
@@ -383,7 +386,7 @@ export function savedSectionFromEdit(
     if (!copy.anchor && edit.anchors[b.id]) copy.anchor = edit.anchors[b.id];
     return copy;
   });
-  const out: LearnSection = { ...structuredClone(cur), id: saved.id, label: saved.label, blocks };
+  const out: LearnSection = { ...structuredClone(withoutEditMarker(cur)), id: saved.id, label: saved.label, blocks };
   for (const k of HOST_FIELDS) delete out[k];
   for (const k of HOST_FIELDS) if (saved[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = saved[k];
   delete out.blockColumn;
@@ -393,43 +396,4 @@ export function savedSectionFromEdit(
     if (Object.keys(cols).length) out.blockColumn = cols;
   }
   return out;
-}
-
-/** Puts the link back where the editable copy is (after Save to library, or on Cancel). */
-export function finishSavedSectionEdit(content: LearnPageContent, edit: SavedSectionEdit): LearnPageContent {
-  const at = content.sections.findIndex((s) => s.id === edit.sectionId);
-  if (at < 0) return content;
-  const cur = content.sections[at];
-  const r = edit.restore;
-  if (r.kind === 'whole') {
-    const back: LearnSection = { ...r.host, label: cur.label };
-    for (const k of HOST_FIELDS) {
-      if (cur[k] !== undefined) (back as unknown as Record<string, unknown>)[k] = cur[k];
-      else delete back[k];
-    }
-    return withSection(content, at, back);
-  }
-  const sections = content.sections.filter((_, i) => i !== at);
-  if (r.kind === 'none') return { ...content, sections };
-  const hi = sections.findIndex((s) => s.id === r.hostSectionId);
-  if (hi < 0) {
-    // The host section was deleted meanwhile: the link comes back in a section of its own.
-    sections.splice(at, 0, {
-      id: newId('s'),
-      label: edit.name,
-      background: 'plain',
-      width: 'normal',
-      paddingTop: 'none',
-      paddingBottom: 'none',
-      blocks: [r.block],
-    });
-    return { ...content, sections };
-  }
-  const host = sections[hi];
-  const blocks = [...host.blocks];
-  blocks.splice(Math.min(r.index, blocks.length), 0, r.block);
-  const next: LearnSection = { ...host, blocks };
-  if (r.column !== undefined) next.blockColumn = { ...(host.blockColumn ?? {}), [r.block.id]: r.column };
-  sections[hi] = next;
-  return { ...content, sections };
 }

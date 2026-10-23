@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LEARN_PAGE_MEDIA } from '@kgc/shared';
+import { LEARN_PAGE_LIBRARY, LEARN_PAGE_MEDIA, type LearnSection } from '@kgc/shared';
 
 /**
  * `learn-media.ts` against an in-memory Firestore and bucket (T325): a media
@@ -104,6 +104,7 @@ vi.mock('firebase-admin/storage', () => ({
 
 const {
   backfillLearnMedia,
+  deleteLearnLibraryItem,
   deleteLearnMedia,
   learnImageEditStart,
   learnMediaUses,
@@ -240,5 +241,46 @@ describe('editing a copy starts from the original (D8)', () => {
     store.set(media(COPY), row(COPY, { editedFrom }));
     await updateLearnMedia(COPY, { fileName: 'Hero' });
     expect(store.get(media(COPY))?.editedFrom).toEqual(editedFrom);
+  });
+});
+
+describe('a saved section being changed from a block is still in use (T326 R1)', () => {
+  const band = (id: string, blocks: unknown[], extra: Data = {}) => ({
+    id,
+    label: id,
+    background: 'plain',
+    width: 'normal',
+    paddingTop: 'none',
+    paddingBottom: 'none',
+    blocks,
+    ...extra,
+  });
+  const LINK = { id: 'r1', kind: 'reusable', libraryId: 'L1' };
+  const saved = band('lib', [{ id: 'h', kind: 'heading', text: 'Team', level: 2 }]) as LearnSection;
+
+  function seed(draftSections: unknown[]) {
+    store.set(`${LEARN_PAGE_LIBRARY}/L1`, { name: 'Team band', section: saved, createdAt: 1, createdBy: 'u' });
+    store.set('pageLayouts/learn', {
+      draft: { seoTitle: 'Learn', seoDescription: '', sections: draftSections },
+      published: null,
+      draftUpdatedAt: 1,
+      draftUpdatedBy: 'u',
+      revision: 1,
+    });
+  }
+
+  it('refuses to delete it, naming the draft, while the link is held aside', async () => {
+    // Edit saved section on the block in "Team here": the copy holds no link.
+    const edit = { libraryId: 'L1', name: 'Team band', sectionId: 'Team here', ids: {}, anchors: {}, restore: { kind: 'whole', host: band('Team here', [LINK]) } };
+    seed([band('Team here', [{ id: 'c1', kind: 'heading', text: 'Team', level: 2 }], { libraryEdit: edit })]);
+    await expect(deleteLearnLibraryItem('L1')).rejects.toBeInstanceOf(LearnMediaRefused);
+    expect(store.has(`${LEARN_PAGE_LIBRARY}/L1`)).toBe(true);
+    expect((await listLearnLibrary())[0].uses).toEqual(['Draft: Team here, saved section']);
+  });
+
+  it('a copy opened from the library list is not a use', async () => {
+    const edit = { libraryId: 'L1', name: 'Team band', sectionId: 'copy', ids: {}, anchors: {}, restore: { kind: 'none' } };
+    seed([band('copy', [{ id: 'c1', kind: 'heading', text: 'Team', level: 2 }], { libraryEdit: edit })]);
+    expect((await listLearnLibrary())[0].uses).toEqual([]);
   });
 });

@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { expandReusableBlocks, type LearnBlock, type LearnPageContent, type LearnSection } from '@kgc/shared';
-import { summarizeChanges } from './learn-editor-core';
-import { publishBlockers, publishProblems, sameContent } from './learn-page-core';
+import { applyEdit, summarizeChanges } from './learn-editor-core';
+import { publishBlockers, publishProblems, sameContent, validateLearnContent } from './learn-page-core';
 import {
+  asPublished,
   canonicalContent,
   draftDiffersFromLive,
   draftPublishBlockers,
   expandForCompare,
   finishSavedSectionEdit,
+  isSavedSectionCopy,
   linkedHostBlock,
+  savedSectionEditOf,
   savedSectionFromEdit,
   startEditFromBlock,
   startEditFromLibrary,
@@ -232,6 +235,115 @@ describe('changing a saved section from the page (E F1)', () => {
     const started = startEditFromBlock(draft, 's2', 'r1', LIB, 'Team band')!;
     expect(started.content.sections[2].blocks[0].anchor).toBeUndefined();
     expect(savedSectionFromEdit(started.content, started.edit, SAVED)?.blocks[0].anchor).toBe('team');
+  });
+});
+
+/** The draft as the editor gets it back after a reload: stored as JSON and rebuilt by the validator. */
+function reloaded(content: LearnPageContent): LearnPageContent {
+  const v = validateLearnContent(JSON.parse(JSON.stringify(content)));
+  if (!v.ok) throw new Error(v.problems.join('; '));
+  return v.content;
+}
+
+function typeInto(content: LearnPageContent, sectionId: string, text: string): LearnPageContent {
+  return {
+    ...content,
+    sections: content.sections.map((s) =>
+      s.id === sectionId ? { ...s, blocks: s.blocks.map((b) => (b.kind === 'text' ? { ...b, text } : b)) } : s,
+    ),
+  };
+}
+
+describe('a saved section edit survives a reload (T326 R1)', () => {
+  it('started from a whole linked section: the edit comes back, and Save and Cancel still work', () => {
+    const draft = linkedPage({ anchor: 'people' });
+    const started = startEditFromBlock(draft, 's2', 'r1', LIB, 'Team band')!;
+    const after = reloaded(typeInto(started.content, 's2', 'RELOADW'));
+    const edit = savedSectionEditOf(after);
+    expect(edit).toEqual(started.edit);
+    // Save to library carries the typed text, and the link comes back.
+    const stored = savedSectionFromEdit(after, edit!, SAVED)!;
+    expect(stored.blocks.find((b) => b.id === 't')).toMatchObject({ text: 'RELOADW' });
+    expect(stored.libraryEdit).toBeUndefined();
+    expect(finishSavedSectionEdit(after, edit!).sections[1].blocks).toEqual([{ id: 'r1', kind: 'reusable', libraryId: 'L1' }]);
+    // Cancel after the reload puts the page back exactly.
+    expect(finishSavedSectionEdit(reloaded(started.content), edit!)).toEqual(draft);
+  });
+
+  it('started from a link among other blocks', () => {
+    const draft = mixedPage();
+    const started = startEditFromBlock(draft, 's1', 'r1', LIB, 'Team band')!;
+    const after = reloaded(started.content);
+    expect(savedSectionEditOf(after)).toEqual(started.edit);
+    expect(finishSavedSectionEdit(after, savedSectionEditOf(after)!)).toEqual(draft);
+  });
+
+  it('started from the library list', () => {
+    const draft = linkedPage();
+    const started = startEditFromLibrary(draft, 1, 'L1', SAVED, 'Team band');
+    const after = reloaded(started.content);
+    expect(savedSectionEditOf(after)).toEqual(started.edit);
+    expect(finishSavedSectionEdit(after, savedSectionEditOf(after)!)).toEqual(draft);
+  });
+
+  it('a duplicate of the copy is an ordinary section', () => {
+    const started = startEditFromLibrary(linkedPage(), 1, 'L1', SAVED, 'Team band');
+    const copy = started.content.sections[1];
+    const content = applyEdit(started.content, { type: 'duplicateSection', sectionId: copy.id });
+    const dup = content.sections[2];
+    expect(dup.id).not.toBe(copy.id);
+    expect(savedSectionEditOf(content)?.sectionId).toBe(copy.id);
+    expect(isSavedSectionCopy(content, dup.id)).toBe(false);
+    // The validator drops the duplicate's marker.
+    expect(reloaded(content).sections[2].libraryEdit).toBeUndefined();
+    expect(reloaded(content).sections[1].libraryEdit).toEqual(started.edit);
+  });
+});
+
+describe('Publish never puts the copy live (T326 R1)', () => {
+  it('started from the block: the link goes live, with the saved section as the library has it', () => {
+    const draft = linkedPage();
+    const started = startEditFromBlock(draft, 's2', 'r1', LIB, 'Team band')!;
+    const editing = typeInto(started.content, 's2', 'NOT SAVED YET');
+    expect(asPublished(editing)).toEqual(draft);
+    // So the chip and the change list see no change until Save to library.
+    expect(draftDiffersFromLive(editing, expandReusableBlocks(draft, LIB), LIB, true)).toBe(false);
+  });
+
+  it('started from the library list: the copy is not published, so the section is not on the page twice', () => {
+    const draft = linkedPage();
+    const started = startEditFromLibrary(draft, 1, 'L1', SAVED, 'Team band');
+    expect(asPublished(started.content)).toEqual(draft);
+    expect(expandForCompare(started.content, LIB).sections).toHaveLength(2);
+  });
+
+  it('an unfinished block in the copy does not stop a publish', () => {
+    const started = startEditFromLibrary(linkedPage(), 1, 'L1', SAVED, 'Team band');
+    const copy = started.content.sections[1];
+    const withEmpty = {
+      ...started.content,
+      sections: started.content.sections.map((s) =>
+        s.id === copy.id ? { ...s, blocks: [...s.blocks, { id: 'v1', kind: 'video', url: '' } as LearnBlock] } : s,
+      ),
+    };
+    expect(draftPublishBlockers(withEmpty, LIB)).toEqual([]);
+  });
+
+  it('drops a stray marker', () => {
+    const draft = linkedPage();
+    const started = startEditFromLibrary(draft, 1, 'L1', SAVED, 'Team band');
+    const stray = { ...started.content.sections[1], id: 'other' };
+    const out = asPublished({ ...draft, sections: [...draft.sections, stray] });
+    expect(out.sections.some((s) => s.libraryEdit)).toBe(false);
+  });
+});
+
+describe('Save to library on the copy being changed (T326 N2)', () => {
+  it('is the copy, so it saves the change rather than a second saved section', () => {
+    const started = startEditFromBlock(mixedPage(), 's1', 'r1', LIB, 'Team band')!;
+    expect(isSavedSectionCopy(started.content, started.edit.sectionId)).toBe(true);
+    expect(isSavedSectionCopy(started.content, 's1')).toBe(false);
+    expect(isSavedSectionCopy(mixedPage(), 's1')).toBe(false);
   });
 });
 

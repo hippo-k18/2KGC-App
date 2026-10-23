@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react';
-import type { LearnPageContent } from '@kgc/shared';
-import { summarizeChanges, type EditAction, type Selection } from '@/lib/learn-editor-core';
+import type { LearnPageContent, LearnSection } from '@kgc/shared';
+import { summarizeChanges } from '@/lib/learn-editor-core';
 import { canonicalContent } from '@/lib/learn-library-edit-core';
 import { loadLearnVersionAction, type LearnVersionSummary } from './api';
 import { Modal } from './dialogs';
 import { DEVICE_WIDTH, type Device } from './editor-types';
-import { LearnPreview } from './preview';
+import { ReadOnlyPreview } from './read-only-preview';
 import './tools.css';
 
 /**
@@ -15,10 +15,6 @@ import './tools.css';
  * then both pages side by side, read only, scrolled together. On a phone the
  * two previews would be too small to read, so one shows at a time.
  */
-
-const PAGE_SELECTION: Selection = { kind: 'page' };
-const noSelect: (sel: Selection) => void = () => {};
-const noEdit: (action: EditAction) => void = () => {};
 
 /** Below this width the previews stack and a toggle picks one. */
 const STACK = 640;
@@ -81,6 +77,8 @@ function ChangeGroup({ title, items }: { title: string; items: string[] }) {
 function ComparePane({
   label,
   content,
+  library,
+  what,
   device,
   siteOrigin,
   scrollRef,
@@ -89,6 +87,8 @@ function ComparePane({
 }: {
   label: string;
   content: LearnPageContent | null;
+  library: ReadonlyMap<string, LearnSection> | null | undefined;
+  what: 'version' | 'draft';
   emptyText?: string;
   device: Device;
   siteOrigin: string;
@@ -105,20 +105,16 @@ function ComparePane({
       </h3>
       <div className="le-tools-cmp-scroll" ref={scrollRef} onScroll={onScroll} tabIndex={0} aria-label={`${label}, scrollable preview`}>
         {content ? (
-          // inert: a preview to look at, so nothing in it can be selected or edited.
-          <div className="le-tools-cmp-frame" inert>
-            <div style={{ width, zoom: scale }}>
-              <LearnPreview
-                content={content}
-                selection={PAGE_SELECTION}
-                onSelect={noSelect}
-                onEdit={noEdit}
-                warnings={[]}
-                siteOrigin={siteOrigin}
-                device={device}
-              />
-            </div>
-          </div>
+          <ReadOnlyPreview
+            content={content}
+            library={library}
+            what={what}
+            siteOrigin={siteOrigin}
+            device={device}
+            width={width}
+            zoom={scale}
+            frameClassName="le-tools-cmp-frame"
+          />
         ) : (
           <p className="le-muted le-tools-cmp-empty">{emptyText}</p>
         )}
@@ -130,11 +126,17 @@ function ComparePane({
 export function CompareDialog({
   versions,
   draft,
+  library,
   siteOrigin,
   onClose,
 }: {
   versions: LearnVersionSummary[];
   draft: LearnPageContent;
+  /**
+   * Saved sections by id, null while loading. A linked section in either page
+   * is drawn from it (T324 E F11); a version uses the library as it is now.
+   */
+  library?: ReadonlyMap<string, LearnSection> | null;
   siteOrigin: string;
   onClose: () => void;
 }) {
@@ -319,6 +321,8 @@ export function CompareDialog({
             <ComparePane
               label="Published version"
               content={error ? null : version}
+              library={library}
+              what="version"
               emptyText={error ? 'This version could not be loaded.' : 'Loading...'}
               device={device}
               siteOrigin={siteOrigin}
@@ -330,6 +334,8 @@ export function CompareDialog({
             <ComparePane
               label="Draft"
               content={draft}
+              library={library}
+              what="draft"
               device={device}
               siteOrigin={siteOrigin}
               scrollRef={rightRef}

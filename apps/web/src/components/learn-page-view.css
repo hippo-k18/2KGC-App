@@ -259,6 +259,20 @@
   margin-bottom: 22px;
 }
 
+/* A person with no photo: their initials on a tile the photo's size (T324 D12) */
+.lp-person-nophoto {
+  width: 191px;
+  height: 191px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--palette-3, #e0e5ee);
+  color: var(--palette-2, #263759);
+  font-size: 40px;
+  font-weight: 700;
+}
+
 .lp-person .row {
   display: flex;
   align-items: flex-start;
@@ -268,9 +282,11 @@
 }
 
 .lp-people-cards.lp-a-center .lp-person img,
+.lp-people-cards.lp-a-center .lp-person-nophoto,
 .lp-people-cards.lp-a-center .lp-person .row { margin-left: auto; margin-right: auto; }
 .lp-people-cards.lp-a-center .lp-person .row { justify-content: center; }
 .lp-people-cards.lp-a-right .lp-person img,
+.lp-people-cards.lp-a-right .lp-person-nophoto,
 .lp-people-cards.lp-a-right .lp-person .row { margin-left: auto; }
 
 .lp-person .name {
@@ -469,6 +485,7 @@
   .lp-ts-x-large { font-size: 24px; line-height: 34px; }
 
   .lp-person img { width: 100%; height: auto; aspect-ratio: 1; }
+  .lp-person-nophoto { width: 100%; height: auto; aspect-ratio: 1; }
   .lp-person .row { max-width: none; }
 
   .lp-bg-grey-wave.lp-pb-large { padding-bottom: 72px; }

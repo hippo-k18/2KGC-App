@@ -11,6 +11,7 @@ import {
   pushEdit,
   redo,
   repairSelection,
+  sectionPickLabels,
   startHistory,
   undo,
   type EditAction,
@@ -24,6 +25,8 @@ import {
   draftPublishBlockers,
   expandForCompare,
   finishSavedSectionEdit,
+  isSavedSectionCopy,
+  savedSectionEditOf,
   savedSectionFromEdit,
   startEditFromBlock,
   startEditFromLibrary,
@@ -881,7 +884,9 @@ export function LearnEditor({
     return () => window.removeEventListener('focus', onFocus);
   }, [scheduledAt, refreshStatus]);
   // ── Saved sections: Unlink and change them from the page (E F1, F3) ────
-  const [savedEdit, setSavedEdit] = useState<SavedSectionEdit | null>(null);
+  // Stored on the copy's section (T328), so a reload keeps the edit going and
+  // Undo past the start, or deleting the copy, ends it without saving.
+  const savedEdit = useMemo(() => savedSectionEditOf(content), [content]);
   const [savedEditBusy, setSavedEditBusy] = useState(false);
   const [savedEditError, setSavedEditError] = useState<string | null>(null);
 
@@ -907,7 +912,6 @@ export function LearnEditor({
         return;
       }
       edit({ type: 'replace', content: started.content });
-      setSavedEdit(started.edit);
       setSavedEditError(null);
       setSelection({ kind: 'section', sectionId: started.edit.sectionId });
     },
@@ -924,16 +928,15 @@ export function LearnEditor({
     [beginSavedEdit, library, libraryNames, savedEdit],
   );
 
-  // Undo past the start, or deleting the copy, ends the change without saving.
-  useEffect(() => {
-    if (savedEdit && !content.sections.some((s) => s.id === savedEdit.sectionId)) setSavedEdit(null);
-  }, [content, savedEdit]);
-
   const finishSavedEdit = useCallback(
     async (keep: boolean) => {
       if (!savedEdit) return;
       if (keep) {
-        const saved = library?.get(savedEdit.libraryId);
+        if (!library) {
+          setSavedEditError('The saved sections are still loading. Try again in a moment.');
+          return;
+        }
+        const saved = library.get(savedEdit.libraryId);
         const section = saved && savedSectionFromEdit(latest.current, savedEdit, saved);
         if (!section) {
           setSavedEditError('This saved section is not in the library any more. Cancel, then save the section to the library again.');
@@ -958,7 +961,6 @@ export function LearnEditor({
       }
       edit({ type: 'replace', content: finishSavedSectionEdit(latest.current, savedEdit) });
       setSelection({ kind: 'page' });
-      setSavedEdit(null);
       setSavedEditError(null);
       setFlash(
         keep
@@ -1325,7 +1327,7 @@ export function LearnEditor({
           {show('settings') && (
             <aside className="le-pane le-pane-settings" id="le-pane-settings" aria-label={side ? 'Page tools' : 'Settings'} role={narrow ? 'tabpanel' : undefined} data-tour="settings">
               {side === 'find' ? (
-                <FindReplacePanel content={content} onEdit={edit} onJump={jump} onClose={() => setSide(null)} />
+                <FindReplacePanel content={content} library={library} libraryNames={libraryNames} onEdit={edit} onJump={jump} onClose={() => setSide(null)} />
               ) : side ? (
                 <CheckerPanel
                   key={side.tab}
@@ -1340,7 +1342,12 @@ export function LearnEditor({
                   {...pane}
                   siteOrigin={siteOrigin}
                   uploadImage={uploadImage}
-                  onSaveToLibrary={(sectionId) => openDialog({ type: 'save-library', sectionId })}
+                  onSaveToLibrary={(sectionId) =>
+                    // On the copy being changed it saves the change, not a second saved section (N2).
+                    isSavedSectionCopy(latest.current, sectionId)
+                      ? void finishSavedEdit(true)
+                      : openDialog({ type: 'save-library', sectionId })
+                  }
                 />
               )}
             </aside>
@@ -1368,13 +1375,14 @@ export function LearnEditor({
           <HistoryDialog
             versions={versions}
             siteOrigin={siteOrigin}
+            library={library}
             hasUnpublished={unpublished}
             onRestored={onRestored}
             onClose={() => setDialog(null)}
           />
         )}
         {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
-        {dialog === 'compare' && <CompareDialog versions={versions} draft={expandedDraft} siteOrigin={siteOrigin} onClose={() => setDialog(null)} />}
+        {dialog === 'compare' && <CompareDialog versions={versions} draft={expandedDraft} library={library} siteOrigin={siteOrigin} onClose={() => setDialog(null)} />}
         {dialog === 'schedule' && (
           <ScheduleDialog
             scheduledAt={scheduledAt ?? null}
@@ -1570,9 +1578,9 @@ function BulkBar({
           }}
         >
           <option value="">Move to...</option>
-          {sections.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label || 'Untitled section'}
+          {sectionPickLabels(sections).map((label, i) => (
+            <option key={sections[i].id} value={sections[i].id}>
+              {label}
             </option>
           ))}
         </select>

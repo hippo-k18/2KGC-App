@@ -171,6 +171,36 @@ export interface LearnSection {
   /** Per block id, which column (0-based) in a multi-column layout. */
   blockColumn?: Record<string, number>;
   note?: string;
+  /**
+   * Editor only (T328): this section is the editable copy that Edit saved
+   * section opened. Kept in the stored draft so a reload keeps the edit going.
+   * Publish puts the link back (`restore`) instead of the copy, and the
+   * website's reader drops the field.
+   */
+  libraryEdit?: LearnSavedSectionEdit;
+}
+
+/**
+ * A saved section being changed on the page. The section `sectionId` holds an
+ * editable copy; Save to library writes it back under `libraryId`, and either
+ * way the link is put back as `restore` says.
+ */
+export interface LearnSavedSectionEdit {
+  libraryId: string;
+  name: string;
+  /** The copy's section; a marker on any other section (a duplicate) means nothing. */
+  sectionId: string;
+  /** Copy block id to the saved section's own block id. */
+  ids: Record<string, string>;
+  /** Anchors left off a copy because the page already uses them. */
+  anchors: Record<string, string>;
+  restore:
+    /** The section was the link's whole section: put it back as it was. */
+    | { kind: "whole"; host: LearnSection }
+    /** The link sat among other blocks: the copy got a section of its own, and the block goes back. */
+    | { kind: "inPlace"; hostSectionId: string; index: number; column?: number; block: LearnBlock }
+    /** Opened from the library: the copy is removed. */
+    | { kind: "none" };
 }
 
 export interface LearnPageContent {

@@ -196,6 +196,39 @@ describe('LearnPageView, v2 (T319)', () => {
     }
   });
 
+  it('draws an Image and text block with no picture as its text and buttons in one column (T328 N3)', () => {
+    const team = LEARN_PAGE_DEFAULT.sections[1]!;
+    const block = {
+      id: 'it-nopic',
+      kind: 'imageText',
+      image: { src: '', alt: '', width: 0, height: 0 },
+      imageSide: 'right',
+      imageWidth: 'third',
+      shape: 'rounded',
+      text: 'Words beside no picture',
+      buttons: [{ label: 'Apply', href: 'https://example.com/c-1', style: 'primary' }],
+    };
+    // As the /learn route reads it: through the parser first.
+    const page = learnPageOrDefault({ ...LEARN_PAGE_DEFAULT, sections: [{ ...team, blocks: [block] }] });
+    const html = renderToStaticMarkup(createElement(LearnPageView, { content: page }));
+    const out = html.slice(html.indexOf('data-block-id="it-nopic"') - 200);
+    expect(out).toMatch(/class="[^"]*lp-imageText[^"]*lp-it-noimage[^"]*"[^>]*data-block-id="it-nopic"/);
+    expect(out).not.toMatch(/lp-it-(right|third)/);
+    expect(out).toContain('Words beside no picture');
+    expect(out).toContain('href="https://example.com/c-1"');
+    expect(out).not.toContain('lp-it-media');
+    expect(out).not.toContain('<img');
+  });
+
+  it('draws a person with no photo as an initials tile, as the editor preview does (T324 D12)', () => {
+    const team = LEARN_PAGE_DEFAULT.sections[1]!;
+    const people = { id: 'pp', kind: 'people', style: 'cards', columns: 3, people: [{ id: 'a', name: 'Kay Graph', role: 'Lead' }] } as LearnBlock;
+    const html = render({ ...LEARN_PAGE_DEFAULT, sections: [{ ...team, blocks: [people] }] });
+    expect(html).toContain('<div class="lp-person-nophoto" aria-hidden="true">KG</div>');
+    // Every founder on the built-in page has a photo, so /learn with nothing published is unchanged.
+    expect(render()).not.toContain('lp-person-nophoto');
+  });
+
   it('leaves the default page as it was: no v2 classes, one wrapper', () => {
     const v1 = render();
     expect(v1.match(/<div class="lp-page">/g)).toHaveLength(1);

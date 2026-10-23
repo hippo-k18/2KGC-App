@@ -49,6 +49,7 @@ import { pickShownCall } from '@kgc/scripts/src/lib/call-window';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import { db } from './firestore';
+import { learnPreviewDraft } from './learn-preview';
 import { confirmSpeakers, isPublicSession, type ConfirmedSpeaker } from './confirmed-speakers';
 import { SITE } from './site';
 
@@ -1406,7 +1407,8 @@ export const learnPreview = cache(async function learnPreview(token: string): Pr
     const data = snap.data();
     if (!data || !previewTokenMatches(data.previewToken, token)) return null;
     const images = learnImageOptions();
-    const draft = readLearnPage(data.draft, images);
+    // A saved section being changed shows as its link, as Publish would put it live (T326 R1).
+    const draft = learnPreviewDraft(data.draft, images);
     if (!draft || !draft.sections.some((s) => s.blocks.some((b) => b.kind === 'reusable'))) return draft;
     // Publish fills saved sections in (T315), so the live copy never holds a
     // reusable block; a draft does, and the preview must show what Publish

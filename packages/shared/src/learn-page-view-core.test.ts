@@ -391,12 +391,19 @@ describe("v2", () => {
   describe("each v2 kind is dropped without its required content", () => {
     const keeps = (block: Record<string, unknown>) => blocksOf(page([{ id: "x", ...block }])).length === 1;
 
-    it("imageText needs an image and text", () => {
+    it("imageText needs text, and keeps its text and buttons without a picture (T328 N3)", () => {
       expect(keeps({ kind: "imageText", image: img, text: "T" })).toBe(true);
-      expect(keeps({ kind: "imageText", text: "T" })).toBe(false);
-      expect(keeps({ kind: "imageText", image: { ...img, src: "javascript:x" }, text: "T" })).toBe(false);
       expect(keeps({ kind: "imageText", image: img })).toBe(false);
       expect(keeps({ kind: "imageText", image: img, text: " " })).toBe(false);
+      const none = { src: "", alt: "", width: 0, height: 0 };
+      const button = { label: "Go", href: "https://example.com/c-1", style: "primary" };
+      for (const image of [undefined, { ...img, src: "" }, { ...img, src: "javascript:x" }]) {
+        const [b] = blocksOf(page([{ id: "x", kind: "imageText", image, text: "T", buttons: [button] }]));
+        expect(b).toMatchObject({ kind: "imageText", image: none, text: "T", buttons: [button] });
+        expect(hasLearnImage((b as Extract<LearnBlock, { kind: "imageText" }>).image)).toBe(false);
+        // Parsing what it gave back gives the same block.
+        expect(blocksOf(page([b as unknown as Record<string, unknown>]))).toEqual([b]);
+      }
     });
 
     it("gallery needs one valid image", () => {
