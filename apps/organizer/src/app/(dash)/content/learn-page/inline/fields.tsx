@@ -15,6 +15,8 @@ import {
   type ReactNode,
 } from 'react';
 import type { ImageShape, ImageWidth, LinkButton, PageImage, RichContent } from '@kgc/shared';
+import type { Editor } from '@tiptap/core';
+import { AllSelection, Selection } from '@tiptap/pm/state';
 import { RichEditor, editorForElement, type CaretInfo, type HostKey } from '@/components/rich-editor';
 import { isOffsite, normalizeLinkInput } from '@/lib/learn-inline-core';
 import type { BlockPatch } from '@/lib/learn-editor-core';
@@ -75,10 +77,23 @@ export function requestFieldFocus(key: string, mode: FocusMode = 'end') {
   const mine = { key, mode };
   pendingFocus = mine;
   let left = 30;
+  // Once placed, the caret is watched for a few frames more: the block may be
+  // drawn again just after (a production build gets there sooner than the
+  // first frame), and a caret that falls back to the page is put back.
+  let watch = 0;
   const tick = () => {
+    if (watch > 0) {
+      if (pendingFocus && pendingFocus !== mine) return;
+      const lost = !document.activeElement || document.activeElement === document.body;
+      if (lost) focusFieldNow(key, 'end');
+      if (--watch > 0) requestAnimationFrame(tick);
+      return;
+    }
     if (pendingFocus !== mine) return;
     if (focusFieldNow(key, mode)) {
-      if (pendingFocus === mine) pendingFocus = null;
+      pendingFocus = null;
+      watch = 12;
+      requestAnimationFrame(tick);
       return;
     }
     if (--left > 0) requestAnimationFrame(tick);
@@ -157,20 +172,31 @@ export function useCaretSafetyNet() {
       if (!t || !block || !t.closest('[data-lp-field]') || !(t as HTMLElement).isContentEditable) return;
       last = { el: t, blockId: block.getAttribute('data-block-id') ?? '', y: t.getBoundingClientRect().top };
     };
+    const swallow = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (!last || last.el.isConnected || pendingFocus) return;
       if (document.activeElement && document.activeElement !== document.body) return;
       if (e.metaKey || e.ctrlKey || e.altKey || e.key === 'Escape' || e.key === 'Tab') return;
+      // A key between a removal and the frame that places the caret: place it now.
+      if (pendingFocus) {
+        const want = pendingFocus;
+        if (focusFieldNow(want.key, want.mode)) {
+          if (pendingFocus === want) pendingFocus = null;
+          swallow(e);
+        } else if (last && !last.el.isConnected) swallow(e);
+        return;
+      }
+      if (!last || last.el.isConnected) return;
       const fields = typedFieldsIn(document.querySelector(`[data-block-id="${CSS.escape(last.blockId)}"]`));
       const y = last.y;
       last = null;
       if (!fields.length) return;
       const near = fields.reduce((a, b) => (Math.abs(b.getBoundingClientRect().top - y) < Math.abs(a.getBoundingClientRect().top - y) ? b : a));
-      if (!focusFieldNow(near.getAttribute('data-lp-field') ?? '', 'end')) return;
-      if (e.key === 'Backspace' || e.key === 'Delete') {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-      }
+      if (focusFieldNow(near.getAttribute('data-lp-field') ?? '', 'end')) swallow(e);
     };
     document.addEventListener('focusin', onIn);
     window.addEventListener('keydown', onKey, true);
@@ -498,10 +524,7 @@ export function InlineRich({ value, onChange, fieldKey, label, placeholder, sing
         tableOnly={tableOnly}
         onEditor={(editor) => {
           const mode = editor ? claimFocus(fieldKey) : null;
-          if (editor && mode) {
-            if (mode === 'select') editor.chain().focus().selectAll().run();
-            else editor.commands.focus(mode);
-          }
+          if (editor && mode) focusEditorNow(editor, mode);
           onEditor?.(editor);
         }}
       />
@@ -910,14 +933,26 @@ export function usePatch<T>(fn: (value: T) => BlockPatch): (value: T) => void {
   return useCallback((value: T) => patch(latest.current(value)), [patch]);
 }
 
+/**
+ * Puts the caret in a rich text field at once. TipTap's own focus command
+ * waits for the next frame, and a key pressed in that frame went to the page
+ * (T332): this sets the selection and focuses the view straight away.
+ */
+function focusEditorNow(editor: Editor, at: FocusMode) {
+  if (editor.isDestroyed) return;
+  const { state, view } = editor;
+  const sel = at === 'select' ? new AllSelection(state.doc) : at === 'start' ? Selection.atStart(state.doc) : Selection.atEnd(state.doc);
+  view.dispatch(state.tr.setSelection(sel));
+  view.focus();
+}
+
 /** Focuses a field already on the page (the item above, the item below). */
 export function focusFieldNow(key: string, at: FocusMode = 'end'): boolean {
   const field = document.querySelector<HTMLElement>(`[data-lp-field="${CSS.escape(key)}"]`);
   if (!field) return false;
   const editor = editorForElement(field.querySelector('.ProseMirror'));
   if (editor) {
-    if (at === 'select') editor.chain().focus().selectAll().run();
-    else editor.commands.focus(at);
+    focusEditorNow(editor, at);
     return true;
   }
   if (field.matches('.lp-rich-field')) return false;

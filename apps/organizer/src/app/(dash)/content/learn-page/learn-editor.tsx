@@ -559,7 +559,9 @@ export function LearnEditor({
         .catch(() => false)
         .then((ok) => {
           leaving.current = false;
-          if (ok) pass(go);
+          // A task later: with nothing to send this runs inside the first
+          // submit's own dispatch, where a browser ignores a new submit.
+          if (ok) setTimeout(() => pass(go), 0);
           else setDialog({ type: 'leave', go: () => pass(go) });
         });
     };

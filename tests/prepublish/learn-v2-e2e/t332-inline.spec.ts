@@ -173,9 +173,9 @@ test.describe('X1: removing an item keeps the caret on the page', () => {
       await page.keyboard.press('End');
       await page.keyboard.press('Enter');
       await page.keyboard.press('Backspace');
-      // The caret is at the end of the item above, not on the page.
-      expect(await caretField(page)).toBe('L:li:b');
+      // Typing at once (0 ms) lands at the end of the item above, never on the page.
       await page.keyboard.type(' more332');
+      expect(await caretField(page)).toBe('L:li:b');
       await page.keyboard.press('Backspace');
       await expect(block(page, 'L')).toHaveCount(1);
       await waitSaved(page);
@@ -188,8 +188,8 @@ test.describe('X1: removing an item keeps the caret on the page', () => {
       await page.keyboard.press('Meta+a');
       await page.keyboard.press('Backspace');
       await page.keyboard.press('Backspace');
-      expect(await caretField(page)).toBe('L:li:b');
       await page.keyboard.type('X');
+      expect(await caretField(page)).toBe('L:li:b');
       await waitSaved(page);
       expect(JSON.stringify(await draftBlock('L'))).toContain('XBeta words');
       expect(errorsOf(page)).toEqual([]);

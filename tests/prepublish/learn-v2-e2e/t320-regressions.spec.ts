@@ -123,6 +123,8 @@ test('F4: Undo after "Load their version" does not bring back what their save re
   await typeInto(B, T2, ' B1X');
   await expect(B.locator('.whova-banner.danger', { hasText: 'Someone else saved' })).toBeVisible();
   await B.getByRole('button', { name: 'Load their version' }).click();
+  // B has unsaved words, so it asks first (T332, E F8).
+  await B.getByRole('button', { name: 'Throw away my changes' }).click();
   await expect(B.locator('.le-pane-preview', { hasText: 'A1X' })).toHaveCount(1);
   await expect(B.getByRole('button', { name: 'Undo' })).toBeDisabled();
   await expect(B.getByRole('button', { name: 'Redo' })).toBeDisabled();
