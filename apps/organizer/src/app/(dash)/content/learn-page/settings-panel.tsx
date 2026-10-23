@@ -18,6 +18,7 @@ import { ImageTools } from './image-tools';
 import { RichField } from './rich-field';
 import { BlockColumnPicker, BlockCommonSettings, PageV2Settings, SectionV2Settings, V2BlockSettings } from './settings-v2';
 import { isEmptyRich } from '@/lib/learn-tools-core';
+import { LEARN_LIMITS } from '@/lib/learn-page-core';
 import { linkedHostBlock } from '@/lib/learn-library-edit-core';
 import { useEditorServices } from './editor-context';
 import {
@@ -505,6 +506,7 @@ function PeopleSettings({ block, upd, siteOrigin, uploadImage }: { block: BlockO
                       <RichField
                         label="Bio (optional)"
                         rows={4}
+                        maxLength={LEARN_LIMITS.bio}
                         value={p.bio ?? ''}
                         onChange={(v) => setPerson(i, isEmptyRich(v) ? without(p, 'bio') : { ...p, bio: v })}
                       />

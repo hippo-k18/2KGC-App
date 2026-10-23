@@ -477,7 +477,7 @@ export function replaceInPage(
 
 // ─── Accessibility checker ───────────────────────────────────────────────────
 
-export type IssueRule = 'alt' | 'heading-order' | 'contrast' | 'empty-link' | 'vague-link' | 'table-header' | 'starter-text';
+export type IssueRule = 'alt' | 'heading-order' | 'contrast' | 'empty-link' | 'vague-link' | 'table-header' | 'starter-text' | 'no-name';
 
 export interface Issue {
   id: string;
@@ -497,6 +497,7 @@ export const ISSUE_RULE_LABEL: Record<IssueRule, string> = {
   'vague-link': 'Unclear link text',
   'table-header': 'Table without a header row',
   'starter-text': 'Starter text left in',
+  'no-name': 'Person with no name',
 };
 
 /** Link words that say nothing out of context, which is how screen reader users often hear links. */
@@ -591,6 +592,9 @@ export function accessibilityIssues(content: LearnPageContent): Issue[] {
           break;
         case 'people':
           b.people.forEach((p, i) => {
+            // The website leaves out a person with no name, and publish refuses one (T343).
+            if (!p.name.trim())
+              add('no-name', 'error', `Person ${i + 1} has no name, so the website would leave them out.`, 'Type their name, or remove them.', w(`Person ${i + 1} name`));
             img(p.photo, `Photo of ${p.name || `person ${i + 1}`}`);
             richCheck(p.bio, `Bio of ${p.name || `person ${i + 1}`}`);
           });

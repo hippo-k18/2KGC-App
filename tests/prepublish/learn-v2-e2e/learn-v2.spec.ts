@@ -393,7 +393,7 @@ test('schedule a publish, then the timer step publishes it; an unfinished draft 
   expect(JSON.stringify(failed?.published)).not.toContain('"image","image":{"src":""');
   await page.reload();
   await page.waitForSelector('.le-root');
-  await expect(page.locator('.le-root')).toContainText(/not filled in yet/);
+  await expect(page.locator('.le-root')).toContainText(/did not run. The page is not ready to publish./);
   await shot(page, '12-schedule-failed');
   noErrors(page);
   await ctx.close();

@@ -169,18 +169,17 @@ describe('validateLearnContent', () => {
     ).toBe(true);
   });
 
-  it('stores a string over its limit and refuses it at publish; refuses one far over it (T331)', () => {
+  it('stores a string over its limit and refuses it at publish, however far over (T331, T343)', () => {
     const p = page();
     (p.sections[0].blocks[0] as { text: string }).text = 'x'.repeat(LEARN_LIMITS.heading + 1);
     expect(problemsOf(p)).toEqual([]);
     expect(publishBlockers(p)).toEqual([
       `The Heading block in "Hero" has a heading of ${LEARN_LIMITS.heading + 1} characters; the limit is ${LEARN_LIMITS.heading}.`,
     ]);
-    // Past four times the limit no typing gets there: the save is refused, naming the place.
-    (p.sections[0].blocks[0] as { text: string }).text = 'x'.repeat(4 * LEARN_LIMITS.heading + 1);
-    expect(problemsOf(p)).toEqual([
-      `Section 1, block 1: Heading is ${4 * LEARN_LIMITS.heading + 1} characters; the limit is ${LEARN_LIMITS.heading}.`,
-    ]);
+    // Far over it (a 2,470-character paste) is stored too: one long field never stops the page saving (T343).
+    (p.sections[0].blocks[0] as { text: string }).text = 'x'.repeat(2470);
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual([`The Heading block in "Hero" has a heading of 2470 characters; the limit is ${LEARN_LIMITS.heading}.`]);
   });
 
   it('caps sections and blocks', () => {
@@ -522,13 +521,11 @@ describe('validateLearnContent, v2 (T315)', () => {
         `The link name "${anchor}" in "Everything" can only use lower-case letters, numbers and single dashes, like our-team.`,
       ]);
     }
-    // Over its limit it is stored and refused at publish (T331); far over it, refused.
+    // Over its limit, however far, it is stored and refused at publish (T331, T343).
     const long = sinkWith((_, b) => (b[0].anchor = 'x'.repeat(65)));
     expect(problemsOf(long)).toEqual([]);
     expect(publishBlockers(long)).toEqual([`The link name "${'x'.repeat(57)}..." in "Everything" is 65 characters; the limit is 64.`]);
-    expect(problemsOf(sinkWith((_, b) => (b[0].anchor = 'x'.repeat(1065))))).toEqual([
-      'Section 1, block 1: Anchor is 1065 characters; the limit is 64.',
-    ]);
+    expect(problemsOf(sinkWith((_, b) => (b[0].anchor = 'x'.repeat(1065))))).toEqual([]);
     expect(problemsOf(sinkWith((_, b) => ((b[0] as { anchor: unknown }).anchor = 5)))).toEqual(['Section 1, block 1: Anchor must be text.']);
   });
 
@@ -605,14 +602,17 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(problems[0]).toMatch(/^Section 1, block 1: .*cannot hold "bulletList"\.$/);
   });
 
-  it('caps a rich text doc at the same length as the string: stored over it, refused far over it (T331)', () => {
+  it('caps a rich text doc at the same length as the string: stored over it, however far, and named at publish (T331, T343)', () => {
     const p = sinkWith((_, b) => ((b[0] as { text: RichDoc }).text = richText('x'.repeat(LEARN_LIMITS.heading + 1))));
     expect(problemsOf(p)).toEqual([]);
     expect(publishBlockers(p)).toEqual([
       `The Heading block in "Everything" has a heading of ${LEARN_LIMITS.heading + 1} characters; the limit is ${LEARN_LIMITS.heading}.`,
     ]);
-    const far = sinkWith((_, b) => ((b[0] as { text: RichDoc }).text = richText('x'.repeat(4 * LEARN_LIMITS.heading + 1))));
-    expect(problemsOf(far)).toEqual([`Section 1, block 1: Text is longer than ${4 * LEARN_LIMITS.heading} characters.`]);
+    const far = sinkWith((_, b) => ((b[0] as { text: RichDoc }).text = richText('x'.repeat(2470))));
+    expect(problemsOf(far)).toEqual([]);
+    expect(publishBlockers(far)).toEqual([
+      `The Heading block in "Everything" has a heading of 2470 characters; the limit is ${LEARN_LIMITS.heading}.`,
+    ]);
   });
 
   it('accepts a rich doc in a person bio and list and column items', () => {
@@ -1237,18 +1237,47 @@ describe('a field over its length limit saves as typed and refuses publish, by n
     expect(() => planPublish({ ...effectiveDoc(null), draft: p }, 'a', 1)).toThrow(LearnNotReady);
   });
 
-  it('still refuses the save past the hard ceiling: four times the limit, and at least 1,000 over it', () => {
+  it('refuses a save on length only when the page is over its size cap, never for one field (T343)', () => {
     const p = page();
-    buttons(p).buttons[0].label = 'x'.repeat(LEARN_LIMITS.label + 1000);
-    expect(problemsOf(p)).toEqual([]);
     buttons(p).buttons[0].label = 'x'.repeat(LEARN_LIMITS.label + 1001);
-    expect(problemsOf(p)).toEqual(['Section 1, block 4, button 1: Button label is 1081 characters; the limit is 80.']);
-    // A long field is four times its limit: rich text takes 40,000 characters, not 41,000.
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual(['The Buttons block in "Hero" has a button label of 1081 characters; the limit is 80.']);
+    // 44,400 characters in a text block, as a rich doc and as a string: stored, named at publish.
+    for (const text of [richText('x'.repeat(44_400)), 'x'.repeat(44_400)]) {
+      const t = page();
+      (t.sections[0].blocks[1] as { text: unknown }).text = text;
+      expect(problemsOf(t)).toEqual([]);
+      expect(publishBlockers(t)).toEqual([`The Text block in "Hero" has text of 44400 characters; the limit is ${LEARN_LIMITS.richText}.`]);
+    }
+    // A field longer than the whole page may be: the page cap refuses it, and the field is named with its own limit.
+    const huge = page();
+    (huge.sections[0].blocks[0] as { text: unknown }).text = richText('x'.repeat(LEARN_LIMITS.contentBytes + 1));
+    expect(problemsOf(huge)).toEqual([
+      `Section 1, block 1: Heading is ${LEARN_LIMITS.contentBytes + 1} characters; the limit is ${LEARN_LIMITS.heading}.`,
+      expect.stringMatching(/^The page is \d+ KB of text; the limit is 400 KB\.$/),
+    ]);
+  });
+
+  it('refuses to publish a person with no name, whom the website would leave out (T343, H F3)', () => {
+    const p = page();
+    const people = p.sections[0].blocks.find((b) => b.kind === 'people') as Extract<LearnBlock, { kind: 'people' }>;
+    people.people[0] = { ...people.people[0], name: '  ', role: 'Programme chair', bio: richText('Runs the programme.') };
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual(['The People block in "Hero" has a person with no name. Add a name or remove them.']);
+    expect(() => planPublish({ ...effectiveDoc(null), draft: p }, 'a', 1)).toThrow(LearnNotReady);
+    people.people.push({ id: 'p-two', name: '', role: 'Speaker' });
+    expect(publishBlockers(p)).toEqual(['The People block in "Hero" has 2 people with no name. Add their names or remove them.']);
+  });
+
+  it('names the field in a rich text problem, not "Text" (T343)', () => {
+    // 2,600 paragraphs of one word each: more parts than a rich doc may hold.
+    const many = { type: 'doc', content: Array.from({ length: 2600 }, () => ({ type: 'paragraph', content: [{ type: 'text', text: 'x' }] })) };
+    const p = page();
+    (p.sections[0].blocks[0] as { text: unknown }).text = many;
+    expect(problemsOf(p)).toContain('Section 1, block 1: Heading has more than 5000 parts.');
     const t = page();
-    (t.sections[0].blocks[1] as { text: string }).text = 'x'.repeat(4 * LEARN_LIMITS.richText);
-    expect(problemsOf(t)).toEqual([]);
-    (t.sections[0].blocks[1] as { text: string }).text = 'x'.repeat(4 * LEARN_LIMITS.richText + 1);
-    expect(problemsOf(t)).toEqual([`Section 1, block 2: Text is ${4 * LEARN_LIMITS.richText + 1} characters; the limit is ${LEARN_LIMITS.richText}.`]);
+    (t.sections[0].blocks[1] as { text: unknown }).text = many;
+    expect(problemsOf(t)).toContain('Section 1, block 2: Text has more than 5000 parts.');
   });
 
   it('names a figure, a figure label and a card badge over their limits', () => {
@@ -1264,7 +1293,8 @@ describe('a field over its length limit saves as typed and refuses publish, by n
       'The Cards block in "Everything" has a badge of 42 characters; the limit is 40.',
     ]);
     const far = sinkWith((q) => (block(q, 'stats').items[0].value = 'x'.repeat(LEARN_LIMITS.statValue + 1001)));
-    expect(problemsOf(far)).toEqual(['Section 1, block 9, figure 1: Figure is 1041 characters; the limit is 40.']);
+    expect(problemsOf(far)).toEqual([]);
+    expect(publishBlockers(far)).toContain('The Numbers block in "Everything" has a figure of 1041 characters; the limit is 40.');
   });
 
   it('names image descriptions, captions, table text and the page and section fields', () => {

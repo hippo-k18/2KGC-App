@@ -156,7 +156,7 @@ describe('scheduled publish makes the checks Publish makes (T323)', () => {
 
     const run = await runLearnPageCronStep(at);
     expect(run).toMatchObject({ published: false, failed: true, scheduledBy: ACTOR });
-    expect(run.message).toMatch(/^Some blocks are not filled in yet\./);
+    expect(run.message).toMatch(/^The page is not ready to publish\./);
     expect(run.problems).toEqual(['The Image block in "extra" has no image yet. Choose one or remove the block.']);
 
     const doc = await stored();

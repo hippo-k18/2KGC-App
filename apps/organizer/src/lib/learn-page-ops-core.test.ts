@@ -166,7 +166,7 @@ describe('planScheduledPublish makes the checks a press of Publish makes', () =>
     const stored = scheduledWith(EMPTY_IMAGE);
     const plan = refused(stored, NOW + HOUR);
     expect(plan.problems).toEqual(['The Image block in "extra" has no image yet. Choose one or remove the block.']);
-    expect(plan.message).toBe('Some blocks are not filled in yet. The Image block in "extra" has no image yet. Choose one or remove the block.');
+    expect(plan.message).toBe('The page is not ready to publish. The Image block in "extra" has no image yet. Choose one or remove the block.');
     expect(plan.doc).not.toHaveProperty('scheduledPublishAt');
     expect(plan.doc).not.toHaveProperty('scheduledBy');
     expect(plan.doc).not.toHaveProperty('scheduledRevision');
@@ -209,10 +209,18 @@ describe('planScheduledPublish makes the checks a press of Publish makes', () =>
     expect(plan.doc).not.toHaveProperty('scheduledPublishAt');
   });
 
+  it('a draft refused only for a field over its limit does not say blocks are not filled in (T343)', () => {
+    const stored = scheduledWith({ id: 'h9', kind: 'heading', level: 2, text: 'x'.repeat(2470) } as unknown as LearnBlock);
+    const plan = refused(stored, NOW + HOUR);
+    expect(plan.problems).toEqual(['The Heading block in "extra" has a heading of 2470 characters; the limit is 500.']);
+    expect(plan.message).toBe('The page is not ready to publish. The Heading block in "extra" has a heading of 2470 characters; the limit is 500.');
+    expect(plan.message).not.toMatch(/not filled in/);
+  });
+
   it('refuses an empty Image block that sits inside a saved section', () => {
     const stored = scheduledWith({ id: 'r1', kind: 'reusable', libraryId: 'cta' });
     const plan = refused(stored, NOW + HOUR, new Map([['cta', section('saved', [EMPTY_IMAGE])]]));
-    expect(plan.message).toMatch(/not filled in yet/);
+    expect(plan.message).toMatch(/^The page is not ready to publish\. The Image block in "extra" has no image yet/);
     expect(plan.doc.published).toEqual(stored.published);
   });
 
@@ -225,7 +233,7 @@ describe('planScheduledPublish makes the checks a press of Publish makes', () =>
     expect(failed.problems).toEqual([
       'The Saved section block in "extra" has no saved section chosen yet. Choose one or remove the block.',
     ]);
-    expect(failed.message).toMatch(/^Some blocks are not filled in yet\. The Saved section block in "extra"/);
+    expect(failed.message).toMatch(/^The page is not ready to publish\. The Saved section block in "extra"/);
     expect(failed.doc).not.toHaveProperty('scheduledPublishAt');
     expect(failed.doc.scheduleFailure).toEqual({ at: NOW + HOUR, message: failed.message });
     expect(planScheduledPublish(failed.doc, NOW + 2 * HOUR)).toBeNull();

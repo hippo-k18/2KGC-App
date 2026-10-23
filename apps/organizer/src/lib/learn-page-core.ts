@@ -57,8 +57,7 @@ import {
  * as typed and `publishBlockers` refuses to publish them, naming the block.
  * Only what no amount of typing produces refuses a save: the wrong type, an
  * unknown kind or enum, too many sections, blocks or items, a page over
- * `contentBytes`, a field far over its length limit (below), an image from
- * anywhere but our own uploads, and a link with a dangerous scheme
+ * `contentBytes`, an image from anywhere but our own uploads, and a link with a dangerous scheme
  * (`javascript:`, `data:` and the like) or a scheme-relative `//host`. Every
  * renderer checks links again with `isSafeHref`, so a half-typed address in
  * the draft never reaches a visitor.
@@ -68,11 +67,10 @@ import {
  * of unfinished value (T331): somebody typed or pasted a little too much, and
  * one such field used to refuse every later autosave of the whole page. It is
  * stored as typed and `publishBlockers` names it ("The Buttons block in
- * "Programmes" has a button label of 91 characters; the limit is 80."). Only a
- * field past `hardLimit` (four times its limit, and at least 1,000 characters
- * over it) still refuses the save: no editing step gets there, and it keeps a
- * crafted request from filling the draft with one huge string. The page as a
- * whole stays under `contentBytes` either way.
+ * "Programmes" has a button label of 91 characters; the limit is 80."). No
+ * field's own length refuses a save (`hardLimit`, T343): the page as a whole
+ * must stay under `contentBytes`, and that is what keeps a crafted request
+ * from filling the draft with one huge string.
  *
  * v2 (T315) adds rich text (a `RichDoc` wherever the contract says
  * `RichContent`, checked by `validateRichDoc` from `@kgc/shared`), fourteen
@@ -232,14 +230,16 @@ export type LearnValidation =
 export type LearnSectionValidation = { ok: true; section: LearnSection } | { ok: false; problems: string[] };
 
 /**
- * The longest a field may be and still be saved (T331). Up to its limit it is
- * fine; between the limit and this it is stored and refused at publish;
- * beyond this it refuses the save. Four times the limit leaves room for a
- * paste into a short field (a 40-character figure takes 1,040), and the
- * 1,000 floor matters only for the short fields.
+ * The longest a field may be and still be saved (T331, T343). Up to its limit
+ * it is fine; past it, it is stored and refused at publish by name. Until
+ * T343 this was four times the limit, and a 2,470-character paste into a
+ * heading (limit 500) refused that save and every later save of the page, so
+ * one long field stopped all saving. Now it is the page cap: a field this
+ * long cannot fit the page anyway (`contentBytes` counts bytes of the whole
+ * page), so only the page's size refuses a save, never one field's length.
  */
 function hardLimit(max: number): number {
-  return Math.max(4 * max, max + 1000);
+  return Math.max(max, LEARN_LIMITS.contentBytes);
 }
 
 class Problems {
@@ -330,15 +330,22 @@ function rich(
   opts: { required?: boolean; inline?: boolean } = {},
 ): RichContent | undefined {
   if (isRichDoc(v)) {
-    const r = validateRichDoc(withoutUnfinishedLinks(v), { maxChars: hardLimit(max), inline: opts.inline === true });
+    // The length is checked here, not by `validateRichDoc`, so the message
+    // names the field and its own limit ("Heading is ... the limit is 500.").
+    const r = validateRichDoc(withoutUnfinishedLinks(v), { maxChars: Infinity, inline: opts.inline === true });
     if (r.ok) {
       overLimit(ctx, where, name, richContentCharCount(r.doc), max);
       return r.doc;
     }
-    for (const problem of r.problems) ctx.p.add(where, problem);
+    for (const problem of r.problems) ctx.p.add(where, named(problem, name));
     return emptyRichDoc();
   }
   return str(ctx, where, name, v, max, opts);
+}
+
+/** A rich text problem from `validateRichDoc` ("Text has more than ...") with the field's own name. */
+function named(problem: string, name: string): string {
+  return problem.replace(/^Text\b/, name);
 }
 
 /**
@@ -908,14 +915,14 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       if (!isRichDoc(v.doc)) {
         ctx.p.add(where, 'Table is missing.');
       } else {
-        const r = validateRichDoc(withoutUnfinishedLinks(v.doc), { maxChars: hardLimit(LEARN_LIMITS.tableChars) });
+        const r = validateRichDoc(withoutUnfinishedLinks(v.doc), { maxChars: Infinity });
         if (r.ok) {
           // A table with every row deleted, or one over its characters, is
           // unfinished: stored, refused at publish.
           doc = r.doc;
           overLimit(ctx, where, 'Table text', richContentCharCount(doc), LEARN_LIMITS.tableChars);
         } else {
-          for (const problem of r.problems) ctx.p.add(where, problem);
+          for (const problem of r.problems) ctx.p.add(where, named(problem, 'Table'));
         }
       }
       return compact({
@@ -1371,6 +1378,13 @@ function blockBlockers(b: LearnBlock, name: string, out: string[], library: Lear
     case 'image':
       if (!b.image?.src) out.push(`${where} has no image yet. Choose one or remove the block.`);
       break;
+    case 'people': {
+      // www leaves out a person with no name, role and bio too (T343).
+      const nameless = listOf(b.people).filter((p) => isObj(p) && (typeof p.name !== 'string' || p.name.trim() === '')).length;
+      if (nameless === 1) out.push(`${where} has a person with no name. Add a name or remove them.`);
+      else if (nameless > 1) out.push(`${where} has ${nameless} people with no name. Add their names or remove them.`);
+      break;
+    }
     case 'video': {
       const url = typeof b.url === 'string' ? b.url.trim() : '';
       if (!url) out.push(`${where} has no video link yet. Add one or remove the block.`);

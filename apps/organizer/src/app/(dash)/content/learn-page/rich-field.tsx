@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, type CSSProperties, type React
 import type { RichContent, RichDoc } from '@kgc/shared';
 import { RichEditor, type RichAnchor } from '@/components/rich-editor';
 import { collapseToSingleParagraph, toRichDoc } from '@/lib/rich-editor/convert';
+import { LEARN_LIMITS } from '@/lib/learn-page-core';
 import { useEditorServices } from './editor-context';
 
 /**
@@ -24,6 +25,12 @@ export interface RichFieldProps {
   hint?: ReactNode;
   /** One paragraph only (a heading's text): Enter makes a line break. */
   singleLine?: boolean;
+  /**
+   * The server's limit for this field in characters (T343): a paste is cut to
+   * it and typing stops there. Defaults to a heading's limit for a one-line
+   * field and to rich text's otherwise; a bio passes its own.
+   */
+  maxLength?: number;
 }
 
 /** `value` as the editor holds it, so an edit can be told apart from a reload. */
@@ -57,7 +64,7 @@ export function useRichAnchors(): RichAnchor[] {
   return useMemo(() => (services?.anchors ?? []).map((a) => ({ id: a.anchor, label: a.label })), [services?.anchors]);
 }
 
-export function RichField({ label, value, onChange, variant = 'full', placeholder, maxWords, rows = 4, hint, singleLine = false }: RichFieldProps) {
+export function RichField({ label, value, onChange, variant = 'full', placeholder, maxWords, rows = 4, hint, singleLine = false, maxLength }: RichFieldProps) {
   const anchors = useRichAnchors();
   const change = useRichChange(value, singleLine, onChange);
 
@@ -73,6 +80,7 @@ export function RichField({ label, value, onChange, variant = 'full', placeholde
         maxWords={maxWords}
         ariaLabel={label}
         singleLine={singleLine}
+        maxLength={maxLength ?? (singleLine ? LEARN_LIMITS.heading : LEARN_LIMITS.richText)}
       />
       {hint && <p className="le-set-hint">{hint}</p>}
     </div>

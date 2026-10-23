@@ -185,7 +185,8 @@ export function planScheduledPublish(
   }
 }
 
-const NOT_READY_LEAD = 'Some blocks are not filled in yet.';
+// Not "Some blocks are not filled in yet": a field over its limit is a reason too (T343).
+const NOT_READY_LEAD = 'The page is not ready to publish.';
 const UNEXPECTED_LEAD = 'Something went wrong while publishing. Open the editor and press Publish, or schedule it again.';
 
 // ---------------------------------------------------------------------------
