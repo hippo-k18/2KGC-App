@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
  * than a 500 that would leave the owner no way back in (T320).
  */
 export default async function LearnPageEditorPage() {
-  await requireOrganizer();
+  const email = await requireOrganizer();
   let initial;
   try {
     initial = await loadLearnEditor();
@@ -31,5 +31,5 @@ export default async function LearnPageEditorPage() {
     const versions = await listLearnVersions();
     return <UnreadableDraft problems={err.problems} versions={versions} siteOrigin={publicSiteOrigin()} />;
   }
-  return <LearnEditor initial={initial} siteOrigin={publicSiteOrigin()} openedAt={Date.now()} />;
+  return <LearnEditor initial={initial} siteOrigin={publicSiteOrigin()} openedAt={Date.now()} userEmail={email} />;
 }

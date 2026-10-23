@@ -362,11 +362,14 @@ export function DiscardDialog({
  */
 export function LeaveDialog({
   conflict,
+  kept = false,
   onLeave,
   onClose,
 }: {
   /** Someone else saved meanwhile, which is why the words are not saved. */
   conflict: boolean;
+  /** This browser holds a copy of the words, which the editor offers when it next opens (T343). */
+  kept?: boolean;
   onLeave: () => void;
   onClose: () => void;
 }) {
@@ -385,7 +388,12 @@ export function LeaveDialog({
         </>
       }
     >
-      <p>Your latest changes are not saved. If you leave now, they are lost.</p>
+      <p>
+        Your latest changes are not saved.{' '}
+        {kept
+          ? 'If you leave now, this browser keeps a copy and offers it the next time you open the editor here.'
+          : 'If you leave now, they are lost.'}
+      </p>
       <p className="le-muted">
         {conflict
           ? 'Someone else saved this page while you were editing. Stay, then choose which version to keep.'

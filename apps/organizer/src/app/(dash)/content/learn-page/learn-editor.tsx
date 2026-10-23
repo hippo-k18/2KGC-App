@@ -35,6 +35,14 @@ import {
 } from '@/lib/learn-library-edit-core';
 import { historyAfterRestore, scheduleCheckDelay } from '@/lib/learn-shell-core';
 import {
+  recoveryKey,
+  recoveryStep,
+  recoveryTimeLabel,
+  recoveryToOffer,
+  revisionForRestore,
+  type RecoveryCopy,
+} from '@/lib/learn-recovery-core';
+import {
   blockRange,
   blocksInPageOrder,
   pageAnchors,
@@ -70,6 +78,14 @@ import { MediaLibrary } from './media-library';
 import { Outline } from './outline';
 import { LearnPreview, type BlockClickFn } from './preview';
 import { PreviewLinkDialog } from './preview-link-dialog';
+import {
+  clearRecovery,
+  clearRecoveryIfSaved,
+  onGuardEntry,
+  pushGuardEntry,
+  readRecovery,
+  writeRecovery,
+} from './recovery-store';
 import { ScheduleDialog, ScheduleFailedBanner, ScheduledBanner, formatScheduled } from './schedule-dialog';
 import { SettingsPanel } from './settings-panel';
 import { ShortcutsDialog, isMacPlatform, shortcutText } from './shortcuts-dialog';
@@ -107,7 +123,7 @@ type Dialog =
   | 'media'
   | { type: 'add-section'; index: number }
   | { type: 'save-library'; sectionId: string }
-  | { type: 'leave'; go: () => void };
+  | { type: 'leave'; go: () => void; stay?: () => void };
 /** A tool that takes the settings column while it is open. */
 type SideTool = null | 'find' | { type: 'check'; tab: CheckerTab };
 
@@ -217,11 +233,14 @@ export function LearnEditor({
   initial,
   siteOrigin,
   openedAt,
+  userEmail = '',
 }: {
   initial: LearnEditorState;
   siteOrigin: string;
   /** The server's clock when the page was rendered, for the preview's countdown. */
   openedAt?: number;
+  /** Who is signed in: the recovery copy in this browser is theirs alone (T343). */
+  userEmail?: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   useInertOutside(rootRef);
@@ -304,6 +323,15 @@ export function LearnEditor({
   const latest = useRef(history.present);
   latest.current = history.present;
   const saveStateRef = useRef<SaveState>('saved');
+
+  // ── The recovery copy in this browser (T343, N5) ───────────────────────
+  const rkey = useMemo(() => recoveryKey(userEmail), [userEmail]);
+  /** A copy from an earlier visit being offered; undefined until storage was read. */
+  const offerRef = useRef<RecoveryCopy | null | undefined>(undefined);
+  const [offer, setOffer] = useState<RecoveryCopy | null>(null);
+  /** Whether the words on screen that the server lacks are in the copy. */
+  const recoveryKept = useRef(false);
+  const revisionAtOpen = useRef(initial.doc.revision);
 
   const content = history.present;
   const warnings = useMemo(() => contentWarnings(content), [content]);
@@ -398,6 +426,8 @@ export function LearnEditor({
       // the next save will say so as a conflict.
       if (gen !== generation.current) return false;
       if (res.ok) {
+        // Also after the editor has closed (the save sent on the way out).
+        clearRecoveryIfSaved(rkey, sending);
         refused.current = null;
         revision.current = res.revision;
         lastSaved.current = sending;
@@ -425,7 +455,7 @@ export function LearnEditor({
     } finally {
       inFlight.current = false;
     }
-  }, []);
+  }, [rkey]);
 
   useEffect(() => {
     const step = autosaveStep({ content, lastSaved: lastSaved.current, state: saveState, refused: refused.current });
@@ -454,6 +484,42 @@ export function LearnEditor({
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
+
+  /*
+   * Browser Back cannot be held, and with a conflict or a refused save the
+   * words cannot be sent on the way out. So whenever the screen holds words
+   * the server lacks, this browser keeps a copy, and the next open offers it.
+   * Written shortly after each change, and at once on the way out.
+   */
+  const keepCopyNow = useCallback(() => {
+    if (offerRef.current === undefined) return;
+    const step = recoveryStep({ content: latest.current, lastSaved: lastSaved.current, offerPending: !!offerRef.current });
+    if (step === 'write') recoveryKept.current = writeRecovery(rkey, latest.current, revision.current);
+    else if (step === 'clear') {
+      clearRecovery(rkey);
+      recoveryKept.current = false;
+    }
+  }, [rkey]);
+
+  // Read once on open, before anything writes.
+  useEffect(() => {
+    const copy = recoveryToOffer(readRecovery(rkey), initial.doc.draft);
+    if (!copy) clearRecovery(rkey);
+    offerRef.current = copy;
+    setOffer(copy);
+    // Only the draft the editor opened with counts here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rkey]);
+
+  useEffect(() => {
+    const t = setTimeout(keepCopyNow, 300);
+    return () => clearTimeout(t);
+  }, [content, saveState, keepCopyNow]);
+
+  useEffect(() => {
+    window.addEventListener('pagehide', keepCopyNow);
+    return () => window.removeEventListener('pagehide', keepCopyNow);
+  }, [keepCopyNow]);
 
   /**
    * The draft was replaced from the server (their version, a discard, a
@@ -493,6 +559,19 @@ export function LearnEditor({
   useEffect(() => {
     if (saveState !== 'conflict') setConfirmTheirs(false);
   }, [saveState]);
+  // The question takes focus on Cancel, so Enter keeps the words (T342 N-G); its answer gives it back.
+  const cancelTheirsRef = useRef<HTMLButtonElement>(null);
+  const loadTheirsRef = useRef<HTMLButtonElement>(null);
+  const askedTheirs = useRef(false);
+  useEffect(() => {
+    if (confirmTheirs) {
+      askedTheirs.current = true;
+      cancelTheirsRef.current?.focus();
+    } else if (askedTheirs.current) {
+      askedTheirs.current = false;
+      loadTheirsRef.current?.focus();
+    }
+  }, [confirmTheirs]);
 
   const loadTheirs = useCallback(async (asked = false) => {
     if (!asked && !contentEqual(latest.current, lastSaved.current)) {
@@ -519,6 +598,24 @@ export function LearnEditor({
     void save();
   }, [save]);
 
+  /** The offered copy goes back in as an ordinary unsaved edit; a newer save on the server then asks as a conflict. */
+  const restoreCopy = useCallback(() => {
+    const copy = offerRef.current;
+    if (!copy) return;
+    offerRef.current = null;
+    setOffer(null);
+    revision.current = revisionForRestore(copy, revisionAtOpen.current, revision.current);
+    edit({ type: 'replace', content: copy.doc });
+    setEpoch((n) => n + 1);
+  }, [edit]);
+
+  const throwCopyAway = useCallback(() => {
+    offerRef.current = null;
+    setOffer(null);
+    clearRecovery(rkey);
+    keepCopyNow();
+  }, [keepCopyNow, rkey]);
+
   // ── Leaving through the editor's own links (T332, E F2) ─────────────────
   /**
    * Sends what autosave is still waiting to send, after any save on its way.
@@ -540,9 +637,30 @@ export function LearnEditor({
    * first, then the navigation, and if the words cannot be saved the editor
    * asks. Back in the browser cannot be held, so leaving any way at all still
    * sends the pending save.
+   *
+   * Browser Back (T343, N5): while the words cannot be saved, a guard history
+   * entry for the same address sits on top, so Back lands in the editor still
+   * here. Then it is handled like a link: save and go on back, or ask. Stay
+   * puts the guard back. Next replaces history.state on every server action,
+   * so the guard is told apart by the Navigation API's entry key where there
+   * is one, and otherwise by counting.
    */
   const passing = useRef(false);
   const leaving = useRef(false);
+  const onGuard = useRef(false);
+  const editorPath = useRef('');
+  const [guardTick, setGuardTick] = useState(0);
+  const atRisk = saveState === 'conflict' || saveState === 'error';
+  useEffect(() => {
+    editorPath.current = window.location.pathname + window.location.search;
+    onGuard.current = onGuardEntry() ?? false;
+  }, []);
+  useEffect(() => {
+    if (!atRisk || onGuard.current) return;
+    pushGuardEntry();
+    onGuard.current = true;
+  }, [atRisk, guardTick]);
+
   useEffect(() => {
     const pass = (go: () => void) => {
       passing.current = true;
@@ -552,7 +670,7 @@ export function LearnEditor({
         passing.current = false;
       }
     };
-    const leave = (go: () => void) => {
+    const leave = (go: () => void, stay?: () => void) => {
       if (leaving.current) return;
       leaving.current = true;
       void flushForLeave()
@@ -562,8 +680,30 @@ export function LearnEditor({
           // A task later: with nothing to send this runs inside the first
           // submit's own dispatch, where a browser ignores a new submit.
           if (ok) setTimeout(() => pass(go), 0);
-          else setDialog({ type: 'leave', go: () => pass(go) });
+          else {
+            keepCopyNow();
+            setDialog({ type: 'leave', go: () => pass(go), stay });
+          }
         });
+    };
+    const onPop = () => {
+      if (window.location.pathname + window.location.search !== editorPath.current) {
+        // Leaving with no guard to stop it: the copy keeps the words.
+        onGuard.current = false;
+        keepCopyNow();
+        return;
+      }
+      const was = onGuard.current;
+      onGuard.current = onGuardEntry() ?? !was;
+      if (!was || onGuard.current) return;
+      // Back took the guard entry and the editor is still here.
+      leave(
+        () => window.history.back(),
+        () => {
+          onGuard.current = false;
+          setGuardTick((n) => n + 1);
+        },
+      );
     };
     const onClick = (e: MouseEvent) => {
       if (passing.current || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -589,14 +729,22 @@ export function LearnEditor({
     };
     document.addEventListener('click', onClick, true);
     document.addEventListener('submit', onSubmit, true);
+    window.addEventListener('popstate', onPop);
     return () => {
       document.removeEventListener('click', onClick, true);
       document.removeEventListener('submit', onSubmit, true);
+      window.removeEventListener('popstate', onPop);
     };
-  }, [flushForLeave]);
+  }, [flushForLeave, keepCopyNow]);
 
-  // Leaving by Back, or anything else that unmounts the editor: send what is pending.
-  useEffect(() => () => void flushForLeave(), [flushForLeave]);
+  // Leaving by Back, or anything else that unmounts the editor: keep a copy and send what is pending.
+  useEffect(
+    () => () => {
+      keepCopyNow();
+      void flushForLeave();
+    },
+    [flushForLeave, keepCopyNow],
+  );
 
   // ── Selection helpers for bulk and keyboard actions ─────────────────────
   const selectedBlocks = useCallback((): LearnBlock[] => {
@@ -1331,14 +1479,30 @@ export function LearnEditor({
             </div>
           </div>
         )}
+        {offer && (
+          <div className="whova-banner warning le-banner le-recovery" role="alert">
+            <div>
+              <strong>You have changes from {recoveryTimeLabel(offer.at, Date.now())} that were not saved.</strong> This browser
+              kept them.
+              <div className="le-banner-actions">
+                <button type="button" className="whova-btn-main small" onClick={restoreCopy}>
+                  Restore them
+                </button>
+                <button type="button" className="btn btn-default btn-sm" onClick={throwCopyAway}>
+                  Throw them away
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {saveState === 'conflict' && (
           <div className="whova-banner danger le-banner" role="alert">
             <div>
               <strong>Someone else saved this page while you were editing.</strong> Your latest changes are not saved yet.
               {confirmTheirs ? (
-                <div className="le-banner-actions le-conflict-confirm">
+                <div className="le-banner-actions le-conflict-confirm" key="confirm">
                   <span>Load their version? This throws away your changes that are not saved yet.</span>
-                  <button type="button" className="btn btn-default btn-sm" onClick={() => setConfirmTheirs(false)} autoFocus>
+                  <button type="button" className="btn btn-default btn-sm" onClick={() => setConfirmTheirs(false)} ref={cancelTheirsRef}>
                     Cancel
                   </button>
                   <button type="button" className="btn btn-danger btn-sm" onClick={() => void loadTheirs(true)}>
@@ -1346,8 +1510,8 @@ export function LearnEditor({
                   </button>
                 </div>
               ) : (
-                <div className="le-banner-actions">
-                  <button type="button" className="btn btn-default btn-sm" onClick={() => void loadTheirs()}>
+                <div className="le-banner-actions" key="choose">
+                  <button type="button" className="btn btn-default btn-sm" onClick={() => void loadTheirs()} ref={loadTheirsRef}>
                     Load their version
                   </button>
                   <button type="button" className="btn btn-danger btn-sm" onClick={() => void keepMine()}>
@@ -1492,12 +1656,16 @@ export function LearnEditor({
         {typeof dialog === 'object' && dialog?.type === 'leave' && (
           <LeaveDialog
             conflict={saveState === 'conflict'}
+            kept={recoveryKept.current}
             onLeave={() => {
               const go = dialog.go;
               setDialog(null);
               go();
             }}
-            onClose={() => setDialog(null)}
+            onClose={() => {
+              dialog.stay?.();
+              setDialog(null);
+            }}
           />
         )}
         {dialog === 'history' && (
