@@ -120,12 +120,24 @@ export function fieldAfterRemoving(gone: Element): { key: string; mode: FocusMod
   return pick ? { key: pick.el.getAttribute('data-lp-field') ?? '', mode: pick.mode } : null;
 }
 
-/** Runs a removal and puts the caret in the field `fieldAfterRemoving` names, unless the removal placed it itself. */
+/**
+ * Runs a removal and puts the caret in the field `fieldAfterRemoving` names,
+ * unless the removal placed it itself. With no words left in the block (its
+ * last column removed), the focus goes to the block's own "+ Add" button,
+ * still on the block and never on the page.
+ */
 export function removeKeepingCaret(gone: Element | null, remove: () => void) {
   const next = gone ? fieldAfterRemoving(gone) : null;
+  const blockId = gone?.closest('[data-block-id]')?.getAttribute('data-block-id');
   pendingFocus = null;
   remove();
-  if (next && !pendingFocus) requestFieldFocus(next.key, next.mode);
+  if (pendingFocus) return;
+  if (next) requestFieldFocus(next.key, next.mode);
+  else if (blockId) {
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"] .lp-item-add`)?.focus({ preventScroll: true }),
+    );
+  }
 }
 
 /**
@@ -865,6 +877,13 @@ export function AddItem({ label, onAdd, className }: { label: string; onAdd: () 
     <button
       type="button"
       className={`lp-item-add${className ? ` ${className}` : ''}`}
+      // Backspace here is a slip after removing the last item, not "delete the block".
+      onKeyDown={(e) => {
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
       onClick={(e) => {
         e.stopPropagation();
         onAdd();

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { errorsOf, fsDelete, fsList, fsSet, learnDoc, openEditor, SHOTS, signedIn, waitForWeb, waitSaved } from './helpers';
 import { publish } from './editor-moves';
@@ -226,6 +227,24 @@ test.describe('X1: removing an item keeps the caret on the page', () => {
       expect(await draftText(), `${c.block}: typed words kept`).toContain(`k${c.block}33`);
     }
     expect(errorsOf(page)).toEqual([]);
+    await ctx.close();
+  });
+
+  test('removing the last item leaves the focus on the block, and Backspace then deletes nothing (found by the fuzz)', async ({ browser }) => {
+    const { ctx, page } = await editor(browser);
+    for (const words of ['Card two words', 'Card one words']) {
+      await clickWords(page, words, 'K');
+      const card = block(page, 'K').locator('li.lp-card').filter({ hasText: words });
+      await card.hover();
+      await card.getByRole('button', { name: 'Remove this card' }).click();
+      await page.waitForTimeout(200);
+    }
+    await expect(block(page, 'K').locator('li.lp-card')).toHaveCount(0);
+    expect(await page.evaluate(() => (document.activeElement as HTMLElement | null)?.textContent?.trim())).toBe('+ Add card');
+    await page.keyboard.press('Backspace');
+    await expect(block(page, 'K')).toHaveCount(1);
+    await waitSaved(page);
+    expect(await draftBlock('K')).toBeTruthy();
     await ctx.close();
   });
 
@@ -556,6 +575,39 @@ test.describe('In-place should-fixes', () => {
     await expect(box).not.toContainText('panel');
     await expect(page.locator(`${PREVIEW} [data-selected]`).getByLabel('Link to show')).toBeVisible();
     await ctx.close();
+  });
+
+  test('a selected saved section carries one tag, clear of the words above it (C N2)', async ({ browser }) => {
+    const fixtures = JSON.parse(readFileSync(path.join(__dirname, '.fixtures.json'), 'utf8')) as { library: Record<string, Json> };
+    await fsSet('pageLayouts/learn/library/lib-cta', { name: 'Call to action', section: fixtures.library['lib-cta'], createdAt: Date.now(), createdBy: OWNER });
+    const linked = {
+      ...PAGE,
+      sections: [{ ...PAGE.sections[0], blocks: [{ id: 'before', kind: 'text', text: 'Before the link.' }, { id: 'R', kind: 'reusable', libraryId: 'lib-cta' }] }],
+    };
+    await fsSet('pageLayouts/learn', { draft: linked, published: linked, revision: 1, draftUpdatedAt: Date.now(), draftUpdatedBy: OWNER });
+    for (const width of [1280, 390]) {
+      const { ctx, page } = await editor(browser, { width, email: width < 600 ? LEARN : OWNER });
+      const copy = page.locator(`${PREVIEW} [data-lp-saved]`).first();
+      await copy.scrollIntoViewIfNeeded();
+      await copy.click({ position: { x: 4, y: 4 } });
+      const tags = page.locator(`${PREVIEW} .lp-tag-saved`);
+      await expect(tags).toHaveCount(1);
+      const overlap = await page.evaluate((sel) => {
+        const tag = document.querySelector(`${sel} .lp-tag-saved`)!.getBoundingClientRect();
+        const words = document.querySelector(`${sel} [data-block-id="before"]`)!;
+        // The words themselves, not the block's box.
+        const rects: DOMRect[] = [];
+        const walker = document.createTreeWalker(words, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const r = document.createRange();
+          r.selectNodeContents(walker.currentNode);
+          rects.push(...r.getClientRects());
+        }
+        return rects.some((w) => w.left < tag.right && w.right > tag.left && w.top < tag.bottom && w.bottom > tag.top);
+      }, PREVIEW);
+      expect(overlap, `tag over "Before the link." at ${width}`).toBe(false);
+      await ctx.close();
+    }
   });
 });
 
