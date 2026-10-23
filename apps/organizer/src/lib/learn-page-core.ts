@@ -11,6 +11,7 @@ import {
   learnEmbedLinkProblem,
   learnPageOrDefault,
   normalizeColor,
+  richContentCharCount,
   validateRichDoc,
   type ColorValue,
   type LearnBlock,
@@ -55,10 +56,23 @@ import {
  * deleted, a saved section that was deleted from the library. Those are stored
  * as typed and `publishBlockers` refuses to publish them, naming the block.
  * Only what no amount of typing produces refuses a save: the wrong type, an
- * unknown kind or enum, over a size limit, an image from anywhere but our own
- * uploads, and a link with a dangerous scheme (`javascript:`, `data:` and the
- * like) or a scheme-relative `//host`. Every renderer checks links again with
- * `isSafeHref`, so a half-typed address in the draft never reaches a visitor.
+ * unknown kind or enum, too many sections, blocks or items, a page over
+ * `contentBytes`, a field far over its length limit (below), an image from
+ * anywhere but our own uploads, and a link with a dangerous scheme
+ * (`javascript:`, `data:` and the like) or a scheme-relative `//host`. Every
+ * renderer checks links again with `isSafeHref`, so a half-typed address in
+ * the draft never reaches a visitor.
+ *
+ * A field over its own length limit (a button label over `LEARN_LIMITS.label`,
+ * a figure over `statValue`, rich text over its characters) is the same kind
+ * of unfinished value (T331): somebody typed or pasted a little too much, and
+ * one such field used to refuse every later autosave of the whole page. It is
+ * stored as typed and `publishBlockers` names it ("The Buttons block in
+ * "Programmes" has a button label of 91 characters; the limit is 80."). Only a
+ * field past `hardLimit` (four times its limit, and at least 1,000 characters
+ * over it) still refuses the save: no editing step gets there, and it keeps a
+ * crafted request from filling the draft with one huge string. The page as a
+ * whole stays under `contentBytes` either way.
  *
  * v2 (T315) adds rich text (a `RichDoc` wherever the contract says
  * `RichContent`, checked by `validateRichDoc` from `@kgc/shared`), fourteen
@@ -217,6 +231,17 @@ export type LearnValidation =
 
 export type LearnSectionValidation = { ok: true; section: LearnSection } | { ok: false; problems: string[] };
 
+/**
+ * The longest a field may be and still be saved (T331). Up to its limit it is
+ * fine; between the limit and this it is stored and refused at publish;
+ * beyond this it refuses the save. Four times the limit leaves room for a
+ * paste into a short field (a 40-character figure takes 1,040), and the
+ * 1,000 floor matters only for the short fields.
+ */
+function hardLimit(max: number): number {
+  return Math.max(4 * max, max + 1000);
+}
+
 class Problems {
   list: string[] = [];
   add(where: string, what: string) {
@@ -247,6 +272,8 @@ interface Ctx {
   sectionIds: Set<string>;
   blockIds: Set<string>;
   forLibrary: boolean;
+  /** Fields over their limit but under `hardLimit`: stored, and named at publish (`textBlockers`). */
+  long: { name: string; length: number; max: number }[];
 }
 
 function newCtx(opts: LearnValidateOptions): Ctx {
@@ -257,6 +284,7 @@ function newCtx(opts: LearnValidateOptions): Ctx {
     sectionIds: new Set(),
     blockIds: new Set(),
     forLibrary: opts.forLibrary === true,
+    long: [],
   };
 }
 
@@ -276,14 +304,22 @@ function str(
     ctx.p.add(where, `${name} must be text.`);
     return opts.required ? '' : undefined;
   }
-  if (v.length > max) ctx.p.add(where, `${name} is ${v.length} characters; the limit is ${max}.`);
+  overLimit(ctx, where, name, v.length, max);
   return v;
+}
+
+/** A field `length` long against its limit: fine, stored but refused at publish, or refusing the save (`hardLimit`). */
+function overLimit(ctx: Ctx, where: string, name: string, length: number, max: number) {
+  if (length <= max) return;
+  if (length > hardLimit(max)) ctx.p.add(where, `${name} is ${length} characters; the limit is ${max}.`);
+  else ctx.long.push({ name, length, max });
 }
 
 /**
  * A `RichContent` field: the v1 Markdown string under the same length cap as
  * before, or a `RichDoc` checked by `validateRichDoc` with that cap on its
- * characters. The doc stored is the validator's rebuilt copy.
+ * characters. The doc stored is the validator's rebuilt copy. Over the cap
+ * but under `hardLimit`, it is stored and refused at publish, as a string is.
  */
 function rich(
   ctx: Ctx,
@@ -294,8 +330,11 @@ function rich(
   opts: { required?: boolean; inline?: boolean } = {},
 ): RichContent | undefined {
   if (isRichDoc(v)) {
-    const r = validateRichDoc(withoutUnfinishedLinks(v), { maxChars: max, inline: opts.inline === true });
-    if (r.ok) return r.doc;
+    const r = validateRichDoc(withoutUnfinishedLinks(v), { maxChars: hardLimit(max), inline: opts.inline === true });
+    if (r.ok) {
+      overLimit(ctx, where, name, richContentCharCount(r.doc), max);
+      return r.doc;
+    }
     for (const problem of r.problems) ctx.p.add(where, problem);
     return emptyRichDoc();
   }
@@ -358,10 +397,11 @@ function anchor(ctx: Ctx, where: string, v: unknown): string | undefined {
     ctx.p.add(where, 'Anchor must be text.');
     return undefined;
   }
-  if (v.length > LEARN_LIMITS.anchor) {
+  if (v.length > hardLimit(LEARN_LIMITS.anchor)) {
     ctx.p.add(where, `Anchor is ${v.length} characters; the limit is ${LEARN_LIMITS.anchor}.`);
     return undefined;
   }
+  // Over the limit but under `hardLimit`: stored, refused at publish (`anchorBlockers`).
   return v;
 }
 
@@ -868,10 +908,12 @@ function block(ctx: Ctx, where: string, v: unknown): LearnBlock | null {
       if (!isRichDoc(v.doc)) {
         ctx.p.add(where, 'Table is missing.');
       } else {
-        const r = validateRichDoc(withoutUnfinishedLinks(v.doc), { maxChars: LEARN_LIMITS.tableChars });
+        const r = validateRichDoc(withoutUnfinishedLinks(v.doc), { maxChars: hardLimit(LEARN_LIMITS.tableChars) });
         if (r.ok) {
-          // A table with every row deleted is unfinished, refused at publish.
+          // A table with every row deleted, or one over its characters, is
+          // unfinished: stored, refused at publish.
           doc = r.doc;
+          overLimit(ctx, where, 'Table text', richContentCharCount(doc), LEARN_LIMITS.tableChars);
         } else {
           for (const problem of r.problems) ctx.p.add(where, problem);
         }
@@ -1013,7 +1055,8 @@ function idMap(v: unknown, values: 'id' | 'anchor'): Record<string, string> | nu
   const out: Record<string, string> = {};
   for (const [k, x] of Object.entries(v)) {
     if (!ID.test(k) || typeof x !== 'string') return null;
-    if (values === 'id' ? !ID.test(x) : x === '' || x.length > LEARN_LIMITS.anchor) return null;
+    // An anchor over its limit is stored (`anchor`), so one may be recorded here too.
+    if (values === 'id' ? !ID.test(x) : x === '' || x.length > hardLimit(LEARN_LIMITS.anchor)) return null;
     out[k] = x;
   }
   return out;
@@ -1276,6 +1319,35 @@ function typed(v: string): string {
   return t.length > 60 ? `${t.slice(0, 57)}...` : t;
 }
 
+/** What a publish message calls a field the validator names, where its name alone reads badly. */
+const LONG_NOUN: Record<string, string> = {
+  'Alt text': 'an image description',
+  Text: 'text',
+  'Table text': 'table text',
+  'Text when done': 'text for when it ends',
+  'LinkedIn link': 'a LinkedIn link',
+  Image: 'an image address',
+};
+
+function longNoun(name: string): string {
+  const known = LONG_NOUN[name];
+  if (known) return known;
+  const lower = name.toLowerCase();
+  return `${/^[aeiou]/.test(lower) ? 'an' : 'a'} ${lower}`;
+}
+
+/**
+ * The fields of a block (or of a section or the page, through `check`) that
+ * are over their length limit, which the validator stores as typed (T331).
+ * The validator itself finds them, so the limits live in one place; only its
+ * list of long fields is used, never its other problems.
+ */
+function longFields(check: (ctx: Ctx) => void): Ctx['long'] {
+  const ctx = newCtx({});
+  check(ctx);
+  return ctx.long;
+}
+
 /**
  * Why one block (of the page or of a saved section it uses) cannot go on the
  * website yet, as messages naming it and its section. Defensive about shape:
@@ -1285,6 +1357,9 @@ function blockBlockers(b: LearnBlock, name: string, out: string[], library: Lear
   if (!isObj(b)) return;
   const label = KIND_LABEL[b.kind] ?? 'A';
   const where = `The ${label} block in "${name}"`;
+  for (const l of longFields((ctx) => block(ctx, '', b))) {
+    out.push(`${where} has ${longNoun(l.name)} of ${l.length} characters; the limit is ${l.max}.`);
+  }
   for (const { href, noun } of blockLinks(b)) {
     if (typeof href !== 'string' || href.trim() === '') {
       out.push(`${where} has a ${noun} with no address yet. Add one or remove the ${noun}.`);
@@ -1354,6 +1429,9 @@ function blockBlockers(b: LearnBlock, name: string, out: string[], library: Lear
 }
 
 function anchorBlockers(a: unknown, name: string, out: string[]) {
+  if (typeof a === 'string' && a.length > LEARN_LIMITS.anchor) {
+    out.push(`The link name "${typed(a)}" in "${name}" is ${a.length} characters; the limit is ${LEARN_LIMITS.anchor}.`);
+  }
   if (typeof a === 'string' && a !== '' && !ANCHOR.test(a)) {
     out.push(`The link name "${typed(a)}" in "${name}" can only use lower-case letters, numbers and single dashes, like our-team.`);
   }
@@ -1366,7 +1444,8 @@ function anchorBlockers(a: unknown, name: string, out: string[]) {
  * stores unfinished so autosave goes on: a link with no address or one still
  * being typed, an embed link that cannot be shown, an embed height or a
  * countdown date out of range, a table with no rows, a link name that is not
- * well formed or is used twice, an empty page title. With `library`, a Saved
+ * well formed or is used twice, an empty page title, and since T331 any field
+ * over its length limit (the page's, a section's or a block's). With `library`, a Saved
  * section block pointing at a deleted section is refused too, and the blocks
  * of each saved section it uses are checked under the host section's name.
  *
@@ -1380,6 +1459,18 @@ export function publishBlockers(content: LearnPageContent, library?: LearnLibrar
   if (typeof content.seoTitle !== 'string' || content.seoTitle.trim() === '') {
     out.push('The page title in Search settings is empty. Add one before publishing.');
   }
+  // Fields over their limit, stored so autosave goes on (T331).
+  const tooLong = (l: Ctx['long'][number], place: string) =>
+    `The ${longNoun(l.name).replace(/^an? /, '')} in ${place} is ${l.length} characters; the limit is ${l.max}.`;
+  for (const l of longFields((ctx) => {
+    str(ctx, '', 'Page title', content.seoTitle, LEARN_LIMITS.seoTitle);
+    str(ctx, '', 'Description', content.seoDescription, LEARN_LIMITS.seoDescription);
+  })) {
+    out.push(tooLong(l, 'Search settings'));
+  }
+  if (isObj(content.ogImage)) {
+    for (const l of longFields((ctx) => image(ctx, '', content.ogImage))) out.push(tooLong(l, 'the sharing image'));
+  }
   const anchorCount = new Map<string, number>();
   const count = (a: unknown) => {
     if (typeof a === 'string' && a !== '') anchorCount.set(a, (anchorCount.get(a) ?? 0) + 1);
@@ -1387,6 +1478,10 @@ export function publishBlockers(content: LearnPageContent, library?: LearnLibrar
   listOf(content.sections).forEach((s, i) => {
     if (!isObj(s)) return;
     const name = (typeof s.label === 'string' && s.label.trim()) || `Section ${i + 1}`;
+    // The section's own fields (its name, note, background image), with no blocks.
+    for (const l of longFields((ctx) => section(ctx, '', { ...s, blocks: [], blockColumn: undefined }))) {
+      out.push(tooLong(l, `"${typed(name)}"`));
+    }
     anchorBlockers(s.anchor, name, out);
     count(s.anchor);
     for (const b of listOf(s.blocks)) {

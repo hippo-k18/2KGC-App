@@ -169,11 +169,17 @@ describe('validateLearnContent', () => {
     ).toBe(true);
   });
 
-  it('caps string lengths with a message that names the place', () => {
+  it('stores a string over its limit and refuses it at publish; refuses one far over it (T331)', () => {
     const p = page();
     (p.sections[0].blocks[0] as { text: string }).text = 'x'.repeat(LEARN_LIMITS.heading + 1);
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual([
+      `The Heading block in "Hero" has a heading of ${LEARN_LIMITS.heading + 1} characters; the limit is ${LEARN_LIMITS.heading}.`,
+    ]);
+    // Past four times the limit no typing gets there: the save is refused, naming the place.
+    (p.sections[0].blocks[0] as { text: string }).text = 'x'.repeat(4 * LEARN_LIMITS.heading + 1);
     expect(problemsOf(p)).toEqual([
-      `Section 1, block 1: Heading is ${LEARN_LIMITS.heading + 1} characters; the limit is ${LEARN_LIMITS.heading}.`,
+      `Section 1, block 1: Heading is ${4 * LEARN_LIMITS.heading + 1} characters; the limit is ${LEARN_LIMITS.heading}.`,
     ]);
   });
 
@@ -516,7 +522,13 @@ describe('validateLearnContent, v2 (T315)', () => {
         `The link name "${anchor}" in "Everything" can only use lower-case letters, numbers and single dashes, like our-team.`,
       ]);
     }
-    expect(problemsOf(sinkWith((_, b) => (b[0].anchor = 'x'.repeat(65))))).toHaveLength(1);
+    // Over its limit it is stored and refused at publish (T331); far over it, refused.
+    const long = sinkWith((_, b) => (b[0].anchor = 'x'.repeat(65)));
+    expect(problemsOf(long)).toEqual([]);
+    expect(publishBlockers(long)).toEqual([`The link name "${'x'.repeat(57)}..." in "Everything" is 65 characters; the limit is 64.`]);
+    expect(problemsOf(sinkWith((_, b) => (b[0].anchor = 'x'.repeat(1065))))).toEqual([
+      'Section 1, block 1: Anchor is 1065 characters; the limit is 64.',
+    ]);
     expect(problemsOf(sinkWith((_, b) => ((b[0] as { anchor: unknown }).anchor = 5)))).toEqual(['Section 1, block 1: Anchor must be text.']);
   });
 
@@ -593,9 +605,14 @@ describe('validateLearnContent, v2 (T315)', () => {
     expect(problems[0]).toMatch(/^Section 1, block 1: .*cannot hold "bulletList"\.$/);
   });
 
-  it('caps a rich text doc at the same length as the string', () => {
+  it('caps a rich text doc at the same length as the string: stored over it, refused far over it (T331)', () => {
     const p = sinkWith((_, b) => ((b[0] as { text: RichDoc }).text = richText('x'.repeat(LEARN_LIMITS.heading + 1))));
-    expect(problemsOf(p)).toEqual([`Section 1, block 1: Text is longer than ${LEARN_LIMITS.heading} characters.`]);
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual([
+      `The Heading block in "Everything" has a heading of ${LEARN_LIMITS.heading + 1} characters; the limit is ${LEARN_LIMITS.heading}.`,
+    ]);
+    const far = sinkWith((_, b) => ((b[0] as { text: RichDoc }).text = richText('x'.repeat(4 * LEARN_LIMITS.heading + 1))));
+    expect(problemsOf(far)).toEqual([`Section 1, block 1: Text is longer than ${4 * LEARN_LIMITS.heading} characters.`]);
   });
 
   it('accepts a rich doc in a person bio and list and column items', () => {
@@ -1202,5 +1219,103 @@ describe('a saved section being changed is stored with the draft (T326 R1)', () 
     const v = validateLearnSection(copy(inPlace), { forLibrary: true });
     if (!v.ok) throw new Error(v.problems.join('; '));
     expect(v.section.libraryEdit).toBeUndefined();
+  });
+});
+
+describe('a field over its length limit saves as typed and refuses publish, by name (T331)', () => {
+  const buttons = (p: LearnPageContent) => p.sections[0].blocks[3] as Extract<LearnBlock, { kind: 'buttons' }>;
+
+  it('saves a 91-character button label as typed, and publish names it', () => {
+    const p = page();
+    const label = 'Programmes for teams, researchers and anyone curious about knowledge graphs and their uses.';
+    expect(label).toHaveLength(91);
+    buttons(p).buttons[0].label = label;
+    const r = validateLearnContent(p);
+    expect(r.ok ? [] : r.problems).toEqual([]);
+    if (r.ok) expect((r.content.sections[0].blocks[3] as Extract<LearnBlock, { kind: 'buttons' }>).buttons[0].label).toBe(label);
+    expect(publishBlockers(p)).toEqual(['The Buttons block in "Hero" has a button label of 91 characters; the limit is 80.']);
+    expect(() => planPublish({ ...effectiveDoc(null), draft: p }, 'a', 1)).toThrow(LearnNotReady);
+  });
+
+  it('still refuses the save past the hard ceiling: four times the limit, and at least 1,000 over it', () => {
+    const p = page();
+    buttons(p).buttons[0].label = 'x'.repeat(LEARN_LIMITS.label + 1000);
+    expect(problemsOf(p)).toEqual([]);
+    buttons(p).buttons[0].label = 'x'.repeat(LEARN_LIMITS.label + 1001);
+    expect(problemsOf(p)).toEqual(['Section 1, block 4, button 1: Button label is 1081 characters; the limit is 80.']);
+    // A long field is four times its limit: rich text takes 40,000 characters, not 41,000.
+    const t = page();
+    (t.sections[0].blocks[1] as { text: string }).text = 'x'.repeat(4 * LEARN_LIMITS.richText);
+    expect(problemsOf(t)).toEqual([]);
+    (t.sections[0].blocks[1] as { text: string }).text = 'x'.repeat(4 * LEARN_LIMITS.richText + 1);
+    expect(problemsOf(t)).toEqual([`Section 1, block 2: Text is ${4 * LEARN_LIMITS.richText + 1} characters; the limit is ${LEARN_LIMITS.richText}.`]);
+  });
+
+  it('names a figure, a figure label and a card badge over their limits', () => {
+    const p = sinkWith((q) => {
+      block(q, 'stats').items[0].value = 'x'.repeat(LEARN_LIMITS.statValue + 1);
+      block(q, 'stats').items[0].label = 'y'.repeat(LEARN_LIMITS.shortText + 5);
+      block(q, 'cards').items[0].badge = 'z'.repeat(LEARN_LIMITS.badge + 2);
+    });
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual([
+      'The Numbers block in "Everything" has a figure of 41 characters; the limit is 40.',
+      'The Numbers block in "Everything" has a label of 305 characters; the limit is 300.',
+      'The Cards block in "Everything" has a badge of 42 characters; the limit is 40.',
+    ]);
+    const far = sinkWith((q) => (block(q, 'stats').items[0].value = 'x'.repeat(LEARN_LIMITS.statValue + 1001)));
+    expect(problemsOf(far)).toEqual(['Section 1, block 9, figure 1: Figure is 1041 characters; the limit is 40.']);
+  });
+
+  it('names image descriptions, captions, table text and the page and section fields', () => {
+    const p = sinkWith((q, _, s) => {
+      q.seoTitle = 't'.repeat(LEARN_LIMITS.seoTitle + 1);
+      s.label = 'L'.repeat(LEARN_LIMITS.label + 1);
+      block(q, 'gallery').images[0].alt = 'a'.repeat(LEARN_LIMITS.alt + 1);
+      block(q, 'table').caption = 'c'.repeat(LEARN_LIMITS.caption + 1);
+      const cell = { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x'.repeat(LEARN_LIMITS.tableChars + 1) }] }] };
+      block(q, 'table').doc = { type: 'doc', content: [{ type: 'table', content: [{ type: 'tableRow', content: [cell] }] }] } as RichDoc;
+    });
+    expect(problemsOf(p)).toEqual([]);
+    const name = 'L'.repeat(LEARN_LIMITS.label + 1);
+    expect(publishBlockers(p)).toEqual([
+      `The page title in Search settings is ${LEARN_LIMITS.seoTitle + 1} characters; the limit is ${LEARN_LIMITS.seoTitle}.`,
+      `The section name in "${'L'.repeat(57)}..." is ${LEARN_LIMITS.label + 1} characters; the limit is ${LEARN_LIMITS.label}.`,
+      `The Gallery block in "${name}" has an image description of ${LEARN_LIMITS.alt + 1} characters; the limit is ${LEARN_LIMITS.alt}.`,
+      `The Table block in "${name}" has table text of ${LEARN_LIMITS.tableChars + 1} characters; the limit is ${LEARN_LIMITS.tableChars}.`,
+      `The Table block in "${name}" has a caption of ${LEARN_LIMITS.caption + 1} characters; the limit is ${LEARN_LIMITS.caption}.`,
+    ]);
+  });
+
+  it('keeps refusing what no typing produces, whatever the length', () => {
+    const scheme = page();
+    buttons(scheme).buttons[0] = { label: 'x'.repeat(90), href: 'javascript:alert(1)', style: 'primary' };
+    expect(problemsOf(scheme)).toEqual(['Section 1, block 4, button 1: Button link "javascript:alert(1)" is not a link the site can open.']);
+    const wrongType = page();
+    (buttons(wrongType).buttons[0] as unknown as { label: unknown }).label = 91;
+    expect(problemsOf(wrongType)).toEqual(['Section 1, block 4, button 1: Button label must be text.']);
+    const foreign = page();
+    (foreign.sections[0].blocks[2] as Extract<LearnBlock, { kind: 'image' }>).image.src = `https://evil.example/${'x'.repeat(2100)}.png`;
+    expect(problemsOf(foreign)).toEqual(['Section 1, block 3: image must be uploaded here or be a /kgc/ site image.']);
+  });
+
+  it('stores a saved section with a long field, and a page using it is refused at publish', () => {
+    const s = kitchenSink().sections[0];
+    s.blocks = [{ id: 'x1', kind: 'buttons', buttons: [{ label: 'x'.repeat(91), href: '/tickets', style: 'primary' }] }];
+    const r = validateLearnSection(s, { forLibrary: true });
+    expect(r.ok ? [] : r.problems).toEqual([]);
+    if (!r.ok) return;
+    const lib = new Map([['footer-cta', r.section]]);
+    expect(publishBlockers(kitchenSink(), lib)).toEqual([
+      'The Buttons block in "Everything" has a button label of 91 characters; the limit is 80.',
+    ]);
+    // The expanded page says the same once, not twice.
+    const expanded = sinkWith((q) => {
+      const blocks = q.sections[0].blocks;
+      blocks.splice(blocks.findIndex((b) => b.kind === 'reusable'), 1, ...r.section.blocks);
+    });
+    expect(publishProblems(kitchenSink(), lib, expanded)).toEqual([
+      'The Buttons block in "Everything" has a button label of 91 characters; the limit is 80.',
+    ]);
   });
 });
