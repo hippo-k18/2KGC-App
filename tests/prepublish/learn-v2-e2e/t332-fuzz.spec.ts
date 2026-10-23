@@ -84,21 +84,46 @@ function words(v: unknown, key = ''): string {
 const draftText = (draft: { sections: Section[] }) => squash(draft.sections.map((s) => words(s.blocks)).join(''));
 
 /**
+ * Gaps in the test runner's own clock. When the test machine sleeps (a Mac
+ * with its display off goes into idle sleep, then wakes for a few seconds at
+ * a time), the browser stops with it: the save chip sits on "Unsaved" and the
+ * page "stops answering", which is not the editor's doing (T343 N7: all three
+ * stalls in T342 lined up to the second with `pmset -g log` sleeps). A page
+ * cannot stop this process's timers, so a gap here names the machine.
+ */
+const hostGaps: string[] = [];
+function watchHost() {
+  let last = Date.now();
+  const t = setInterval(() => {
+    const now = Date.now();
+    if (now - last > 10_000) hostGaps.push(`${Math.round((now - last) / 1000)} s ending ${new Date(now).toLocaleTimeString()}`);
+    last = now;
+  }, 1000);
+  t.unref();
+  return () => clearInterval(t);
+}
+const hostNote = () =>
+  hostGaps.length ? `\nThe test machine itself was frozen (asleep?) for ${hostGaps.join(', ')}: not a page failure. Run under \`caffeinate -i -s\`.` : '';
+
+/**
  * The preview's words. A page that stops answering is a failure of its own:
  * after 15 seconds its script is paused and where it is stuck is reported.
  */
 async function pageText(page: Page): Promise<string> {
   const read = page.evaluate((sel) => (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ''), PREVIEW);
-  const late = new Promise<'hung'>((res) => setTimeout(() => res('hung'), 15_000));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<'hung'>((res) => (timer = setTimeout(() => res('hung'), 15_000)));
   const got = await Promise.race([read, late]);
+  clearTimeout(timer);
   if (got !== 'hung') return got;
   const cdp = await page.context().newCDPSession(page);
   const paused = new Promise<{ callFrames: { functionName: string; url: string; location: { lineNumber: number } }[] }>((res) => cdp.once('Debugger.paused', res));
   await cdp.send('Debugger.enable');
+  await cdp.send('Debugger.setAsyncCallStackDepth', { maxDepth: 16 });
   await cdp.send('Debugger.pause');
   const at = await Promise.race([paused, new Promise<null>((res) => setTimeout(() => res(null), 5000))]);
   const where = at ? at.callFrames.slice(0, 12).map((f) => `${f.functionName || '(anon)'} ${f.url.split('/').pop()}:${f.location.lineNumber}`).join('\n') : 'no stack';
-  throw new Error(`the page stopped answering; its script was at:\n${where}`);
+  throw new Error(`the page stopped answering; its script was at:\n${where}${hostNote()}`);
 }
 
 /** Where the focus is: a field on the page, or what else. */
@@ -216,13 +241,20 @@ for (const [i, seed] of SEEDS.entries()) {
     const log: string[] = [];
     const typed: string[] = [];
     let selecting = false;
+    hostGaps.length = 0;
+    const stopWatch = watchHost();
     const fail = async (why: string) => {
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/t332-fuzz-${seed}-fail.png` });
-      throw new Error(`seed ${seed}: ${why}\nlast steps:\n${log.slice(-15).join('\n')}`);
+      throw new Error(`seed ${seed}: ${why}\nlast steps:\n${log.slice(-15).join('\n')}${hostNote()}`);
     };
 
     const checkSaved = async (label: string) => {
-      await waitSaved(page, 40_000);
+      if (hostGaps.length) throw new Error(`seed ${seed}: machine slept before ${label}, run void.${hostNote()}`);
+      await waitSaved(page, 40_000).catch((e: Error) => {
+        if (hostGaps.length) e.message = `seed ${seed}: machine slept, run void. ${e.message}`;
+        e.message += hostNote();
+        throw e;
+      });
       const d = (await learnDoc())?.draft as { sections: Section[] };
       const inDraft = draftText(d);
       const shown = await pageText(page);
@@ -235,6 +267,8 @@ for (const [i, seed] of SEEDS.entries()) {
     };
 
     for (let step = 0; step < STEPS; step++) {
+      // A sleep voids the run: stop at once rather than hold the shared harness for its timeouts.
+      if (hostGaps.length) throw new Error(`seed ${seed}: machine slept at step ${step}, run void.${hostNote()}`);
       const before = await pageText(page);
       const focusBefore = await focusKind(page);
       // With no caret, a person mostly clicks on some words next.
@@ -284,6 +318,13 @@ for (const [i, seed] of SEEDS.entries()) {
         op = r.next() < 0.5 ? 'Tab' : 'Shift+Tab';
         await page.keyboard.press(op);
         mayDelete = selecting;
+        // Tab into a table cell selects the cell's words, as in Word (T342 H F4),
+        // so the next letters may replace them. Anywhere else Tab only moves.
+        selecting = await page.evaluate(() => {
+          const s = getSelection();
+          const cell = (n: Node | null | undefined) => (n instanceof Element ? n : n?.parentElement)?.closest('td, th');
+          return !!document.querySelector('.le-pane-preview .selectedCell') || (!!s && !s.isCollapsed && !!cell(s.anchorNode) && cell(s.anchorNode) === cell(s.focusNode));
+        });
       } else if (roll < 0.74) {
         op = r.pick(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
         keepsFocus = true;
@@ -370,7 +411,8 @@ for (const [i, seed] of SEEDS.entries()) {
         return kept.filter((t) => !html.includes(t));
       }, { timeout: 90_000, intervals: [1000, 2000, 3000] })
       .toEqual([]);
-    console.log(`seed ${seed}: ${STEPS} steps, ${typed.length} words typed, ${kept.length} kept to the end`);
+    console.log(`seed ${seed}: ${STEPS} steps, ${typed.length} words typed, ${kept.length} kept to the end${hostNote()}`);
+    stopWatch();
     await ctx.close();
   });
 }
