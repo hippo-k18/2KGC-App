@@ -45,7 +45,7 @@ import { RichBlocks, RichLine } from './preview-rich';
 import { PreviewBlockCtxContext, PreviewContentContext, PreviewLibraryContext, V2Body } from './preview-v2';
 import { useRichAnchors, useRichChange } from './rich-field';
 import { EditableBody, hasEditableBody } from './inline/editable-blocks';
-import { floatingLayer, InlineBlockContext, placeCaretAt, type InlineBlockCtx } from './inline/fields';
+import { floatingLayer, InlineBlockContext, placeCaretAt, useCaretSafetyNet, type InlineBlockCtx } from './inline/fields';
 import { InsertGap } from './inline/insert-gap';
 import './preview.css';
 import './preview-v2.css';
@@ -379,6 +379,8 @@ interface BlockViewProps {
    * is edited in the library, not here.
    */
   hostId?: string;
+  /** The first block drawn from its saved section, which alone carries the "Saved section" tag. */
+  hostFirst?: boolean;
 }
 
 const BlockView = memo(function BlockView({
@@ -394,6 +396,7 @@ const BlockView = memo(function BlockView({
   onBlockClick,
   wasLocal,
   hostId,
+  hostFirst,
 }: BlockViewProps) {
   const ref = useRef<HTMLDivElement>(null);
   const label = hostId ? 'Saved section' : kindLabel(block.kind);
@@ -524,8 +527,9 @@ const BlockView = memo(function BlockView({
       onClick={onClick}
       onKeyDown={onKeyDown}
     >
-      {selected && hostId && (
-        <span className="lp-tag lp-tag-block" aria-hidden="true">
+      {/* One tag for the whole saved section, at the right, where it covers least of the block above (T332). */}
+      {selected && hostId && hostFirst && (
+        <span className="lp-tag lp-tag-block lp-tag-saved" aria-hidden="true">
           {label}
         </span>
       )}
@@ -681,6 +685,14 @@ const SectionView = memo(function SectionView({
     return columns <= 1 ? source.blocks.length : last + 1 || source.blocks.length;
   };
 
+  const firstOfHost = new Set<string>();
+  const seenHosts = new Set<string>();
+  for (const [b, h] of hosts) {
+    if (seenHosts.has(h)) continue;
+    seenHosts.add(h);
+    firstOfHost.add(b);
+  }
+
   const block = (b: LearnBlock, column: number) => {
     // A copy from a saved section is not in the draft, so nothing can be
     // dropped in front of it; it is selected, and warned about, as its host.
@@ -704,6 +716,7 @@ const SectionView = memo(function SectionView({
           onBlockClick={onBlockClick}
           wasLocal={wasLocal}
           hostId={host}
+          hostFirst={!!host && firstOfHost.has(b.id)}
         />
       </div>
     );
@@ -859,6 +872,7 @@ export interface LearnPreviewProps extends PaneProps {
 export function LearnPreview(props: LearnPreviewProps) {
   const { content: draft, selection, warnings, siteOrigin, device, multi, library } = props;
   const rootRef = useRef<HTMLDivElement>(null);
+  useCaretSafetyNet();
 
   const { content, hosts: freshHosts } = useMemo(() => expandForPreview(draft, library), [draft, library]);
   // The same map while the same blocks are expanded, so the memoised

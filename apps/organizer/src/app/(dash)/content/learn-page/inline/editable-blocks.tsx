@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Editor } from '@tiptap/core';
 import {
   learnCountdownUntil,
@@ -10,7 +10,10 @@ import {
   type PageImage,
   type Person,
 } from '@kgc/shared';
-import { newId, previewColumns, previewPick, videoEmbedUrl, type BlockOf } from '@/lib/learn-editor-core';
+import { createBlock, newId, previewColumns, previewPick, videoEmbedUrl, type BlockOf } from '@/lib/learn-editor-core';
+import { LEARN_LIMITS } from '@/lib/learn-page-core';
+import { TableMap } from '@tiptap/pm/tables';
+import { TextSelection } from '@tiptap/pm/state';
 import {
   addChildAfter,
   addItemAfter,
@@ -22,6 +25,7 @@ import {
   removeItem,
   replaceAt,
   setChild,
+  tableOnlyDoc,
   type ListFocus,
   type ListItem,
 } from '@/lib/learn-inline-core';
@@ -166,6 +170,7 @@ function ImageEdit({ block, siteOrigin }: { block: BlockOf<'image'>; siteOrigin:
         fieldKey={`${blockId}:caption`}
         label="Caption"
         placeholder="Add a caption (optional)"
+        maxLength={LEARN_LIMITS.caption}
       />
     </figure>
   );
@@ -193,7 +198,7 @@ function ButtonRowEdit({ buttons, onChange, fieldPrefix, classOf, className }: {
       <AddItem
         label="Add button"
         onAdd={() => {
-          requestFieldFocus(`${fieldPrefix}:${buttons.length}`);
+          requestFieldFocus(`${fieldPrefix}:${buttons.length}`, 'select');
           onChange([...buttons, newButton()]);
         }}
       />
@@ -214,11 +219,35 @@ function ButtonsEdit({ block }: { block: BlockOf<'buttons'> }) {
   );
 }
 
+/**
+ * The LinkedIn icon and its box. The box goes on Enter, Escape or a click
+ * anywhere else, like the other boxes on the page (T332); it used to stay
+ * over the person's role until its icon was pressed again.
+ */
 function LinkedInEdit({ person, onChange }: { person: Person; onChange: (p: Person) => void }) {
   const [open, setOpen] = useState(false);
+  const self = useRef<HTMLSpanElement>(null);
+  const icon = useRef<HTMLButtonElement>(null);
+  const close = () => {
+    setOpen(false);
+    icon.current?.focus({ preventScroll: true });
+  };
   return (
-    <span className="lp-li-edit">
+    <span
+      ref={self}
+      className="lp-li-edit"
+      onBlur={(e) => {
+        if (!self.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && open) {
+          e.stopPropagation();
+          close();
+        }
+      }}
+    >
       <button
+        ref={icon}
         type="button"
         className={`lp-li${person.linkedin ? '' : ' is-empty'}`}
         aria-label={person.linkedin ? 'Change the LinkedIn link' : 'Add a LinkedIn link'}
@@ -235,10 +264,12 @@ function LinkedInEdit({ person, onChange }: { person: Person; onChange: (p: Pers
       </button>
       {open && (
         <span className="lp-pop lp-li-pop">
+          <AutoFocus />
           <UrlField
             label="LinkedIn profile"
             value={person.linkedin ?? ''}
             placeholder="https://www.linkedin.com/in/name"
+            onDone={close}
             onChange={(href) => {
               const next = { ...person };
               if (href) next.linkedin = href;
@@ -250,6 +281,15 @@ function LinkedInEdit({ person, onChange }: { person: Person; onChange: (p: Pers
       )}
     </span>
   );
+}
+
+/** Puts the caret in the box it is drawn beside, when the box opens. */
+function AutoFocus() {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    ref.current?.parentElement?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+  }, []);
+  return <span ref={ref} hidden />;
 }
 
 function PeopleEdit({ block, siteOrigin }: { block: BlockOf<'people'>; siteOrigin: string }) {
@@ -271,8 +311,8 @@ function PeopleEdit({ block, siteOrigin }: { block: BlockOf<'people'>; siteOrigi
         {block.people.map((p, i) => (
           <div key={p.id} className="lp-item-shell">
             <RemoveItem label={p.name || 'this person'} onRemove={() => patch({ people: removeAt(block.people, i) })} />
-            <PlainText className="lp-roster-name" value={p.name} onChange={(name) => set(i, { ...p, name })} fieldKey={`${blockId}:p:${p.id}:name`} label="Name" />
-            <PlainText className="lp-roster-role" value={p.role} onChange={(role) => set(i, { ...p, role })} fieldKey={`${blockId}:p:${p.id}:role`} label="Role" />
+            <PlainText className="lp-roster-name" value={p.name} onChange={(name) => set(i, { ...p, name })} fieldKey={`${blockId}:p:${p.id}:name`} label="Name" maxLength={LEARN_LIMITS.shortText} />
+            <PlainText className="lp-roster-role" value={p.role} onChange={(role) => set(i, { ...p, role })} fieldKey={`${blockId}:p:${p.id}:role`} label="Role" maxLength={LEARN_LIMITS.shortText} />
             <LinkedInEdit person={p} onChange={(np) => set(i, np)} />
           </div>
         ))}
@@ -302,8 +342,8 @@ function PeopleEdit({ block, siteOrigin }: { block: BlockOf<'people'>; siteOrigi
           />
           <div className="lp-person-row">
             <div>
-              <PlainText className="lp-person-name" value={p.name} onChange={(name) => set(i, { ...p, name })} fieldKey={`${blockId}:p:${p.id}:name`} label="Name" />
-              <PlainText tag="p" className="lp-person-role" value={p.role} onChange={(role) => set(i, { ...p, role })} fieldKey={`${blockId}:p:${p.id}:role`} label="Role" />
+              <PlainText className="lp-person-name" value={p.name} onChange={(name) => set(i, { ...p, name })} fieldKey={`${blockId}:p:${p.id}:name`} label="Name" maxLength={LEARN_LIMITS.shortText} />
+              <PlainText tag="p" className="lp-person-role" value={p.role} onChange={(role) => set(i, { ...p, role })} fieldKey={`${blockId}:p:${p.id}:role`} label="Role" maxLength={LEARN_LIMITS.shortText} />
             </div>
             <LinkedInEdit person={p} onChange={(np) => set(i, np)} />
           </div>
@@ -326,9 +366,9 @@ function ListEdit({ block }: { block: BlockOf<'list'> }) {
   const { patch, blockId } = useInlineBlock();
   const items = block.items;
   const keyOf = (f: ListFocus) => (f.child === undefined ? `${blockId}:li:${f.itemId}` : `${blockId}:li:${f.itemId}:${f.child}`);
-  const apply = (r: { items: ListItem[]; focus: ListFocus } | null) => {
+  const apply = (r: { items: ListItem[]; focus: ListFocus } | null, at: 'start' | 'end' = 'end') => {
     if (!r) return false;
-    requestFieldFocus(keyOf(r.focus));
+    requestFieldFocus(keyOf(r.focus), at);
     patch({ items: r.items });
     return true;
   };
@@ -350,9 +390,14 @@ function ListEdit({ block }: { block: BlockOf<'list'> }) {
       case 'Enter':
         return apply(addItemAfter(items, i));
       case 'Backspace':
-        return at.empty && !it.title && !it.children?.length && !it.link ? apply(removeItem(items, i)) : false;
+        // The first item gone, the caret goes to the start of the next one.
+        return at.empty && !it.title && !it.children?.length && !it.link ? apply(removeItem(items, i), i === 0 ? 'start' : 'end') : false;
+      // Tab and Shift+Tab with nothing to do stay in the item; the browser
+      // would move the caret into the next box, and the words with it (T332).
       case 'Tab':
-        return apply(indentItem(items, i));
+        return apply(indentItem(items, i)) || true;
+      case 'ShiftTab':
+        return true;
       case 'ArrowUp':
         return at.atStart ? move(i, undefined, -1) : false;
       case 'ArrowDown':
@@ -388,10 +433,10 @@ function ListEdit({ block }: { block: BlockOf<'list'> }) {
       <List className="lp-list">
         {items.map((item, i) => (
           <li key={item.id} className="lp-item-shell">
-            {items.length > 1 && <RemoveItem label="this item" onRemove={() => apply(removeItem(items, i))} />}
+            {items.length > 1 && <RemoveItem label="this item" onRemove={() => apply(removeItem(items, i), i === 0 ? 'start' : 'end')} />}
             {item.title !== undefined && item.title !== '' && (
               <>
-                <PlainText tag="strong" value={item.title} onChange={(title) => set(i, { ...item, title })} fieldKey={`${blockId}:li:${item.id}:title`} label="Item title" />{' '}
+                <PlainText tag="strong" value={item.title} onChange={(title) => set(i, { ...item, title })} fieldKey={`${blockId}:li:${item.id}:title`} label="Item title" maxLength={LEARN_LIMITS.heading} />{' '}
               </>
             )}
             <InlineRich
@@ -431,6 +476,7 @@ function ListEdit({ block }: { block: BlockOf<'list'> }) {
                       fieldKey={`${blockId}:li:${item.id}:${ci}`}
                       label={`Sub-item ${ci + 1} of item ${i + 1}`}
                       placeholder="Sub-item"
+                      maxLength={LEARN_LIMITS.richText}
                       onHostKey={childKey(i, ci)}
                     />
                   </li>
@@ -470,7 +516,7 @@ function ColumnsEdit({ block, siteOrigin }: { block: BlockOf<'columns'>; siteOri
               set(i, next);
             }}
           />
-          <PlainText tag="h3" className="lp-col-title" value={item.title ?? ''} onChange={(title) => set(i, { ...item, title })} fieldKey={`${blockId}:c:${item.id}:title`} label="Title" placeholder="Title (optional)" />
+          <PlainText tag="h3" className="lp-col-title" value={item.title ?? ''} onChange={(title) => set(i, { ...item, title })} fieldKey={`${blockId}:c:${item.id}:title`} label="Title" placeholder="Title (optional)" maxLength={LEARN_LIMITS.heading} />
           <div className="lp-col-text">
             <InlineRich value={item.text} onChange={(text) => set(i, { ...item, text })} fieldKey={`${blockId}:c:${item.id}:text`} label="Text" placeholder="Text" />
           </div>
@@ -492,7 +538,7 @@ function ColumnsEdit({ block, siteOrigin }: { block: BlockOf<'columns'>; siteOri
               className="is-quiet"
               label="Add a link"
               onAdd={() => {
-                requestFieldFocus(`${blockId}:c:${item.id}:link`);
+                requestFieldFocus(`${blockId}:c:${item.id}:link`, 'select');
                 set(i, { ...item, link: { label: 'Learn more', href: '', style: 'text' } });
               }}
             />
@@ -528,7 +574,7 @@ function VideoEdit({ block }: { block: BlockOf<'video'> }) {
         <div className="lp-video-empty">{block.url.trim() ? 'Use a YouTube or Vimeo link' : 'Paste a video link below'}</div>
       )}
       <UrlField label="Video link" value={block.url} normalize={false} placeholder="A YouTube or Vimeo link" onChange={(url) => patch({ url })} />
-      <PlainText tag="div" className="lp-caption" value={block.caption ?? ''} onChange={(caption) => patch({ caption })} fieldKey={`${blockId}:caption`} label="Caption" placeholder="Add a caption (optional)" />
+      <PlainText tag="div" className="lp-caption" value={block.caption ?? ''} onChange={(caption) => patch({ caption })} fieldKey={`${blockId}:caption`} label="Caption" placeholder="Add a caption (optional)" maxLength={LEARN_LIMITS.caption} />
     </figure>
   );
 }
@@ -574,7 +620,7 @@ function GalleryEdit({ block, siteOrigin }: { block: BlockOf<'gallery'>; siteOri
                 onChange={(next: PageImage) => patch({ images: replaceAt(block.images, i, { ...next, id: im.id, caption: im.caption } as Im) })}
                 onRemove={() => patch({ images: removeAt(block.images, i) })}
               />
-              <PlainText tag="div" className="lp-caption" value={im.caption ?? ''} onChange={(caption) => patch({ images: replaceAt(block.images, i, { ...im, caption }) })} fieldKey={`${blockId}:g:${im.id}:cap`} label="Caption" placeholder="Caption (optional)" />
+              <PlainText tag="div" className="lp-caption" value={im.caption ?? ''} onChange={(caption) => patch({ images: replaceAt(block.images, i, { ...im, caption }) })} fieldKey={`${blockId}:g:${im.id}:cap`} label="Caption" placeholder="Caption (optional)" maxLength={LEARN_LIMITS.caption} />
             </figure>
           </li>
         ))}
@@ -607,8 +653,8 @@ function QuoteEdit({ block, siteOrigin }: { block: BlockOf<'quote'>; siteOrigin:
           onRemove={() => patch({ photo: undefined })}
         />
         <span>
-          <PlainText className="lp-quote-name" value={block.name ?? ''} onChange={(name) => patch({ name })} fieldKey={`${blockId}:name`} label="Who said it" placeholder="Name" />
-          <PlainText className="lp-quote-role" value={block.role ?? ''} onChange={(role) => patch({ role })} fieldKey={`${blockId}:role`} label="Their role" placeholder="Role (optional)" />
+          <PlainText className="lp-quote-name" value={block.name ?? ''} onChange={(name) => patch({ name })} fieldKey={`${blockId}:name`} label="Who said it" placeholder="Name" maxLength={LEARN_LIMITS.shortText} />
+          <PlainText className="lp-quote-role" value={block.role ?? ''} onChange={(role) => patch({ role })} fieldKey={`${blockId}:role`} label="Their role" placeholder="Role (optional)" maxLength={LEARN_LIMITS.shortText} />
         </span>
       </figcaption>
     </figure>
@@ -631,7 +677,7 @@ function CalloutEdit({ block }: { block: BlockOf<'callout'> }) {
         <path d={CALLOUT_ICON[block.tone] ?? CALLOUT_ICON.info} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       <div className="lp-callout-body">
-        <PlainText tag="p" className="lp-callout-title" value={block.title ?? ''} onChange={(title) => patch({ title })} fieldKey={`${blockId}:title`} label="Title" placeholder="Title (optional)" />
+        <PlainText tag="p" className="lp-callout-title" value={block.title ?? ''} onChange={(title) => patch({ title })} fieldKey={`${blockId}:title`} label="Title" placeholder="Title (optional)" maxLength={LEARN_LIMITS.heading} />
         <InlineRich value={block.text} onChange={(text) => patch({ text })} fieldKey={`${blockId}:text`} label="Text" />
       </div>
     </div>
@@ -648,7 +694,7 @@ function AccordionEdit({ block }: { block: BlockOf<'accordion'> }) {
         // Open while editing, so every answer can be typed; the summary does not fold it.
         <details key={it.id} className="lp-acc-item lp-item-shell" open>
           <summary onClick={(e) => e.preventDefault()}>
-            <PlainText value={it.title} onChange={(title) => set(i, { ...it, title })} fieldKey={`${blockId}:a:${it.id}:title`} label={`Question ${i + 1}`} placeholder="Question" />
+            <PlainText value={it.title} onChange={(title) => set(i, { ...it, title })} fieldKey={`${blockId}:a:${it.id}:title`} label={`Question ${i + 1}`} placeholder="Question" maxLength={LEARN_LIMITS.heading} />
             <RemoveItem label="this question" onRemove={() => patch({ items: removeAt(block.items, i) })} />
           </summary>
           <div className="lp-acc-body">
@@ -680,7 +726,7 @@ function TabsEdit({ block }: { block: BlockOf<'tabs'> }) {
       <div className="lp-tablist" role="tablist">
         {block.items.map((it, i) => (
           <span key={it.id} className="lp-tab lp-item-shell" role="tab" aria-selected={i === at} onClick={() => setActive(i)}>
-            <PlainText value={it.title} onChange={(title) => set(i, { ...it, title })} fieldKey={`${blockId}:t:${it.id}:title`} label={`Tab ${i + 1} name`} placeholder="Tab name" />
+            <PlainText value={it.title} onChange={(title) => set(i, { ...it, title })} fieldKey={`${blockId}:t:${it.id}:title`} label={`Tab ${i + 1} name`} placeholder="Tab name" maxLength={LEARN_LIMITS.heading} />
             {block.items.length > 1 && (
               <RemoveItem
                 label="this tab"
@@ -720,8 +766,8 @@ function StatsEdit({ block }: { block: BlockOf<'stats'> }) {
       {block.items.map((it, i) => (
         <li key={it.id} className="lp-item-shell">
           <RemoveItem label="this number" onRemove={() => patch({ items: removeAt(block.items, i) })} />
-          <PlainText className="lp-stat-value" value={it.value} onChange={(value) => set(i, { ...it, value })} fieldKey={`${blockId}:s:${it.id}:value`} label="Number" placeholder="120+" />
-          <PlainText className="lp-stat-label" value={it.label} onChange={(label) => set(i, { ...it, label })} fieldKey={`${blockId}:s:${it.id}:label`} label="What it counts" placeholder="Label" />
+          <PlainText className="lp-stat-value" value={it.value} onChange={(value) => set(i, { ...it, value })} fieldKey={`${blockId}:s:${it.id}:value`} label="Number" placeholder="120+" maxLength={LEARN_LIMITS.statValue} />
+          <PlainText className="lp-stat-label" value={it.label} onChange={(label) => set(i, { ...it, label })} fieldKey={`${blockId}:s:${it.id}:label`} label="What it counts" placeholder="Label" maxLength={LEARN_LIMITS.shortText} />
         </li>
       ))}
       <li>
@@ -764,9 +810,9 @@ function CardsEdit({ block, siteOrigin }: { block: BlockOf<'cards'>; siteOrigin:
           />
           <div className="lp-card-body">
             {it.badge !== undefined && it.badge !== '' && (
-              <PlainText className="lp-card-badge" value={it.badge} onChange={(badge) => set(i, { ...it, badge })} fieldKey={`${blockId}:k:${it.id}:badge`} label="Badge" />
+              <PlainText className="lp-card-badge" value={it.badge} onChange={(badge) => set(i, { ...it, badge })} fieldKey={`${blockId}:k:${it.id}:badge`} label="Badge" maxLength={LEARN_LIMITS.badge} />
             )}
-            <PlainText tag="h3" value={it.title} onChange={(title) => set(i, { ...it, title })} fieldKey={`${blockId}:k:${it.id}:title`} label="Card title" placeholder="Title" />
+            <PlainText tag="h3" value={it.title} onChange={(title) => set(i, { ...it, title })} fieldKey={`${blockId}:k:${it.id}:title`} label="Card title" placeholder="Title" maxLength={LEARN_LIMITS.heading} />
             <InlineRich value={it.text} onChange={(text) => set(i, { ...it, text })} fieldKey={`${blockId}:k:${it.id}:text`} label="Card text" placeholder="Text" />
             <p className="lp-card-link">
               {it.link ? (
@@ -787,7 +833,7 @@ function CardsEdit({ block, siteOrigin }: { block: BlockOf<'cards'>; siteOrigin:
                   className="is-quiet"
                   label="Add a link"
                   onAdd={() => {
-                    requestFieldFocus(`${blockId}:k:${it.id}:link`);
+                    requestFieldFocus(`${blockId}:k:${it.id}:link`, 'select');
                     set(i, { ...it, link: { label: 'Learn more', href: '', style: 'text' } });
                   }}
                 />
@@ -865,7 +911,7 @@ function CountdownEdit({ block }: { block: BlockOf<'countdown'> }) {
   const until = learnCountdownUntil(block.until);
   return (
     <div className={twinClass(block)}>
-      <PlainText tag="p" className="lp-countdown-label" value={block.label ?? ''} onChange={(label) => patch({ label })} fieldKey={`${blockId}:label`} label="Words above the countdown" placeholder="Starts in" />
+      <PlainText tag="p" className="lp-countdown-label" value={block.label ?? ''} onChange={(label) => patch({ label })} fieldKey={`${blockId}:label`} label="Words above the countdown" placeholder="Starts in" maxLength={LEARN_LIMITS.shortText} />
       {until !== undefined && ctx ? (
         <time dateTime={new Date(until).toISOString()} className="lp-countdown-time">
           <LearnCountdown until={until} now={ctx.now} doneText={block.doneText} />
@@ -877,26 +923,57 @@ function CountdownEdit({ block }: { block: BlockOf<'countdown'> }) {
   );
 }
 
-/** A table: every cell typed in place, with + buttons to add a row or a column at the edges. */
+const starterTable = () => (createBlock('table') as BlockOf<'table'>).doc;
+
+/**
+ * A table: every cell typed in place, with + buttons that add a row at the
+ * bottom or a column at the right edge, where they are drawn (T332: they
+ * used to add it beside the caret, in the middle of the table). The caret
+ * then goes to the first cell of the new row or column. Nothing can be
+ * typed outside the table (`tableOnly`), because the website draws only it.
+ */
 function TableEdit({ block }: { block: BlockOf<'table'> }) {
   const { patch, blockId } = useInlineBlock();
   const editor = useRef<Editor | null>(null);
+  const doc = tableOnlyDoc(block.doc, starterTable);
   const grow = (what: 'row' | 'column') => {
     const e = editor.current;
-    if (!e) return;
-    // The end of the document is the last cell when the table is all there is.
-    if (!e.isActive('table')) e.commands.focus('end');
-    if (what === 'row') e.chain().focus().addRowAfter().run();
-    else e.chain().focus().addColumnAfter().run();
+    const table = e?.state.doc.firstChild;
+    if (!e || !table || table.type.name !== 'table') return;
+    const map = TableMap.get(table);
+    const cellPos = (row: number, col: number) => 1 + map.map[row * map.width + col];
+    // Into the last row, or the last column, then one more after it.
+    const from = what === 'row' ? cellPos(map.height - 1, 0) : cellPos(0, map.width - 1);
+    e.chain()
+      .focus(undefined, { scrollIntoView: false })
+      .command(({ tr }) => {
+        tr.setSelection(TextSelection.near(tr.doc.resolve(from + 1)));
+        return true;
+      })
+      .run();
+    if (what === 'row') e.chain().addRowAfter().run();
+    else e.chain().addColumnAfter().run();
+    const grown = e.state.doc.firstChild;
+    if (!grown) return;
+    const m = TableMap.get(grown);
+    const target = 1 + m.map[what === 'row' ? (m.height - 1) * m.width : m.width - 1];
+    e.chain()
+      .command(({ tr }) => {
+        tr.setSelection(TextSelection.near(tr.doc.resolve(target + 1)));
+        return true;
+      })
+      .focus(undefined, { scrollIntoView: false })
+      .run();
   };
   return (
     <div className={`${twinClass(block)} lp-table-edit${block.striped ? ' is-striped' : ''}`}>
       <div className="lp-table-wrap">
         <InlineRich
-          value={block.doc}
-          onChange={(doc) => typeof doc !== 'string' && patch({ doc })}
+          value={doc}
+          onChange={(next) => typeof next !== 'string' && patch({ doc: next })}
           fieldKey={`${blockId}:doc`}
           label="Table"
+          tableOnly
           onEditor={(e) => {
             editor.current = e;
           }}
@@ -908,7 +985,7 @@ function TableEdit({ block }: { block: BlockOf<'table'> }) {
           +
         </button>
       </div>
-      <PlainText tag="div" className="lp-caption" value={block.caption ?? ''} onChange={(caption) => patch({ caption })} fieldKey={`${blockId}:caption`} label="Table caption" placeholder="Caption (optional)" />
+      <PlainText tag="div" className="lp-caption" value={block.caption ?? ''} onChange={(caption) => patch({ caption })} fieldKey={`${blockId}:caption`} label="Table caption" placeholder="Caption (optional)" maxLength={LEARN_LIMITS.caption} />
     </div>
   );
 }
@@ -920,7 +997,7 @@ function TocEdit({ block }: { block: BlockOf<'toc'> }) {
   const entries = content && ctx ? tocEntries(content, ctx.headingIds) : [];
   return (
     <nav className={twinClass(block)} aria-label={block.title || 'On this page'}>
-      <PlainText tag="p" className="lp-toc-title" value={block.title ?? ''} onChange={(title) => patch({ title })} fieldKey={`${blockId}:title`} label="Contents title" placeholder="On this page" />
+      <PlainText tag="p" className="lp-toc-title" value={block.title ?? ''} onChange={(title) => patch({ title })} fieldKey={`${blockId}:title`} label="Contents title" placeholder="On this page" maxLength={LEARN_LIMITS.heading} />
       {entries.length === 0 ? (
         <p className="lp-v2-muted">Headings on the page are listed here.</p>
       ) : (

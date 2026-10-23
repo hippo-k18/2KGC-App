@@ -91,7 +91,8 @@
   position: absolute;
   top: -8px;
   right: -8px;
-  z-index: 3;
+  /* Over the item's own picture and its "+ Picture" (T332). */
+  z-index: 8;
   display: none;
   align-items: center;
   justify-content: center;
@@ -106,15 +107,15 @@
   box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
 }
 
-.lp-root li.lp-item-shell > .lp-item-remove {
+/* A list item's x sits in the margin before its bullet; other items keep theirs at the top right. */
+.lp-root .lp-list > li.lp-item-shell > .lp-item-remove {
   left: -26px;
   right: auto;
   top: 2px;
 }
 
 .lp-root .lp-item-shell:hover > .lp-item-remove,
-.lp-root .lp-item-shell:focus-within > .lp-item-remove,
-.lp-root .lp-item-shell > summary:hover .lp-item-remove {
+.lp-root .lp-item-shell:focus-within > .lp-item-remove {
   display: inline-flex;
 }
 
@@ -123,9 +124,19 @@
   border-color: #b91c1c;
 }
 
+/* A question's x sits in its line, so it always takes its room and only
+   shows or hides: appearing on focus moved the page under the pointer, and a
+   click that began on the next block ended on the section (T332). */
 .lp-root .lp-acc-item summary .lp-item-remove {
   position: static;
+  display: inline-flex;
+  visibility: hidden;
   margin-left: 8px;
+}
+
+.lp-root .lp-item-shell > summary:hover .lp-item-remove,
+.lp-root .lp-item-shell:focus-within > summary .lp-item-remove {
+  visibility: visible;
 }
 
 .lp-root .lp-tab.lp-item-shell .lp-item-remove {
@@ -633,8 +644,10 @@
     box-shadow: 0 -8px 24px rgb(0 0 0 / 22%);
   }
 
-  .lp-root .lp-item-remove {
+  .lp-root .lp-item-remove,
+  .lp-root .lp-acc-item summary .lp-item-remove {
     display: inline-flex;
+    visibility: visible;
   }
 
   /* On a phone there is no hover: a + shows only around the block being edited, and at the end of each section. */
@@ -689,8 +702,25 @@
   z-index: 30;
 }
 
-/* While a box is open or words are being typed in a block, its neighbouring + stays out of the way. */
-.lp-root .lp-drop-slot:has(.lp-pop, .ProseMirror-focused) > .lp-gap,
-.lp-root .lp-drop-slot:has(.lp-pop, .ProseMirror-focused) + .lp-drop-slot > .lp-gap {
+/* While a box is open its neighbouring + stays out of the way, and on a
+   wide screen also while words are typed. On a phone the + beside the block
+   being typed in is the only one there is, so it stays (T332). */
+.lp-root .lp-drop-slot:has(.lp-pop) > .lp-gap,
+.lp-root .lp-drop-slot:has(.lp-pop) + .lp-drop-slot > .lp-gap {
   visibility: hidden;
+}
+
+@media (min-width: 701px) {
+  .lp-root .lp-drop-slot:has(.ProseMirror-focused) > .lp-gap,
+  .lp-root .lp-drop-slot:has(.ProseMirror-focused) + .lp-drop-slot > .lp-gap {
+    visibility: hidden;
+  }
+}
+
+/* On a phone a sheet covers the bottom of the screen: the page gets room
+   below it, so the words being typed and the last + can scroll clear (T332). */
+@media (max-width: 700px) {
+  .lp-root:has(.lp-pop) {
+    padding-bottom: 60vh;
+  }
 }

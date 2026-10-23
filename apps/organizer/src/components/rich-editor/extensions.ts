@@ -1,4 +1,4 @@
-import { Extension, Mark, mergeAttributes, type AnyExtension, type Editor } from '@tiptap/core';
+import { Extension, Mark, Node, mergeAttributes, type AnyExtension, type Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
 import Subscript from '@tiptap/extension-subscript';
@@ -191,23 +191,31 @@ const RichKeys = Extension.create<{ handlers: () => RichKeyHandlers }>({
       Backspace: () => host('Backspace'),
       ArrowUp: () => host('ArrowUp'),
       ArrowDown: () => host('ArrowDown'),
-      // In a table, the first Cmd+A selects the cell's words, as a spreadsheet
-      // does; the next selects everything. Typing over a whole-document
-      // selection would replace the table with one line (T329).
+      // In a table, Cmd+A selects the words of the cell the caret is in, and
+      // only those, as a spreadsheet does, even when the cell is empty (T332):
+      // typing over a whole-document selection would replace the table with
+      // one line. Anywhere else the field's own words are all there is.
       'Mod-a': () => {
-        const { selection, doc } = this.editor.state;
+        const { selection } = this.editor.state;
         const $from = selection.$from;
         for (let d = $from.depth; d > 0; d--) {
           const name = $from.node(d).type.name;
           if (name !== 'tableCell' && name !== 'tableHeader') continue;
           const from = $from.start(d);
           const to = $from.end(d);
-          const whole = selection.from <= from + 1 && selection.to >= to - 1;
-          if (whole || doc.textBetween(from, to).length === 0) return false;
-          return this.editor.commands.setTextSelection({ from: from + 1, to: to - 1 });
+          return this.editor.commands.setTextSelection({ from: from + 1, to: Math.max(from + 1, to - 1) });
         }
         return false;
       },
+      // The document's start and end, done here rather than by the browser,
+      // which in a table puts the caret in the first header cell or under the
+      // table (T332).
+      'Mod-ArrowDown': () => this.editor.commands.focus('end', { scrollIntoView: false }),
+      'Mod-End': () => this.editor.commands.focus('end', { scrollIntoView: false }),
+      'Ctrl-End': () => this.editor.commands.focus('end', { scrollIntoView: false }),
+      'Mod-ArrowUp': () => this.editor.commands.focus('start', { scrollIntoView: false }),
+      'Mod-Home': () => this.editor.commands.focus('start', { scrollIntoView: false }),
+      'Ctrl-Home': () => this.editor.commands.focus('start', { scrollIntoView: false }),
       'Mod-k': () => (h().onLink(), true),
       'Mod-f': () => (h().onFind(), true),
       'Mod-/': () => (h().onHelp(), true),
@@ -222,11 +230,23 @@ const RichKeys = Extension.create<{ handlers: () => RichKeyHandlers }>({
 export interface ExtensionOptions {
   placeholder?: string;
   handlers: () => RichKeyHandlers;
+  /** The document is one table and nothing else (a Table block, T332). */
+  tableOnly?: boolean;
 }
 
-export function richExtensions({ placeholder, handlers }: ExtensionOptions): AnyExtension[] {
+/**
+ * A Table block's document: the table alone. The website draws only the
+ * table, so words typed under it (ArrowDown out of the last row) were saved
+ * and never shown. With nothing allowed outside the table, there is no place
+ * for the caret there either.
+ */
+const TableDocument = Node.create({ name: 'doc', topNode: true, content: 'table' });
+
+export function richExtensions({ placeholder, handlers, tableOnly = false }: ExtensionOptions): AnyExtension[] {
   return [
+    ...(tableOnly ? [TableDocument] : []),
     StarterKit.configure({
+      document: tableOnly ? false : undefined,
       heading: { levels: [1, 2, 3, 4] },
       blockquote: false,
       listItem: false,

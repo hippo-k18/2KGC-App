@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addChildAfter,
   addItemAfter,
+  canIndentItem,
   indentItem,
   insertAt,
   isOffsite,
@@ -12,6 +13,7 @@ import {
   removeItem,
   replaceAt,
   setChild,
+  tableOnlyDoc,
   type ListItem,
 } from './learn-inline-core';
 
@@ -42,12 +44,32 @@ describe('list items in place', () => {
     expect(removeItem([{ id: 'a', text: '' }], 0)).toBeNull();
   });
 
-  it('indents an item into the one above as one line of words', () => {
-    const r = indentItem(items(), 2)!;
-    expect(r.items.map((i) => i.id)).toEqual(['a', 'b']);
-    expect(r.items[1].children).toEqual(['MC-1', 'MC-2', 'Team Brochure']);
-    expect(r.focus).toEqual({ itemId: 'b', child: 2 });
+  it('indents a plain item into the one above as a sub-item', () => {
+    const list: ListItem[] = [...items(), { id: 'd', text: 'Plain words' }];
+    const r = indentItem(list, 3)!;
+    expect(r.items.map((i) => i.id)).toEqual(['a', 'b', 'c']);
+    expect(r.items[2].children).toEqual(['Plain words']);
+    expect(r.focus).toEqual({ itemId: 'c', child: 0 });
     expect(indentItem(items(), 0)).toBeNull();
+  });
+
+  it('leaves an item with a title, a link or formatting where it is, so Tab cannot lose them (T332)', () => {
+    expect(canIndentItem(items(), 2)).toBe(false);
+    expect(indentItem(items(), 2)).toBeNull();
+    const titled: ListItem[] = [{ id: 'x', text: 'one' }, { id: 'y', title: 'Bold', text: 'two' }];
+    expect(indentItem(titled, 1)).toBeNull();
+    const bold: ListItem[] = [
+      { id: 'x', text: 'one' },
+      { id: 'y', text: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'two', marks: [{ type: 'bold' }] }] }] } },
+    ];
+    expect(indentItem(bold, 1)).toBeNull();
+    const markdown: ListItem[] = [{ id: 'x', text: 'one' }, { id: 'y', text: 'see [here](https://a.b)' }];
+    expect(indentItem(markdown, 1)).toBeNull();
+    const plainDoc: ListItem[] = [
+      { id: 'x', text: 'one' },
+      { id: 'y', text: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'two' }] }] } },
+    ];
+    expect(indentItem(plainDoc, 1)!.items[0].children).toEqual(['two']);
   });
 
   it('carries sub-items along when indenting', () => {
@@ -114,5 +136,22 @@ describe('links typed on the page', () => {
     expect(isOffsite('https://x.org')).toBe(true);
     expect(isOffsite('/learn')).toBe(false);
     expect(isOffsite('mailto:a@b.c')).toBe(false);
+  });
+});
+
+describe('a table block\'s document', () => {
+  const table = { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'A' }] }] }] }] } as const;
+  const fallback = () => ({ type: 'doc' as const, content: [{ type: 'paragraph' as const }] });
+
+  it('keeps only the first table, as the website draws it (T332)', () => {
+    const doc = { type: 'doc' as const, content: [table, { type: 'paragraph' as const, content: [{ type: 'text' as const, text: 'under' }] }] };
+    expect(tableOnlyDoc(doc as never, fallback)).toEqual({ type: 'doc', content: [table] });
+    const alone = { type: 'doc' as const, content: [table] };
+    expect(tableOnlyDoc(alone as never, fallback)).toBe(alone);
+  });
+
+  it('gives a table back when there is none', () => {
+    expect(tableOnlyDoc({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Price' }] }] }, fallback)).toEqual(fallback());
+    expect(tableOnlyDoc('plain words', fallback)).toEqual(fallback());
   });
 });

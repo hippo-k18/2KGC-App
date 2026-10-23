@@ -1,4 +1,4 @@
-import { isSafeHref, type LearnBlock, type LinkButton } from '@kgc/shared';
+import { isSafeHref, type LearnBlock, type LinkButton, type RichContent, type RichDoc, type RichNode } from '@kgc/shared';
 import { newId, plainText } from './learn-editor-core';
 
 /**
@@ -43,13 +43,36 @@ export function removeItem(items: ListItem[], index: number): ListResult | null 
   return { items: next, focus: index > 0 && kids > 0 ? { itemId: prev.id, child: kids - 1 } : { itemId: prev.id } };
 }
 
+/** Rich text with nothing a plain line would lose: no formatting, links or lists. */
+function isPlainRich(text: RichContent): boolean {
+  if (typeof text === 'string') return !/[*_`[\]#<>~|]/.test(text);
+  const plain = (n: RichNode): boolean => {
+    if (n.type === 'text') return !('marks' in n && n.marks?.length);
+    if (n.type === 'hardBreak') return true;
+    if (n.type !== 'paragraph') return false;
+    return ((n as { content?: RichNode[] }).content ?? []).every(plain);
+  };
+  return text.content.every(plain);
+}
+
 /**
- * Tab: the item becomes a sub-item of the one above. Sub-items are plain
- * words on the website, so its title, text and link label fold into one line;
- * its own sub-items follow it.
+ * Whether Tab may tuck this item under the one above. Sub-items are plain
+ * words on the website, so an item with a bold title, a link or formatted
+ * text would lose them for good on the way in and not get them back on
+ * Shift+Tab (T332): such an item stays where it is.
+ */
+export function canIndentItem(items: ListItem[], index: number): boolean {
+  const item = items[index];
+  if (index <= 0 || !item) return false;
+  return !item.title && !item.link && isPlainRich(item.text);
+}
+
+/**
+ * Tab: the item becomes a sub-item of the one above, its own sub-items
+ * following it. Only a plain item moves (`canIndentItem`).
  */
 export function indentItem(items: ListItem[], index: number): ListResult | null {
-  if (index <= 0 || index >= items.length) return null;
+  if (index <= 0 || index >= items.length || !canIndentItem(items, index)) return null;
   const item = items[index];
   const prev = items[index - 1];
   const line = [item.title, plainText(item.text), item.link?.label].filter((s) => s && s.trim()).join(' ');
@@ -114,6 +137,20 @@ export function insertAt<T>(arr: readonly T[], index: number, value: T): T[] {
 
 export function removeAt<T>(arr: readonly T[], index: number): T[] {
   return arr.filter((_, i) => i !== index);
+}
+
+/* ── Tables ────────────────────────────────────────────────────────────── */
+
+/**
+ * A Table block's document as the website draws it: its first table and
+ * nothing else (T332). Words that got in beside the table before the editor
+ * stopped allowing it were saved and never shown; they go, as on the page.
+ * With no table at all (a Cmd+A that replaced it), `fallback` gives one back.
+ */
+export function tableOnlyDoc(doc: RichContent, fallback: () => RichDoc): RichDoc {
+  const table = typeof doc === 'string' ? undefined : doc.content.find((n) => n.type === 'table');
+  if (!table) return fallback();
+  return typeof doc !== 'string' && doc.content.length === 1 ? doc : { type: 'doc', content: [table] };
 }
 
 /* ── Links ─────────────────────────────────────────────────────────────── */

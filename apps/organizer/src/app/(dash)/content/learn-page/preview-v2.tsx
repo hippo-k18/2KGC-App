@@ -74,7 +74,7 @@ function cols(n: number): CSSProperties {
 
 function Gallery({ block, siteOrigin }: V2BodyProps<'gallery'>) {
   const [at, setAt] = useState(0);
-  if (block.images.length === 0) return <div className="lp-img-empty lp-v2-empty">Gallery: add photos in the panel</div>;
+  if (block.images.length === 0) return <div className="lp-img-empty lp-v2-empty">Gallery: add photos</div>;
   if (block.layout === 'carousel') {
     const i = Math.min(at, block.images.length - 1);
     const im = block.images[i];
@@ -284,7 +284,7 @@ export const V2_BODIES: Bodies = {
   ),
   logos: ({ block, siteOrigin }) =>
     block.items.length === 0 ? (
-      <div className="lp-img-empty lp-v2-empty">Logos: add them in the panel</div>
+      <div className="lp-img-empty lp-v2-empty">Logos: add some logos</div>
     ) : (
       <div className={`lp-v2-logos${block.grayscale ? ' is-grey' : ''}`}>
         {block.items.map((it) => (
@@ -306,7 +306,9 @@ export const V2_BODIES: Bodies = {
         style={{ aspectRatio: ratio, height: block.aspect === 'auto' ? block.height ?? 480 : undefined, pointerEvents: selected ? undefined : 'none' }}
       />
     ) : (
-      <div className="lp-video-empty">Paste a {EMBED_PROVIDERS[block.provider].label} link in the panel</div>
+      <div className="lp-video-empty">
+        Paste a {EMBED_PROVIDERS[block.provider].label} link{selected ? ' in the box below' : ''}
+      </div>
     );
   },
   countdown: (p) => <Countdown {...p} />,

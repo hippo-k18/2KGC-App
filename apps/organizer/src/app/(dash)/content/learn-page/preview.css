@@ -177,6 +177,11 @@
   color: #fff;
 }
 
+.lp-tag-saved {
+  left: auto;
+  right: -4px;
+}
+
 .lp-tag-hidden {
   top: 4px;
   right: 4px;

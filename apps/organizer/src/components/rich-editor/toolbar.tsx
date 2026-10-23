@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditorState } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import type { ColorValue, TextAlign, TextSize } from '@kgc/shared';
@@ -75,6 +75,11 @@ export function Toolbar(props: ToolbarProps) {
   const ref = useRef<HTMLDivElement>(null);
   const roving = useRovingToolbar(ref);
   const [more, setMore] = useState(false);
+  // The bubble grows or shrinks with More: place it again, so it stays on
+  // screen and off the selected words (T332).
+  useEffect(() => {
+    if (compact && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta('rtInline', 'updatePosition'));
+  }, [compact, editor, more]);
 
   const s = useEditorState({
     editor,

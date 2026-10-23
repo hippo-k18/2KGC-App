@@ -63,7 +63,12 @@ export interface RichEditorProps {
    * dialogs (so they cover it). Defaults to the page body.
    */
   floatingRoot?: () => HTMLElement;
+  /** The document is one table and nothing else, as a Table block stores it (T332). Read once, when the editor is made. */
+  tableOnly?: boolean;
 }
+
+/** The height of a host's fixed bars at the top of the window, which the floating toolbar keeps clear of. */
+const BARS_HEIGHT = 120;
 
 /** The editor that owns a ProseMirror element, so a click on the page can put the caret where it landed. */
 const editorsByDom = new WeakMap<Element, Editor>();
@@ -136,7 +141,7 @@ export function RichEditor(props: RichEditorProps) {
   const editor = useEditor({
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
-    extensions: richExtensions({ placeholder, handlers: () => handlers.current() }),
+    extensions: richExtensions({ placeholder, handlers: () => handlers.current(), tableOnly: props.tableOnly }),
     content: richToTiptap(docOf(value, singleLine)) as JSONContent,
     editorProps: {
       attributes: {
@@ -261,7 +266,12 @@ export function RichEditor(props: RichEditorProps) {
             appendTo={() => latest.current.floatingRoot?.() ?? document.body}
             className="rt rt-bubble rt-bubble-floating"
             updateDelay={0}
-            options={{ placement: 'top-start', offset: 8, flip: true, shift: { padding: 8 } }}
+            // In a table it sits over the whole table, not over the cell with the
+            // caret, which it hid along with the cells beside it (T332).
+            getReferencedVirtualElement={() => tableAround(editor)}
+            // Not over the editor's own bars at the top of the window (T332): near
+            // the top it goes under the words instead.
+            options={{ placement: 'top-start', offset: 8, flip: { padding: { top: BARS_HEIGHT, bottom: 8, left: 8, right: 8 } }, shift: { padding: 8 } }}
             // Over selected words, as in a document editor; also in a table or
             // on a link, where the tools are the way to change them (T329).
             shouldShow={({ editor: e, view, state, element }) =>
@@ -322,6 +332,15 @@ export function RichEditor(props: RichEditorProps) {
 
   if (focusMode && typeof document !== 'undefined') return createPortal(shell, document.body);
   return shell;
+}
+
+/** The table the caret is in, as the box the floating toolbar is placed against; null outside a table. */
+function tableAround(editor: Editor) {
+  if (editor.isDestroyed || !editor.isActive('table')) return null;
+  const { node } = editor.view.domAtPos(editor.state.selection.from);
+  const table = (node instanceof Element ? node : node.parentElement)?.closest('table');
+  if (!table) return null;
+  return { getBoundingClientRect: () => table.getBoundingClientRect(), getClientRects: () => [table.getBoundingClientRect()] };
 }
 
 /** The address under the caret, with Edit and Remove. */

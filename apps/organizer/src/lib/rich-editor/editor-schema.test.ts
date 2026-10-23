@@ -154,14 +154,41 @@ describe('the editor schema', () => {
     expect(validateRichDoc(tiptapToRich(e.getJSON()))).toMatchObject({ ok: true });
   });
 
-  it('selects one cell with the first Cmd+A in a table, and everything with the second', () => {
+  it('selects only the cell with Cmd+A in a table, every time, even an empty cell (T332)', () => {
     const e = make(richToTiptap('x') as JSONContent);
     e.chain().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).insertContent('abc').run();
     // A real keydown, as the browser sends it (jsdom is not a Mac, so Mod is Ctrl).
-    const selectAll = () => e.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true }));
-    selectAll();
+    const key = (k: string, mods: KeyboardEventInit = { ctrlKey: true }) =>
+      e.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: k, ...mods, bubbles: true, cancelable: true }));
+    key('a');
     expect(e.state.doc.textBetween(e.state.selection.from, e.state.selection.to)).toBe('abc');
-    selectAll();
-    expect(e.state.selection.to - e.state.selection.from).toBeGreaterThan(3);
+    key('a');
+    expect(e.state.doc.textBetween(e.state.selection.from, e.state.selection.to)).toBe('abc');
+    // Into the empty cell beside it: Cmd+A leaves an empty selection there, and typing stays in it.
+    e.commands.goToNextCell();
+    key('a');
+    expect(e.state.selection.empty).toBe(true);
+    e.commands.insertContent('y');
+    const kinds: string[] = [];
+    e.state.doc.forEach((n) => kinds.push(n.type.name));
+    expect(kinds).toContain('table');
+    expect(e.state.doc.textContent).toBe('abcyx');
+  });
+
+  it('keeps a table-only document to its table: nowhere to type under it, and Cmd+Down ends in the last cell (T332)', () => {
+    const table = { type: 'table', content: [0, 1].map(() => ({ type: 'tableRow', content: [0, 1].map(() => ({ type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'c' }] }] })) })) };
+    editor = new Editor({ extensions: richExtensions({ handlers, tableOnly: true }), content: { type: 'doc', content: [table] } as JSONContent });
+    const e = editor;
+    e.commands.focus('start');
+    e.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', ctrlKey: true, bubbles: true, cancelable: true }));
+    const $at = e.state.selection.$from;
+    expect($at.parent.type.name).toBe('paragraph');
+    expect($at.node($at.depth - 1).type.name).toBe('tableCell');
+    expect(e.state.selection.from).toBe(e.state.doc.content.size - 4);
+    // Nothing can go after the table: whatever is inserted there, the document stays one valid table.
+    e.commands.insertContentAt(e.state.doc.content.size, { type: 'paragraph', content: [{ type: 'text', text: 'under' }] });
+    expect(e.state.doc.childCount).toBe(1);
+    expect(e.state.doc.firstChild?.type.name).toBe('table');
+    expect(() => e.state.doc.check()).not.toThrow();
   });
 });

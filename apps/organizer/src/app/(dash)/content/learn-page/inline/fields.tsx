@@ -9,6 +9,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ChangeEvent,
   type FocusEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -17,6 +18,7 @@ import type { ImageShape, ImageWidth, LinkButton, PageImage, RichContent } from 
 import { RichEditor, editorForElement, type CaretInfo, type HostKey } from '@/components/rich-editor';
 import { isOffsite, normalizeLinkInput } from '@/lib/learn-inline-core';
 import type { BlockPatch } from '@/lib/learn-editor-core';
+import { isRefusedHref, LEARN_LIMITS } from '@/lib/learn-page-core';
 import { useEditorServices } from '../editor-context';
 import { Picture } from '../preview-parts';
 import { useRichAnchors, useRichChange } from '../rich-field';
@@ -60,19 +62,122 @@ export function floatingLayer(): HTMLElement {
 
 /**
  * After Enter makes a new item, or Backspace removes one, the field that
- * should take the caret is not drawn yet. It is named here, and claims the
- * focus when it appears.
+ * should take the caret is named here. A field drawn for the first time
+ * claims it when it appears; one already on the page (the item above, after
+ * one is removed) is looked for each frame, because nothing new is drawn to
+ * claim it (T332: the caret used to be lost, and the next words with it).
  */
-let pendingFocus: string | null = null;
+export type FocusMode = 'end' | 'start' | 'select';
 
-export function requestFieldFocus(key: string) {
-  pendingFocus = key;
+let pendingFocus: { key: string; mode: FocusMode } | null = null;
+
+export function requestFieldFocus(key: string, mode: FocusMode = 'end') {
+  const mine = { key, mode };
+  pendingFocus = mine;
+  let left = 30;
+  const tick = () => {
+    if (pendingFocus !== mine) return;
+    if (focusFieldNow(key, mode)) {
+      if (pendingFocus === mine) pendingFocus = null;
+      return;
+    }
+    if (--left > 0) requestAnimationFrame(tick);
+    else pendingFocus = null;
+  };
+  requestAnimationFrame(tick);
 }
 
-function claimFocus(key: string): boolean {
-  if (pendingFocus !== key) return false;
+function claimFocus(key: string): FocusMode | null {
+  if (pendingFocus?.key !== key) return null;
+  const { mode } = pendingFocus;
   pendingFocus = null;
-  return true;
+  return mode;
+}
+
+/** True while a field has been asked for and has not taken the caret yet. */
+export function focusPending(): boolean {
+  return pendingFocus !== null;
+}
+
+/** The in-place fields that take typing: plain words and rich text, not images. */
+const TYPED_FIELD = '.lp-rich-field[data-lp-field], [contenteditable][data-lp-field]';
+
+function typedFieldsIn(el: Element | null | undefined): HTMLElement[] {
+  if (!el) return [];
+  const own = el.matches(TYPED_FIELD) ? [el as HTMLElement] : [];
+  return [...own, ...el.querySelectorAll<HTMLElement>(TYPED_FIELD)];
+}
+
+/**
+ * Where the caret goes when `gone` is removed from the page: the end of the
+ * last field of its block before it (the item above), else the start of the
+ * first one after it. Null when the block has no other words.
+ */
+export function fieldAfterRemoving(gone: Element): { key: string; mode: FocusMode } | null {
+  const all = typedFieldsIn(gone.closest('[data-block-id]')).filter((f) => !gone.contains(f));
+  const before = all.filter((f) => gone.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_PRECEDING);
+  const pick = before.length ? { el: before[before.length - 1], mode: 'end' as const } : all.length ? { el: all[0], mode: 'start' as const } : null;
+  return pick ? { key: pick.el.getAttribute('data-lp-field') ?? '', mode: pick.mode } : null;
+}
+
+/** Runs a removal and puts the caret in the field `fieldAfterRemoving` names, unless the removal placed it itself. */
+export function removeKeepingCaret(gone: Element | null, remove: () => void) {
+  const next = gone ? fieldAfterRemoving(gone) : null;
+  pendingFocus = null;
+  remove();
+  if (next && !pendingFocus) requestFieldFocus(next.key, next.mode);
+}
+
+/**
+ * The last guard against lost words (T332). When the field holding the caret
+ * goes from the page (its item removed, its block drawn again) and the focus
+ * falls back to the page itself, the next key went nowhere, and a Backspace
+ * then deleted the whole block. Now the next key first puts the caret back in
+ * the nearest field of that block, where the key then lands; a Backspace or
+ * Delete only does that.
+ */
+export function useCaretSafetyNet() {
+  useEffect(() => {
+    let last: { el: Element; blockId: string; y: number } | null = null;
+    const onIn = (e: globalThis.FocusEvent) => {
+      const t = e.target as Element | null;
+      const block = t?.closest?.('[data-block-id]');
+      if (!t || !block || !t.closest('[data-lp-field]') || !(t as HTMLElement).isContentEditable) return;
+      last = { el: t, blockId: block.getAttribute('data-block-id') ?? '', y: t.getBoundingClientRect().top };
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (!last || last.el.isConnected || pendingFocus) return;
+      if (document.activeElement && document.activeElement !== document.body) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.key === 'Escape' || e.key === 'Tab') return;
+      const fields = typedFieldsIn(document.querySelector(`[data-block-id="${CSS.escape(last.blockId)}"]`));
+      const y = last.y;
+      last = null;
+      if (!fields.length) return;
+      const near = fields.reduce((a, b) => (Math.abs(b.getBoundingClientRect().top - y) < Math.abs(a.getBoundingClientRect().top - y) ? b : a));
+      if (!focusFieldNow(near.getAttribute('data-lp-field') ?? '', 'end')) return;
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
+    document.addEventListener('focusin', onIn);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('focusin', onIn);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, []);
+}
+
+/** Selects every word of a plain editable element, so typing replaces starter words. */
+function selectAllIn(el: HTMLElement) {
+  el.focus({ preventScroll: true });
+  const sel = window.getSelection();
+  if (!sel) return;
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  sel.removeAllRanges();
+  sel.addRange(r);
 }
 
 /** Puts the caret at the end of a plain editable element. */
@@ -227,6 +332,13 @@ function caretInfo(el: HTMLElement): CaretInfo {
   return { empty: text === '', atStart: r.collapsed && offset === 0, atEnd: r.collapsed && offset === text.length };
 }
 
+/** How many characters of `el` the selection covers. */
+function selectedLength(el: HTMLElement): number {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return 0;
+  return sel.toString().length;
+}
+
 const HOST_KEYS: Record<string, HostKey> = { Enter: 'Enter', Backspace: 'Backspace', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown' };
 
 export interface PlainTextProps {
@@ -240,6 +352,12 @@ export interface PlainTextProps {
   tag?: 'span' | 'p' | 'h3' | 'strong' | 'div';
   className?: string;
   onHostKey?: (key: HostKey, at: CaretInfo) => boolean;
+  /**
+   * The server's limit for the field (`LEARN_LIMITS`). Typing stops there and
+   * a paste is cut to fit, so one long field cannot hold up the page's
+   * autosave (T332).
+   */
+  maxLength?: number;
 }
 
 /**
@@ -247,9 +365,11 @@ export interface PlainTextProps {
  * the page. `plaintext-only` keeps pasted styles out; Enter never makes a
  * second line, it goes to the host (a new item) or does nothing.
  */
-export function PlainText({ value, onChange, fieldKey, label, placeholder, tag = 'span', className, onHostKey }: PlainTextProps) {
+export function PlainText({ value, onChange, fieldKey, label, placeholder, tag = 'span', className, onHostKey, maxLength }: PlainTextProps) {
   const ref = useRef<HTMLElement>(null);
   const Tag = tag;
+  const max = useRef(maxLength);
+  max.current = maxLength;
 
   // The text is the element's own, not React's: React re-rendering children
   // under a caret moves the caret. It is written only when the stored value
@@ -261,8 +381,29 @@ export function PlainText({ value, onChange, fieldKey, label, placeholder, tag =
   }, [value]);
 
   useEffect(() => {
-    if (ref.current && claimFocus(fieldKey)) caretToEnd(ref.current);
+    const el = ref.current;
+    const mode = el ? claimFocus(fieldKey) : null;
+    if (!el || !mode) return;
+    if (mode === 'select') selectAllIn(el);
+    else {
+      caretToEnd(el);
+      if (mode === 'start') window.getSelection()?.collapse(el, 0);
+    }
   });
+
+  // Typing past the limit does nothing, as in a box with a maxlength.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onBefore = (e: InputEvent) => {
+      const limit = max.current;
+      if (!limit || !e.inputType.startsWith('insert') || e.inputType === 'insertFromPaste') return;
+      const room = limit - (el.textContent ?? '').length + selectedLength(el);
+      if ((e.data ?? '').length > room) e.preventDefault();
+    };
+    el.addEventListener('beforeinput', onBefore);
+    return () => el.removeEventListener('beforeinput', onBefore);
+  }, []);
 
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     const key = e.key === 'Tab' ? (e.shiftKey ? 'ShiftTab' : 'Tab') : HOST_KEYS[e.key];
@@ -287,13 +428,25 @@ export function PlainText({ value, onChange, fieldKey, label, placeholder, tag =
       data-placeholder={placeholder ?? label}
       data-lp-field={fieldKey}
       spellCheck
-      onInput={(e) => onChange((e.currentTarget.textContent ?? '').replace(/\n/g, ' '))}
+      data-maxlength={maxLength}
+      onInput={(e) => {
+        const el = e.currentTarget;
+        let text = (el.textContent ?? '').replace(/\n/g, ' ');
+        // Whatever got past the guard above (a composed character, a drop).
+        if (maxLength && text.length > maxLength) {
+          text = text.slice(0, maxLength);
+          el.textContent = text;
+          caretToEnd(el);
+        }
+        onChange(text);
+      }}
       onKeyDown={onKeyDown}
       // Pasted words only, on one line.
       onPaste={(e) => {
         e.preventDefault();
-        const text = e.clipboardData.getData('text/plain').replace(/\s*\n\s*/g, ' ');
-        document.execCommand('insertText', false, text);
+        let text = e.clipboardData.getData('text/plain').replace(/\s*\n\s*/g, ' ');
+        if (maxLength) text = text.slice(0, Math.max(0, maxLength - (e.currentTarget.textContent ?? '').length + selectedLength(e.currentTarget)));
+        if (text) document.execCommand('insertText', false, text);
       }}
     />
   );
@@ -311,10 +464,11 @@ export interface InlineRichProps {
   className?: string;
   onHostKey?: (key: HostKey, at: CaretInfo) => boolean;
   onEditor?: Parameters<typeof RichEditor>[0]['onEditor'];
+  tableOnly?: boolean;
 }
 
 /** T317's editor in its inline form, with the floating toolbar over selected words. */
-export function InlineRich({ value, onChange, fieldKey, label, placeholder, singleLine = false, className, onHostKey, onEditor }: InlineRichProps) {
+export function InlineRich({ value, onChange, fieldKey, label, placeholder, singleLine = false, className, onHostKey, onEditor, tableOnly }: InlineRichProps) {
   const anchors = useRichAnchors();
   const change = useRichChange(value, singleLine, onChange);
   return (
@@ -329,8 +483,13 @@ export function InlineRich({ value, onChange, fieldKey, label, placeholder, sing
         placeholder={placeholder ?? label}
         onHostKey={onHostKey}
         floatingRoot={floatingLayer}
+        tableOnly={tableOnly}
         onEditor={(editor) => {
-          if (editor && claimFocus(fieldKey)) editor.commands.focus('end');
+          const mode = editor ? claimFocus(fieldKey) : null;
+          if (editor && mode) {
+            if (mode === 'select') editor.chain().focus().selectAll().run();
+            else editor.commands.focus(mode);
+          }
           onEditor?.(editor);
         }}
       />
@@ -346,14 +505,21 @@ export function InlineRich({ value, onChange, fieldKey, label, placeholder, sing
  */
 function useFocusWithin(): [
   boolean,
-  { onFocus: () => void; onBlur: (e: FocusEvent) => void; onKeyDown: (e: KeyboardEvent) => void },
+  { onFocus: (e: FocusEvent) => void; onBlur: (e: FocusEvent) => void; onKeyDown: (e: KeyboardEvent) => void },
   (v: boolean) => void,
 ] {
   const [open, setOpen] = useState(false);
   return [
     open,
     {
-      onFocus: () => setOpen(true),
+      onFocus: (e: FocusEvent) => {
+        setOpen(true);
+        // On a phone the box is a sheet over the bottom of the screen: lift the words above it.
+        const field = e.target as HTMLElement;
+        if (window.matchMedia('(max-width: 700px)').matches && field.isContentEditable) {
+          requestAnimationFrame(() => field.scrollIntoView({ block: 'center' }));
+        }
+      },
       onBlur: (e: FocusEvent) => {
         const next = e.relatedTarget as Node | null;
         if (!next || !(e.currentTarget as Node).contains(next)) setOpen(false);
@@ -394,29 +560,13 @@ export function EditableLink({ link, onChange, onRemove, fieldKey, className, la
   const [open, focusProps] = useFocusWithin();
   const services = useEditorServices();
   const anchors = services?.anchors ?? [];
-  const [draft, setDraft] = useState(link.href);
-  const [error, setError] = useState('');
   const id = useId();
-  useEffect(() => setDraft(link.href), [link.href]);
-
-  const commit = (value: string) => {
-    if (!value.trim()) {
-      setError('');
-      onChange({ ...link, href: '' });
-      return;
-    }
-    const r = normalizeLinkInput(value);
-    if ('error' in r) setError(r.error);
-    else {
-      setError('');
-      setDraft(r.href);
-      onChange({ ...link, href: r.href });
-    }
-  };
+  const address = useTypedAddress(link.href, (href) => onChange({ ...link, href }), normalizeLinkInput);
+  const self = useRef<HTMLSpanElement>(null);
 
   const cls = className ?? BUTTON_CLASS[link.style] ?? BUTTON_CLASS.primary;
   return (
-    <span className="lp-link-edit" {...focusProps} data-open={open || undefined}>
+    <span ref={self} className="lp-link-edit" {...focusProps} data-open={open || undefined}>
       <PlainText
         value={link.label}
         onChange={(text) => onChange({ ...link, label: text })}
@@ -424,6 +574,7 @@ export function EditableLink({ link, onChange, onRemove, fieldKey, className, la
         label={`${label} words`}
         placeholder="Button words"
         className={cls}
+        maxLength={LEARN_LIMITS.label}
       />
       {open && (
         <span className="lp-pop lp-link-pop" role="group" aria-label={`${label} address`} onClick={(e) => e.stopPropagation()}>
@@ -433,28 +584,17 @@ export function EditableLink({ link, onChange, onRemove, fieldKey, className, la
           <input
             id={id}
             className="lp-pop-input"
-            value={draft}
             placeholder="Paste a link, like https://example.com"
             spellCheck={false}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              setError('');
-            }}
-            onBlur={() => draft !== link.href && commit(draft)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commit(draft);
-              }
-            }}
-            aria-invalid={error ? true : undefined}
+            maxLength={LEARN_LIMITS.href}
+            {...address.inputProps}
           />
           {anchors.length > 0 && (
             <select
               className="lp-pop-input"
               aria-label="Or a part of this page"
               value={link.href.startsWith('#') ? link.href.slice(1) : ''}
-              onChange={(e) => e.target.value && commit(`#${e.target.value}`)}
+              onChange={(e) => e.target.value && address.commit(`#${e.target.value}`, true)}
             >
               <option value="">Or a part of this page...</option>
               {anchors.map((a) => (
@@ -464,9 +604,9 @@ export function EditableLink({ link, onChange, onRemove, fieldKey, className, la
               ))}
             </select>
           )}
-          {error ? (
+          {address.error ? (
             <span className="lp-pop-error" role="alert">
-              {error}
+              {address.error}
             </span>
           ) : link.href && isOffsite(link.href) ? (
             <span className="lp-pop-note">Another website: it opens in a new tab.</span>
@@ -474,7 +614,7 @@ export function EditableLink({ link, onChange, onRemove, fieldKey, className, la
             <span className="lp-pop-note">No address yet, so the button does nothing.</span>
           ) : null}
           {onRemove && (
-            <button type="button" className="lp-pop-remove" onClick={onRemove}>
+            <button type="button" className="lp-pop-remove" onClick={() => removeKeepingCaret(self.current, onRemove)}>
               Remove {label.toLowerCase()}
             </button>
           )}
@@ -482,6 +622,78 @@ export function EditableLink({ link, onChange, onRemove, fieldKey, className, la
       )}
     </span>
   );
+}
+
+/**
+ * The words typed in an address box, stored as they are typed (T332): the
+ * page used to keep them until Enter or leaving the box, so "Saved" showed
+ * while the address was not, and a reload lost it. An address that cannot be
+ * stored yet (half typed, or `javascript:`) is held in the box, and says why
+ * after a pause or on Enter. The box is not rewritten under the caret: the
+ * stored form (https:// added) shows once you leave it.
+ */
+function useTypedAddress(
+  value: string,
+  onChange: (href: string) => void,
+  check: (typed: string) => { href: string } | { error: string },
+) {
+  const [draft, setDraft] = useState(value);
+  const [error, setError] = useState('');
+  const sent = useRef(value);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    // A change from elsewhere (undo, the panel); not the echo of our own.
+    if (value !== sent.current) {
+      sent.current = value;
+      setDraft(value);
+      setError('');
+    }
+  }, [value]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const commit = (typed: string, final: boolean) => {
+    clearTimeout(timer.current);
+    if (!typed.trim()) {
+      setError('');
+      if (sent.current !== '') {
+        sent.current = '';
+        onChange('');
+      }
+      return;
+    }
+    const r = check(typed);
+    if ('error' in r) {
+      if (final) setError(r.error);
+      else timer.current = setTimeout(() => setError(r.error), 900);
+      return;
+    }
+    setError('');
+    if (r.href !== sent.current) {
+      sent.current = r.href;
+      onChange(r.href);
+    }
+    if (final) setDraft(r.href);
+  };
+
+  return {
+    error,
+    commit,
+    inputProps: {
+      value: draft,
+      'aria-invalid': error ? true : undefined,
+      onChange: (e: ChangeEvent<HTMLInputElement>) => {
+        setDraft(e.target.value);
+        commit(e.target.value, false);
+      },
+      onBlur: () => commit(draft, true),
+      onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commit(draft, true);
+        }
+      },
+    },
+  };
 }
 
 /* ── Images ─────────────────────────────────────────────────────────────── */
@@ -519,7 +731,11 @@ export interface EditableImageProps {
  */
 export function EditableImage({ image, onChange, onRemove, shape, siteOrigin, className, label = 'Image', size, emptyText, fieldKey, link }: EditableImageProps) {
   const services = useEditorServices();
-  const [open, focusProps, setOpen] = useFocusWithin();
+  // The bar opens on a click, not on focus: the media library gives the focus
+  // back to the picture when it closes, which reopened the bar over the page (T332).
+  const [open, { onBlur, onKeyDown }, setOpen] = useFocusWithin();
+  const focusProps = { onBlur, onKeyDown };
+  const self = useRef<HTMLSpanElement>(null);
   const [alt, setAlt] = useState(false);
   const [linking, setLinking] = useState(false);
   const altId = useId();
@@ -539,7 +755,7 @@ export function EditableImage({ image, onChange, onRemove, shape, siteOrigin, cl
 
   const has = !!image?.src;
   return (
-    <span className="lp-img-edit" {...focusProps} data-open={open || undefined} data-lp-field={fieldKey}>
+    <span ref={self} className="lp-img-edit" {...focusProps} data-open={open || undefined} data-lp-field={fieldKey}>
       <button
         type="button"
         className="lp-img-hit"
@@ -590,7 +806,7 @@ export function EditableImage({ image, onChange, onRemove, shape, siteOrigin, cl
             </button>
           )}
           {onRemove && (
-            <button type="button" className="lp-pop-remove" onClick={onRemove}>
+            <button type="button" className="lp-pop-remove" onClick={() => removeKeepingCaret(self.current, () => (setOpen(false), onRemove()))}>
               Remove
             </button>
           )}
@@ -605,6 +821,7 @@ export function EditableImage({ image, onChange, onRemove, shape, siteOrigin, cl
               <input
                 id={altId}
                 className="lp-pop-input"
+                maxLength={LEARN_LIMITS.alt}
                 value={image.alt}
                 placeholder="What the picture shows, for people who cannot see it"
                 onChange={(e) => onChange({ ...image, alt: e.target.value })}
@@ -630,7 +847,9 @@ export function RemoveItem({ label, onRemove }: { label: string; onRemove: () =>
       onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => {
         e.stopPropagation();
-        onRemove();
+        // The caret goes to the item above, never to the page, where the next
+        // Backspace would delete the whole block (T332).
+        removeKeepingCaret(e.currentTarget.closest('.lp-item-shell'), onRemove);
       }}
     >
       <svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true">
@@ -673,24 +892,35 @@ export function usePatch<T>(fn: (value: T) => BlockPatch): (value: T) => void {
 }
 
 /** Focuses a field already on the page (the item above, the item below). */
-export function focusFieldNow(key: string, at: 'start' | 'end' = 'end'): boolean {
+export function focusFieldNow(key: string, at: FocusMode = 'end'): boolean {
   const field = document.querySelector<HTMLElement>(`[data-lp-field="${CSS.escape(key)}"]`);
   if (!field) return false;
   const editor = editorForElement(field.querySelector('.ProseMirror'));
   if (editor) {
-    editor.commands.focus(at);
+    if (at === 'select') editor.chain().focus().selectAll().run();
+    else editor.commands.focus(at);
     return true;
   }
+  if (field.matches('.lp-rich-field')) return false;
   const el = field.isContentEditable ? field : field.querySelector<HTMLElement>('[contenteditable]');
   if (!el) return false;
-  caretToEnd(el);
-  if (at === 'start') window.getSelection()?.collapse(el, 0);
+  if (at === 'select') selectAllIn(el);
+  else {
+    caretToEnd(el);
+    if (at === 'start') window.getSelection()?.collapse(el, 0);
+  }
   return true;
+}
+
+/** A video or map link, stored as typed: only an address no page may open is held back. */
+function rawAddress(typed: string): { href: string } | { error: string } {
+  const t = typed.trim();
+  return isRefusedHref(t) ? { error: 'Use a link that starts with https://.' } : { href: t };
 }
 
 /**
  * An address on its own (a video, a map, a LinkedIn profile): a labelled box
- * under the thing it belongs to, saved when you press Enter or leave it.
+ * under the thing it belongs to, stored as it is typed (`useTypedAddress`).
  */
 export function UrlField({
   label,
@@ -698,6 +928,7 @@ export function UrlField({
   onChange,
   placeholder,
   normalize = true,
+  onDone,
 }: {
   label: string;
   value: string;
@@ -705,50 +936,29 @@ export function UrlField({
   placeholder?: string;
   /** Run the typed address through the same rules as a button's (adds https, refuses javascript:). */
   normalize?: boolean;
+  /** Enter or Escape in the box: the host may put it away. */
+  onDone?: () => void;
 }) {
-  const [draft, setDraft] = useState(value);
-  const [error, setError] = useState('');
   const id = useId();
-  useEffect(() => setDraft(value), [value]);
-  const commit = () => {
-    if (draft === value) return;
-    if (!draft.trim() || !normalize) {
-      setError('');
-      onChange(draft.trim());
-      return;
-    }
-    const r = normalizeLinkInput(draft);
-    if ('error' in r) setError(r.error);
-    else {
-      setError('');
-      onChange(r.href);
-    }
-  };
+  const address = useTypedAddress(value, onChange, normalize ? normalizeLinkInput : rawAddress);
   return (
     <span className="lp-url-field" onClick={(e) => e.stopPropagation()}>
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
         className="lp-pop-input"
-        value={draft}
         placeholder={placeholder}
         spellCheck={false}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setError('');
-        }}
-        onBlur={commit}
+        maxLength={LEARN_LIMITS.href}
+        {...address.inputProps}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
-          }
+          address.inputProps.onKeyDown(e);
+          if (e.key === 'Escape' || (e.key === 'Enter' && !address.error)) onDone?.();
         }}
-        aria-invalid={error ? true : undefined}
       />
-      {error && (
+      {address.error && (
         <span className="lp-pop-error" role="alert">
-          {error}
+          {address.error}
         </span>
       )}
     </span>
