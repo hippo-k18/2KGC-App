@@ -170,3 +170,39 @@ for (const [who, email] of [
     });
   }
 }
+
+test('in-place edits undo and redo one pause at a time, from the bar', async ({ browser }) => {
+  await fsDelete('pageLayouts/learn');
+  const { ctx, page } = await editorAs(browser, OWNER, 1280);
+  const bar = page.locator('.le-bar');
+  const list = page.locator(`${PREVIEW} [data-block-id="programmes-list"]`);
+  const name = page.locator(`${PREVIEW} [data-block-id="team-founders"] .lp-person-name`).nth(1);
+
+  await clickWords(page, 'fully online for individuals');
+  await page.keyboard.press('Meta+ArrowDown');
+  await page.keyboard.type(' first pause');
+  await page.waitForTimeout(1600);
+  await page.keyboard.type(' second pause');
+  await page.waitForTimeout(1600);
+  await clickWords(page, 'Thomas Deely');
+  await page.keyboard.press('Meta+a');
+  await page.keyboard.type('Tom');
+  await page.waitForTimeout(1600);
+
+  await bar.getByRole('button', { name: 'Undo' }).click();
+  await expect(name).toHaveText('Thomas Deely');
+  await expect(list).toContainText('first pause second pause');
+  await bar.getByRole('button', { name: 'Undo' }).click();
+  await expect(list).toContainText('first pause');
+  await expect(list).not.toContainText('second pause');
+  await bar.getByRole('button', { name: 'Undo' }).click();
+  await expect(list).not.toContainText('first pause');
+  await bar.getByRole('button', { name: 'Redo' }).click();
+  await bar.getByRole('button', { name: 'Redo' }).click();
+  await bar.getByRole('button', { name: 'Redo' }).click();
+  await expect(list).toContainText('first pause second pause');
+  await expect(name).toHaveText('Tom');
+  await expect.poll(draftText, { timeout: 30_000 }).toContain('first pause second pause');
+  expect(errorsOf(page), errorsOf(page).join('\n')).toEqual([]);
+  await ctx.close();
+});

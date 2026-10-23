@@ -483,7 +483,11 @@
 
 /* ── "+" between blocks ────────────────────────────────────────────────── */
 
-/* No z-index on the gap itself: every gap's + then stacks above every gap's hover strip. */
+/*
+ * The + sits in the left margin, beside the line between two blocks, so it
+ * never covers words; hovering that margin (or the line) shows it. No z-index
+ * on the gap itself: every gap's + then stacks above every gap's hover zone.
+ */
 .lp-root .lp-gap {
   position: relative;
   height: 0;
@@ -491,7 +495,7 @@
 
 .lp-root .lp-gap-btn {
   position: absolute;
-  left: 50%;
+  left: -34px;
   top: -11px;
   display: flex;
   align-items: center;
@@ -503,7 +507,6 @@
   border-radius: 50%;
   background: #fff;
   color: #2180b2;
-  transform: translateX(-50%);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s;
@@ -526,14 +529,14 @@
   pointer-events: none;
 }
 
-/* A taller invisible strip to hover, so the + is easy to find between two blocks. */
+/* The hover zone: a strip of the left margin at the line, never over the words. */
 .lp-root .lp-gap::after {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
-  top: -10px;
-  height: 20px;
+  left: -48px;
+  width: 48px;
+  top: -14px;
+  height: 28px;
   z-index: 20;
 }
 
@@ -545,10 +548,16 @@
   opacity: 1;
 }
 
+/* Hovering a block shows the + in the margin above it, so there is something to find. */
+.lp-root .lp-drop-slot:hover > .lp-gap .lp-gap-btn {
+  opacity: 0.5;
+}
+
 .lp-root .lp-gap-btn:hover,
 .lp-root .lp-gap-btn[aria-expanded='true'] {
   background: #2180b2;
   color: #fff;
+  opacity: 1;
 }
 
 .lp-root .lp-gap.is-last {
@@ -558,6 +567,8 @@
 
 .lp-root .lp-gap.is-last .lp-gap-btn {
   top: 0;
+  left: 50%;
+  transform: translateX(-50%);
   opacity: 0.55;
 }
 
@@ -566,7 +577,7 @@
 }
 
 .lp-root .lp-gap.is-last::after {
-  top: 0;
+  display: none;
 }
 
 .lp-root .lp-section-empty .lp-gap.is-last .lp-gap-btn {
@@ -636,7 +647,18 @@
   }
 
   .lp-root .lp-gap .lp-gap-btn {
+    left: auto;
+    right: -4px;
     opacity: 0.85;
+  }
+
+  .lp-root .lp-gap.is-last .lp-gap-btn {
+    left: 50%;
+    right: auto;
+  }
+
+  .lp-root .lp-gap::after {
+    display: none;
   }
 }
 

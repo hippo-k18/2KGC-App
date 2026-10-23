@@ -99,7 +99,8 @@ test('rich text: every toolbar feature is saved, published and drawn on /learn',
   await selectText(page, SETTINGS, 'Heading three line');
   await page.locator(`${SETTINGS} select[aria-label="Paragraph style"]`).selectOption('h3');
   await selectText(page, SETTINGS, 'Centred line');
-  await tool(page, SETTINGS, 'Align center').click();
+  // The block's own alignment in the panel has the same name; this is the text's.
+  await tool(page, `${SETTINGS} .rt-toolbar`, 'Align center').click();
   await selectText(page, SETTINGS, 'Bullet one');
   await tool(page, SETTINGS, 'Bulleted list').click();
   await selectText(page, SETTINGS, 'Numbered four');
