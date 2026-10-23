@@ -218,6 +218,10 @@
   cursor: default;
 }
 
+.lp-root .lp-pop {
+  z-index: 100;
+}
+
 .lp-root .lp-link-pop {
   flex-direction: column;
   align-items: stretch;
@@ -479,10 +483,10 @@
 
 /* ── "+" between blocks ────────────────────────────────────────────────── */
 
+/* No z-index on the gap itself: every gap's + then stacks above every gap's hover strip. */
 .lp-root .lp-gap {
   position: relative;
   height: 0;
-  z-index: 20;
 }
 
 .lp-root .lp-gap-btn {
@@ -505,6 +509,7 @@
   transition: opacity 0.12s;
   box-shadow: 0 1px 4px rgb(0 0 0 / 15%);
   zoom: var(--le-unzoom, 1);
+  z-index: 22;
 }
 
 /* A thin line across the gap while the + shows. */
@@ -529,6 +534,7 @@
   right: 0;
   top: -10px;
   height: 20px;
+  z-index: 20;
 }
 
 .lp-root .lp-gap:hover .lp-gap-btn,
@@ -567,29 +573,39 @@
   opacity: 1;
 }
 
-.lp-root .lp-gap-pick {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  z-index: 70;
-  transform: translateX(-50%);
-  zoom: var(--le-unzoom, 1);
-  text-align: left;
+/* The picker a + opens, drawn over the editor rather than inside the zoomed preview. */
+.lp-gap-pick {
+  z-index: 1500;
+  overflow: auto;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 22%);
+  background: #fff;
   font: 400 13px/1.4 'Open Sans', Arial, sans-serif;
   color: #272338;
-  text-transform: none;
-  letter-spacing: normal;
+  text-align: left;
 }
 
-.lp-root .lp-gap-pick .le-pick {
+.lp-gap-pick .le-pick {
   position: static;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 700px) {
+  .lp-gap-pick {
+    max-height: 75vh;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 22%);
+  }
 }
 
 /* ── On a phone: floating boxes become a sheet along the bottom ─────────── */
 
 @media (max-width: 700px) {
-  .lp-root .lp-pop,
-  .lp-root .lp-gap-pick {
+  .lp-root .lp-pop {
     position: fixed;
     top: auto;
     right: 0;
@@ -605,24 +621,22 @@
     box-shadow: 0 -8px 24px rgb(0 0 0 / 22%);
   }
 
-  .lp-root .lp-gap-pick {
-    padding: 0;
-    background: #fff;
-  }
-
-  .lp-root .lp-gap-pick .le-pick {
-    width: 100%;
-    max-width: none;
-    box-shadow: none;
-    border: 0;
-  }
-
   .lp-root .lp-item-remove {
     display: inline-flex;
   }
 
-  .lp-root .lp-gap-btn {
-    opacity: 0.6;
+  /* On a phone there is no hover: a + shows only around the block being edited, and at the end of each section. */
+  .lp-root .lp-gap:not(.is-last) {
+    display: none;
+  }
+
+  .lp-root .lp-drop-slot:has(> .lp-block[data-selected]) > .lp-gap,
+  .lp-root .lp-drop-slot:has(> .lp-block[data-selected]) + .lp-drop-slot > .lp-gap {
+    display: block;
+  }
+
+  .lp-root .lp-gap .lp-gap-btn {
+    opacity: 0.85;
   }
 }
 
@@ -644,4 +658,16 @@
 .lp-root .lp-img-edit img.lp-quote-photo {
   width: 56px;
   height: 56px;
+}
+
+/* The selected block's boxes sit over the + of the gap below it. */
+.lp-root .lp-drop-slot:has(> .lp-block[data-selected]) {
+  position: relative;
+  z-index: 30;
+}
+
+/* While a box is open or words are being typed in a block, its neighbouring + stays out of the way. */
+.lp-root .lp-drop-slot:has(.lp-pop, .ProseMirror-focused) > .lp-gap,
+.lp-root .lp-drop-slot:has(.lp-pop, .ProseMirror-focused) + .lp-drop-slot > .lp-gap {
+  visibility: hidden;
 }

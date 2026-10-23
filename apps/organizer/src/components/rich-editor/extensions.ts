@@ -191,6 +191,23 @@ const RichKeys = Extension.create<{ handlers: () => RichKeyHandlers }>({
       Backspace: () => host('Backspace'),
       ArrowUp: () => host('ArrowUp'),
       ArrowDown: () => host('ArrowDown'),
+      // In a table, the first Cmd+A selects the cell's words, as a spreadsheet
+      // does; the next selects everything. Typing over a whole-document
+      // selection would replace the table with one line (T329).
+      'Mod-a': () => {
+        const { selection, doc } = this.editor.state;
+        const $from = selection.$from;
+        for (let d = $from.depth; d > 0; d--) {
+          const name = $from.node(d).type.name;
+          if (name !== 'tableCell' && name !== 'tableHeader') continue;
+          const from = $from.start(d);
+          const to = $from.end(d);
+          const whole = selection.from <= from + 1 && selection.to >= to - 1;
+          if (whole || doc.textBetween(from, to).length === 0) return false;
+          return this.editor.commands.setTextSelection({ from: from + 1, to: to - 1 });
+        }
+        return false;
+      },
       'Mod-k': () => (h().onLink(), true),
       'Mod-f': () => (h().onFind(), true),
       'Mod-/': () => (h().onHelp(), true),

@@ -249,7 +249,11 @@ export function RichEditor(props: RichEditorProps) {
           <BubbleMenu
             editor={editor}
             pluginKey="rtInline"
-            className="rt-bubble"
+            // Outside any zoomed or clipped container (the Learn preview is
+            // zoomed to fit), so it keeps its real size; `rt` carries the
+            // toolbar's colours and type there.
+            appendTo={() => document.body}
+            className="rt rt-bubble rt-bubble-floating"
             updateDelay={0}
             options={{ placement: 'top-start', offset: 8, flip: true, shift: { padding: 8 } }}
             // Over selected words, as in a document editor; also in a table or

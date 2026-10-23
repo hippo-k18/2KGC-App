@@ -1198,3 +1198,8 @@
 .rt [aria-expanded='true'][data-tip]::after {
   display: none;
 }
+
+/* The inline bubble lives on the page body, above the dashboard's full-window editors. */
+.rt-bubble-floating {
+  z-index: 1600;
+}

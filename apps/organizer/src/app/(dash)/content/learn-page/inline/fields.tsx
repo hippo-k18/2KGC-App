@@ -83,8 +83,19 @@ function caretToEnd(el: HTMLElement) {
  * frames, because a rich text field appears one frame after its block.
  */
 export function placeCaretAt(x: number, y: number, root: Element | null, tries = 30) {
+  // Read now, while the block is still drawn as the website draws it: the
+  // words under the pointer and where in them. Selecting the block draws its
+  // editable twin, where empty optional fields can move things down a little,
+  // so the same point may no longer be over the same words.
+  const before = document.caretRangeFromPoint?.(x, y);
+  const clicked =
+    before && before.startContainer.nodeType === Node.TEXT_NODE && root?.contains(before.startContainer)
+      ? { text: before.startContainer.textContent ?? '', offset: before.startOffset }
+      : null;
+
   const attempt = (left: number) => {
-    const field = fieldNear(x, y, root);
+    const same = clicked ? sameWords(root, clicked.text, x, y) : null;
+    const field = same?.field ?? fieldNear(x, y, root);
     // A rich text field is drawn a frame or two after its block: wait for its editor.
     const pm = field?.querySelector('.ProseMirror') ?? null;
     if (!field || (field.matches('.lp-rich-field') && !editorForElement(pm))) {
@@ -100,21 +111,62 @@ export function placeCaretAt(x: number, y: number, root: Element | null, tries =
     }
     const editor = editorForElement(pm);
     if (editor) {
-      const pos = editor.view.posAtCoords({ left: x, top: y });
-      editor.chain().focus(pos ? pos.pos : 'end', { scrollIntoView: false }).run();
+      let pos: number | undefined;
+      if (same && clicked) {
+        try {
+          pos = editor.view.posAtDOM(same.node, Math.min(clicked.offset, same.node.length));
+        } catch {
+          pos = undefined;
+        }
+      }
+      pos ??= editor.view.posAtCoords({ left: x, top: y })?.pos;
+      editor.chain().focus(pos ?? 'end', { scrollIntoView: false }).run();
       return;
     }
     const target = field.isContentEditable ? field : field.querySelector<HTMLElement>('[contenteditable]');
     if (!target) return;
     target.focus({ preventScroll: true });
-    const range = document.caretRangeFromPoint?.(x, y);
     const sel = window.getSelection();
-    if (range && sel && target.contains(range.startContainer)) {
-      sel.removeAllRanges();
-      sel.addRange(range);
-    } else caretToEnd(target);
+    if (!sel) return;
+    const range = document.createRange();
+    if (same && clicked && target.contains(same.node)) {
+      range.setStart(same.node, Math.min(clicked.offset, same.node.length));
+    } else {
+      const atPoint = document.caretRangeFromPoint?.(x, y);
+      if (atPoint && target.contains(atPoint.startContainer)) range.setStart(atPoint.startContainer, atPoint.startOffset);
+      else {
+        caretToEnd(target);
+        return;
+      }
+    }
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
   };
   requestAnimationFrame(() => attempt(tries));
+}
+
+/** The text node in an editable field holding exactly the words that were clicked, nearest the click when several do. */
+function sameWords(root: Element | null, text: string, x: number, y: number): { field: HTMLElement; node: Text } | null {
+  if (!root || !text.trim()) return null;
+  let best: { field: HTMLElement; node: Text } | null = null;
+  let bestD = Infinity;
+  for (const field of root.querySelectorAll<HTMLElement>('[data-lp-field]')) {
+    const walker = document.createTreeWalker(field, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      if (node.textContent !== text) continue;
+      const r = document.createRange();
+      r.selectNodeContents(node);
+      const b = r.getBoundingClientRect();
+      const d = Math.hypot(b.left + b.width / 2 - x, b.top + b.height / 2 - y);
+      if (d < bestD) {
+        bestD = d;
+        best = { field, node };
+      }
+    }
+  }
+  return best;
 }
 
 /** The field under the point, or the nearest one in the block when the click fell between fields. */
@@ -281,7 +333,11 @@ export function InlineRich({ value, onChange, fieldKey, label, placeholder, sing
  * A small box under a field while it has the focus. On a phone it is a sheet
  * along the bottom of the screen instead (`inline.css`), so a thumb can reach it.
  */
-function useFocusWithin(): [boolean, { onFocus: () => void; onBlur: (e: FocusEvent) => void }, (v: boolean) => void] {
+function useFocusWithin(): [
+  boolean,
+  { onFocus: () => void; onBlur: (e: FocusEvent) => void; onKeyDown: (e: KeyboardEvent) => void },
+  (v: boolean) => void,
+] {
   const [open, setOpen] = useState(false);
   return [
     open,
@@ -290,6 +346,13 @@ function useFocusWithin(): [boolean, { onFocus: () => void; onBlur: (e: FocusEve
       onBlur: (e: FocusEvent) => {
         const next = e.relatedTarget as Node | null;
         if (!next || !(e.currentTarget as Node).contains(next)) setOpen(false);
+      },
+      // Escape puts the box away and leaves the words; the page's own Escape is not triggered.
+      onKeyDown: (e: KeyboardEvent) => {
+        if (e.key !== 'Escape') return;
+        e.stopPropagation();
+        setOpen(false);
+        (document.activeElement as HTMLElement | null)?.blur();
       },
     },
     setOpen,
@@ -453,11 +516,14 @@ export function EditableImage({ image, onChange, onRemove, shape, siteOrigin, cl
   const replace = async () => {
     const picked = await services?.pickImage({ title: `Choose ${label.toLowerCase()}` });
     if (picked) onChange(picked);
+    // Done with this picture: the bar goes, so it does not cover the page.
+    setOpen(false);
   };
   const edit = async () => {
     if (!image?.src) return;
     const edited = await services?.editImage(image);
     if (edited) onChange(edited);
+    setOpen(false);
   };
 
   const has = !!image?.src;

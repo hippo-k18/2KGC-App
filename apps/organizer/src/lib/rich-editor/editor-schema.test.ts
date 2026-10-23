@@ -153,4 +153,15 @@ describe('the editor schema', () => {
     e.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: false });
     expect(validateRichDoc(tiptapToRich(e.getJSON()))).toMatchObject({ ok: true });
   });
+
+  it('selects one cell with the first Cmd+A in a table, and everything with the second', () => {
+    const e = make(richToTiptap('x') as JSONContent);
+    e.chain().insertTable({ rows: 2, cols: 2, withHeaderRow: false }).insertContent('abc').run();
+    // A real keydown, as the browser sends it (jsdom is not a Mac, so Mod is Ctrl).
+    const selectAll = () => e.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true }));
+    selectAll();
+    expect(e.state.doc.textBetween(e.state.selection.from, e.state.selection.to)).toBe('abc');
+    selectAll();
+    expect(e.state.selection.to - e.state.selection.from).toBeGreaterThan(3);
+  });
 });
