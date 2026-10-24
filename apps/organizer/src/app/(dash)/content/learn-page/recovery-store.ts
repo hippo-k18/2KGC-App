@@ -1,5 +1,12 @@
 import type { LearnPageContent } from '@kgc/shared';
-import { parseRecovery, savedCovers, serializeRecovery, type RecoveryCopy } from '@/lib/learn-recovery-core';
+import {
+  isRecoveryKeyOf,
+  parseRecovery,
+  savedCovers,
+  serializeRecovery,
+  type RecoveryCopy,
+  type StoredCopy,
+} from '@/lib/learn-recovery-core';
 
 /**
  * The browser side of the recovery copy (T343, N5): localStorage, every call
@@ -16,9 +23,9 @@ export function readRecovery(key: string): RecoveryCopy | null {
 }
 
 /** True when the copy is stored. */
-export function writeRecovery(key: string, doc: LearnPageContent, baseRevision: number): boolean {
+export function writeRecovery(key: string, doc: LearnPageContent, baseRevision: number, base?: LearnPageContent): boolean {
   try {
-    window.localStorage.setItem(key, serializeRecovery(doc, baseRevision, Date.now()));
+    window.localStorage.setItem(key, serializeRecovery(doc, baseRevision, Date.now(), base));
     return true;
   } catch {
     return false;
@@ -36,6 +43,79 @@ export function clearRecovery(key: string) {
 /** After a save: removes the copy if it holds exactly what was saved. Runs after the editor closed too. */
 export function clearRecoveryIfSaved(key: string, saved: LearnPageContent) {
   if (savedCovers(readRecovery(key), saved)) clearRecovery(key);
+}
+
+// ── One copy per open editor (T348, E R2) ──────────────────────────────
+
+/**
+ * An id for this editor, new on every open. Not kept in sessionStorage:
+ * a duplicated tab copies sessionStorage, and two tabs on one id would share
+ * a copy again. A reload leaves the old id's copy behind, which the new
+ * editor finds and offers like any other.
+ */
+export function newTabId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+/** Every copy this person has for this page in this browser, the T343 one included. */
+export function listRecovery(personKey: string): StoredCopy[] {
+  const out: StoredCopy[] = [];
+  try {
+    const store = window.localStorage;
+    for (let i = 0; i < store.length; i++) {
+      const key = store.key(i);
+      if (!key || !isRecoveryKeyOf(personKey, key)) continue;
+      const copy = parseRecovery(store.getItem(key));
+      if (copy) out.push({ key, copy });
+    }
+  } catch {
+    // Storage refused: nothing can have been kept.
+  }
+  return out;
+}
+
+type Locks = {
+  request: (name: string, opts: { mode: 'exclusive' }, cb: () => Promise<void>) => Promise<unknown>;
+  query: () => Promise<{ held?: { name?: string }[] }>;
+};
+const locks = (): Locks | null => (navigator as unknown as { locks?: Locks }).locks ?? null;
+
+/**
+ * Marks this editor's copy as in use while the editor is open, with a Web
+ * Lock the browser lets go of when the tab closes or crashes. Returns the
+ * release.
+ */
+export function holdRecoveryKey(key: string): () => void {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    void locks()?.request(key, { mode: 'exclusive' }, () => held).catch(() => {});
+  } catch {
+    // No Web Locks: other tabs cannot tell this copy is in use (see below).
+  }
+  return release;
+}
+
+/**
+ * The copies whose editors are still open in another tab, so they are not
+ * offered or removed. Without Web Locks this is empty, and a tab whose copy
+ * another tab removed writes it again at once (the storage event).
+ */
+export async function liveRecoveryKeys(): Promise<Set<string>> {
+  try {
+    const l = locks();
+    if (!l) return new Set();
+    const snap = await l.query();
+    return new Set((snap.held ?? []).map((h) => h.name ?? '').filter(Boolean));
+  } catch {
+    return new Set();
+  }
 }
 
 /*

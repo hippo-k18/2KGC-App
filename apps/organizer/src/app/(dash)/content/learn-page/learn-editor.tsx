@@ -35,12 +35,14 @@ import {
 } from '@/lib/learn-library-edit-core';
 import { historyAfterRestore, scheduleCheckDelay } from '@/lib/learn-shell-core';
 import {
+  collectOffer,
+  mergeOffer,
   recoveryKey,
   recoveryStep,
   recoveryTimeLabel,
-  recoveryToOffer,
   revisionForRestore,
-  type RecoveryCopy,
+  tabRecoveryKey,
+  type RecoveryOffer,
 } from '@/lib/learn-recovery-core';
 import {
   blockRange,
@@ -81,9 +83,12 @@ import { PreviewLinkDialog } from './preview-link-dialog';
 import {
   clearRecovery,
   clearRecoveryIfSaved,
+  holdRecoveryKey,
+  listRecovery,
+  liveRecoveryKeys,
+  newTabId,
   onGuardEntry,
   pushGuardEntry,
-  readRecovery,
   writeRecovery,
 } from './recovery-store';
 import { ScheduleDialog, ScheduleFailedBanner, ScheduledBanner, formatScheduled } from './schedule-dialog';
@@ -325,10 +330,13 @@ export function LearnEditor({
   const saveStateRef = useRef<SaveState>('saved');
 
   // ── The recovery copy in this browser (T343, N5) ───────────────────────
-  const rkey = useMemo(() => recoveryKey(userEmail), [userEmail]);
-  /** A copy from an earlier visit being offered; undefined until storage was read. */
-  const offerRef = useRef<RecoveryCopy | null | undefined>(undefined);
-  const [offer, setOffer] = useState<RecoveryCopy | null>(null);
+  // One per open editor, so another tab's save never removes it (T348, E R2).
+  const personKey = useMemo(() => recoveryKey(userEmail), [userEmail]);
+  const [tabId] = useState(newTabId);
+  const rkey = useMemo(() => tabRecoveryKey(personKey, tabId), [personKey, tabId]);
+  /** Copies left by earlier visits, being offered. */
+  const offerRef = useRef<RecoveryOffer | null>(null);
+  const [offer, setOffer] = useState<RecoveryOffer | null>(null);
   /** Whether the words on screen that the server lacks are in the copy. */
   const recoveryKept = useRef(false);
   const revisionAtOpen = useRef(initial.doc.revision);
@@ -492,24 +500,43 @@ export function LearnEditor({
    * Written shortly after each change, and at once on the way out.
    */
   const keepCopyNow = useCallback(() => {
-    if (offerRef.current === undefined) return;
-    const step = recoveryStep({ content: latest.current, lastSaved: lastSaved.current, offerPending: !!offerRef.current });
-    if (step === 'write') recoveryKept.current = writeRecovery(rkey, latest.current, revision.current);
-    else if (step === 'clear') {
+    const step = recoveryStep({ content: latest.current, lastSaved: lastSaved.current });
+    if (step === 'write') recoveryKept.current = writeRecovery(rkey, latest.current, revision.current, lastSaved.current);
+    else {
       clearRecovery(rkey);
       recoveryKept.current = false;
     }
   }, [rkey]);
 
-  // Read once on open, before anything writes.
+  // Read once on open: every copy whose editor is gone, the T343 one too. Copies
+  // of editors still open in other tabs are theirs (T348).
   useEffect(() => {
-    const copy = recoveryToOffer(readRecovery(rkey), initial.doc.draft);
-    if (!copy) clearRecovery(rkey);
-    offerRef.current = copy;
-    setOffer(copy);
+    const release = holdRecoveryKey(rkey);
+    let gone = false;
+    void liveRecoveryKeys().then((live) => {
+      if (gone) return;
+      const stored = listRecovery(personKey).filter((s) => s.key !== rkey);
+      const { offer: found, redundant } = collectOffer(stored, initial.doc.draft, live);
+      redundant.forEach(clearRecovery);
+      offerRef.current = found;
+      setOffer(found);
+    });
+    return () => {
+      gone = true;
+      release();
+    };
     // Only the draft the editor opened with counts here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rkey]);
+  }, [rkey, personKey]);
+
+  // Another tab removed this tab's copy (a browser without Web Locks): write it again (T348).
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || (e.key === rkey && e.newValue === null)) keepCopyNow();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [keepCopyNow, rkey]);
 
   useEffect(() => {
     const t = setTimeout(keepCopyNow, 300);
@@ -598,23 +625,40 @@ export function LearnEditor({
     void save();
   }, [save]);
 
-  /** The offered copy goes back in as an ordinary unsaved edit; a newer save on the server then asks as a conflict. */
+  /**
+   * The offered copies go back in as an ordinary unsaved edit; a newer save on
+   * the server then asks as a conflict. Merged into what is on screen, so
+   * nothing typed since opening is lost (T348, K2): see `mergeRecovery`.
+   */
   const restoreCopy = useCallback(() => {
-    const copy = offerRef.current;
-    if (!copy) return;
+    const found = offerRef.current;
+    if (!found) return;
     offerRef.current = null;
     setOffer(null);
-    revision.current = revisionForRestore(copy, revisionAtOpen.current, revision.current);
-    edit({ type: 'replace', content: copy.doc });
+    const { doc, kept, overrode } = mergeOffer(initial.doc.draft, found, latest.current);
+    // A T343 copy has no base of its own, so it cannot tell newer saved words from its own: always ask.
+    const replacesNewer = overrode > 0 || found.copies.some((c) => !c.copy.base);
+    revision.current = revisionForRestore(found, revisionAtOpen.current, revision.current, replacesNewer);
+    // This tab's copy holds the merged words before the old copies go.
+    recoveryKept.current = writeRecovery(rkey, doc, revision.current, lastSaved.current);
+    if (recoveryKept.current) found.copies.forEach((c) => clearRecovery(c.key));
+    edit({ type: 'replace', content: doc });
     setEpoch((n) => n + 1);
-  }, [edit]);
+    if (kept > 0) {
+      setFlash(
+        `Restored. ${kept === 1 ? 'One place' : `${kept} places`} you changed since opening ${kept === 1 ? 'keeps' : 'keep'} your newer words.`,
+      );
+    }
+    // Only the draft the editor opened with is the base.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edit, rkey]);
 
   const throwCopyAway = useCallback(() => {
+    const found = offerRef.current;
     offerRef.current = null;
     setOffer(null);
-    clearRecovery(rkey);
-    keepCopyNow();
-  }, [keepCopyNow, rkey]);
+    found?.copies.forEach((c) => clearRecovery(c.key));
+  }, []);
 
   // ── Leaving through the editor's own links (T332, E F2) ─────────────────
   /**
@@ -1482,8 +1526,11 @@ export function LearnEditor({
         {offer && (
           <div className="whova-banner warning le-banner le-recovery" role="alert">
             <div>
-              <strong>You have changes from {recoveryTimeLabel(offer.at, Date.now())} that were not saved.</strong> This browser
-              kept them.
+              <strong>
+                You have changes from {recoveryTimeLabel(offer.at, Date.now())}
+                {offer.copies.length > 1 ? ` in ${offer.copies.length} tabs` : ''} that were not saved.
+              </strong>{' '}
+              This browser kept them. Restoring adds them to what you see now.
               <div className="le-banner-actions">
                 <button type="button" className="whova-btn-main small" onClick={restoreCopy}>
                   Restore them
