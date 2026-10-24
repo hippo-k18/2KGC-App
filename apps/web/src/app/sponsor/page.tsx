@@ -32,9 +32,9 @@ export const revalidate = 30;
  *
  * The four tiers, their benefit lists and an "Ask about" link each used to sit
  * under the photos. The owner asked for them to go and for the way to get in
- * touch to be bigger, so the page now has one call to action: email us, or read
- * the prospectus. The tiers still exist in `ticketTypes`, and `/tickets/sponsor`
- * still quotes them for anyone sent there.
+ * touch to be bigger, so the page now has one call to action: email us. The
+ * prospectus link beside it was removed in T345. The tiers still exist in
+ * `ticketTypes`, and `/tickets/sponsor` still quotes them for anyone sent there.
  */
 
 /*
@@ -96,7 +96,7 @@ export default async function SponsorPage() {
       </section>
 
       {/*
-        The one call to action (T187): email, or the prospectus. Big enough to
+        The one call to action (T187, T345): email us. Big enough to
         be the obvious next step after the photos, and full width on a phone.
         The subject line tells whoever reads the inbox what it is about.
       */}
@@ -112,15 +112,6 @@ export default async function SponsorPage() {
             <div className={s.ctaActions}>
               <a className={`btn btn-primary ${s.ctaButton}`} href={mail('KGC 2027 sponsorship')}>
                 Email us
-              </a>
-              <a
-                className={`btn btn-secondary ${s.ctaButton}`}
-                href={PROSPECTUS_URL}
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                Ask for information
-                <span className="sr-only"> (the sponsorship prospectus, in a new tab)</span>
               </a>
             </div>
           </div>
@@ -207,7 +198,3 @@ const PHOTOS: { src: string; alt: string; position?: string }[] = [
     alt: 'Small groups meeting at tables by the windows at KGC 2025',
   },
 ];
-
-/** The full prospectus, kept by the organizers outside this site. */
-const PROSPECTUS_URL =
-  'https://docs.superhuman.com/d/Knowledge-Graph-Conference-Sponsorship-Prospectus_dbvrFq8v5WB/Knowledge-Graph-Conference-2027_suMDKRAQ#_lu_XTxuJ';
