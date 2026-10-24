@@ -603,9 +603,13 @@ export function accessibilityIssues(content: LearnPageContent): Issue[] {
           break;
         case 'list':
           b.items.forEach((it, i) => {
-            // The website leaves out an item with no words, and its sub-items with it; publish refuses one (T348).
-            if (parseRichContent(it.text) === undefined && !it.title?.trim() && (it.children ?? []).some((c) => c.trim()))
-              add('no-words', 'error', `Item ${i + 1} has no words, so the website would leave it out with its sub-items.`, 'Type its words, or remove it.', w(`Item ${i + 1}`));
+            // The website leaves out an item with no words, and its sub-items and button with it; publish refuses one (T348, T351).
+            const subs = (it.children ?? []).some((c) => c.trim());
+            const button = !!it.link?.label?.trim();
+            if (parseRichContent(it.text) === undefined && !it.title?.trim() && (subs || button)) {
+              const what = subs && button ? 'its sub-items and button' : subs ? 'its sub-items' : 'its button';
+              add('no-words', 'error', `Item ${i + 1} has no words, so the website would leave it out with ${what}.`, 'Type its words, or remove it.', w(`Item ${i + 1}`));
+            }
             richCheck(it.text, `Item ${i + 1}`);
             if (it.link) linkCheck(w(`Item ${i + 1} link`), it.link.label, it.link.href, `The link in item ${i + 1}`);
           });

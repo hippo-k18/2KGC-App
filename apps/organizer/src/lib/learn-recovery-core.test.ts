@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { LearnPageContent } from '@kgc/shared';
 import {
   collectOffer,
+  mergeTexts,
+  unplacedWords,
   isRecoveryKeyOf,
   mergeOffer,
   mergeRecovery,
@@ -157,10 +159,12 @@ describe('restore merges into the page (T348, K2)', () => {
     expect(texts(mergeRecovery(base, asCopy(copy), current).doc)).toEqual(['n:N mine', 'a:A', 'x:X added', 'b:B']);
   });
 
-  it('a block removed since opening stays removed; one the copy removed goes unless changed since', () => {
+  it('a block removed since opening comes back only with the copy\'s words; one the copy removed goes unless changed since', () => {
     const copy = doc({ id: 's1', blocks: [text('a', 'A old')] });
     const current = doc({ id: 's1', blocks: [text('b', 'B')] });
-    expect(texts(mergeRecovery(base, asCopy(copy), current).doc)).toEqual([]);
+    // T351 (E3): the copy changed a, so a is put back rather than its words dropped.
+    expect(texts(mergeRecovery(base, asCopy(copy), current).doc)).toEqual(['a:A old']);
+    expect(texts(mergeRecovery(base, asCopy(doc({ id: 's1', blocks: [text('a', 'A')] })), current).doc)).toEqual([]);
     const changed = doc({ id: 's1', blocks: [text('a', 'A'), text('b', 'B new')] });
     expect(texts(mergeRecovery(base, asCopy(copy), changed).doc)).toEqual(['a:A old', 'b:B new']);
   });
@@ -258,5 +262,153 @@ describe('one copy per tab (T348, E R2)', () => {
     const current = doc({ id: 's1', blocks: [text('a', 'A'), text('b', 'B'), text('n', 'N new')] });
     expect(texts(mergeOffer(server, offer!, current).doc)).toEqual(['a:A legacy', 'b:B tabA', 'n:N new']);
     expect(collectOffer([], server, new Set()).offer).toBeNull();
+  });
+});
+
+describe('no word of a copy goes nowhere (T351)', () => {
+  const rich = (t: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] });
+  const richText = (v: unknown) => JSON.stringify(v);
+
+  it('R1: a block another editor removed after the copy comes back in place, with the copy\'s words, and is reported', () => {
+    const typedOn = doc({ id: 's1', blocks: [text('a', 'A'), text('p', 'P'), text('b', 'B')] });
+    const copy = asCopy(doc({ id: 's1', blocks: [text('a', 'A'), text('p', 'P Hxyz'), text('b', 'B')] }), typedOn);
+    const atOpen = doc({ id: 's1', blocks: [text('a', 'A'), text('b', 'B')] });
+    const r = mergeRecovery(atOpen, copy, atOpen);
+    expect(texts(r.doc)).toEqual(['a:A', 'p:P Hxyz', 'b:B']);
+    expect([r.restored, r.kept, r.unplaced]).toEqual([1, 0, []]);
+    // Untouched in the copy: it stays removed, nothing to report.
+    const same = mergeRecovery(atOpen, asCopy(typedOn, typedOn), atOpen);
+    expect(texts(same.doc)).toEqual(['a:A', 'b:B']);
+    expect(same.restored).toBe(0);
+  });
+
+  it('R1: a removed section, a removed item and a removed block that was moved come back too', () => {
+    const faq = (id: string, items: { id: string; q: string }[]) => ({ id, kind: 'faq', items: items.map((i) => ({ ...i, a: '' })) });
+    const typedOn = doc(
+      { id: 's1', blocks: [text('a', 'A'), faq('f', [{ id: 'i1', q: 'Q1' }, { id: 'i2', q: 'Q2' }])] },
+      { id: 's2', blocks: [text('b', 'B'), text('c', 'C')] },
+    );
+    const copy = asCopy(
+      doc(
+        { id: 's1', blocks: [text('a', 'A'), faq('f', [{ id: 'i1', q: 'Q1' }, { id: 'i2', q: 'Q2 mine' }])] },
+        { id: 's2', blocks: [text('b', 'B mine'), text('c', 'C')] },
+      ),
+      typedOn,
+    );
+    // Someone removed s2 and the item i2.
+    const atOpen = doc({ id: 's1', blocks: [text('a', 'A'), faq('f', [{ id: 'i1', q: 'Q1' }])] });
+    const r = mergeRecovery(atOpen, copy, atOpen);
+    expect(r.doc.sections.map((s) => s.id)).toEqual(['s1', 's2']);
+    expect(JSON.stringify(r.doc)).toContain('Q2 mine');
+    expect(texts(r.doc)).toContain('b:B mine');
+    expect(r.restored).toBe(2);
+    expect(r.unplaced).toEqual([]);
+  });
+
+  /** Every page someone could have made from `typedOn` by removing, moving or reordering. */
+  const typedOn = doc({ id: 's1', blocks: [text('a', 'A'), text('b', 'B'), text('c', 'C')] }, { id: 's2', blocks: [text('d', 'D')] });
+  const ids = ['a', 'b', 'c', 'd'];
+  const without = (d: LearnPageContent, id: string) =>
+    ({ ...d, sections: d.sections.map((s) => ({ ...s, blocks: s.blocks.filter((b) => b.id !== id) })) }) as LearnPageContent;
+  const reversed = (d: LearnPageContent) => ({ ...d, sections: d.sections.map((s) => ({ ...s, blocks: [...s.blocks].reverse() })) }) as LearnPageContent;
+  const moved = (d: LearnPageContent, id: string) => {
+    const b = d.sections.flatMap((s) => s.blocks).find((x) => x.id === id)!;
+    const out = without(d, id);
+    return { ...out, sections: out.sections.map((s, i) => (i === out.sections.length - 1 ? { ...s, blocks: [...s.blocks, b] } : s)) } as LearnPageContent;
+  };
+  const pages: [string, LearnPageContent][] = [
+    ['same', typedOn],
+    ...ids.map((id) => [`removed ${id}`, without(typedOn, id)] as [string, LearnPageContent]),
+    ['removed s2', { ...typedOn, sections: [typedOn.sections[0]] } as LearnPageContent],
+    ['removed s1', { ...typedOn, sections: [typedOn.sections[1]] } as LearnPageContent],
+    ['reordered', reversed(typedOn)],
+    ...ids.map((id) => [`moved ${id}`, moved(typedOn, id)] as [string, LearnPageContent]),
+    ['removed a, reordered', reversed(without(typedOn, 'a'))],
+  ];
+  const copies: [string, LearnPageContent][] = ids.map((id) => [
+    `typed in ${id}`,
+    { ...typedOn, sections: typedOn.sections.map((s) => ({ ...s, blocks: s.blocks.map((b) => (b.id === id ? { ...b, text: `${id.toUpperCase()} W${id}` } : b)) })) } as LearnPageContent,
+  ]);
+  copies.push(['typed in all', copies.reduce((d, [, c]) => ({ ...d, sections: d.sections.map((s, i) => ({ ...s, blocks: s.blocks.map((b) => c.sections[i].blocks.find((x) => x.id === b.id) ?? b) })) }) as LearnPageContent, typedOn)]);
+
+  for (const [pn, other] of pages) {
+    for (const [cn, copyDoc] of copies) {
+      it(`every typed word is placed: copy ${cn}, someone ${pn} (another editor, and the person since opening)`, () => {
+        const words = ids.map((id) => `W${id}`).filter((w) => JSON.stringify(copyDoc).includes(w));
+        // Another editor did it before the editor opened.
+        const r1 = mergeRecovery(other, asCopy(copyDoc, typedOn), other);
+        // The person did it after opening on the copy's own base.
+        const r2 = mergeRecovery(typedOn, asCopy(copyDoc, typedOn), other);
+        for (const r of [r1, r2]) {
+          expect(r.unplaced).toEqual([]);
+          for (const w of words) expect(JSON.stringify(r.doc)).toContain(w);
+          const all = r.doc.sections.flatMap((s) => s.blocks.map((b) => b.id));
+          expect(new Set(all).size).toBe(all.length);
+        }
+      });
+    }
+  }
+
+  it('reports a value it cannot place', () => {
+    // A copy whose words sit where the merge does not look: unplacedWords names it.
+    const copyDoc = doc({ id: 's1', blocks: [text('a', 'A lost')] });
+    expect(unplacedWords(base0, copyDoc, base0, base0)).toEqual(['a.text']);
+    expect(unplacedWords(base0, copyDoc, base0, copyDoc)).toEqual([]);
+  });
+  const base0 = doc({ id: 's1', blocks: [text('a', 'A')] });
+
+  it('mergeTexts applies two changes typed on one text, older first at one place', () => {
+    expect(mergeTexts('Our program', 'Our program Second2', 'Our program First1')).toBe('Our program First1 Second2');
+    expect(mergeTexts('one two three', 'one TWO three', 'one two three four')).toBe('one TWO three four');
+    expect(mergeTexts('one two', 'one X', 'one Y')).toBeNull();
+  });
+
+  it('E2: two copies of one paragraph keep both copies\' words, and nothing is said to be the person\'s', () => {
+    const typedOn = doc({ id: 's1', blocks: [{ id: 'p', kind: 'text', text: rich('Our program brings') }] });
+    const older = parseRecovery(serializeRecovery(doc({ id: 's1', blocks: [{ id: 'p', kind: 'text', text: rich('Our program brings First1') }] }), 1, 10, typedOn))!;
+    const newer = parseRecovery(serializeRecovery(doc({ id: 's1', blocks: [{ id: 'p', kind: 'text', text: rich('Our program brings Second2') }] }), 1, 20, typedOn))!;
+    const person = recoveryKey('a@x.test');
+    const { offer } = collectOffer(
+      [
+        { key: tabRecoveryKey(person, 'o'), copy: older },
+        { key: tabRecoveryKey(person, 'n'), copy: newer },
+      ],
+      typedOn,
+      new Set(),
+    );
+    const r = mergeOffer(typedOn, offer!, typedOn);
+    expect(richText(r.doc.sections[0].blocks[0])).toContain('Our program brings First1 Second2');
+    expect([r.kept, r.combined, r.unplaced]).toEqual([0, 1, []]);
+    // Changes that overlap keep both versions whole.
+    const o2 = parseRecovery(serializeRecovery(doc({ id: 's1', blocks: [{ id: 'p', kind: 'text', text: rich('Our X') }] }), 1, 10, typedOn))!;
+    const n2 = parseRecovery(serializeRecovery(doc({ id: 's1', blocks: [{ id: 'p', kind: 'text', text: rich('Our Y') }] }), 1, 20, typedOn))!;
+    const r2 = mergeOffer(typedOn, { copies: [{ key: 'n', copy: n2 }, { key: 'o', copy: o2 }], at: 20, baseRevision: 1 }, typedOn);
+    const s2 = richText(r2.doc);
+    expect(s2).toContain('Our Y');
+    expect(s2).toContain('Our X');
+    expect([r2.kept, r2.combined, r2.unplaced]).toEqual([0, 1, []]);
+    // A text stored the old way (Markdown) is the base the editor typed on.
+    const md = doc({ id: 's1', blocks: [{ id: 'p', kind: 'text', text: 'Our program brings' }] });
+    const r5 = mergeOffer(md, { copies: [{ key: 'n', copy: asCopy(n2.doc, md) }, { key: 'o', copy: asCopy(newer.doc, md) }], at: 20, baseRevision: 1 }, md);
+    // One copy replaced "program brings", the other added after it: both changes apply.
+    expect(richText(r5.doc.sections[0].blocks[0])).toContain('"Our Y Second2"');
+    const r6 = mergeOffer(md, { copies: [{ key: 'n', copy: asCopy(newer.doc, md) }, { key: 'o', copy: asCopy(older.doc, md) }], at: 20, baseRevision: 1 }, md);
+    expect(richText(r6.doc.sections[0].blocks[0])).toContain('Our program brings First1 Second2');
+    // Plain labels too.
+    const lab = (t: string) => doc({ id: 's1', blocks: [{ id: 'p', kind: 'text', text: t }] });
+    const r3 = mergeOffer(
+      lab('L'),
+      { copies: [{ key: 'n', copy: asCopy(lab('L two'), lab('L')) }, { key: 'o', copy: asCopy(lab('L one'), lab('L')) }], at: 2, baseRevision: 1 },
+      lab('L'),
+    );
+    expect(texts(r3.doc)).toEqual(['p:L one two']);
+    // Words the person typed since opening still win, and that is what the message says.
+    const r4 = mergeOffer(
+      lab('L'),
+      { copies: [{ key: 'n', copy: asCopy(lab('L two'), lab('L')) }, { key: 'o', copy: asCopy(lab('L one'), lab('L')) }], at: 2, baseRevision: 1 },
+      lab('L mine'),
+    );
+    expect(texts(r4.doc)).toEqual(['p:L mine']);
+    expect([r4.kept, r4.combined]).toEqual([2, 0]);
   });
 });

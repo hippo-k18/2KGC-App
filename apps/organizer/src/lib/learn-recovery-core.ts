@@ -1,5 +1,6 @@
 import type { LearnPageContent } from '@kgc/shared';
 import { contentEqual } from './learn-editor-core';
+import { toRichDoc } from './rich-editor/convert';
 
 /**
  * The Learn editor's local recovery copy (T343, N5), with no React and no
@@ -237,36 +238,103 @@ interface MergeCtx {
   cur: Map<string, Rec>;
   kept: number;
   overrode: number;
+  /** Items someone removed that held the copy's words, put back (T351, R1). */
+  restored: number;
+  /** Values where two copies' words were put together (T351, E2). */
+  combined: number;
+  /** Values an earlier copy of the same offer put in, by place: not the person's. */
+  fromCopy: Map<string, J>;
 }
 
+/** Where a value sits: the nearest id around it, then the keys down to it. */
+const placeOf = (key: string, k: string, v: Rec | undefined) => (v && idOf(v) ? `${idOf(v)}.${k}` : `${key}.${k}`);
+
 /** `ob` the page at open, `cb` the copy's own base, then the copy and the screen. */
-function mergeValue(ob: J, cb: J, copy: J, cur: J, ctx: MergeCtx): J {
+function mergeValue(ob: J, cb: J, copy: J, cur: J, ctx: MergeCtx, key = ''): J {
   // Lists of things with ids are always walked, so a block is never in two places.
   if (isIdList(cur) || isIdList(copy)) return mergeIdList(asList(ob), asList(cb), asList(copy), asList(cur), ctx);
-  if (sameValue(copy, cb) || sameValue(copy, cur)) return cur;
-  // Objects are walked even when the person left them alone, for the lists inside.
+  if (sameValue(copy, cur)) return cur;
+  // Objects are walked even when the person left them alone, and even when the
+  // copy did, for the lists inside: a block the copy changed may sit there now (T351).
   if (isObj(copy) && isObj(cur) && !isLeafObj(copy) && !isLeafObj(cur)) {
     const o = isObj(ob) ? ob : {};
     const c = isObj(cb) ? cb : {};
     const out: Rec = {};
     for (const k of new Set([...Object.keys(cur), ...Object.keys(copy), ...Object.keys(c)])) {
-      const v = mergeValue(o[k], c[k], copy[k], cur[k], ctx);
+      const v = mergeValue(o[k], c[k], copy[k], cur[k], ctx, placeOf(key, k, cur));
       if (v !== undefined) out[k] = v;
     }
     return out;
   }
+  if (sameValue(copy, cb)) return cur;
   if (sameValue(cur, ob)) {
     if (!sameValue(ob, cb)) ctx.overrode += 1;
+    ctx.fromCopy.set(key, copy);
     return copy;
+  }
+  // Put there by a newer copy of the same offer, not by the person: both copies' words stay.
+  if (ctx.fromCopy.has(key) && sameValue(ctx.fromCopy.get(key), cur)) {
+    const both = combineValues(cb, cur, copy);
+    ctx.combined += 1;
+    ctx.fromCopy.set(key, both);
+    return both;
   }
   ctx.kept += 1;
   return cur;
 }
 
+/** One stretch of `base` that `x` replaced: base[from, to) became `text`. */
+function changeOf(base: string, x: string) {
+  let p = 0;
+  while (p < base.length && p < x.length && base[p] === x[p]) p++;
+  let s = 0;
+  while (s < base.length - p && s < x.length - p && base[base.length - 1 - s] === x[x.length - 1 - s]) s++;
+  return { from: p, to: base.length - s, text: x.slice(p, x.length - s) };
+}
+
+/**
+ * Two texts both typed on `base`: each one's change applied, when they touch
+ * different places. Words added at the same place go older first. Null when
+ * the changes overlap.
+ */
+export function mergeTexts(base: string, newer: string, older: string): string | null {
+  const n = changeOf(base, newer);
+  const o = changeOf(base, older);
+  const at = (first: typeof n, second: typeof n) =>
+    base.slice(0, first.from) + first.text + base.slice(first.to, second.from) + second.text + base.slice(second.to);
+  if (o.to <= n.from) return at(o, n);
+  if (n.to <= o.from) return at(n, o);
+  return null;
+}
+
+/** A newer and an older copy's values for one place, put together so neither one's words are lost. */
+function combineValues(base: J, newer: J, older: J): J {
+  if (typeof newer === 'string' && typeof older === 'string') {
+    return (typeof base === 'string' ? mergeTexts(base, newer, older) : null) ?? `${newer} ${older}`;
+  }
+  if (isObj(newer) && isObj(older) && isLeafObj(newer) && isLeafObj(older)) {
+    // A rich text: the two changes applied to its stored form, when that still reads as a document.
+    // A text still stored the old way (Markdown) is read as the editor reads it.
+    const from = typeof base === 'string' ? toRichDoc(base) : base;
+    if (isObj(from) && isLeafObj(from)) {
+      const joined = mergeTexts(JSON.stringify(from), JSON.stringify(newer), JSON.stringify(older));
+      try {
+        const v: unknown = joined && JSON.parse(joined);
+        if (isObj(v) && isLeafObj(v) && Array.isArray(v.content)) return v;
+      } catch {
+        // Fall through to both versions.
+      }
+    }
+    return { ...newer, content: [...asList(newer.content), ...asList(older.content)] };
+  }
+  if (Array.isArray(newer) && Array.isArray(older)) return [...newer, ...older.filter((x) => !newer.some((y) => sameValue(x, y)))];
+  return newer;
+}
+
 function mergeItem(id: string, curItem: Rec, ctx: MergeCtx): Rec {
   const copyItem = ctx.copy.get(id);
   if (!copyItem) return curItem;
-  return mergeValue(ctx.open.get(id), ctx.copyBase.get(id), copyItem, curItem, ctx) as Rec;
+  return mergeValue(ctx.open.get(id), ctx.copyBase.get(id), copyItem, curItem, ctx, id) as Rec;
 }
 
 /** A copy-only item, less anything inside it the page already holds elsewhere. */
@@ -299,10 +367,14 @@ function mergeIdList(ob: J[], cb: J[], copy: J[], cur: J[], ctx: MergeCtx): J[] 
     let n = 0;
     out = out.map((x) => (copyOrder.has(idOf(x)) ? inCopy[n++] : x));
   }
-  // Added in the copy only: back after the block it followed there.
+  // Added in the copy, or changed there and removed since by anyone (T351, R1):
+  // back after the block it followed there, so the copy's words are never dropped.
   copy.forEach((item, i) => {
     const id = idOf(item);
-    if (!id || ctx.copyBase.has(id) || ctx.open.has(id) || ctx.cur.has(id)) return;
+    if (!id || ctx.cur.has(id)) return;
+    const was = ctx.copyBase.get(id) ?? ctx.open.get(id);
+    const added = withoutKnown(item, ctx);
+    if (was && sameValue(added, withoutKnown(was, ctx))) return;
     let at = 0;
     for (let j = i - 1; j >= 0; j--) {
       const prev = idOf(copy[j]);
@@ -312,11 +384,44 @@ function mergeIdList(ob: J[], cb: J[], copy: J[], cur: J[], ctx: MergeCtx): J[] 
         break;
       }
     }
-    const added = withoutKnown(item, ctx);
     out.splice(at, 0, added);
     indexIds(added, ctx.cur);
+    if (was) ctx.restored += 1;
   });
   return out;
+}
+
+/** Every value the copy holds, by place (see `placeOf`); lists of things with ids are walked. */
+function placesOf(v: J, key: string, into: Map<string, J>) {
+  if (isIdList(v)) {
+    for (const x of v) placesOf(x, idOf(x)!, into);
+    return;
+  }
+  if (isObj(v) && !isLeafObj(v)) {
+    for (const k of Object.keys(v)) placesOf(v[k], placeOf(key, k, v), into);
+    return;
+  }
+  if (!into.has(key)) into.set(key, v);
+}
+
+/**
+ * The copy's changed values that are neither in the merged page nor reported
+ * as kept or put together (T351): the editor keeps the copy while any are left.
+ */
+export function unplacedWords(copyBase: LearnPageContent, copy: LearnPageContent, current: LearnPageContent, merged: LearnPageContent, openBase = copyBase): string[] {
+  const [b, c, cur, out, open] = [copyBase, copy, current, merged, openBase].map((d) => {
+    const m = new Map<string, J>();
+    placesOf(d, '', m);
+    return m;
+  });
+  const missing: string[] = [];
+  for (const [k, v] of c) {
+    if (v === undefined || (b.has(k) && sameValue(b.get(k), v)) || sameValue(out.get(k), v)) continue;
+    // The person's newer words there: kept, and said so.
+    if (cur.has(k) && sameValue(out.get(k), cur.get(k)) && !sameValue(cur.get(k), open.get(k))) continue;
+    missing.push(k);
+  }
+  return missing;
 }
 
 export interface MergeResult {
@@ -325,30 +430,69 @@ export interface MergeResult {
   kept: number;
   /** Values where the copy replaced words someone saved after it. */
   overrode: number;
+  /** Removed items brought back because the copy changed them (T351, R1). */
+  restored: number;
+  /** Values where two copies' words were put together (T351, E2). */
+  combined: number;
+  /** Changed values of the copies that went nowhere: keep the copies (T351). */
+  unplaced: string[];
 }
 
-/** The page on screen with the copy merged in. */
-export function mergeRecovery(openBase: LearnPageContent, copy: RecoveryCopy, current: LearnPageContent): MergeResult {
-  const ctx: MergeCtx = { open: new Map(), copyBase: new Map(), cur: new Map(), copy: new Map(), kept: 0, overrode: 0 };
+const newCtx = (): MergeCtx => ({
+  open: new Map(),
+  copyBase: new Map(),
+  cur: new Map(),
+  copy: new Map(),
+  kept: 0,
+  overrode: 0,
+  restored: 0,
+  combined: 0,
+  fromCopy: new Map(),
+});
+
+function mergeInto(openBase: LearnPageContent, copy: RecoveryCopy, current: LearnPageContent, ctx: MergeCtx): LearnPageContent {
   const copyBase = copy.base ?? openBase;
+  for (const m of [ctx.open, ctx.copyBase, ctx.copy, ctx.cur]) m.clear();
   indexIds(openBase, ctx.open);
   indexIds(copyBase, ctx.copyBase);
   indexIds(copy.doc, ctx.copy);
   indexIds(current, ctx.cur);
-  const doc = mergeValue(openBase, copyBase, copy.doc, current, ctx) as LearnPageContent;
-  return { doc, kept: ctx.kept, overrode: ctx.overrode };
+  return mergeValue(openBase, copyBase, copy.doc, current, ctx) as LearnPageContent;
 }
 
-/** Every offered copy merged in, newest first, so the newest words win between copies. */
+const resultOf = (doc: LearnPageContent, ctx: MergeCtx, unplaced: string[]): MergeResult => ({
+  doc,
+  kept: ctx.kept,
+  overrode: ctx.overrode,
+  restored: ctx.restored,
+  combined: ctx.combined,
+  unplaced,
+});
+
+/** The page on screen with the copy merged in. */
+export function mergeRecovery(openBase: LearnPageContent, copy: RecoveryCopy, current: LearnPageContent): MergeResult {
+  const ctx = newCtx();
+  const doc = mergeInto(openBase, copy, current, ctx);
+  return resultOf(doc, ctx, unplacedWords(copy.base ?? openBase, copy.doc, current, doc, openBase));
+}
+
+/**
+ * Every offered copy merged in, newest first. Where an older copy changed a
+ * value a newer one already put in, both copies' words are put together
+ * (T351, E2): an older copy's words are never taken for the person's.
+ */
 export function mergeOffer(openBase: LearnPageContent, offer: RecoveryOffer, current: LearnPageContent): MergeResult {
+  const ctx = newCtx();
   let doc = current;
-  let kept = 0;
-  let overrode = 0;
-  for (const { copy } of offer.copies) {
-    const r = mergeRecovery(openBase, copy, doc);
-    doc = r.doc;
-    kept += r.kept;
-    overrode += r.overrode;
-  }
-  return { doc, kept, overrode };
+  for (const { copy } of offer.copies) doc = mergeInto(openBase, copy, doc, ctx);
+  // Each copy checked against the page as the person had it, so another copy's words do not count as theirs.
+  const placed = new Map<string, J>();
+  placesOf(doc, '', placed);
+  const unplaced = offer.copies.flatMap(({ copy }) =>
+    // A value put together from two copies holds this copy's change too.
+    unplacedWords(copy.base ?? openBase, copy.doc, current, doc, openBase).filter(
+      (k) => !ctx.fromCopy.has(k) || !sameValue(ctx.fromCopy.get(k), placed.get(k)),
+    ),
+  );
+  return resultOf(doc, ctx, unplaced);
 }

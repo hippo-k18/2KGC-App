@@ -635,20 +635,29 @@ export function LearnEditor({
     if (!found) return;
     offerRef.current = null;
     setOffer(null);
-    const { doc, kept, overrode } = mergeOffer(initial.doc.draft, found, latest.current);
+    const { doc, kept, overrode, restored, combined, unplaced } = mergeOffer(initial.doc.draft, found, latest.current);
     // A T343 copy has no base of its own, so it cannot tell newer saved words from its own: always ask.
-    const replacesNewer = overrode > 0 || found.copies.some((c) => !c.copy.base);
+    // Words the merge could not place (T351) go through the question too, and the copies stay.
+    const replacesNewer = overrode > 0 || unplaced.length > 0 || found.copies.some((c) => !c.copy.base);
     revision.current = revisionForRestore(found, revisionAtOpen.current, revision.current, replacesNewer);
     // This tab's copy holds the merged words before the old copies go.
     recoveryKept.current = writeRecovery(rkey, doc, revision.current, lastSaved.current);
-    if (recoveryKept.current) found.copies.forEach((c) => clearRecovery(c.key));
+    if (recoveryKept.current && unplaced.length === 0) found.copies.forEach((c) => clearRecovery(c.key));
     edit({ type: 'replace', content: doc });
     setEpoch((n) => n + 1);
-    if (kept > 0) {
-      setFlash(
-        `Restored. ${kept === 1 ? 'One place' : `${kept} places`} you changed since opening ${kept === 1 ? 'keeps' : 'keep'} your newer words.`,
-      );
-    }
+    const notes = [
+      restored > 0 &&
+        (restored === 1
+          ? 'A part of the page someone removed was put back with your words.'
+          : `${restored} parts of the page someone removed were put back with your words.`),
+      combined > 0 &&
+        (combined === 1
+          ? 'One place had words from two copies, and both were kept. Check it.'
+          : `${combined} places had words from two copies, and both were kept. Check them.`),
+      kept > 0 &&
+        `${kept === 1 ? 'One place' : `${kept} places`} you changed since opening ${kept === 1 ? 'keeps' : 'keep'} your newer words.`,
+    ].filter(Boolean);
+    if (notes.length > 0) setFlash(`Restored. ${notes.join(' ')}`);
     // Only the draft the editor opened with is the base.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit, rkey]);

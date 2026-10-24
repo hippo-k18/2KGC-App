@@ -211,3 +211,58 @@ test.describe('E R2: each tab keeps its own copy', () => {
     await ctx.close();
   });
 });
+
+test.describe('T351: no word of a copy is dropped by Restore', () => {
+  const flash = (page: Page) => page.locator('.le-flash');
+
+  for (const [who, width] of [
+    [LEARN, 1280],
+    [OWNER, 390],
+  ] as const) {
+    test(`R1: the copy's block was deleted by someone else since: Restore puts it back with the words and says so (${width})`, async ({ browser }) => {
+      const { ctx, page: first } = await editor(browser, { email: who, width });
+      await leaveCopy(ctx, first, ' Hxyz');
+
+      // The owner deletes block A after the copy was made.
+      const doc = await learnDoc();
+      const draft = JSON.parse(JSON.stringify(doc!.draft)) as { sections: { blocks: { id: string }[] }[] };
+      draft.sections[0].blocks = draft.sections[0].blocks.filter((b) => b.id !== 'A');
+      await fsSet('pageLayouts/learn', { ...doc!, draft, revision: 2, draftUpdatedAt: Date.now(), draftUpdatedBy: OWNER });
+
+      const page = await reopen(ctx, width);
+      await expect(recoveryBanner(page)).toContainText('that were not saved');
+      await recoveryBanner(page).getByRole('button', { name: 'Restore them' }).click();
+      await expect(flash(page)).toContainText('A part of the page someone removed was put back with your words.');
+      await expect(page.locator(PREVIEW)).toContainText('Alpha words to start from. Hxyz');
+      // Back in its old place, before Beta.
+      const order = await page.locator(PREVIEW).innerText();
+      expect(order.indexOf('Hxyz')).toBeLessThan(order.indexOf('Beta words'));
+      await waitSaved(page);
+      await expect.poll(draftText, { timeout: 10_000 }).toContain('Hxyz');
+      await expect.poll(() => storedCopies(page), { timeout: 10_000 }).toBe('');
+      expect(errorsOf(page)).toEqual([]);
+      await ctx.close();
+    });
+  }
+
+  test('E2 (H7): offline twice in the same paragraph: Restore keeps both copies\' words and blames nobody', async ({ browser }) => {
+    const { ctx, page: first } = await editor(browser, { email: LEARN, width: 1280 });
+    await leaveCopy(ctx, first, ' First1');
+    // Reopened, the offer is left alone, and more words are typed in the same paragraph while saves still fail.
+    const second = await reopen(ctx, 1280);
+    await expect(recoveryBanner(second)).toContainText('that were not saved');
+    await leaveCopy(ctx, second, ' Second2');
+
+    const page = await reopen(ctx, 1280);
+    await expect(recoveryBanner(page)).toContainText('in 2 tabs');
+    await recoveryBanner(page).getByRole('button', { name: 'Restore them' }).click();
+    await expect(flash(page)).toContainText('One place had words from two copies, and both were kept.');
+    await expect(flash(page)).not.toContainText('since opening');
+    await expect(page.locator(PREVIEW)).toContainText('Alpha words to start from. First1 Second2');
+    await waitSaved(page);
+    await expect.poll(draftText, { timeout: 10_000 }).toContain('First1 Second2');
+    await expect.poll(() => storedCopies(page), { timeout: 10_000 }).toBe('');
+    expect(errorsOf(page)).toEqual([]);
+    await ctx.close();
+  });
+});

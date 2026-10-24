@@ -1387,13 +1387,14 @@ function blockBlockers(b: LearnBlock, name: string, out: string[], library: Lear
       break;
     }
     case 'list': {
-      // www leaves out an item with no words of its own, and its sub-items with it (T348, gate H N2).
+      // www leaves out an item with no words of its own, and its sub-items and button with it (T348 gate H N2, T351 B F1).
       const wordless = listOf(b.items).filter(
         (it) =>
           isObj(it) &&
           parseRichContent(it.text) === undefined &&
           !(typeof it.title === 'string' && it.title.trim()) &&
-          listOf(it.children).some((c) => typeof c === 'string' && c.trim() !== ''),
+          (listOf(it.children).some((c) => typeof c === 'string' && c.trim() !== '') ||
+            (isObj(it.link) && typeof it.link.label === 'string' && it.link.label.trim() !== '')),
       ).length;
       if (wordless === 1) out.push(`${where} has an item with no words. Add words or remove it.`);
       else if (wordless > 1) out.push(`${where} has ${wordless} items with no words. Add words or remove them.`);

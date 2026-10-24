@@ -501,7 +501,11 @@ for (const [i, seed] of SEEDS.entries()) {
         selecting = false;
       } else if (roll < 0.98) {
         op = 'click away';
-        await page.locator('.le-pane-preview').click({ position: { x: 3, y: 3 } });
+        // A dialog's backdrop (Choose photo) takes the click: Escape closes it, as a person would (T351, F-H1).
+        await page
+          .locator('.le-pane-preview')
+          .click({ position: { x: 3, y: 3 }, timeout: 3000 })
+          .catch(() => page.keyboard.press('Escape'));
         selecting = false;
       } else {
         op = 'Escape';

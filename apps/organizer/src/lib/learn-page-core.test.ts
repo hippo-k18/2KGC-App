@@ -1281,6 +1281,10 @@ describe('a field over its length limit saves as typed and refuses publish, by n
     // A title is words of its own, and an empty item with no sub-items loses nothing.
     list.items.splice(-2, 2, { id: 'li-t', title: 'Title', text: '', children: ['Sub'] }, { id: 'li-blank', text: '', children: ['  '] });
     expect(publishBlockers(p)).toEqual([]);
+    // A button is not words of its own either: www drops the item and its button (T351, B F1).
+    list.items.push({ id: 'li-btn', text: '', link: { label: 'Read more', href: 'https://example.org', style: 'primary' } });
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual(['The List block in "Hero" has an item with no words. Add words or remove it.']);
   });
 
   it('refuses to publish a number with a label but no figure, which the website would leave out (T348)', () => {

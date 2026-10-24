@@ -49,6 +49,17 @@ describe('checker: a list item with no words but with sub-items (T348)', () => {
     });
     expect(ISSUE_RULE_LABEL['no-words']).toBe('List item with no words');
   });
+
+  it('flags an item with only a button, which the website leaves out with it (T351, B F1)', () => {
+    const link = { label: 'Read more', href: 'https://example.org', style: 'primary' };
+    const issues = accessibilityIssues(
+      pageWith({ id: 'lb', kind: 'list', ordered: false, items: [{ id: 'i0', text: 'One' }, { id: 'i1', text: '', link }, { id: 'i2', text: '', children: ['S'], link }] } as unknown as LearnBlock),
+    ).filter((i) => i.rule === 'no-words');
+    expect(issues.map((i) => i.message)).toEqual([
+      'Item 2 has no words, so the website would leave it out with its button.',
+      'Item 3 has no words, so the website would leave it out with its sub-items and button.',
+    ]);
+  });
 });
 
 describe('checker: a number with a label but no figure (T348)', () => {
