@@ -19,6 +19,7 @@ import type { ImageShape, ImageWidth, LinkButton, PageImage, RichContent } from 
 import type { Editor } from '@tiptap/core';
 import { AllSelection, Selection } from '@tiptap/pm/state';
 import { RichEditor, editorForElement, type CaretInfo, type HostKey } from '@/components/rich-editor';
+import { NOTE_MS, overLimitNote, pasteCutNote, stoppedNote } from '@/components/rich-editor/paste-limit';
 import { capInserted, isOffsite, normalizeLinkInput } from '@/lib/learn-inline-core';
 import type { BlockPatch } from '@/lib/learn-editor-core';
 import { isRefusedHref, LEARN_LIMITS } from '@/lib/learn-page-core';
@@ -232,13 +233,81 @@ export function removeKeepingCaret(gone: Element | null, remove: () => void) {
   else if (blockId) {
     // Keys pressed before the button has the focus are held, then dropped
     // there: a Backspace on the page would delete the block (T343).
-    placing++;
-    requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"] .lp-item-add`)?.focus({ preventScroll: true });
+    focusAfterRemoving(() => document.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"] .lp-item-add`));
+  }
+}
+
+/**
+ * Removes a picture from its bar. A picture that is the whole item (a gallery
+ * photo, a logo) hands the focus to the next picture, else the one before,
+ * else the block's "+ Add"; one that leaves its slot (a person's photo, a
+ * card's picture) keeps the focus on that slot. The focus fell to the page,
+ * and the next Backspace deleted the gallery, the one after its section (T348).
+ */
+export function removePicture(slot: HTMLElement | null, wholeItem: boolean, remove: () => void) {
+  const blockId = slot?.closest('[data-block-id]')?.getAttribute('data-block-id');
+  const key = slot?.getAttribute('data-lp-field');
+  const shell = wholeItem ? slot?.closest('.lp-item-shell') : null;
+  const sibling = (el: Element | null | undefined, dir: 'nextElementSibling' | 'previousElementSibling') => {
+    const s = el?.[dir];
+    return s?.matches('.lp-item-shell') ? s : null;
+  };
+  const after = shell ? (sibling(shell, 'nextElementSibling') ?? sibling(shell, 'previousElementSibling')) : null;
+  pendingFocus = null;
+  remove();
+  if (pendingFocus) return;
+  focusAfterRemoving(() => {
+    const hit = shell ? (after?.isConnected ? after : null) : key ? document.querySelector(`[data-lp-field="${CSS.escape(key)}"]`) : null;
+    return hit?.querySelector<HTMLElement>('.lp-img-hit') ?? (blockId ? document.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"] .lp-item-add`) : null);
+  });
+}
+
+/** Buttons that took the focus after a removal: Backspace and Delete there do nothing, never "delete the block". */
+const keptFromPage = new WeakSet<HTMLElement>();
+
+function keepFromPage(el: HTMLElement) {
+  if (keptFromPage.has(el)) return;
+  keptFromPage.add(el);
+  const onKey = (e: globalThis.KeyboardEvent) => {
+    if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  el.addEventListener('keydown', onKey);
+  el.addEventListener(
+    'blur',
+    () => {
+      el.removeEventListener('keydown', onKey);
+      keptFromPage.delete(el);
+    },
+    { once: true },
+  );
+}
+
+/**
+ * Focuses what `find` gives on the next frame, holding the keys pressed until
+ * then, and puts it back for a few frames if the block is drawn again and the
+ * focus falls to the page (T348).
+ */
+function focusAfterRemoving(find: () => HTMLElement | null | undefined) {
+  placing++;
+  let left = 12;
+  let first = true;
+  const place = () => {
+    const el = find();
+    el?.focus({ preventScroll: true });
+    if (el && document.activeElement === el) keepFromPage(el);
+  };
+  const tick = () => {
+    if (first) {
+      first = false;
+      place();
       placing--;
       playHeldKeys();
-    });
-  }
+    } else if (!pendingFocus && (!document.activeElement || document.activeElement === document.body)) place();
+    if (--left > 0) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 /**
@@ -585,7 +654,7 @@ const limitTimers = new WeakMap<HTMLElement, number>();
  * for a moment when typing stops at it. Drawn by CSS from the attribute, so
  * the words in the field are never touched.
  */
-function showLimit(el: HTMLElement, max: number | undefined, stopped = false) {
+function showLimit(el: HTMLElement, max: number | undefined, stopped: boolean | 'paste' = false) {
   const len = (el.textContent ?? '').length;
   const clear = () => {
     window.clearTimeout(limitTimers.get(el));
@@ -594,7 +663,7 @@ function showLimit(el: HTMLElement, max: number | undefined, stopped = false) {
   };
   if (max && len > max) {
     clear();
-    el.setAttribute('data-limit-note', `${len} characters; the limit is ${max}. Shorten it to publish.`);
+    el.setAttribute('data-limit-note', overLimitNote(len, max));
     el.setAttribute('data-limit-over', '');
     return;
   }
@@ -603,8 +672,9 @@ function showLimit(el: HTMLElement, max: number | undefined, stopped = false) {
   if (!max || wasOver) clear();
   if (!max || !stopped) return;
   clear();
-  el.setAttribute('data-limit-note', `The limit is ${max} characters.`);
-  limitTimers.set(el, window.setTimeout(clear, 2500));
+  // A paste that was cut says so (T348); a key that stopped says where the limit is.
+  el.setAttribute('data-limit-note', stopped === 'paste' ? pasteCutNote(max) : stoppedNote(max));
+  limitTimers.set(el, window.setTimeout(clear, NOTE_MS));
 }
 
 /** How many characters of `el` the selection covers. */
@@ -680,8 +750,12 @@ export function PlainText({ value, onChange, fieldKey, label, placeholder, tag =
     const onBefore = (e: InputEvent) => {
       const limit = max.current;
       if (!limit || e.isComposing || !e.inputType.startsWith('insert') || e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') return;
-      const room = limit - (el.textContent ?? '').length + selectedLength(el);
-      if ((e.data ?? '').length > room) {
+      // Refused only when none of it fits; a commit that partly fits goes in
+      // and `onInput` keeps what fits. Over the limit, a replacement no longer
+      // than the selection still goes in (T348, gate D-N3/D-N4).
+      const sel = selectedLength(el);
+      const room = Math.max(limit - (el.textContent ?? '').length + sel, sel);
+      if ((e.data ?? '').length > room && room <= 0) {
         e.preventDefault();
         showLimit(el, limit, true);
       }
@@ -736,8 +810,10 @@ export function PlainText({ value, onChange, fieldKey, label, placeholder, tag =
         e.preventDefault();
         let text = e.clipboardData.getData('text/plain').replace(/\s*\n\s*/g, ' ');
         if (maxLength) {
-          const room = Math.max(0, maxLength - (e.currentTarget.textContent ?? '').length + selectedLength(e.currentTarget));
-          if (text.length > room) showLimit(e.currentTarget, maxLength, true);
+          // Over the limit, a paste may still take the selection's place (T348).
+          const sel = selectedLength(e.currentTarget);
+          const room = Math.max(0, maxLength - (e.currentTarget.textContent ?? '').length + sel, sel);
+          if (text.length > room) showLimit(e.currentTarget, maxLength, room > 0 ? 'paste' : true);
           text = text.slice(0, room);
         }
         if (text) document.execCommand('insertText', false, text);
@@ -1016,6 +1092,8 @@ export interface EditableImageProps {
   fieldKey: string;
   /** Where a click on the picture goes on the website, for an image or a logo that links somewhere. */
   link?: { value: string; onChange: (href: string) => void };
+  /** The picture is the whole item (a gallery photo, a logo): Remove takes the item away. */
+  wholeItem?: boolean;
 }
 
 /**
@@ -1023,7 +1101,7 @@ export interface EditableImageProps {
  * library), Edit image (crop, rotate, focal point), a description for screen
  * readers, the size where the block has one, and Remove.
  */
-export function EditableImage({ image, onChange, onRemove, shape, siteOrigin, className, label = 'Image', size, emptyText, fieldKey, link }: EditableImageProps) {
+export function EditableImage({ image, onChange, onRemove, shape, siteOrigin, className, label = 'Image', size, emptyText, fieldKey, link, wholeItem }: EditableImageProps) {
   const services = useEditorServices();
   // The bar opens on a click, not on focus: the media library gives the focus
   // back to the picture when it closes, which reopened the bar over the page (T332).
@@ -1100,7 +1178,7 @@ export function EditableImage({ image, onChange, onRemove, shape, siteOrigin, cl
             </button>
           )}
           {onRemove && (
-            <button type="button" className="lp-pop-remove" onClick={() => removeKeepingCaret(self.current, () => (setOpen(false), onRemove()))}>
+            <button type="button" className="lp-pop-remove" onClick={() => removePicture(self.current, !!wholeItem, () => (setOpen(false), onRemove()))}>
               Remove
             </button>
           )}

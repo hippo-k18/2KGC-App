@@ -31,3 +31,22 @@ describe('checker: a person with no name (T343)', () => {
     expect(accessibilityIssues(pageWith(people([{ name: '', role: 'Chair' }], true))).filter((i) => i.rule === 'no-name')).toEqual([]);
   });
 });
+
+describe('checker: a list item with no words but with sub-items (T348)', () => {
+  const list = (items: { text: string; title?: string; children?: string[] }[]): LearnBlock =>
+    ({ id: 'lb', kind: 'list', ordered: false, items: items.map((it, i) => ({ id: `i${i}`, ...it })) }) as LearnBlock;
+
+  it('flags it as something to fix, and lets a titled or childless item be', () => {
+    const issues = accessibilityIssues(pageWith(list([{ text: 'One' }, { text: ' ', children: ['Sub'] }, { text: '', title: 'T', children: ['Sub'] }, { text: '' }]))).filter(
+      (i) => i.rule === 'no-words',
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      severity: 'error',
+      message: 'Item 2 has no words, so the website would leave it out with its sub-items.',
+      fix: 'Type its words, or remove it.',
+      where: { sectionId: 's1', blockId: 'lb', field: 'Item 2' },
+    });
+    expect(ISSUE_RULE_LABEL['no-words']).toBe('List item with no words');
+  });
+});

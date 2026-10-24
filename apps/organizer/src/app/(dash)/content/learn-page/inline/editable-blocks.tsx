@@ -192,7 +192,12 @@ function ButtonRowEdit({ buttons, onChange, fieldPrefix, classOf, className }: {
           className={classOf(b)}
           fieldKey={`${fieldPrefix}:${i}`}
           onChange={(nb) => onChange(replaceAt(buttons, i, nb))}
-          onRemove={() => onChange(removeAt(buttons, i))}
+          onRemove={() => {
+            // Buttons are drawn by their place, so the next one takes this one's
+            // key and its open box kept the focus: Backspace then deleted the block (T348).
+            if (buttons.length > 1) requestFieldFocus(`${fieldPrefix}:${Math.max(0, i - 1)}`, i > 0 ? 'end' : 'start');
+            onChange(removeAt(buttons, i));
+          }}
         />
       ))}
       <AddItem
@@ -619,6 +624,7 @@ function GalleryEdit({ block, siteOrigin }: { block: BlockOf<'gallery'>; siteOri
                 fieldKey={`${blockId}:g:${im.id}`}
                 onChange={(next: PageImage) => patch({ images: replaceAt(block.images, i, { ...next, id: im.id, caption: im.caption } as Im) })}
                 onRemove={() => patch({ images: removeAt(block.images, i) })}
+                wholeItem
               />
               <PlainText tag="div" className="lp-caption" value={im.caption ?? ''} onChange={(caption) => patch({ images: replaceAt(block.images, i, { ...im, caption }) })} fieldKey={`${blockId}:g:${im.id}:cap`} label="Caption" placeholder="Caption (optional)" maxLength={LEARN_LIMITS.caption} />
             </figure>
@@ -876,6 +882,7 @@ function LogosEdit({ block, siteOrigin }: { block: BlockOf<'logos'>; siteOrigin:
             fieldKey={`${blockId}:l:${it.id}`}
             onChange={(next) => patch({ items: replaceAt(block.items, i, { ...next, id: it.id, href: it.href } as Item) })}
             onRemove={() => patch({ items: removeAt(block.items, i) })}
+            wholeItem
             link={{
               value: it.href ?? '',
               onChange: (href) => {

@@ -1,4 +1,4 @@
-import { expandedBlockId, expandReusableBlocks, isSafeHref, LEARN_COLORS, slugifyAnchor } from '@kgc/shared';
+import { expandedBlockId, expandReusableBlocks, isSafeHref, LEARN_COLORS, parseRichContent, slugifyAnchor } from '@kgc/shared';
 import type {
   BandBackground,
   ColorValue,
@@ -477,7 +477,7 @@ export function replaceInPage(
 
 // ─── Accessibility checker ───────────────────────────────────────────────────
 
-export type IssueRule = 'alt' | 'heading-order' | 'contrast' | 'empty-link' | 'vague-link' | 'table-header' | 'starter-text' | 'no-name';
+export type IssueRule = 'alt' | 'heading-order' | 'contrast' | 'empty-link' | 'vague-link' | 'table-header' | 'starter-text' | 'no-name' | 'no-words';
 
 export interface Issue {
   id: string;
@@ -498,6 +498,7 @@ export const ISSUE_RULE_LABEL: Record<IssueRule, string> = {
   'table-header': 'Table without a header row',
   'starter-text': 'Starter text left in',
   'no-name': 'Person with no name',
+  'no-words': 'List item with no words',
 };
 
 /** Link words that say nothing out of context, which is how screen reader users often hear links. */
@@ -601,6 +602,9 @@ export function accessibilityIssues(content: LearnPageContent): Issue[] {
           break;
         case 'list':
           b.items.forEach((it, i) => {
+            // The website leaves out an item with no words, and its sub-items with it; publish refuses one (T348).
+            if (parseRichContent(it.text) === undefined && !it.title?.trim() && (it.children ?? []).some((c) => c.trim()))
+              add('no-words', 'error', `Item ${i + 1} has no words, so the website would leave it out with its sub-items.`, 'Type its words, or remove it.', w(`Item ${i + 1}`));
             richCheck(it.text, `Item ${i + 1}`);
             if (it.link) linkCheck(w(`Item ${i + 1} link`), it.link.label, it.link.href, `The link in item ${i + 1}`);
           });

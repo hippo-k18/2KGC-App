@@ -11,6 +11,7 @@ import {
   learnEmbedLinkProblem,
   learnPageOrDefault,
   normalizeColor,
+  parseRichContent,
   richContentCharCount,
   validateRichDoc,
   type ColorValue,
@@ -1383,6 +1384,19 @@ function blockBlockers(b: LearnBlock, name: string, out: string[], library: Lear
       const nameless = listOf(b.people).filter((p) => isObj(p) && (typeof p.name !== 'string' || p.name.trim() === '')).length;
       if (nameless === 1) out.push(`${where} has a person with no name. Add a name or remove them.`);
       else if (nameless > 1) out.push(`${where} has ${nameless} people with no name. Add their names or remove them.`);
+      break;
+    }
+    case 'list': {
+      // www leaves out an item with no words of its own, and its sub-items with it (T348, gate H N2).
+      const wordless = listOf(b.items).filter(
+        (it) =>
+          isObj(it) &&
+          parseRichContent(it.text) === undefined &&
+          !(typeof it.title === 'string' && it.title.trim()) &&
+          listOf(it.children).some((c) => typeof c === 'string' && c.trim() !== ''),
+      ).length;
+      if (wordless === 1) out.push(`${where} has an item with no words. Add words or remove it.`);
+      else if (wordless > 1) out.push(`${where} has ${wordless} items with no words. Add words or remove them.`);
       break;
     }
     case 'video': {

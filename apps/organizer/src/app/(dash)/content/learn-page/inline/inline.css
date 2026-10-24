@@ -42,14 +42,18 @@
 
 /* A field's own note about its limit (T343). Over it: a red underline, and
    the count while the caret is in it. Typing at it: the limit, briefly. */
-.lp-root .lp-plain[data-limit-note] {
+.lp-root .lp-plain[data-limit-note],
+.lp-root .rt-content[data-limit-note] {
   position: relative;
 }
-.lp-root .lp-plain[data-limit-over] {
+/* Rich fields carry the same attributes from paste-limit.ts (T348). */
+.lp-root .lp-plain[data-limit-over],
+.lp-root .rt-content[data-limit-over] {
   text-decoration: underline wavy #c62828;
   text-underline-offset: 3px;
 }
-.lp-root .lp-plain[data-limit-note]:focus::after {
+.lp-root .lp-plain[data-limit-note]:focus::after,
+.lp-root .rt-content[data-limit-note]:focus::after {
   content: attr(data-limit-note);
   position: absolute;
   left: 0;
@@ -68,7 +72,8 @@
   white-space: nowrap;
   pointer-events: none;
 }
-.lp-root .lp-plain[data-limit-over]:focus::after {
+.lp-root .lp-plain[data-limit-over]:focus::after,
+.lp-root .rt-content[data-limit-over]:focus::after {
   background: #b3261e;
 }
 
@@ -468,6 +473,24 @@
     top: auto;
     bottom: calc(100% + 6px);
   }
+
+  /* A person's Photo tools sit on the photo's own lower edge, inside the
+     card: under it they covered this person's name and the next card's, and
+     took their clicks (T348). */
+  .lp-root .lp-person .lp-img-bar {
+    top: auto;
+    right: 6px;
+    bottom: 28px;
+    left: 6px;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* A long unbroken figure wraps inside its column: it ran over the next
+   item's label, and a click on its end landed there (T348). */
+.lp-root .lp-stat-value {
+  overflow-wrap: anywhere;
 }
 
 /* ── Table ─────────────────────────────────────────────────────────────── */

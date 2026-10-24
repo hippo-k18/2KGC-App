@@ -199,8 +199,10 @@ export function capInserted(prev: string, next: string, max: number): { text: st
   let end = 0;
   while (end < prev.length - start && end < next.length - start && prev[prev.length - 1 - end] === next[next.length - 1 - end]) end++;
   const inserted = next.slice(start, next.length - end);
-  // What is left of the field around the change.
-  const room = Math.max(0, max - start - end);
+  // What is left of the field around the change. A field already over its
+  // limit may still take as much as the edit removed, so a replacement keeps
+  // what fits instead of only deleting the selection (T348, gate D-S1/D-N4).
+  const room = Math.max(0, max - start - end, prev.length - start - end);
   if (inserted.length <= room) return null;
   const add = inserted.slice(0, room);
   return { text: next.slice(0, start) + add + next.slice(next.length - end), caret: start + add.length };

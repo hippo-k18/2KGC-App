@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Schema, Slice, Fragment, type Node as PMNode } from '@tiptap/pm/model';
 import { EditorState, TextSelection, type Plugin } from '@tiptap/pm/state';
-import { PasteLimit, cutSlice, docChars, fragmentChars, pasteRoom } from './paste-limit';
+import { PasteLimit, cutSlice, docChars, fragmentChars, pasteLimitKey, pasteRoom } from './paste-limit';
 
 /** T343: a rich field's paste is cut to its limit, typing stops there, and nothing already there is trimmed. */
 
@@ -64,7 +64,10 @@ describe('pasteRoom', () => {
     const sel = EditorState.create({ doc: d, selection: TextSelection.create(d, 1, 6) });
     expect(pasteRoom(sel, 20)).toBe(14);
     // Already over: no room, and nothing is taken away.
-    expect(pasteRoom(stateWith(d, 5), 5)).toBe(-6);
+    expect(pasteRoom(stateWith(d, 5), 5)).toBe(0);
+    // Already over, with a selection: as much as the selection, never less (T348, D-S1).
+    const overSel = EditorState.create({ doc: d, selection: TextSelection.create(d, 1, 6) });
+    expect(pasteRoom(overSel, 5)).toBe(5);
   });
 });
 
@@ -109,5 +112,49 @@ describe('the paste limit plugin', () => {
     // A formatting change adds nothing and goes through.
     const bolded = state.apply(state.tr.addMark(1, 5, schema.marks.bold.create()));
     expect(bolded.doc.firstChild!.firstChild!.marks).toHaveLength(1);
+  });
+
+  it('in a field already over, a short paste over a selection goes in instead of only deleting it (T348, D-S1)', () => {
+    const d = doc(p('PASTE' + 'w'.repeat(30)));
+    const state = EditorState.create({ doc: d, plugins: [plugin(10)], selection: TextSelection.create(d, 1, 6) });
+    const transform = plugin(10).props.transformPasted!.bind(plugin(10));
+    const view = { state } as unknown as Parameters<typeof transform>[1];
+    const pasted = transform(new Slice(Fragment.from(schema.text('NEW')), 0, 0), view, false);
+    const next = state.apply(state.tr.replaceSelection(pasted));
+    expect(next.doc.textContent).toBe('NEW' + 'w'.repeat(30));
+    // A longer paste keeps what fits: as many characters as the selection held.
+    const long = transform(new Slice(Fragment.from(schema.text('ABCDEFGH')), 0, 0), view, false);
+    expect(state.apply(state.tr.replaceSelection(long)).doc.textContent).toBe('ABCDE' + 'w'.repeat(30));
+  });
+
+  it('says the count and limit while over, and nothing while under (T348)', () => {
+    const pl = plugin(10);
+    const attrs = pl.props.attributes as (s: EditorState) => Record<string, string>;
+    const over = EditorState.create({ doc: doc(p('x'.repeat(12))), plugins: [pl] });
+    expect(attrs(over)).toEqual({ 'data-limit-note': '12 characters; the limit is 10. Shorten it to publish.', 'data-limit-over': '' });
+    const under = EditorState.create({ doc: doc(p('x'.repeat(9))), plugins: [pl] });
+    expect(attrs(under)).toEqual({});
+    // A short note set by a cut paste shows while under.
+    const noted = under.apply(under.tr.setMeta(pasteLimitKey, 'Pasted text was cut to fit the limit of 10 characters.'));
+    expect(attrs(noted)).toEqual({ 'data-limit-note': 'Pasted text was cut to fit the limit of 10 characters.' });
+  });
+
+  it('keeps what fits of several characters typed at once (T348, D-N3)', () => {
+    const pl = plugin(10);
+    let state = EditorState.create({ doc: doc(p('abcdefghi')), plugins: [pl], selection: TextSelection.create(doc(p('abcdefghi')), 10) });
+    const view = {
+      get state() {
+        return state;
+      },
+      composing: false,
+      dispatch: (tr: Parameters<EditorState['apply']>[0]) => {
+        state = state.apply(tr);
+      },
+    };
+    const input = pl.props.handleTextInput as unknown as (v: unknown, from: number, to: number, text: string) => boolean;
+    expect(input(view, 10, 10, 'hello')).toBe(true);
+    expect(state.doc.textContent).toBe('abcdefghih');
+    // Something that fits is left to the editor.
+    expect(input(view, 1, 3, 'xy')).toBe(false);
   });
 });

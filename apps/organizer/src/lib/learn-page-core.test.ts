@@ -1269,6 +1269,20 @@ describe('a field over its length limit saves as typed and refuses publish, by n
     expect(publishBlockers(p)).toEqual(['The People block in "Hero" has 2 people with no name. Add their names or remove them.']);
   });
 
+  it('refuses to publish a list item with no words but with sub-items, which the website would leave out (T348, H N2)', () => {
+    const p = page();
+    const list = p.sections[0].blocks.find((b) => b.kind === 'list') as Extract<LearnBlock, { kind: 'list' }>;
+    list.items.push({ id: 'li-empty', text: '', children: ['Kept only under the item', ''] });
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual(['The List block in "Hero" has an item with no words. Add words or remove it.']);
+    expect(() => planPublish({ ...effectiveDoc(null), draft: p }, 'a', 1)).toThrow(LearnNotReady);
+    list.items.push({ id: 'li-empty2', text: { type: 'doc', content: [{ type: 'paragraph' }] }, children: ['Another'] });
+    expect(publishBlockers(p)).toEqual(['The List block in "Hero" has 2 items with no words. Add words or remove them.']);
+    // A title is words of its own, and an empty item with no sub-items loses nothing.
+    list.items.splice(-2, 2, { id: 'li-t', title: 'Title', text: '', children: ['Sub'] }, { id: 'li-blank', text: '', children: ['  '] });
+    expect(publishBlockers(p)).toEqual([]);
+  });
+
   it('names the field in a rich text problem, not "Text" (T343)', () => {
     // 2,600 paragraphs of one word each: more parts than a rich doc may hold.
     const many = { type: 'doc', content: Array.from({ length: 2600 }, () => ({ type: 'paragraph', content: [{ type: 'text', text: 'x' }] })) };

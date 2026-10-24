@@ -178,4 +178,12 @@ describe('cutting an addition to a plain field (T343)', () => {
     expect(capInserted('hello world', 'hello there friend', 14)).toEqual({ text: 'hello there fd', caret: 13 });
     expect(capInserted('ab', 'abc', 5)).toBeNull();
   });
+
+  it('in a field already over, a replacement keeps as much as it replaced (T348, D-S1/D-N4)', () => {
+    // Select "PASTE" (5) in a 45-character field with a limit of 40, paste "ABCDEFGH".
+    const over = 'PASTE' + 'x'.repeat(40);
+    expect(capInserted(over, 'ABCDEFGH' + 'x'.repeat(40), 40)).toEqual({ text: 'ABCDE' + 'x'.repeat(40), caret: 5 });
+    // A shorter replacement shrinks the field and is left alone.
+    expect(capInserted(over, 'NEW' + 'x'.repeat(40), 40)).toBeNull();
+  });
 });
