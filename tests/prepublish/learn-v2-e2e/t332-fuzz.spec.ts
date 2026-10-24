@@ -138,6 +138,25 @@ const focusKind = (page: Page) =>
     return 'outside';
   });
 
+/**
+ * Whether the page holds a selection that the next letters would replace: a
+ * non-collapsed selection in a field, or selected table cells. Read after
+ * every step rather than assumed (T348 N5: Enter over a Cmd+A in card text
+ * leaves the selection as it was).
+ */
+const hasSelection = (page: Page) =>
+  page.evaluate(() => {
+    if (document.querySelector('.le-pane-preview .selectedCell')) return true;
+    const s = getSelection();
+    if (!s || s.isCollapsed || !s.rangeCount) return false;
+    // Any editable field (some are contenteditable="plaintext-only"), not the editor's own chrome.
+    const at = (n: Node | null) => {
+      const el = n instanceof HTMLElement ? n : n?.parentElement;
+      return !!el?.isContentEditable && !!el.closest('.le-pane-preview');
+    };
+    return at(s.anchorNode) && at(s.focusNode);
+  });
+
 const draftBlockIds = async () => {
   const d = (await learnDoc())?.draft as { sections: Section[] };
   return new Set(d.sections.flatMap((s) => s.blocks.map((b) => b.id)));
@@ -266,6 +285,103 @@ for (const [i, seed] of SEEDS.entries()) {
       for (const id of blocksAtStart) if (!ids.has(id)) await fail(`${label}: block ${id} was deleted`);
     };
 
+    /**
+     * Puts away open bars and boxes (a Photo tools bar can sit over a Name
+     * field and take its clicks, T344 N3): Escape with the focus inside each
+     * one, as that is what closes it.
+     */
+    const closePopovers = async () => {
+      await page.keyboard.press('Escape');
+      for (let i = 0; i < 10; i++) {
+        const open = await page.evaluate((sel) => {
+          const pop = [...document.querySelectorAll<HTMLElement>(`${sel} .lp-pop`)].find((p) => p.getClientRects().length > 0);
+          pop?.querySelector<HTMLElement>('button, input, [contenteditable="true"], [tabindex]')?.focus();
+          return !!pop;
+        }, PREVIEW);
+        if (!open) return;
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(150);
+      }
+    };
+
+    /** Names every person with no name in the selected People block `id`. */
+    const nameNameless = async (id: string) => {
+      const nameless = page.locator(`${PREVIEW} [data-block-id="${id}"] [data-lp-field$=":name"]:empty`);
+      for (let tries = 0; tries < 30; tries++) {
+        if (!(await nameless.count())) return;
+        const field = nameless.first();
+        const key = await field.getAttribute('data-lp-field', { timeout: 5000 });
+        let clicked = false;
+        for (let attempt = 0; attempt < 2 && !clicked; attempt++) {
+          await closePopovers();
+          await field.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+          clicked = await field.click({ timeout: 5000 }).then(() => true, () => false);
+        }
+        if (!clicked) {
+          const cover = await field.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return top && !el.contains(top) ? top.outerHTML.slice(0, 200) : 'nothing';
+          });
+          await fail(`at the end: could not click the empty Name ${key}; on top of it: ${cover}`);
+        }
+        await page.keyboard.type('Named Person');
+      }
+      await fail(`at the end: People block ${id} still has a person with no name after 30 tries`);
+    };
+
+    /**
+     * Reads the publish dialog's "Finish these blocks to publish" list and
+     * clears each item: a person with no name is named, any other unfinished
+     * block (an Image with no image, a list with an item with no words) is
+     * removed. Anything else fails at once with the dialog's words (T348 N4).
+     * Returns whether there was anything to clear.
+     */
+    const finishBlockers = async (): Promise<boolean> => {
+      const dialog = page.locator('.le-modal[role=dialog]');
+      const items = dialog.locator('.whova-banner.danger .le-problems li');
+      let last = '';
+      for (let round = 0; round < 15; round++) {
+        await closePopovers();
+        await page.locator('.le-bar').getByRole('button', { name: 'Publish', exact: true }).click({ timeout: 20_000 });
+        await expect(dialog).toBeVisible({ timeout: 10_000 });
+        await page.waitForTimeout(300);
+        const all = await items.allTextContents();
+        if (!all.length) {
+          await dialog.getByRole('button', { name: 'Cancel' }).click({ timeout: 10_000 });
+          await expect(dialog).toHaveCount(0, { timeout: 10_000 });
+          return round > 0;
+        }
+        const list = all.join(' | ');
+        if (list === last) await fail(`publish is still refused after clearing a blocker: ${list}`);
+        last = list;
+        const m = all[0];
+        const go = items.first().getByRole('button');
+        if (!/^The .+ block in "/.test(m) || !(await go.count())) await fail(`publish refused for something the fuzz cannot clear: ${list}`);
+        // The message's button closes the dialog and selects its block.
+        await go.click({ timeout: 10_000 });
+        await expect(dialog).toHaveCount(0, { timeout: 10_000 });
+        if (width < 600) await page.locator('#le-tab-preview').click({ timeout: 5000 }).catch(() => {});
+        const block = page.locator(`${PREVIEW} .lp-block[data-selected][data-block-id]`).first();
+        const id = await block.getAttribute('data-block-id', { timeout: 10_000 }).catch(() => null);
+        if (!id) await fail(`no block was selected for the blocker: ${m}`);
+        log.push(`end: ${m}`);
+        if (/with no name/.test(m)) {
+          await nameNameless(id!);
+          await closePopovers();
+        } else {
+          // Delete with the block selected and no field focused removes the block.
+          await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+          await page.keyboard.press('Delete');
+          await expect(page.locator(`${PREVIEW} [data-block-id="${id}"]`)).toHaveCount(0, { timeout: 10_000 });
+          blocksAtStart.delete(id!);
+        }
+        await waitSaved(page, 40_000);
+      }
+      await fail(`publish blockers kept coming after 15 rounds: ${last}`);
+      return true;
+    };
+
     for (let step = 0; step < STEPS; step++) {
       // A sleep voids the run: stop at once rather than hold the shared harness for its timeouts.
       if (hostGaps.length) throw new Error(`seed ${seed}: machine slept at step ${step}, run void.${hostNote()}`);
@@ -277,6 +393,8 @@ for (const [i, seed] of SEEDS.entries()) {
       let mayDelete = false;
       let keepsFocus = false;
       let token = '';
+      // The words a step may replace because they were selected, not deleted by the step itself.
+      let overSelection = false;
 
       if (roll < 0.2) {
         op = 'click words';
@@ -294,6 +412,7 @@ for (const [i, seed] of SEEDS.entries()) {
         token = `Q${seed}x${step}y`;
         op = `type ${token}`;
         mayDelete = selecting;
+        overSelection = selecting;
         keepsFocus = true;
         if (process.env.LEARN_FUZZ_TRACE) console.log('   into', await page.evaluate(() => document.activeElement?.closest('[data-lp-field]')?.getAttribute('data-lp-field')));
         await page.keyboard.type(token);
@@ -302,9 +421,10 @@ for (const [i, seed] of SEEDS.entries()) {
       } else if (roll < 0.52) {
         op = 'Enter';
         mayDelete = selecting;
+        overSelection = selecting;
         keepsFocus = true;
+        // Enter may leave a selection in place (T348 N5); the check after the step reads what is left.
         await page.keyboard.press('Enter');
-        selecting = false;
       } else if (roll < 0.61) {
         // Backspace with no caret deletes the selected block, as the editor's
         // shortcut means it to; that is a choice, not lost words.
@@ -318,6 +438,7 @@ for (const [i, seed] of SEEDS.entries()) {
         op = r.next() < 0.5 ? 'Tab' : 'Shift+Tab';
         await page.keyboard.press(op);
         mayDelete = selecting;
+        overSelection = selecting;
         // Tab into a table cell selects the cell's words, as in Word (T342 H F4),
         // so the next letters may replace them. Anywhere else Tab only moves.
         selecting = await page.evaluate(() => {
@@ -372,12 +493,22 @@ for (const [i, seed] of SEEDS.entries()) {
         selecting = false;
       }
       await page.waitForTimeout(120);
-      log.push(`${step}: ${op} (focus ${focusBefore})`);
+      // A selection the spec expects only counts while the page still shows it (T348 N5).
+      if (selecting) selecting = await hasSelection(page);
+      log.push(`${step}: ${op} (focus ${focusBefore}${selecting ? ', selection' : ''})`);
       if (process.env.LEARN_FUZZ_TRACE) console.log(log[log.length - 1]);
 
       // A word typed into the middle of an earlier one splits it; read past the new word.
       const after = (await pageText(page)).split(token || '\u0000').join('');
       if (token && !(await pageText(page)).includes(token)) await fail(`step ${step}: typed "${token}" with the caret in a field, and it is not on the page`);
+      if (overSelection) {
+        // Typing (or Enter) over a select-all replaces those words on purpose: stop expecting them.
+        const gone = typed.filter((t) => before.includes(t) && !after.includes(t));
+        if (gone.length) {
+          log.push(`   replaced over the selection: ${gone.join(', ')}`);
+          for (const t of gone) typed.splice(typed.indexOf(t), 1);
+        }
+      }
       if (!mayDelete) {
         for (const t of typed) {
           if (before.includes(t) && !after.includes(t)) {
@@ -394,34 +525,23 @@ for (const [i, seed] of SEEDS.entries()) {
     }
 
     // Done: put the block away, so every block is drawn as the website draws it, and check once more.
-    await page.keyboard.press('Escape');
-    await page.locator('.le-pane-preview').click({ position: { x: 3, y: 3 } });
+    // Every action from here has a timeout, so a run ends with a reason instead of hanging (T348 N4).
+    await closePopovers();
+    await page.locator('.le-pane-preview').click({ position: { x: 3, y: 3 }, timeout: 10_000 });
     await page.waitForTimeout(300);
     await checkSaved('the end');
+    // The embedded YouTube and Vimeo players' own console notes are not the editor's.
+    const playerNote = (e: string) => /Permissions policy violation/.test(e) || /from origin 'https:\/\/player\.vimeo\.com' has been blocked by CORS/.test(e);
+    expect(errorsOf(page).filter((e) => !playerNote(e))).toEqual([]);
+
+    // What the fuzz itself left unfinished (a person with no name, an Image
+    // block with no image, a list item with no words) is refused at publish:
+    // clear each one as the course lead would, then publish.
+    if (await finishBlockers()) await checkSaved('clearing publish blockers');
+    await publish(page);
     const d = (await learnDoc())?.draft as { sections: Section[] };
     const kept = typed.filter((t) => draftText(d).includes(t));
-    // The embedded YouTube player's own console notes are not the editor's.
-    expect(errorsOf(page).filter((e) => !/Permissions policy violation/.test(e))).toEqual([]);
-
-    // A person added with a role but no name is refused at publish, since
-    // www leaves them out (T343): name them first, as the course lead would.
-    const peopleBlocks = d.sections.flatMap((s) => s.blocks).filter((b) => b.kind === 'people' && (b.people as { name?: string }[] | undefined)?.some((p) => !p.name?.trim()));
-    for (const b of peopleBlocks) {
-      // Selecting the block draws its fields; the corner is clear of its words.
-      await page.locator(`${PREVIEW} [data-block-id="${b.id}"]`).first().click({ position: { x: 3, y: 3 } });
-      const nameless = page.locator(`${PREVIEW} [data-block-id="${b.id}"] [data-lp-field$=":name"]:empty`);
-      await expect(nameless.first()).toBeVisible();
-      for (let n = await nameless.count(); n > 0; n = await nameless.count()) {
-        await nameless.first().scrollIntoViewIfNeeded();
-        await nameless.first().click();
-        await page.keyboard.type('Named Person');
-      }
-      await page.keyboard.press('Escape');
-    }
-    if (peopleBlocks.length) await checkSaved('naming people');
-
     // Published, every word of the draft is on www.
-    await publish(page);
     await expect
       .poll(async () => {
         const html = squash((await webLearnHtml()).replace(/<[^>]+>/g, ''));

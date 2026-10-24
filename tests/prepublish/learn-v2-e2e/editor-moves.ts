@@ -64,10 +64,16 @@ export const tool = (page: Page, scope: string, label: string) => page.locator(`
 
 /** Opens Publish, types a note, publishes, and closes the "Published" dialog. */
 export async function publish(page: Page, note = '') {
-  await page.locator('.le-bar').getByRole('button', { name: 'Publish', exact: true }).click();
+  // Every action has a timeout, and a refused publish fails at once with its reasons, not after the test's (T348 N4).
+  await page.locator('.le-bar').getByRole('button', { name: 'Publish', exact: true }).click({ timeout: 20_000 });
   const dialog = page.locator('.le-modal[role=dialog]');
-  if (note) await dialog.locator('#le-publish-note').fill(note);
-  await dialog.getByRole('button', { name: 'Publish now' }).click();
+  if (note) await dialog.locator('#le-publish-note').fill(note, { timeout: 10_000 });
+  const now = dialog.getByRole('button', { name: 'Publish now' });
+  if (!(await expect(now).toBeEnabled({ timeout: 10_000 }).then(() => true, () => false))) {
+    const why = (await dialog.locator('.le-problems li').allTextContents()).join(' | ');
+    throw new Error(`Publish now is disabled: ${why || 'no blockers listed (nothing changed?)'}`);
+  }
+  await now.click({ timeout: 10_000 });
   await dialog.getByRole('button', { name: 'Done' }).click({ timeout: 60_000 });
   await expect(dialog).toHaveCount(0);
 }
