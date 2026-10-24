@@ -50,8 +50,15 @@ const OBJECTIVES = [
  * `Attendees expected` rather than `Attendees`, for the reason `site.ts` gives:
  * the noun has to say whether the number was counted or stated, because these
  * three cards sit in a row and two of them were counted.
+ *
+ * A count of 0 shows no number (T354). Before the first speaker or partner is
+ * listed the card read "0 Speakers", so at 0 the Partners card is just
+ * "Partners" and the Speakers card is "Call for speakers".
  */
-function stats(counts: { speakers: number; sponsors: number }, salesOpen: boolean) {
+function stats(
+  counts: { speakers: number; sponsors: number },
+  salesOpen: boolean,
+): { n: string | null; label: string; body: string; href?: string; cta?: string }[] {
   return [
     {
       n: ATTENDEES_EXPECTED,
@@ -60,15 +67,15 @@ function stats(counts: { speakers: number; sponsors: number }, salesOpen: boolea
       ...(salesOpen ? { href: '/tickets', cta: 'Get tickets →' } : {}),
     },
     {
-      n: String(counts.sponsors),
+      n: counts.sponsors > 0 ? String(counts.sponsors) : null,
       label: counts.sponsors === 1 ? 'Partner' : 'Partners',
       body: 'We are supported by a distinguished group of sponsors, each playing a pivotal role in advancing knowledge graph technologies and their applications.',
       href: '/sponsor',
       cta: 'Partner with us →',
     },
     {
-      n: String(counts.speakers),
-      label: counts.speakers === 1 ? 'Speaker' : 'Speakers',
+      n: counts.speakers > 0 ? String(counts.speakers) : null,
+      label: counts.speakers === 0 ? 'Call for speakers' : counts.speakers === 1 ? 'Speaker' : 'Speakers',
       body: 'Data scientists, healthcare and life-sciences researchers, finance analysts, knowledge engineers and ontologists.',
       /*
         `/sponsor#speak` and not `/speakers`. This card's call to action is
@@ -198,7 +205,12 @@ export default async function HclsPage() {
             {stats(counts, salesOpen).map((s) => (
               <div key={s.label} className="stat-card">
                 <h3>
-                  <strong>{s.n}</strong> {s.label}
+                  {s.n !== null && (
+                    <>
+                      <strong>{s.n}</strong>{' '}
+                    </>
+                  )}
+                  {s.label}
                 </h3>
                 <p>{s.body}</p>
                 {s.href && <Link href={s.href}>{s.cta}</Link>}
