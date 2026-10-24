@@ -50,3 +50,22 @@ describe('checker: a list item with no words but with sub-items (T348)', () => {
     expect(ISSUE_RULE_LABEL['no-words']).toBe('List item with no words');
   });
 });
+
+describe('checker: a number with a label but no figure (T348)', () => {
+  const stats = (items: { value: string; label: string }[]): LearnBlock =>
+    ({ id: 'sb', kind: 'stats', columns: 3, items: items.map((it, i) => ({ id: `s${i}`, ...it })) }) as LearnBlock;
+
+  it('flags it as something to fix, and lets an empty or complete number be', () => {
+    const issues = accessibilityIssues(pageWith(stats([{ value: '40', label: 'Instructors' }, { value: ' ', label: 'Programmes' }, { value: '', label: '' }]))).filter(
+      (i) => i.rule === 'no-figure',
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      severity: 'error',
+      message: 'Number 2 has a label but no figure, so the website would leave it out.',
+      fix: 'Type its figure, or remove it.',
+      where: { sectionId: 's1', blockId: 'sb', field: 'Number 2' },
+    });
+    expect(ISSUE_RULE_LABEL['no-figure']).toBe('Number with no figure');
+  });
+});

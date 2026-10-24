@@ -1283,6 +1283,16 @@ describe('a field over its length limit saves as typed and refuses publish, by n
     expect(publishBlockers(p)).toEqual([]);
   });
 
+  it('refuses to publish a number with a label but no figure, which the website would leave out (T348)', () => {
+    const p = sinkWith((q) => {
+      block(q, 'stats').items.push({ id: 'st-bare', value: ' ', label: 'Kept only in the draft' }, { id: 'st-empty', value: '', label: '' });
+    });
+    expect(problemsOf(p)).toEqual([]);
+    expect(publishBlockers(p)).toEqual([expect.stringMatching(/^The Numbers block in ".+" has a number with a label but no figure\. Add the figure or remove it\.$/)]);
+    block(p, 'stats').items.push({ id: 'st-bare2', value: '', label: 'Another' });
+    expect(publishBlockers(p)).toEqual([expect.stringMatching(/has 2 numbers with a label but no figure\. Add their figures or remove them\.$/)]);
+  });
+
   it('names the field in a rich text problem, not "Text" (T343)', () => {
     // 2,600 paragraphs of one word each: more parts than a rich doc may hold.
     const many = { type: 'doc', content: Array.from({ length: 2600 }, () => ({ type: 'paragraph', content: [{ type: 'text', text: 'x' }] })) };

@@ -267,6 +267,13 @@ for (const [i, seed] of SEEDS.entries()) {
       throw new Error(`seed ${seed}: ${why}\nlast steps:\n${log.slice(-15).join('\n')}${hostNote()}`);
     };
 
+    // Words the page stores but does not draw, as www would not (a number with
+    // no figure): publish refuses their block, so they are checked in the draft
+    // only, and on www only if publish let their block through (T348).
+    const hidden = new Map<string, number>();
+    // The last step that may delete words (a removal, an undo, a key over a selection).
+    let lastDelete = -1;
+
     const checkSaved = async (label: string) => {
       if (hostGaps.length) throw new Error(`seed ${seed}: machine slept before ${label}, run void.${hostNote()}`);
       await waitSaved(page, 40_000).catch((e: Error) => {
@@ -278,6 +285,15 @@ for (const [i, seed] of SEEDS.entries()) {
       const inDraft = draftText(d);
       const shown = await pageText(page);
       for (const t of typed) {
+        if (hidden.has(t)) {
+          if (inDraft.includes(t)) continue;
+          // Not drawn, so a step that removes words can take it without the page showing it.
+          if (lastDelete > hidden.get(t)!) {
+            hidden.delete(t);
+            continue;
+          }
+          await fail(`${label}: "${t}", kept but not drawn, is not in the saved draft`);
+        }
         if (shown.includes(t) && !inDraft.includes(t)) await fail(`${label}: "${t}" is on the page but not in the saved draft`);
         if (inDraft.includes(t) && !shown.includes(t)) await fail(`${label}: "${t}" is in the saved draft but not on the page`);
       }
@@ -509,9 +525,17 @@ for (const [i, seed] of SEEDS.entries()) {
           for (const t of gone) typed.splice(typed.indexOf(t), 1);
         }
       }
+      if (mayDelete) lastDelete = step;
       if (!mayDelete) {
         for (const t of typed) {
+          if (hidden.has(t)) continue;
           if (before.includes(t) && !after.includes(t)) {
+            await waitSaved(page, 15_000).catch(() => {});
+            if (draftText((await learnDoc())?.draft as { sections: Section[] }).includes(t)) {
+              hidden.set(t, step);
+              log.push(`   kept in the draft but not drawn: ${t}`);
+              continue;
+            }
             const d = JSON.stringify((await learnDoc())?.draft ?? {});
             const i = d.indexOf(t);
             await fail(`step ${step} (${op}): "${t}" went from the page; saved draft around it: ${i < 0 ? 'not in draft' : d.slice(Math.max(0, i - 300), i + 100)}`);

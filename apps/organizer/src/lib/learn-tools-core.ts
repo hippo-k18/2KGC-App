@@ -477,7 +477,7 @@ export function replaceInPage(
 
 // ─── Accessibility checker ───────────────────────────────────────────────────
 
-export type IssueRule = 'alt' | 'heading-order' | 'contrast' | 'empty-link' | 'vague-link' | 'table-header' | 'starter-text' | 'no-name' | 'no-words';
+export type IssueRule = 'alt' | 'heading-order' | 'contrast' | 'empty-link' | 'vague-link' | 'table-header' | 'starter-text' | 'no-name' | 'no-words' | 'no-figure';
 
 export interface Issue {
   id: string;
@@ -499,6 +499,7 @@ export const ISSUE_RULE_LABEL: Record<IssueRule, string> = {
   'starter-text': 'Starter text left in',
   'no-name': 'Person with no name',
   'no-words': 'List item with no words',
+  'no-figure': 'Number with no figure',
 };
 
 /** Link words that say nothing out of context, which is how screen reader users often hear links. */
@@ -607,6 +608,13 @@ export function accessibilityIssues(content: LearnPageContent): Issue[] {
               add('no-words', 'error', `Item ${i + 1} has no words, so the website would leave it out with its sub-items.`, 'Type its words, or remove it.', w(`Item ${i + 1}`));
             richCheck(it.text, `Item ${i + 1}`);
             if (it.link) linkCheck(w(`Item ${i + 1} link`), it.link.label, it.link.href, `The link in item ${i + 1}`);
+          });
+          break;
+        case 'stats':
+          b.items.forEach((it, i) => {
+            // The website leaves out a number with no figure, and its label with it; publish refuses one (T348).
+            if (!it.value.trim() && it.label.trim())
+              add('no-figure', 'error', `Number ${i + 1} has a label but no figure, so the website would leave it out.`, 'Type its figure, or remove it.', w(`Number ${i + 1}`));
           });
           break;
         case 'columns':

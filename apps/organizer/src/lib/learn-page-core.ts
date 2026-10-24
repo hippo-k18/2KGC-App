@@ -1399,6 +1399,15 @@ function blockBlockers(b: LearnBlock, name: string, out: string[], library: Lear
       else if (wordless > 1) out.push(`${where} has ${wordless} items with no words. Add words or remove them.`);
       break;
     }
+    case 'stats': {
+      // www leaves out a number with no figure, and its label with it (T348).
+      const bare = listOf(b.items).filter(
+        (it) => isObj(it) && !(typeof it.value === 'string' && it.value.trim()) && typeof it.label === 'string' && it.label.trim() !== '',
+      ).length;
+      if (bare === 1) out.push(`${where} has a number with a label but no figure. Add the figure or remove it.`);
+      else if (bare > 1) out.push(`${where} has ${bare} numbers with a label but no figure. Add their figures or remove them.`);
+      break;
+    }
     case 'video': {
       const url = typeof b.url === 'string' ? b.url.trim() : '';
       if (!url) out.push(`${where} has no video link yet. Add one or remove the block.`);

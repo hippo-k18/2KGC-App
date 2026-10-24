@@ -181,3 +181,36 @@ test('H N2: a list item with no words but with sub-items is named at Publish and
   expect(errorsOf(page)).toEqual([]);
   await ctx.close();
 });
+
+test('a label typed into a number with no figure is kept, and Publish and the Checker name it (fuzz seed 1770108908)', async ({ browser }) => {
+  await resetLearn(
+    pageOf([
+      {
+        id: 'S',
+        kind: 'stats',
+        columns: 3,
+        items: [
+          { id: 's1', value: '40', label: 'Instructors' },
+          { id: 's2', value: '', label: '' },
+        ],
+      },
+    ]),
+  );
+  const { ctx, page } = await editor(browser);
+  await clickWords(page, 'Instructors', 'S');
+  await field(page, 'S:s:s2:label').click();
+  await page.keyboard.type('Label only words');
+  await waitSaved(page);
+  expect(((await draftBlock('S'))?.items as { label: string }[])[1].label).toBe('Label only words');
+  await page.locator('.le-bar').getByRole('button', { name: 'Publish', exact: true }).click();
+  const dialog = page.locator('.le-modal[role=dialog]');
+  await expect(dialog).toContainText('The Numbers block in "Main" has a number with a label but no figure. Add the figure or remove it.');
+  await expect(dialog.getByRole('button', { name: 'Publish now' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await moreMenu(page, 'Check the page');
+  await expect(page.locator(SETTINGS).locator('.le-tools-group', { hasText: 'Number with no figure' })).toContainText(
+    'Number 2 has a label but no figure, so the website would leave it out.',
+  );
+  expect(errorsOf(page)).toEqual([]);
+  await ctx.close();
+});
