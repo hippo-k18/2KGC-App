@@ -16,7 +16,7 @@ import {
 } from '../../lib/rich-editor/convert';
 import { keysFor } from './controls';
 import { FindBar, LinkDialog, ShortcutsDialog, type RichAnchor } from './dialogs';
-import { richExtensions, transformPastedHTML, type CaretInfo, type HostKey, type RichKeyHandlers } from './extensions';
+import { changeLink, richExtensions, transformPastedHTML, type CaretInfo, type HostKey, type RichKeyHandlers } from './extensions';
 import { Icon } from './icons';
 import { PasteLimit } from './paste-limit';
 import { Toolbar } from './toolbar';
@@ -115,12 +115,22 @@ export function RichEditor(props: RichEditorProps) {
   }, [focusMode, linkOpen, helpOpen]);
 
   const lastEmitted = useRef(JSON.stringify(docOf(value, singleLine)));
+  const editorRef = useRef<Editor | null>(null);
+  // Escape puts the floating tools away until the caret leaves the paragraph
+  // or cell it was in, or the next click (T348).
+  const toolsAway = useRef<number | null>(null);
 
   const handlers = useRef<() => RichKeyHandlers>(() => ({
     singleLine: !!latest.current.singleLine,
     onHostKey: (key, at) => latest.current.onHostKey?.(key, at) ?? false,
     onExit: () => {
       if (ui.current.dialog) return false;
+      const ed = editorRef.current;
+      if (latest.current.variant === 'inline' && !ui.current.focusMode && ed && toolsAway.current === null && (ed.isActive('table') || ed.isActive('link') || !ed.state.selection.empty)) {
+        toolsAway.current = ed.state.selection.$from.start();
+        ed.view.dispatch(ed.state.tr.setMeta('rtInline', 'hide'));
+        return true;
+      }
       if (ui.current.focusMode) {
         setFocusMode(false);
         return true;
@@ -186,8 +196,15 @@ export function RichEditor(props: RichEditorProps) {
     if (!editor) return;
     const dom = editor.view.dom;
     editorsByDom.set(dom, editor);
+    editorRef.current = editor;
+    const back = () => {
+      toolsAway.current = null;
+    };
+    dom.addEventListener('mousedown', back);
     latest.current.onEditor?.(editor);
     return () => {
+      dom.removeEventListener('mousedown', back);
+      editorRef.current = null;
       editorsByDom.delete(dom);
       latest.current.onEditor?.(null);
     };
@@ -287,6 +304,7 @@ export function RichEditor(props: RichEditorProps) {
             // on a link, where the tools are the way to change them (T329).
             shouldShow={({ editor: e, view, state, element }) =>
               view.editable &&
+              !toolsAwayAt(toolsAway, state.selection.$from.start()) &&
               (element.contains(document.activeElement) ||
                 (view.hasFocus() && (!state.selection.empty || e.isActive('table') || e.isActive('link'))))
             }
@@ -350,6 +368,14 @@ export function RichEditor(props: RichEditorProps) {
   return shell;
 }
 
+/** True while the tools were put away with Escape in this paragraph or cell; anywhere else brings them back. */
+function toolsAwayAt(away: { current: number | null }, at: number) {
+  if (away.current === null) return false;
+  if (away.current === at) return true;
+  away.current = null;
+  return false;
+}
+
 /** The table the caret is in, as the box the floating toolbar is placed against; null outside a table. */
 function tableAround(editor: Editor) {
   if (editor.isDestroyed || !editor.isActive('table')) return null;
@@ -386,7 +412,7 @@ function LinkInfo({ editor, onEdit }: { editor: Editor; onEdit: () => void }) {
         type="button"
         className="rt-text-btn rt-danger"
         onMouseDown={(e) => e.preventDefault()}
-        onClick={() => editor.chain().focus().extendMarkRange('link').unsetLink().run()}
+        onClick={() => changeLink(editor, (c) => c.unsetLink())}
       >
         Remove
       </button>

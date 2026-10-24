@@ -46,6 +46,7 @@ import { RichBlocks, RichLine } from './preview-rich';
 import { PreviewBlockCtxContext, PreviewContentContext, PreviewLibraryContext, V2Body } from './preview-v2';
 import { useRichAnchors, useRichChange } from './rich-field';
 import { EditableBody, hasEditableBody } from './inline/editable-blocks';
+import { useTableRoom } from './inline/table-room';
 import { floatingLayer, InlineBlockContext, placeCaretAt, useCaretSafetyNet, usePopRoom, type InlineBlockCtx } from './inline/fields';
 import { InsertGap } from './inline/insert-gap';
 import './preview.css';
@@ -876,6 +877,7 @@ export function LearnPreview(props: LearnPreviewProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   useCaretSafetyNet();
   usePopRoom(rootRef);
+  useTableRoom(rootRef);
 
   const { content, hosts: freshHosts } = useMemo(() => expandForPreview(draft, library), [draft, library]);
   // The same map while the same blocks are expanded, so the memoised

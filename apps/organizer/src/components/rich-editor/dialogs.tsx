@@ -5,7 +5,7 @@ import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { SHORTCUTS, buildHref, describeHref, findMatches, type LinkKind, type TextMatch } from '../../lib/rich-editor/tools';
 import { Dialog, keysFor } from './controls';
-import { findKey, type FindMeta } from './extensions';
+import { changeLink, findKey, type FindMeta } from './extensions';
 import { Icon } from './icons';
 
 export interface RichAnchor {
@@ -57,13 +57,13 @@ export function LinkDialog({ editor, anchors, onClose }: { editor: Editor; ancho
       const shown = text.trim() || value.trim();
       editor.chain().focus().insertContent({ type: 'text', text: shown, marks: [{ type: 'link', attrs }] }).run();
     } else {
-      editor.chain().focus().extendMarkRange('link').setLink(attrs).run();
+      changeLink(editor, (c) => c.setLink(attrs));
     }
     onClose();
   };
 
   const remove = () => {
-    editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    changeLink(editor, (c) => c.unsetLink());
     onClose();
   };
 

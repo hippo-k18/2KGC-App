@@ -1,4 +1,4 @@
-import { Extension, Mark, Node, mergeAttributes, type AnyExtension, type Editor } from '@tiptap/core';
+import { Extension, Mark, Node, mergeAttributes, type AnyExtension, type ChainedCommands, type Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
 import Subscript from '@tiptap/extension-subscript';
@@ -157,6 +157,18 @@ export interface RichKeyHandlers {
   onFind: () => void;
   onHelp: () => void;
   onFocusMode: () => void;
+}
+
+/**
+ * Changes the whole link under the caret, then puts the caret (or the selected
+ * words) back where it was, without scrolling. Remove left the old link text
+ * selected out of view, and the next letters replaced it (T348).
+ */
+export function changeLink(editor: Editor, change: (chain: ChainedCommands) => ChainedCommands) {
+  const { from, to } = editor.state.selection;
+  change(editor.chain().focus(undefined, { scrollIntoView: false }).extendMarkRange('link'))
+    .setTextSelection({ from, to })
+    .run();
 }
 
 /** Removes every mark and turns the selected blocks back into plain paragraphs. */
