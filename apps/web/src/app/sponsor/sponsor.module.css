@@ -81,8 +81,8 @@
 
 /*
  * One call to action after the photos (T187): a short heading and line on the
- * left, two large buttons on the right, on the page's wash. The buttons are 56px
- * tall at every width, and on a phone they stack at full width.
+ * left, one large button on the right, on the page's wash. The button is 56px
+ * tall at every width, and full width on a phone.
  */
 .cta {
   display: grid;
