@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { requireOrganizer } from '@/lib/auth';
 import { feedbackTargets, listSurveys, summarise, type SurveyRow } from '@/lib/surveys';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
+import { Banner, EmptyState, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, StatTiles, Table, Tag } from '../ui';
 import { setSurveyStatusAction } from './survey-actions';
 import { SurveyForm } from './survey-form';
 
@@ -63,7 +63,7 @@ export async function SurveyScreen({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + New survey
             </Link>
           )
@@ -135,6 +135,7 @@ export async function SurveyScreen({
                       { key: 'n', label: 'Chose it', className: 'cell-sm' },
                     ]}
                     rows={q.distribution.map((d) => [d.label, d.count])}
+                    stackSm={false}
                   />
                 )}
 
@@ -148,10 +149,25 @@ export async function SurveyScreen({
               </div>
             ))
           )}
+          {/*
+            The file carries a response number and no identity, the same as the
+            panel above it: one person's three answers can be read as one set,
+            and nothing says whose. See `answer-exports-core.ts`.
+          */}
+          {summary.responses > 0 && (
+            <p style={{ marginTop: 14, marginBottom: 0 }}>
+              <a
+                href={`/export/survey-answers?survey=${summary.survey.id}`}
+                className="whova-btn-main secondary small"
+                download
+              >
+                Download answers
+              </a>
+            </p>
+          )}
           <p className="muted" style={{ fontSize: 12, marginTop: 14, marginBottom: 0 }}>
-            No answer here is attributed to anyone. Responses are keyed by uid so nobody can answer
-            twice, and this screen deliberately cannot join the two. Feedback a speaker can trace
-            back to a name is feedback nobody gives honestly.
+            Answers are anonymous. Each attendee can answer once. The file has a response number
+            and no names.
           </p>
         </Panel>
       ) : showForm ? (
@@ -164,19 +180,21 @@ export async function SurveyScreen({
       ) : (
         <Panel>
           {scoped.length === 0 ? (
-            <NotInputted
-              what={mode === 'session' ? 'session feedback forms' : 'event surveys'}
+            <EmptyState
               action={
-                <Link href="?new=1" className="whova-btn-main">
+                <Link href="?new=1" className="whova-btn-main secondary">
                   Create the first one
                 </Link>
               }
-            />
+            >
+              <p className="empty-title">No surveys yet</p>
+            </EmptyState>
           ) : (
             <Table
+              stackSm
               cols={[
                 { key: 't', label: 'Survey', className: 'cell-fill' },
-                { key: 'q', label: 'Questions', className: 'cell-xs' },
+                { key: 'q', label: 'Questions', className: 'cell-sm' },
                 { key: 'r', label: 'Responses', className: 'cell-sm' },
                 { key: 's', label: 'Status', className: 'cell-sm' },
                 { key: 'a', label: '', className: 'cell-md' },

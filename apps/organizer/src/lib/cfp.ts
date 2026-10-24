@@ -1,0 +1,1243 @@
+import 'server-only';
+
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import {
+  COLLECTIONS,
+  EVENT_ID,
+  SUBCOLLECTIONS,
+  SUBMISSION_IDENTITY_DOC,
+  TIME_ZONE,
+  publicSiteOrigin,
+  type CallCfpSettings,
+  type CallSessionType,
+  type CallDoc,
+  type SpeakerDoc,
+  type SpeakerProfileEditDoc,
+  type SubmissionDoc,
+  type SubmissionIdentityDoc,
+  type TrackDoc,
+} from '@kgc/shared';
+import {
+  DETAILS_DUE_DAYS,
+  cfpWithClose,
+  closeDecisionPlan,
+  dateIn,
+  dayAfter,
+  e2RetriesDue,
+  formatDay,
+  holdE2ForClose,
+  isIsoDate,
+  isoWeek,
+  nudgesDue,
+  reminderDue,
+  reviewQueue,
+  sessionTypeLine,
+  stillOpenRecipients,
+  isOpen,
+  trackLabel,
+  type CfpRow,
+} from '@kgc/scripts/src/lib/cfp-core';
+import {
+  cfpAcceptNoticeMessage,
+  cfpAcceptedMessage,
+  cfpCloseAcceptedMessage,
+  cfpCloseDeclinedMessage,
+  cfpNudgeMessage,
+  cfpStillOpenMessage,
+  cfpWeeklyReminderMessage,
+  sendCfpMessage,
+  type SendOutcome,
+} from '@kgc/scripts/src/lib/email';
+import { speakerId as deriveSpeakerId } from '@kgc/scripts/src/lib/ids';
+import { mintSpeakerToken } from '@kgc/scripts/src/lib/speaker-token';
+import { appendAudit } from './audit';
+import { recordError } from './errors';
+import { db } from './firestore';
+import { decideSubmission, listSubmissions, type SubmissionRow } from './submissions';
+import { ensureSpeakerContact } from './speaker-contacts';
+import { fromWallClock } from './time';
+
+/**
+ * Min's call-for-papers flow on the dashboard (T249).
+ *
+ * The plan, in the order things happen: someone submits and gets E1 (the
+ * website does that). It lands in François's list. On Thursday he is reminded.
+ * He accepts, rejects or leaves each one. Accept, in one click, creates the
+ * speaker, mails E2 with the self-service link and a date a week out, and
+ * tells Min. Reject records and sends nothing. Five days after E2, E3 nudges
+ * anyone who has sent nothing. In January one manual E6 goes to everyone
+ * still waiting. E4 tells everyone else, when someone presses Send: it has
+ * no planned date (T293).
+ *
+ * Every rule about *what is due* is in `@kgc/scripts/src/lib/cfp-core.ts`,
+ * pure and tested. This file reads, writes and sends.
+ *
+ * ── Sends are recorded on the submission, and never repeated ─────────────────
+ *
+ * E2, E3, E4 and E6 each stamp the submission when they go, and each is
+ * selected only when its stamp is absent. That is what makes the hourly
+ * scheduler safe to run twice, and the E4 and E6 buttons safe to press twice.
+ */
+
+// ---------------------------------------------------------------------------
+// Reading
+// ---------------------------------------------------------------------------
+
+/** A submission as the review list, the E4 screen and the status column read it. */
+export interface CfpSubmission extends CfpRow {
+  title: string;
+  abstract: string;
+  trackName?: string;
+  durationMinutes?: number;
+  name?: string;
+  email?: string;
+  organisation?: string;
+  declineReason?: string;
+  detailsDueAtMs?: number;
+}
+
+const ms = (t: unknown): number | undefined => {
+  const v = t as { toMillis?: () => number } | undefined;
+  return typeof v?.toMillis === 'function' ? v.toMillis() : undefined;
+};
+
+async function trackNames(): Promise<Map<string, string>> {
+  const snap = await db().collection(COLLECTIONS.tracks).where('eventId', '==', EVENT_ID).get();
+  return new Map(snap.docs.map((d) => [d.id, (d.data() as TrackDoc).name]));
+}
+
+/**
+ * Every submission to a call, shaped for the CFP screens.
+ *
+ * Built on `listSubmissions`, so the author join and the in-memory ordering
+ * are the ones every other CFA screen uses, then the fields this flow adds
+ * are read off the raw documents in one more `getAll`.
+ */
+export async function listCfpSubmissions(
+  callId: string,
+  opts: { strict?: boolean } = {},
+): Promise<CfpSubmission[]> {
+  const [rows, tracks] = await Promise.all([listSubmissions(callId, opts), trackNames()]);
+  if (rows.length === 0) return [];
+  const docs = await db().getAll(
+    ...rows.map((r) => db().collection(COLLECTIONS.submissions).doc(r.id)),
+  );
+  const raw = new Map(docs.map((d) => [d.id, d.data() as SubmissionDoc | undefined]));
+  return rows.map((r) => toCfp(r, raw.get(r.id), tracks));
+}
+
+function toCfp(r: SubmissionRow, s: SubmissionDoc | undefined, tracks: Map<string, string>): CfpSubmission {
+  return {
+    id: r.id,
+    status: r.status,
+    sessionType: r.sessionType,
+    submittedAtMs: r.submittedAtMs,
+    title: r.title,
+    abstract: r.abstract,
+    trackName: trackLabel(r, (id) => tracks.get(id) ?? id),
+    durationMinutes: s?.durationMinutes,
+    name: r.author?.name,
+    email: r.author?.email,
+    organisation: r.author?.affiliation,
+    acceptance: s?.acceptance
+      ? {
+          e2SentAtMs: ms(s.acceptance.e2SentAt),
+          nudgedAtMs: ms(s.acceptance.nudgedAt),
+          e2HeldForE4: s.acceptance.e2HeldForE4,
+          e2Owed: s.acceptance.e2Owed,
+          withdrawnAtMs: ms(s.acceptance.withdrawnAt),
+        }
+      : undefined,
+    detailsDueAtMs: ms(s?.acceptance?.detailsDueAt),
+    detailsReceivedAtMs: ms(s?.details?.receivedAt),
+    closeDecisionSent: Boolean(s?.closeDecision),
+    stillOpenSentAtMs: ms(s?.stillOpenSentAt),
+    declineReason: s?.declineReason,
+  };
+}
+
+export interface CfpCall {
+  id: string;
+  title: string;
+  cfp: CallCfpSettings;
+  /** The types ticked in the call editor, in that order. */
+  sessionTypes: CallSessionType[];
+  timeZone: string;
+  closesAtLocal: string;
+  opensAtLocal: string;
+  /** False on a call made before this flow, which then keeps its old behaviour. */
+  enabled: boolean;
+}
+
+export async function getCfpCall(callId: string): Promise<CfpCall | null> {
+  const snap = await db().collection(COLLECTIONS.calls).doc(callId).get();
+  if (!snap.exists) return null;
+  const c = snap.data() as CallDoc;
+  if (c.eventId !== EVENT_ID) return null;
+  return {
+    id: snap.id,
+    title: c.title,
+    // One close date: the call's own `closesAtLocal` wins (T293).
+    cfp: cfpWithClose(c.cfp, c.closesAtLocal),
+    sessionTypes: c.sessionTypes ?? [],
+    timeZone: c.timeZone ?? TIME_ZONE,
+    closesAtLocal: c.closesAtLocal,
+    opensAtLocal: c.opensAtLocal,
+    enabled: Boolean(c.cfp),
+  };
+}
+
+/**
+ * Whether the call is still taking submissions: no close date yet, or the
+ * close date not yet past. The same line `holdE2ForClose` draws.
+ */
+export function callStillOpen(nowMs: number, call: Pick<CfpCall, 'cfp' | 'timeZone'>): boolean {
+  return !holdE2ForClose(nowMs, call.cfp, call.timeZone);
+}
+
+/** The call this flow is about: the published one with settings, else the newest published. */
+export async function currentCfpCallId(): Promise<string | null> {
+  const snap = await db().collection(COLLECTIONS.calls).where('eventId', '==', EVENT_ID).get();
+  const calls = snap.docs.map((d) => ({ id: d.id, c: d.data() as CallDoc }));
+  const pick =
+    calls.find(({ c }) => c.status === 'published' && c.cfp) ??
+    calls.find(({ c }) => c.status === 'published') ??
+    calls.find(({ c }) => c.cfp);
+  return pick?.id ?? null;
+}
+
+/** Where a dashboard link in an email points. The scheduler has no request to read a host from. */
+export function dashboardOrigin(): string {
+  return (process.env.ORGANIZER_PUBLIC_ORIGIN ?? 'https://dashboard.knowledgegraph.tech').replace(/\/$/, '');
+}
+
+const CFA = '/content/call-for-speakers-abstracts';
+export const submissionDashboardUrl = (id: string) => `${dashboardOrigin()}${CFA}/submissions/${id}`;
+export const reviewDashboardUrl = () => `${dashboardOrigin()}${CFA}/review`;
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+
+export type CfpResult = { ok: true; message: string } | { ok: false; error: string };
+
+/**
+ * What happened to one acceptance's E2, so a bulk Accept can count real
+ * outcomes rather than assume every author was mailed (T258 #6).
+ */
+export type AcceptE2 = SendOutcome | 'held' | 'no-author' | 'already';
+export type AcceptResult = ({ ok: true; message: string } | { ok: false; error: string }) & { e2?: AcceptE2 };
+
+export interface CfpSettingsInput {
+  closeDate: string;
+  decisionDate: string;
+  sessionNoticeDate: string;
+  acceptNoticeEmail: string;
+  reviewerReminderEmail: string;
+  /** Ignored since T288: the description has no minimum. */
+  abstractMinWords?: string;
+  abstractMaxWords: string;
+  talkMinutes: string;
+}
+
+/**
+ * Save the dates and addresses, and switch the call onto this flow.
+ *
+ * ⚠️ The close date is written through to `closesAtLocal` as 23:59 that day
+ * in the call's zone, with `closesAt` derived exactly as `saveCall` derives
+ * it. The page says "Submissions close Sunday 31 January 2027" from the one,
+ * and the server refuses a late submission from the other, and those two must
+ * never disagree. Clearing the close date leaves the deadline where it was.
+ *
+ * Blank means "not decided yet", and is stored as no field at all
+ * (`FieldValue.delete()`, AGENTS.md gotcha 9) so the page leaves the sentence
+ * out rather than printing an empty date.
+ */
+export async function saveCfpSettings(
+  callId: string,
+  input: CfpSettingsInput,
+  actor: string,
+): Promise<CfpResult> {
+  const ref = db().collection(COLLECTIONS.calls).doc(callId);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, error: 'That call does not exist.' };
+  const call = snap.data() as CallDoc;
+
+  const dates = {
+    closeDate: input.closeDate.trim(),
+    decisionDate: input.decisionDate.trim(),
+    sessionNoticeDate: input.sessionNoticeDate.trim(),
+  };
+  for (const [k, v] of Object.entries(dates)) {
+    if (v && !isIsoDate(v)) return { ok: false, error: `“${v}” is not a date. Use the date picker.` };
+    void k;
+  }
+  if (dates.closeDate && dates.decisionDate && dates.decisionDate < dates.closeDate) {
+    return { ok: false, error: 'The decision date must be on or after the close date.' };
+  }
+  if (dates.closeDate && `${dates.closeDate}T23:59` <= call.opensAtLocal) {
+    return { ok: false, error: 'The close date is before the call opens.' };
+  }
+
+  const emails = {
+    acceptNoticeEmail: input.acceptNoticeEmail.trim().toLowerCase(),
+    reviewerReminderEmail: input.reviewerReminderEmail.trim().toLowerCase(),
+  };
+  for (const v of Object.values(emails)) {
+    if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return { ok: false, error: `“${v}” is not an email address.` };
+  }
+
+  const max = Number(input.abstractMaxWords || 300);
+  if (!Number.isInteger(max) || max < 1) {
+    return { ok: false, error: 'The description word limit needs to be a whole number of words.' };
+  }
+  const minutes = input.talkMinutes
+    .split(/[,\s]+/)
+    .map(Number)
+    .filter((n) => Number.isInteger(n) && n > 0);
+  if (minutes.length === 0) return { ok: false, error: 'Offer at least one talk length, in minutes.' };
+
+  const put = (v: string) => v || FieldValue.delete();
+  const write: Record<string, unknown> = {
+    'cfp.closeDate': put(dates.closeDate),
+    'cfp.decisionDate': put(dates.decisionDate),
+    'cfp.sessionNoticeDate': put(dates.sessionNoticeDate),
+    'cfp.acceptNoticeEmail': put(emails.acceptNoticeEmail),
+    'cfp.reviewerReminderEmail': put(emails.reviewerReminderEmail),
+    'cfp.abstractMaxWords': max,
+    'cfp.talkMinutes': minutes,
+    updatedBy: actor,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (dates.closeDate) {
+    const closesAtLocal = `${dates.closeDate}T23:59`;
+    write.closesAtLocal = closesAtLocal;
+    write.closesAt = fromWallClock(closesAtLocal, call.timeZone ?? TIME_ZONE);
+  }
+  await ref.update(write);
+
+  await appendAudit({
+    actor,
+    action: 'call.cfpSettings',
+    targetPath: `${COLLECTIONS.calls}/${callId}`,
+    targetId: callId,
+    before: { ...(call.cfp ?? {}), closesAtLocal: call.closesAtLocal },
+    after: { ...dates, ...emails, max, minutes },
+  });
+
+  const moved = dates.closeDate && `${dates.closeDate}T23:59` !== call.closesAtLocal;
+  return {
+    ok: true,
+    message: moved
+      ? `Saved. Submissions now close at 23:59 on ${formatDay(dates.closeDate)}.`
+      : 'Saved.',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Accept, in one click
+// ---------------------------------------------------------------------------
+
+/**
+ * Accept a submission: record it, create or find the speaker, mail E2 with the
+ * self-service link, and tell the onboarding inbox.
+ *
+ * ── The speaker is created unlisted ─────────────────────────────────────────
+ *
+ * `speakers` is what the website's /speakers page and the app's People tab
+ * list. Min announces speakers the week after, with a bio and a photo, so the
+ * record is created with `unlisted: true` and Speaker Manager lists it.
+ * An author already on the bill (same derived id) is found, not duplicated,
+ * and keeps whatever listing they had.
+ *
+ * ── E2 goes once ────────────────────────────────────────────────────────────
+ *
+ * A submission that already carries an acceptance with E2 sent is not mailed
+ * again; pressing Accept twice is harmless. After an undo the acceptance stays
+ * as history and a fresh Accept sends a fresh E2, because the author was never
+ * told the undo happened and may be holding a dead deadline.
+ */
+export async function acceptCfp(input: {
+  submissionId: string;
+  actor: string;
+  nowMs?: number;
+}): Promise<AcceptResult> {
+  const now = input.nowMs ?? Date.now();
+  try {
+    const subRef = db().collection(COLLECTIONS.submissions).doc(input.submissionId);
+    const at = Timestamp.fromMillis(now);
+
+    /*
+     * ── The claim (T252) ──────────────────────────────────────────────────
+     *
+     * Two organizers pressing Accept at once (the review row and the
+     * submission page, say) both used to pass a plain "already accepted?"
+     * read and both mailed E2 and Min (T250 F2). The decision and the
+     * acceptance are now written in one transaction that first checks for
+     * an acceptance; exactly one caller wins it and only the winner creates
+     * the speaker and sends. The others get the ordinary "already accepted"
+     * answer.
+     */
+    const claim = await db().runTransaction(async (tx) => {
+      const snap = await tx.get(subRef);
+      const s = snap.data() as SubmissionDoc | undefined;
+      if (!s || s.eventId !== EVENT_ID) return { kind: 'refused' as const, error: 'That submission does not exist.' };
+      if (s.status === 'draft') {
+        return { kind: 'refused' as const, error: 'That submission is still a draft. Its author has not finished it.' };
+      }
+      if (s.status === 'withdrawn') {
+        return { kind: 'refused' as const, error: 'The author withdrew this, so it cannot be accepted.' };
+      }
+      if (s.status === 'accepted' && s.acceptance) return { kind: 'already' as const, s };
+      const round = (s.decision?.round ?? 0) + 1;
+      tx.update(subRef, {
+        status: 'accepted',
+        decision: { by: input.actor, at, round },
+        acceptance: { at, by: input.actor },
+        updatedAt: at,
+      });
+      return { kind: 'won' as const, s, round };
+    });
+
+    if (claim.kind === 'refused') return { ok: false, error: claim.error };
+    if (claim.kind === 'already') {
+      const a = claim.s.acceptance!;
+      return {
+        ok: true,
+        e2: 'already',
+        message: a.e2SentAt
+          ? 'Already accepted, and the speaker already has their email.'
+          : a.e2HeldForE4
+            ? 'Already accepted. Their acceptance email waits for the decision send after the close.'
+            : // The winning press may still be sending, so say nothing about the email that may be false.
+              'Already accepted, possibly a moment ago in another tab. Open the submission to see whether the acceptance email went.',
+      };
+    }
+    const before = claim.s;
+
+    await appendAudit({
+      actor: input.actor,
+      action: 'submission.decide',
+      targetPath: `${COLLECTIONS.submissions}/${input.submissionId}`,
+      targetId: input.submissionId,
+      before: { status: before.status, round: before.decision?.round ?? null },
+      after: { status: 'accepted', round: claim.round, notified: true },
+    });
+
+    const call = await getCfpCall(before.callId);
+    const identityRef = subRef.collection(SUBCOLLECTIONS.identity).doc(SUBMISSION_IDENTITY_DOC);
+    const identity = (await identityRef.get()).data() as SubmissionIdentityDoc | undefined;
+    if (!identity?.email) {
+      return {
+        ok: true,
+        e2: 'no-author',
+        message:
+          'Accepted, but there is no author on file for this submission, so no speaker was created ' +
+          'and nobody was emailed.',
+      };
+    }
+
+    const speakerDocId = identity.speakerId ?? deriveSpeakerId(identity.name, identity.affiliation);
+    const speakerRef = db().collection(COLLECTIONS.speakers).doc(speakerDocId);
+    const editRef = db().collection(COLLECTIONS.speakerProfileEdits).doc(speakerDocId);
+
+    /*
+     * `create()`, and losing that race is not an error: the same author's
+     * second talk accepted at the same moment creates the same speaker id,
+     * and the loser simply uses the record the winner wrote (T250 F2 showed
+     * the raw ALREADY_EXISTS to the organizer).
+     */
+    let speakerCreated = false;
+    const speaker: Omit<SpeakerDoc, 'createdAt' | 'updatedAt'> = {
+      eventId: EVENT_ID,
+      name: identity.name,
+      ...(identity.affiliation ? { company: identity.affiliation } : {}),
+      ...(identity.bio ? { bio: identity.bio } : {}),
+      sessionIds: [],
+      unlisted: true,
+    };
+    try {
+      await speakerRef.create({ ...speaker, createdAt: at, updatedAt: at });
+      speakerCreated = true;
+    } catch (err) {
+      if (!isAlreadyExists(err)) throw err;
+    }
+    // The address is server-only, never on the attendee-readable record (T252 F3).
+    await ensureSpeakerContact(speakerDocId, identity.email);
+    await identityRef.set({ speakerId: speakerDocId, updatedAt: at }, { merge: true });
+
+    const cfp = call?.cfp ?? {};
+    const tz = call?.timeZone ?? TIME_ZONE;
+    /*
+     * Held for E4 only while E4 is still to come for this submission. One
+     * that already had its E4 (rejected and told "not accepted", then
+     * accepted after all) would never be selected again, so its E2 goes now
+     * (T258 #8).
+     */
+    const hold = holdE2ForClose(now, cfp, tz) && !before.closeDecision;
+    const typeLine = sessionTypeLine(before.sessionType, before.durationMinutes);
+
+    let e2: SendOutcome | 'held' = 'held';
+    if (!hold) {
+      e2 = await sendE2({
+        submissionId: input.submissionId,
+        to: identity.email,
+        name: identity.name,
+        title: before.title,
+        typeLine,
+        workshop: before.sessionType === 'workshop',
+        speakerId: speakerDocId,
+        cfp,
+        tz,
+        nowMs: now,
+        actor: input.actor,
+      });
+    }
+
+    const existingEdit = (await editRef.get()).data() as SpeakerProfileEditDoc | undefined;
+    const keep = existingEdit?.status === 'submitted' || existingEdit?.status === 'approved';
+    await editRef.set(
+      {
+        eventId: EVENT_ID,
+        speakerId: speakerDocId,
+        submissionIds: FieldValue.arrayUnion(input.submissionId),
+        ...(e2 === 'sent'
+          ? { status: keep ? existingEdit!.status : 'sent', linkSentAt: at, linkSentTo: identity.email }
+          : {}),
+        updatedAt: at,
+        ...(existingEdit ? {} : { createdAt: at }),
+      },
+      { merge: true },
+    );
+
+    await subRef.update({
+      'acceptance.speakerId': speakerDocId,
+      ...(e2 === 'sent'
+        ? {
+            'acceptance.e2SentAt': at,
+            'acceptance.detailsDueAt': Timestamp.fromMillis(now + DETAILS_DUE_DAYS * 86_400_000),
+          }
+        : {}),
+      ...(hold ? { 'acceptance.e2HeldForE4': true } : {}),
+      // A refused send is owed, and the hourly run retries it (T258 #5).
+      ...(e2 === 'failed' ? { 'acceptance.e2Owed': true } : {}),
+      updatedAt: at,
+    });
+
+    const tracks = before.trackId ? await trackNames() : new Map<string, string>();
+    const track = trackLabel(before, (id) => tracks.get(id) ?? id);
+    let notice: SendOutcome | 'unset' = 'unset';
+    if (cfp.acceptNoticeEmail) {
+      notice = await sendCfpMessage(db(), {
+        to: cfp.acceptNoticeEmail,
+        template: 'cfp-accept-notice',
+        submissionId: input.submissionId,
+        actor: input.actor,
+        message: cfpAcceptNoticeMessage({
+          speakerName: identity.name,
+          organisation: identity.affiliation,
+          title: before.title,
+          track,
+          typeLine,
+          acceptedDay: formatDay(dateIn(now, tz)) ?? '',
+          link: submissionDashboardUrl(input.submissionId),
+          e2: e2 === 'sent' ? 'sent' : e2 === 'held' ? 'held' : 'not sent',
+        }),
+      });
+    }
+
+    await appendAudit({
+      actor: input.actor,
+      action: 'submission.cfpAccept',
+      targetPath: `${COLLECTIONS.submissions}/${input.submissionId}`,
+      targetId: input.submissionId,
+      before: { status: before.status },
+      after: { status: 'accepted', speakerId: speakerDocId, e2, notice, speakerCreated },
+    });
+
+    const parts = [`Accepted. ${identity.name} is a speaker${speakerCreated ? ', not yet listed on the website' : ' already'}.`];
+    if (e2 === 'sent') parts.push(`The acceptance email went to ${identity.email}.`);
+    else if (e2 === 'held') parts.push('The call has closed, so their acceptance email waits for the decision send.');
+    else if (e2 === 'skipped') parts.push(`Email is not switched on, so ${identity.email} was not told.`);
+    else parts.push(`The acceptance email to ${identity.email} did not go. It is retried every hour until it does.`);
+    if (before.closeDecision?.version === 'declined' && e2 === 'sent') {
+      parts.push('They had already been told this was not accepted, so explain the change to them.');
+    }
+    if (notice === 'unset') parts.push('No onboarding address is set, so nobody else was told.');
+    else if (notice !== 'sent') parts.push('The notice to onboarding did not go.');
+    return { ok: true, e2, message: parts.join(' ') };
+  } catch (err) {
+    // Recorded for us, and never shown raw: a Firestore status line tells an
+    // organizer nothing they can act on (T250).
+    recordError('cfp.accept', err);
+    return {
+      ok: false,
+      error:
+        'Something went wrong part way through accepting this. Open the submission to see what was ' +
+        'recorded before pressing Accept again.',
+    };
+  }
+}
+
+async function sendE2(input: {
+  submissionId: string;
+  to: string;
+  name: string;
+  title: string;
+  typeLine: string;
+  workshop: boolean;
+  speakerId: string;
+  cfp: CallCfpSettings;
+  tz: string;
+  nowMs: number;
+  actor?: string;
+}): Promise<SendOutcome> {
+  return sendCfpMessage(db(), {
+    to: input.to,
+    template: 'cfp-accepted',
+    submissionId: input.submissionId,
+    actor: input.actor,
+    message: cfpAcceptedMessage({
+      name: input.name,
+      title: input.title,
+      typeLine: input.typeLine,
+      workshop: input.workshop,
+      link: `${publicSiteOrigin()}/speaker/${mintSpeakerToken(input.speakerId)}`,
+      dueDay: dayAfter(input.nowMs, DETAILS_DUE_DAYS, input.tz),
+      sessionNoticeDay: formatDay(input.cfp.sessionNoticeDate),
+    }),
+  });
+}
+
+/**
+ * Send one owed E2, at most once however many runs reach it at the same time.
+ *
+ * Claimed in a transaction that moves the flag to `e2SentAt` (and the week's
+ * due date) before the send, and given back if the send does not go, the same
+ * claim-then-release every other CFP send uses. 'not-owed' means another run
+ * got there first or nothing was owed.
+ */
+async function sendOwedE2(
+  ref: FirebaseFirestore.DocumentReference,
+  r: Pick<CfpSubmission, 'id' | 'email' | 'name' | 'title' | 'sessionType' | 'durationMinutes'>,
+  call: Pick<CfpCall, 'cfp' | 'timeZone'>,
+  nowMs: number,
+  actor?: string,
+): Promise<SendOutcome | 'not-owed'> {
+  if (!r.email) return 'not-owed';
+  const at = Timestamp.fromMillis(nowMs);
+  let speakerDocId: string | undefined;
+  const mine = await db().runTransaction(async (tx) => {
+    const d = (await tx.get(ref)).data() as SubmissionDoc | undefined;
+    const a = d?.acceptance;
+    if (d?.status !== 'accepted' || a?.e2Owed !== true || a.e2SentAt || !a.speakerId) return false;
+    speakerDocId = a.speakerId;
+    tx.update(ref, {
+      'acceptance.e2Owed': FieldValue.delete(),
+      'acceptance.e2SentAt': at,
+      'acceptance.detailsDueAt': Timestamp.fromMillis(nowMs + DETAILS_DUE_DAYS * 86_400_000),
+      updatedAt: at,
+    });
+    return true;
+  });
+  if (!mine || !speakerDocId) return 'not-owed';
+
+  const outcome = await sendE2({
+    submissionId: r.id,
+    to: r.email,
+    name: r.name ?? '',
+    title: r.title,
+    typeLine: sessionTypeLine(r.sessionType, r.durationMinutes),
+    workshop: r.sessionType === 'workshop',
+    speakerId: speakerDocId,
+    cfp: call.cfp,
+    tz: call.timeZone,
+    nowMs,
+    actor,
+  });
+  if (outcome !== 'sent') {
+    await releaseSend(ref, {
+      'acceptance.e2Owed': true,
+      'acceptance.e2SentAt': FieldValue.delete(),
+      'acceptance.detailsDueAt': FieldValue.delete(),
+    });
+    return outcome;
+  }
+  try {
+    const editRef = db().collection(COLLECTIONS.speakerProfileEdits).doc(speakerDocId);
+    const existing = (await editRef.get()).data() as SpeakerProfileEditDoc | undefined;
+    const keep = existing?.status === 'submitted' || existing?.status === 'approved';
+    await editRef.set(
+      {
+        eventId: EVENT_ID,
+        speakerId: speakerDocId,
+        status: keep ? existing!.status : 'sent',
+        linkSentAt: at,
+        linkSentTo: r.email,
+        updatedAt: at,
+        ...(existing ? {} : { createdAt: at }),
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    // The mail went; the tracker line is cosmetic and must not turn it into a failure.
+    recordError('cfp.e2.tracker', err);
+  }
+  return outcome;
+}
+
+/**
+ * Reject: the decision is recorded and nothing is sent. E4 tells them after the close.
+ *
+ * ── Rejecting an acceptance is a separate, confirmed act (T262) ─────────────
+ *
+ * On the rolling review an acceptance is announced the moment it is made, and
+ * the speaker exists. A one-click "Change to rejected" used to leave the
+ * speaker in place and then mail E4's "not accepted" after the close, so an
+ * author could hear yes in November and no in February. Now it is refused
+ * unless `withdrawAccepted` is set (a tick box on the submission page; bulk
+ * Reject never sets it). When it is: the speaker goes back to unlisted unless
+ * another accepted talk holds them, the submission drops out of their
+ * self-service page, any owed or held E2 is cancelled, and, if the author had
+ * been told yes, the submission is stamped so E4 leaves it out.
+ */
+export async function rejectCfp(input: {
+  submissionId: string;
+  actor: string;
+  withdrawAccepted?: boolean;
+  nowMs?: number;
+}): Promise<CfpResult> {
+  const ref = db().collection(COLLECTIONS.submissions).doc(input.submissionId);
+  const sub = (await ref.get()).data() as SubmissionDoc | undefined;
+  if (!sub || sub.eventId !== EVENT_ID) return { ok: false, error: 'That submission does not exist.' };
+  const a = sub.acceptance;
+  const told = Boolean(a?.e2SentAt) || sub.closeDecision?.version === 'accepted';
+  // Undone and re-decided still counts: the author holds the yes (unless already withdrawn).
+  const wasAccepted = sub.status === 'accepted' || (told && !a?.withdrawnAt);
+
+  if (wasAccepted && !input.withdrawAccepted) {
+    return {
+      ok: false,
+      error: told
+        ? `“${sub.title || 'Untitled'}” was accepted and its author was emailed. To change it, open the submission and tick “Withdraw the acceptance”.`
+        : `“${sub.title || 'Untitled'}” was accepted. To change it, open the submission and tick “Withdraw the acceptance”.`,
+    };
+  }
+
+  const r = await decideSubmission({ id: input.submissionId, accept: false, notify: false, actor: input.actor });
+  if (!r.ok) return r;
+  if (!wasAccepted || !a) {
+    return { ok: true, message: 'Rejected. Nothing was sent. The author is told only when someone presses Send on Dates and emails.' };
+  }
+
+  const at = Timestamp.fromMillis(input.nowMs ?? Date.now());
+  await ref.update({
+    'acceptance.e2HeldForE4': FieldValue.delete(),
+    'acceptance.e2Owed': FieldValue.delete(),
+    ...(told ? { 'acceptance.withdrawnAt': at, 'acceptance.withdrawnBy': input.actor } : {}),
+    updatedAt: at,
+  });
+  const unlisted = a.speakerId ? await withdrawSpeaker(a.speakerId, input.submissionId, at) : false;
+
+  await appendAudit({
+    actor: input.actor,
+    action: 'submission.cfpWithdraw',
+    targetPath: `${COLLECTIONS.submissions}/${input.submissionId}`,
+    targetId: input.submissionId,
+    before: { status: sub.status, told, speakerId: a.speakerId ?? null },
+    after: { status: 'rejected', speakerUnlisted: unlisted },
+  });
+
+  const parts = ['Changed to rejected.'];
+  parts.push(
+    told
+      ? 'The author was already told they were accepted, so they will not get the “not accepted” email. Tell them yourself.'
+      : 'Their acceptance email had not gone, and now will not.',
+  );
+  if (a.speakerId) {
+    parts.push(
+      unlisted
+        ? 'The speaker is unlisted again.'
+        : 'The speaker stays listed, because another accepted talk or a session holds them.',
+    );
+  }
+  return { ok: true, message: parts.join(' ') };
+}
+
+/**
+ * Take a withdrawn acceptance off its speaker: out of the self-service page's
+ * list, and unlisted unless something else still puts them on the bill.
+ * Returns whether the speaker is now unlisted.
+ */
+async function withdrawSpeaker(speakerDocId: string, submissionId: string, at: Timestamp): Promise<boolean> {
+  const editRef = db().collection(COLLECTIONS.speakerProfileEdits).doc(speakerDocId);
+  const speakerRef = db().collection(COLLECTIONS.speakers).doc(speakerDocId);
+  const [edit, speaker] = await Promise.all([editRef.get(), speakerRef.get()]);
+  const others = ((edit.data() as SpeakerProfileEditDoc | undefined)?.submissionIds ?? []).filter(
+    (id) => id !== submissionId,
+  );
+  if (edit.exists) {
+    await editRef.update({ submissionIds: FieldValue.arrayRemove(submissionId), updatedAt: at });
+  }
+  if (!speaker.exists) return false;
+  const s = speaker.data() as SpeakerDoc;
+  if ((s.sessionIds ?? []).length > 0) return false;
+  if (others.length > 0) {
+    const docs = await db().getAll(...others.map((id) => db().collection(COLLECTIONS.submissions).doc(id)));
+    if (docs.some((d) => (d.data() as SubmissionDoc | undefined)?.status === 'accepted')) return false;
+  }
+  if (!s.unlisted) await speakerRef.update({ unlisted: true, updatedAt: at });
+  return true;
+}
+
+/** "Finish this pass": what arrives after now is new on the next visit. */
+export async function finishPass(callId: string, actor: string, nowMs = Date.now()): Promise<CfpResult> {
+  await db().collection(COLLECTIONS.calls).doc(callId).update({
+    'cfp.lastPassAtMs': nowMs,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await appendAudit({
+    actor,
+    action: 'call.cfpPass',
+    targetPath: `${COLLECTIONS.calls}/${callId}`,
+    targetId: callId,
+    before: {},
+    after: { lastPassAtMs: nowMs },
+  });
+  return { ok: true, message: 'Pass finished. Anything you left stays on the list for next week.' };
+}
+
+export { reviewQueue };
+
+// ---------------------------------------------------------------------------
+// E4 and E6, the two organizer-triggered sends
+// ---------------------------------------------------------------------------
+
+/** The one-line reason the declined E4 carries. Editable until E4 goes. */
+export async function saveDeclineReason(submissionId: string, reason: string, actor: string): Promise<CfpResult> {
+  const ref = db().collection(COLLECTIONS.submissions).doc(submissionId);
+  const sub = (await ref.get()).data() as SubmissionDoc | undefined;
+  if (!sub) return { ok: false, error: 'That submission does not exist.' };
+  if (sub.closeDecision) return { ok: false, error: 'The decision email has already gone, so the reason can no longer change.' };
+  const line = reason.trim().replace(/\s+/g, ' ').slice(0, 300);
+  await ref.update({ declineReason: line || FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() });
+  await appendAudit({
+    actor,
+    action: 'submission.declineReason',
+    targetPath: `${COLLECTIONS.submissions}/${submissionId}`,
+    targetId: submissionId,
+    before: { declineReason: sub.declineReason ?? null },
+    after: { declineReason: line || null },
+  });
+  return { ok: true, message: 'Saved.' };
+}
+
+/**
+ * E4. The declined version to every rejection not yet told, and the accepted
+ * version, followed by E2, to every acceptance made after the close.
+ * Undecided submissions are skipped and counted.
+ *
+ * ── The only way a "not accepted" email goes (T275) ─────────────────────────
+ *
+ * The owner, 2026-10-19: no rejection email when someone clicks Reject; all
+ * of them at once, when someone presses this button, and never before. So
+ * this sends whenever it is pressed. It used to refuse until two weeks after
+ * the close (T252); the owner wants the timing to be theirs, and since T293
+ * no screen or schedule plans a date for it either. While the call
+ * is still open it needs `confirmStillOpen` as well, the second tick box on
+ * the page, because an author rejected today and told today may tell others
+ * the call is still taking submissions.
+ *
+ * Each author gets it once: the claim below stamps `closeDecision` before the
+ * send, and a press after that skips them. Undecided submissions do not stop
+ * it; they are left alone and counted, and a later press tells only whoever
+ * has been rejected since.
+ *
+ * The accepted-after-close half is unchanged by an early press. Before the
+ * close an acceptance mails E2 at once and is never held, so nothing is in
+ * that list. After the close an acceptance is held for this send; one made
+ * after a press waits for the next press, as it always has.
+ */
+export async function sendCloseDecisions(input: {
+  callId: string;
+  actor: string;
+  nowMs?: number;
+  /** Required while the call is still open. */
+  confirmStillOpen?: boolean;
+}): Promise<CfpResult> {
+  const now = input.nowMs ?? Date.now();
+  const call = await getCfpCall(input.callId);
+  if (!call) return { ok: false, error: 'That call does not exist.' };
+  if (callStillOpen(now, call) && !input.confirmStillOpen) {
+    return {
+      ok: false,
+      error: 'The call is still open. Tick the second box to confirm you want to send the decisions now. Nothing was sent.',
+    };
+  }
+  // Strict: a failed read must not look like "nobody to tell".
+  const rows = await listCfpSubmissions(input.callId, { strict: true });
+  const plan = closeDecisionPlan(rows);
+  const at = Timestamp.fromMillis(now);
+  let declined = 0;
+  let accepted = 0;
+  let failed = 0;
+  let e2Failed = 0;
+
+  for (const r of plan.declined) {
+    if (!r.email) continue;
+    const ref = db().collection(COLLECTIONS.submissions).doc(r.id);
+    // Claimed before it is sent, so a second press or a second tab skips it.
+    const mine = await claimSend(
+      ref,
+      // Never to an author already told yes (T262), re-checked at the claim.
+      (d) => d?.status === 'rejected' && !d?.closeDecision && !d?.acceptance?.e2SentAt && !d?.acceptance?.withdrawnAt,
+      {
+        closeDecision: { version: 'declined', ...(r.declineReason ? { reason: r.declineReason } : {}), sentAt: at, by: input.actor },
+        updatedAt: at,
+      },
+    );
+    if (!mine) continue;
+    const outcome = await sendCfpMessage(db(), {
+      to: r.email,
+      template: 'cfp-decision-declined',
+      submissionId: r.id,
+      actor: input.actor,
+      message: cfpCloseDeclinedMessage({ name: r.name, title: r.title, reason: r.declineReason }),
+    });
+    if (outcome !== 'sent') {
+      await releaseSend(ref, { closeDecision: FieldValue.delete() });
+      failed++;
+      continue;
+    }
+    declined++;
+  }
+
+  for (const r of plan.accepted) {
+    if (!r.email) continue;
+    const ref = db().collection(COLLECTIONS.submissions).doc(r.id);
+    const mine = await claimSend(
+      ref,
+      (d) => d?.status === 'accepted' && d?.acceptance?.e2HeldForE4 === true && !d?.closeDecision,
+      { closeDecision: { version: 'accepted', sentAt: at, by: input.actor }, updatedAt: at },
+    );
+    if (!mine) continue;
+    const outcome = await sendCfpMessage(db(), {
+      to: r.email,
+      template: 'cfp-decision-accepted',
+      submissionId: r.id,
+      actor: input.actor,
+      message: cfpCloseAcceptedMessage({ name: r.name, title: r.title }),
+    });
+    if (outcome !== 'sent') {
+      await releaseSend(ref, { closeDecision: FieldValue.delete() });
+      failed++;
+      continue;
+    }
+    /*
+     * E2 follows, as E4's accepted version promises, and the week starts now.
+     * It becomes *owed* first, in its own state, so that if it does not go it
+     * is retried by the hourly run and by the next press, rather than being
+     * stranded behind an E4 stamp nothing selects again (T258 #5).
+     */
+    await ref.update({ 'acceptance.e2HeldForE4': FieldValue.delete(), 'acceptance.e2Owed': true, updatedAt: at });
+    const e2 = await sendOwedE2(ref, r, call, now, input.actor);
+    if (e2 !== 'sent') e2Failed++;
+    accepted++;
+  }
+
+  // Anything owed from an earlier press, or from an accept whose E2 failed.
+  let e2Retried = 0;
+  for (const r of e2RetriesDue(rows)) {
+    if (!r.email || plan.accepted.some((p) => p.id === r.id)) continue;
+    const e2 = await sendOwedE2(db().collection(COLLECTIONS.submissions).doc(r.id), r, call, now, input.actor);
+    if (e2 === 'sent') e2Retried++;
+    else if (e2 !== 'not-owed') e2Failed++;
+  }
+
+  await appendAudit({
+    actor: input.actor,
+    action: 'call.cfpCloseDecisions',
+    targetPath: `${COLLECTIONS.calls}/${input.callId}`,
+    targetId: input.callId,
+    before: {},
+    after: { declined, accepted, failed, e2Failed, e2Retried, undecided: plan.undecided.length },
+  });
+
+  return {
+    ok: true,
+    message:
+      `Sent ${declined} “not accepted” and ${accepted} “accepted” email${declined + accepted === 1 ? '' : 's'}.` +
+      (failed ? ` ${failed} did not go; they stay on the list and pressing Send again retries only those.` : '') +
+      (e2Retried ? ` ${e2Retried} acceptance email${e2Retried === 1 ? '' : 's'} that had failed before went this time.` : '') +
+      (e2Failed
+        ? ` ${e2Failed} acceptance email${e2Failed === 1 ? '' : 's'} with the details link did not go. ${e2Failed === 1 ? 'It is' : 'They are'} retried every hour until ${e2Failed === 1 ? 'it goes' : 'they go'}.`
+        : '') +
+      (plan.undecided.length
+        ? ` ${plan.undecided.length} still undecided ${plan.undecided.length === 1 ? 'was' : 'were'} left alone. Anyone you reject later is told the next time you press Send.`
+        : ''),
+  };
+}
+
+/** E6. Once, to everyone still in the queue. */
+export async function sendStillOpen(input: { callId: string; actor: string; nowMs?: number }): Promise<CfpResult> {
+  const now = input.nowMs ?? Date.now();
+  const call = await getCfpCall(input.callId);
+  if (!call) return { ok: false, error: 'That call does not exist.' };
+  const rows = stillOpenRecipients(await listCfpSubmissions(input.callId));
+  const at = Timestamp.fromMillis(now);
+  let sent = 0;
+  let failed = 0;
+  for (const r of rows) {
+    if (!r.email) continue;
+    const ref = db().collection(COLLECTIONS.submissions).doc(r.id);
+    const mine = await claimSend(
+      ref,
+      (d) => (d?.status === 'submitted' || d?.status === 'under-review') && !d?.stillOpenSentAt,
+      { stillOpenSentAt: at },
+    );
+    if (!mine) continue;
+    const outcome = await sendCfpMessage(db(), {
+      to: r.email,
+      template: 'cfp-still-open',
+      submissionId: r.id,
+      actor: input.actor,
+      message: cfpStillOpenMessage({ name: r.name, title: r.title, decisionDay: formatDay(call.cfp.decisionDate) }),
+    });
+    if (outcome === 'sent') sent++;
+    else {
+      await releaseSend(ref, { stillOpenSentAt: FieldValue.delete() });
+      failed++;
+    }
+  }
+  await appendAudit({
+    actor: input.actor,
+    action: 'call.cfpStillOpen',
+    targetPath: `${COLLECTIONS.calls}/${input.callId}`,
+    targetId: input.callId,
+    before: {},
+    after: { sent, failed },
+  });
+  return {
+    ok: true,
+    message: `Sent to ${sent} author${sent === 1 ? '' : 's'}.${failed ? ` ${failed} did not go and stay on the list.` : ''}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The hourly run: E3 and the Thursday reminder
+// ---------------------------------------------------------------------------
+
+export interface ScheduleReport {
+  calls: number;
+  nudged: string[];
+  /** Owed E2s that went on this run (T258 #5). */
+  e2Retried: string[];
+  reminded: string[];
+  failures: string[];
+}
+
+/**
+ * Everything time-driven, for every call on this flow. Safe to run as often
+ * as the timer likes: each send is stamped and selected only while unstamped.
+ * `nowMs` is a parameter so tests can move the clock.
+ */
+export async function runCfpSchedule(nowMs: number = Date.now()): Promise<ScheduleReport> {
+  const report: ScheduleReport = { calls: 0, nudged: [], e2Retried: [], reminded: [], failures: [] };
+  const snap = await db().collection(COLLECTIONS.calls).where('eventId', '==', EVENT_ID).get();
+
+  for (const doc of snap.docs) {
+    const call = doc.data() as CallDoc;
+    if (!call.cfp || call.status !== 'published') continue;
+    report.calls++;
+    const tz = call.timeZone ?? TIME_ZONE;
+    const cfp = cfpWithClose(call.cfp, call.closesAtLocal);
+    /*
+     * Strict: a failed read is a failure in the report, never "0 open" in
+     * François's inbox (T258 #17). The other calls still run.
+     */
+    let rows: CfpSubmission[];
+    try {
+      rows = await listCfpSubmissions(doc.id, { strict: true });
+    } catch (err) {
+      recordError('cfp.schedule.list', err);
+      report.failures.push(`list ${doc.id}: could not read the submissions`);
+      continue;
+    }
+
+    for (const r of e2RetriesDue(rows)) {
+      const ref = db().collection(COLLECTIONS.submissions).doc(r.id);
+      const outcome = await sendOwedE2(ref, r, { cfp, timeZone: tz }, nowMs);
+      if (outcome === 'sent') report.e2Retried.push(r.id);
+      else if (outcome !== 'not-owed') report.failures.push(`E2 ${r.id}: ${outcome}`);
+    }
+
+    for (const r of nudgesDue(rows, nowMs)) {
+      if (!r.email || r.acceptance?.e2SentAtMs === undefined) continue;
+      const ref = db().collection(COLLECTIONS.submissions).doc(r.id);
+      const sub = (await ref.get()).data() as SubmissionDoc;
+      const speakerDocId = sub.acceptance?.speakerId;
+      if (!speakerDocId) continue;
+      const mine = await claimSend(
+        ref,
+        (d) => d?.status === 'accepted' && !d?.acceptance?.nudgedAt && !d?.details,
+        { 'acceptance.nudgedAt': Timestamp.fromMillis(nowMs) },
+      );
+      if (!mine) continue;
+      const outcome = await sendCfpMessage(db(), {
+        to: r.email,
+        template: 'cfp-nudge',
+        submissionId: r.id,
+        message: cfpNudgeMessage({
+          name: r.name,
+          title: r.title,
+          workshop: r.sessionType === 'workshop',
+          link: `${publicSiteOrigin()}/speaker/${mintSpeakerToken(speakerDocId)}`,
+          dueDay: dayAfter(r.acceptance.e2SentAtMs, DETAILS_DUE_DAYS, tz),
+        }),
+      });
+      if (outcome === 'sent') report.nudged.push(r.id);
+      else {
+        await releaseSend(ref, { 'acceptance.nudgedAt': FieldValue.delete() });
+        report.failures.push(`E3 ${r.id}: ${outcome}`);
+      }
+    }
+
+    const to = call.cfp.reviewerReminderEmail;
+    const week = isoWeek(nowMs, tz);
+    // Only while the call is open, or closed with work still waiting (T258 #17).
+    const reminderWindow = {
+      opensAtMs: ms(call.opensAt),
+      closesAtMs: ms(call.closesAt),
+      openCount: rows.filter(isOpen).length,
+    };
+    if (
+      to &&
+      reminderDue(nowMs, tz, call.cfp.lastReminderWeek, reminderWindow) &&
+      (await claimSend(
+        doc.ref,
+        (d) => reminderDue(nowMs, tz, (d as CallDoc | undefined)?.cfp?.lastReminderWeek, reminderWindow),
+        { 'cfp.lastReminderWeek': week },
+      ))
+    ) {
+      const queue = reviewQueue(rows, call.cfp.lastPassAtMs);
+      const outcome = await sendCfpMessage(db(), {
+        to,
+        template: 'cfp-weekly-reminder',
+        message: cfpWeeklyReminderMessage({
+          name: await reviewerName(to),
+          fresh: queue.filter((q) => q.isNew).length,
+          open: queue.length,
+          link: reviewDashboardUrl(),
+        }),
+      });
+      if (outcome === 'sent') report.reminded.push(doc.id);
+      else {
+        await releaseSend(doc.ref, {
+          'cfp.lastReminderWeek': call.cfp.lastReminderWeek ?? FieldValue.delete(),
+        });
+        report.failures.push(`reminder ${doc.id}: ${outcome}`);
+      }
+    }
+  }
+  return report;
+}
+
+/** The reviewer's name as the team list spells it, for the greeting. Absent means "Hi,". */
+async function reviewerName(email: string): Promise<string | undefined> {
+  try {
+    const snap = await db()
+      .collection(COLLECTIONS.teamMembers)
+      .where('email', '==', email.toLowerCase())
+      .limit(1)
+      .get();
+    return (snap.docs[0]?.data() as { name?: string } | undefined)?.name;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The rolling-review facts for one submission's page. */
+export interface CfpDetail {
+  durationMinutes?: number;
+  acceptance?: {
+    speakerId?: string;
+    e2SentAtMs?: number;
+    detailsDueAtMs?: number;
+    nudgedAtMs?: number;
+    e2HeldForE4?: boolean;
+    e2Owed?: boolean;
+    withdrawnAtMs?: number;
+  };
+  details?: { title?: string; description?: string; outline?: string; install?: string; receivedAtMs?: number };
+  closeDecision?: { version: 'accepted' | 'declined'; reason?: string; sentAtMs?: number };
+  declineReason?: string;
+  stillOpenSentAtMs?: number;
+}
+
+export async function getCfpDetail(submissionId: string): Promise<CfpDetail | null> {
+  const s = (await db().collection(COLLECTIONS.submissions).doc(submissionId).get()).data() as
+    | SubmissionDoc
+    | undefined;
+  if (!s) return null;
+  return {
+    durationMinutes: s.durationMinutes,
+    acceptance: s.acceptance
+      ? {
+          speakerId: s.acceptance.speakerId,
+          e2SentAtMs: ms(s.acceptance.e2SentAt),
+          detailsDueAtMs: ms(s.acceptance.detailsDueAt),
+          nudgedAtMs: ms(s.acceptance.nudgedAt),
+          e2HeldForE4: s.acceptance.e2HeldForE4,
+          e2Owed: s.acceptance.e2Owed,
+          withdrawnAtMs: ms(s.acceptance.withdrawnAt),
+        }
+      : undefined,
+    details: s.details
+      ? {
+          title: s.details.title,
+          description: s.details.description,
+          outline: s.details.outline,
+          install: s.details.install,
+          receivedAtMs: ms(s.details.receivedAt),
+        }
+      : undefined,
+    closeDecision: s.closeDecision
+      ? { version: s.closeDecision.version, reason: s.closeDecision.reason, sentAtMs: ms(s.closeDecision.sentAt) }
+      : undefined,
+    declineReason: s.declineReason,
+    stillOpenSentAtMs: ms(s.stillOpenSentAt),
+  };
+}
+
+/** Firestore's ALREADY_EXISTS, from `create()` on a document someone else just wrote. */
+function isAlreadyExists(err: unknown): boolean {
+  const code = (err as { code?: unknown })?.code;
+  return code === 6 || code === 'already-exists' || /ALREADY_EXISTS/.test(String((err as Error)?.message));
+}
+
+/**
+ * Claim one send on one document: run `isFree` inside a transaction and, if
+ * it holds, write `stamp`. True means this caller owns the send. Used for E3,
+ * E4, E6 and the reminder so that two runs at once send once (T250 F2).
+ */
+async function claimSend(
+  ref: FirebaseFirestore.DocumentReference,
+  isFree: (data: FirebaseFirestore.DocumentData | undefined) => boolean,
+  stamp: Record<string, unknown>,
+): Promise<boolean> {
+  return db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!isFree(snap.data())) return false;
+    tx.update(ref, stamp);
+    return true;
+  });
+}
+
+/** Give a claim back after the send it guarded did not go, so a retry can send. */
+async function releaseSend(ref: FirebaseFirestore.DocumentReference, fields: Record<string, unknown>): Promise<void> {
+  try {
+    await ref.update(fields);
+  } catch (err) {
+    recordError('cfp.release', err);
+  }
+}

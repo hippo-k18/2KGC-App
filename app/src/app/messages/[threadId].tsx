@@ -12,12 +12,16 @@ import { useLocalSearchParams } from 'expo-router';
 import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
+import { SafetyMenu } from '@/components/safety-sheet';
 import { Text } from '@/components/text';
-import { HAIRLINE, Radius, Spacing } from '@/constants/theme';
+import { HAIRLINE, HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useDirectory } from '@/lib/data/directory';
+import { useAppAccess } from '@/lib/data/app-access';
 import { markThreadRead, sendMessage, useMessages, useThreads } from '@/lib/data/messages';
+import { useBlocked } from '@/lib/data/safety';
+import { DELETED_USER_ID, DELETED_USER_NAME, WORD_FILTER_MESSAGE, findBlockedWord } from '@kgc/shared';
 
 /**
  * The correspondent's uid, read out of the thread id.
@@ -66,7 +70,14 @@ export default function ThreadScreen() {
   // A refused directory read leaves `people` null forever, which held the header
   // title at the empty string permanently — a conversation with nobody. Falling
   // back to "Attendee" is at least a visible placeholder rather than a blank.
-  const name = people
+  // The other person deleted their account: the thread now lists the marker
+  // instead of their uid (the thread id still carries the old one).
+  const otherDeleted = Boolean(
+    threads?.find((t) => t.id === threadId)?.participantIds?.includes(DELETED_USER_ID),
+  );
+  const name = otherDeleted
+    ? DELETED_USER_NAME
+    : people
     ? (people.find((p) => p.uid === other)?.name ?? 'Attendee')
     : peopleError
       ? 'Attendee'
@@ -81,6 +92,18 @@ export default function ThreadScreen() {
   const uid = user?.uid;
   const unreadForMe = threads?.find((t) => t.id === threadId)?.unread?.[uid ?? ''] ?? 0;
 
+  // Two organizer settings meet here: the event-wide messaging switch and the
+  // read-only half of the access window. Either one closes the composer, and
+  // neither closes the conversation — what people have already said to each
+  // other stays theirs to read, which is what the rules do too.
+  const { messagingEnabled, writesOpen } = useAppAccess();
+  // A block in either direction closes the composer; the rules refuse the
+  // write anyway, so a box that took the message would only lose it.
+  const { blocked } = useBlocked();
+  const isBlocked = Boolean(other && blocked.has(other));
+  const canSend = messagingEnabled && writesOpen && !isBlocked;
+  const [filterError, setFilterError] = useState<string | null>(null);
+
   // Reading the conversation is what clears the badge. Nothing called
   // `markThreadRead` before this, so the red count on the header icon survived
   // an attendee's first DM for the rest of the week. Guarded on a non-zero
@@ -94,6 +117,11 @@ export default function ThreadScreen() {
   async function send() {
     if (!user || !draft.trim() || !other) return;
     const body = draft.trim();
+    if (findBlockedWord(body)) {
+      setFilterError(WORD_FILTER_MESSAGE);
+      return;
+    }
+    setFilterError(null);
     // Cleared optimistically — the message appears in the list from the local
     // mutation — but put back if the send fails, because silently destroying
     // what someone typed is worse than the failure itself.
@@ -116,7 +144,25 @@ export default function ThreadScreen() {
       {/* `backHref` is the inbox rather than wherever this was opened from: a
           thread reached by link has no history at all, and the inbox is the one
           screen that certainly lists it. */}
-      <PushedHeader title={name} backTitle="Messages" backHref="/messages" />
+      <PushedHeader
+        title={name}
+        backTitle="Messages"
+        backHref="/messages"
+        headerRight={() =>
+          threadId && other ? (
+            <SafetyMenu
+              target={{ type: 'message', threadId }}
+              // The rules want the other participant named on a conversation
+              // report as the thread lists them, which for a deleted account is
+              // the marker, not the uid in the thread id. Blocking needs a person.
+              authorId={otherDeleted ? DELETED_USER_ID : other}
+              authorName={name || undefined}
+              subject="this conversation"
+              canBlock={!otherDeleted}
+            />
+          ) : null
+        }
+      />
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: colors.background }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -160,6 +206,21 @@ export default function ThreadScreen() {
           }
         />
 
+        {/*
+          The composer, or one line saying why there is not one.
+          `firestore.rules` refuses the send in both cases, so a box that
+          accepted a message here would take somebody's words and lose them.
+        */}
+        {canSend && !otherDeleted && filterError ? (
+          <Text
+            variant="subhead"
+            tone="danger"
+            accessibilityLiveRegion="polite"
+            style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.sm }}>
+            {filterError}
+          </Text>
+        ) : null}
+        {canSend && !otherDeleted ? (
         <View
           style={{
             flexDirection: 'row',
@@ -192,12 +253,36 @@ export default function ThreadScreen() {
             onPress={send}
             accessibilityRole="button"
             accessibilityLabel="Send"
-            style={{ justifyContent: 'center', opacity: draft.trim() ? 1 : 0.4 }}>
+            // 39pt of text. A target is 44 across as well as down.
+            style={{
+              justifyContent: 'center',
+              alignItems: 'center',
+              minWidth: HIT_TARGET,
+              opacity: draft.trim() ? 1 : 0.4,
+            }}>
             <Text variant="heading" tone="tint">
               Send
             </Text>
           </Pressable>
         </View>
+        ) : (
+          <View
+            style={{
+              padding: Spacing.md,
+              borderTopWidth: HAIRLINE,
+              borderTopColor: colors.border,
+            }}>
+            <Text variant="subhead" tone="secondary">
+              {otherDeleted
+                ? 'This person deleted their account. You can still read this conversation.'
+                : isBlocked
+                ? `You blocked ${name || 'this person'}. Neither of you can send messages here. Unblock them from the menu above.`
+                : messagingEnabled
+                ? 'The event is over. You can still read this conversation.'
+                : 'Messaging is off for this event. You can still read this conversation.'}
+            </Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </>
   );

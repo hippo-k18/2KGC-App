@@ -2,18 +2,34 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { submitScanAction, type ScanResult } from './actions';
+import { TIME_ZONE } from '@kgc/shared';
+import {
+  enqueue,
+  flushQueue,
+  loadQueue,
+  saveQueue,
+  whenCheckedIn,
+  withTimeout,
+  type QueuedScan,
+} from '@/lib/scan-queue-core';
+import { submitScanAction, type ScanInput, type ScanResult } from './actions';
 
 /**
  * The scan desk.
  *
- * Two input paths, and the typed one is not a fallback in the apologetic sense
- * — it is always on screen and always focused. `BarcodeDetector` does not exist
- * in Safari or in Firefox, so on a MacBook running Safari the camera path is
- * simply not available; and even where it works, the attendee in front of you
- * may have a cracked screen, a flat battery, or a badge printed on paper. A
- * six-character `claimCode` typed by a human is the path that never fails, so
- * it is the one that gets the keyboard focus and the camera is the accelerator.
+ * Three input paths. The code field is always on screen and always focused, so
+ * a USB or Bluetooth handheld scanner, which types the code and presses Enter,
+ * works with nothing to set up. The camera reads QR codes with
+ * `BarcodeDetector` where the browser has it (Chrome, Edge, Android) and with
+ * jsQR where it does not (Safari, so every iPhone and iPad). Somebody with no
+ * badge at all is found by name in the desk list below.
+ *
+ * ── A scan that does not reach the server ───────────────────────────────────
+ *
+ * It says so, in red, and clears whatever verdict was on screen before: a
+ * stale green "checked in" is how an unrecorded person gets waved through
+ * (T259 #1). The scan is kept on this device and sent again, with the same
+ * `clientScanId`, until it lands. See `lib/scan-queue-core.ts`.
  *
  * The verdict is rendered at 40px. That is not decoration: it is read across a
  * desk, at arm's length, by someone who is also talking to the next person in
@@ -54,6 +70,19 @@ function barcodeDetector(): BarcodeDetectorCtor | null {
   return typeof w.BarcodeDetector === 'function' ? w.BarcodeDetector : null;
 }
 
+/** Whether this page can open a camera at all (needs HTTPS or localhost). */
+function cameraPossible(): boolean {
+  return typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function';
+}
+
+function storage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 const DEVICE_KEY = 'kgc.console.checkin.deviceId';
 const STATION_KEY = 'kgc.console.checkin.stationLabel';
 
@@ -69,6 +98,18 @@ const SAME_CODE_COOLDOWN_MS = 4000;
  */
 const KIOSK_RESET_MS = 7000;
 
+/** A scan with no answer after this long is treated as not sent, and queued. */
+const SCAN_TIMEOUT_MS = 10_000;
+
+/** How often queued scans are tried again while the device thinks it is online. */
+const RETRY_EVERY_MS = 15_000;
+
+/**
+ * The page's counts and lists are refreshed at most this often. Refreshing on
+ * every scan downloaded the whole page each time (T259 #5).
+ */
+const REFRESH_EVERY_MS = 60_000;
+
 const VERDICT: Record<ScanResult['outcome'], string> = {
   ok: 'OK: CHECKED IN',
   duplicate: 'ALREADY CHECKED IN',
@@ -76,14 +117,13 @@ const VERDICT: Record<ScanResult['outcome'], string> = {
   cancelled: 'CANCELLED',
 };
 
-function timeOf(iso: string | undefined): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-}
+type Shown =
+  | { kind: 'result'; result: ScanResult }
+  | { kind: 'checking' }
+  | { kind: 'failed' };
+
+/** Whether a result means "the scan did not land, keep it". */
+const keep = (r: ScanResult) => Boolean(r.error && r.retryable);
 
 export function Scanner({
   listId,
@@ -107,17 +147,29 @@ export function Scanner({
   const [deviceId, setDeviceId] = useState('');
   const [stationLabel, setStationLabel] = useState('');
   const [code, setCode] = useState('');
-  const [result, setResult] = useState<ScanResult | null>(null);
+  const [shown, setShown] = useState<Shown | null>(null);
   const [pending, setPending] = useState(false);
   const [camera, setCamera] = useState<'off' | 'starting' | 'on'>('off');
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [detectorAvailable, setDetectorAvailable] = useState<boolean | null>(null);
+  const [cameraAvailable, setCameraAvailable] = useState<boolean | null>(null);
+  const [queue, setQueue] = useState<QueuedScan[]>([]);
+  const [lastSent, setLastSent] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastRef = useRef<{ code: string; at: number } | null>(null);
   const busyRef = useRef(false);
+  const flushingRef = useRef(false);
+  const typedRef = useRef<string[]>([]);
+  const refreshedRef = useRef(0);
+  const queueRef = useRef<QueuedScan[]>([]);
+
+  const writeQueue = useCallback((next: QueuedScan[]) => {
+    queueRef.current = next;
+    setQueue(next);
+    saveQueue(storage(), next);
+  }, []);
 
   /**
    * The device identity, minted once and kept in `localStorage`.
@@ -129,29 +181,98 @@ export function Scanner({
    * unique-by-accident and destroy the replay safety it exists for.
    */
   useEffect(() => {
-    let id = window.localStorage.getItem(DEVICE_KEY);
+    const store = storage();
+    let id = store?.getItem(DEVICE_KEY) ?? null;
     if (!id) {
       id = `dev_${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`;
-      window.localStorage.setItem(DEVICE_KEY, id);
+      try {
+        store?.setItem(DEVICE_KEY, id);
+      } catch {
+        // Private mode: this tab keeps the id for as long as it is open.
+      }
     }
     setDeviceId(id);
     // A page-supplied name wins and is not written back to `localStorage`: a
     // kiosk opened for one afternoon must not rename the desk station this
     // browser uses the rest of the time.
-    setStationLabel(stationOverride || window.localStorage.getItem(STATION_KEY) || 'Console desk 1');
-    setDetectorAvailable(barcodeDetector() !== null);
+    setStationLabel(stationOverride || store?.getItem(STATION_KEY) || 'Console desk 1');
+    setCameraAvailable(cameraPossible());
+    const saved = loadQueue(store);
+    queueRef.current = saved;
+    setQueue(saved);
     inputRef.current?.focus();
   }, [stationOverride]);
 
   const saveStation = useCallback((label: string) => {
     setStationLabel(label);
-    window.localStorage.setItem(STATION_KEY, label);
+    try {
+      window.localStorage.setItem(STATION_KEY, label);
+    } catch {
+      // Not remembered in private mode. The name still applies to this tab.
+    }
   }, []);
+
+  /** Refresh the page's counts now and then, never on every scan. */
+  const maybeRefresh = useCallback(() => {
+    if (kiosk) return;
+    if (Date.now() - refreshedRef.current < REFRESH_EVERY_MS) return;
+    refreshedRef.current = Date.now();
+    router.refresh();
+  }, [kiosk, router]);
+
+  /** Send whatever is queued, oldest first. Safe to call at any time. */
+  const flush = useCallback(async () => {
+    if (flushingRef.current || queueRef.current.length === 0) return;
+    flushingRef.current = true;
+    try {
+      const { sent } = await flushQueue(
+        queueRef.current,
+        (q) => withTimeout(submitScanAction(q), SCAN_TIMEOUT_MS),
+        (r) => ({ retry: keep(r) }),
+      );
+      // Scans queued while this ran are kept too.
+      const sentIds = new Set(sent.map((s) => s.scan.clientScanId));
+      writeQueue(queueRef.current.filter((q) => !sentIds.has(q.clientScanId)));
+      const last = sent[sent.length - 1];
+      if (last) {
+        const r = last.result;
+        setLastSent(
+          `Sent ${sent.length} saved ${sent.length === 1 ? 'scan' : 'scans'}. Last: ${
+            r.error ? `error, ${r.error}` : `${kiosk ? '' : `${r.name ?? 'unknown code'}, `}${VERDICT[r.outcome].toLowerCase()}`
+          }.`,
+        );
+        maybeRefresh();
+      }
+    } finally {
+      flushingRef.current = false;
+    }
+  }, [kiosk, maybeRefresh, writeQueue]);
+
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      if (navigator.onLine !== false) void flush();
+    }, RETRY_EVERY_MS);
+    const online = () => void flush();
+    window.addEventListener('online', online);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener('online', online);
+    };
+  }, [flush]);
 
   const submit = useCallback(
     async (raw: string, source: 'camera' | 'typed') => {
       const value = raw.trim();
-      if (!value || !deviceId || busyRef.current) return;
+      if (!value || !deviceId) return;
+      if (busyRef.current) {
+        // A handheld scanner can send the next badge before the last answer
+        // is back. Keep it rather than let it run into the next code.
+        if (source === 'typed') {
+          typedRef.current.push(value);
+          setCode('');
+        }
+        return;
+      }
 
       const last = lastRef.current;
       if (source === 'camera' && last && last.code === value) {
@@ -159,31 +280,61 @@ export function Scanner({
       }
       lastRef.current = { code: value, at: Date.now() };
 
+      // One scan, one id. The server turns it into
+      // `scanEvents/{deviceId}_{clientScanId}`, so re-sending this exact
+      // object lands on the same document instead of double-counting.
+      const input: ScanInput = {
+        listId,
+        code: value,
+        deviceId,
+        clientScanId: crypto.randomUUID(),
+        stationLabel,
+        source,
+      };
+
       busyRef.current = true;
       setPending(true);
+      setCode('');
+      // The last person's verdict goes the moment the next scan starts.
+      setShown({ kind: 'checking' });
       try {
-        const scan = await submitScanAction({
-          listId,
-          code: value,
-          deviceId,
-          // One scan, one id. The server turns it into
-          // `scanEvents/{deviceId}_{clientScanId}`, so re-sending this exact
-          // object lands on the same document instead of double-counting.
-          clientScanId: crypto.randomUUID(),
-          stationLabel,
-          source,
-        });
-        setResult(scan);
-        setCode('');
-        router.refresh();
+        const scan = await withTimeout(submitScanAction(input), SCAN_TIMEOUT_MS);
+        if (keep(scan)) throw new Error(scan.error);
+        setShown({ kind: 'result', result: scan });
+        maybeRefresh();
+        // The connection works again, so anything saved can go now.
+        void flush();
+      } catch {
+        writeQueue(enqueue(queueRef.current, { ...input, queuedAt: Date.now() }));
+        setShown({ kind: 'failed' });
       } finally {
         busyRef.current = false;
         setPending(false);
         inputRef.current?.focus();
+        const next = typedRef.current.shift();
+        if (next) window.setTimeout(() => void submitRef.current?.(next, 'typed'), 0);
       }
     },
-    [deviceId, listId, router, stationLabel],
+    [deviceId, flush, listId, maybeRefresh, stationLabel, writeQueue],
   );
+  const submitRef = useRef<typeof submit | null>(null);
+  submitRef.current = submit;
+
+  /*
+    Keystrokes from a handheld scanner go to the code field even when nothing
+    has focus, for instance after somebody tapped the page background. Typing
+    into another field (the station name, the desk search) is left alone.
+  */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.closest('input, textarea, select, [contenteditable="true"]') || t.isContentEditable)) return;
+      inputRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, []);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -224,25 +375,44 @@ export function Scanner({
     while they talk to whoever it was about.
   */
   useEffect(() => {
-    if (!kiosk || !result) return;
-    const t = window.setTimeout(() => setResult(null), KIOSK_RESET_MS);
+    if (!kiosk || !shown || shown.kind === 'checking') return;
+    const t = window.setTimeout(() => setShown(null), KIOSK_RESET_MS);
     return () => window.clearTimeout(t);
-  }, [kiosk, result]);
+  }, [kiosk, shown]);
 
   useEffect(() => {
     if (camera !== 'on') return;
-    const Ctor = barcodeDetector();
-    if (!Ctor) return;
-
-    const detector = new Ctor({ formats: ['qr_code'] });
     let cancelled = false;
+    let read: ((video: HTMLVideoElement) => Promise<string | undefined>) | null = null;
+
+    const Ctor = barcodeDetector();
+    if (Ctor) {
+      const detector = new Ctor({ formats: ['qr_code'] });
+      read = async (video) => (await detector.detect(video))[0]?.rawValue;
+    } else {
+      // Safari has no BarcodeDetector. jsQR reads a frame drawn to a canvas,
+      // scaled down because a badge fills most of the frame anyway and a
+      // smaller image decodes several times faster on a phone.
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      void import('jsqr').then(({ default: jsQR }) => {
+        if (cancelled || !ctx) return;
+        read = async (video) => {
+          const scale = Math.min(1, 640 / Math.max(video.videoWidth, 1));
+          canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+          canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          return jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' })?.data;
+        };
+      });
+    }
 
     const timer = window.setInterval(async () => {
       const video = videoRef.current;
-      if (cancelled || !video || video.readyState < 2 || busyRef.current) return;
+      if (cancelled || !read || !video || video.readyState < 2 || busyRef.current) return;
       try {
-        const codes = await detector.detect(video);
-        const found = codes[0]?.rawValue;
+        const found = await read(video);
         if (found) void submit(found, 'camera');
       } catch {
         // A single failed frame is normal — motion blur, a hand over the lens.
@@ -265,7 +435,9 @@ export function Scanner({
             void submit(code, 'typed');
           }}
         >
-          <label htmlFor="code">Badge code: QR secret or six-character claim code</label>
+          <label htmlFor="code">
+            {kiosk ? 'Badge code' : 'Badge code, from the camera or a handheld scanner'}
+          </label>
           <input
             id="code"
             name="code"
@@ -274,8 +446,9 @@ export function Scanner({
             onChange={(e) => setCode(e.target.value)}
             autoComplete="off"
             autoCapitalize="off"
+            autoCorrect="off"
             spellCheck={false}
-            placeholder="JE5NTH"
+            enterKeyHint="go"
             disabled={!deviceId}
           />
           <button id="check-in-submit" type="submit" disabled={pending || !deviceId}>
@@ -284,21 +457,35 @@ export function Scanner({
           <button
             type="button"
             onClick={camera === 'on' ? stopCamera : () => void startCamera()}
-            disabled={detectorAvailable === false || camera === 'starting'}
+            disabled={cameraAvailable === false || camera === 'starting'}
           >
             {camera === 'on' ? 'Stop camera' : 'Start camera'}
           </button>
         </form>
 
-        {detectorAvailable === false ? (
+        {cameraAvailable === false ? (
           <p className="muted">
-            This browser has no <code>BarcodeDetector</code>, so the camera cannot decode a QR
-            here. Safari and Firefox both lack it; Chrome and Edge on desktop and Android have it.
-            Type the code instead. It is the same write either way, and it is why the box above is
-            focused on load.
+            This page cannot open the camera. Use a handheld scanner, or find the person by name.
           </p>
         ) : null}
         {cameraError ? <p className="error">Camera: {cameraError}</p> : null}
+
+        {queue.length > 0 ? (
+          <div className="error" role="status" style={{ fontWeight: 600, margin: '12px 0' }}>
+            <p style={{ margin: '0 0 8px' }}>
+              {queue.length} {queue.length === 1 ? 'scan' : 'scans'} not sent yet. Saved on this
+              device and sent again when the connection is back.
+            </p>
+            <button type="button" onClick={() => void flush()}>
+              Send now
+            </button>
+          </div>
+        ) : null}
+        {lastSent && !kiosk ? (
+          <p className="muted" role="status">
+            {lastSent}
+          </p>
+        ) : null}
 
         <video
           ref={videoRef}
@@ -328,17 +515,24 @@ export function Scanner({
               autoComplete="off"
             />
             <p className="muted">
-              Device <code>{deviceId || '…'}</code>, kept in this browser&apos;s{' '}
-              <code>localStorage</code>. It is the <code>checkInStations</code> document id and the
-              first half of every <code>scanEvents</code> id, so it must survive a reload. Scanning{' '}
-              <strong>{listName}</strong>.
+              Scanning <strong>{listName}</strong>.
             </p>
           </>
         )}
       </div>
 
-      <div className="scan-right">
-        {result ? <ScanVerdict result={result} kiosk={kiosk} /> : <IdleVerdict kiosk={kiosk} />}
+      <div className="scan-right" aria-live="polite">
+        {shown?.kind === 'result' ? (
+          <ScanVerdict result={shown.result} kiosk={kiosk} />
+        ) : shown?.kind === 'failed' ? (
+          <FailedVerdict kiosk={kiosk} queued={queue.length} />
+        ) : shown?.kind === 'checking' ? (
+          <div className="scan-result scan-idle">
+            <div className="scan-verdict">CHECKING…</div>
+          </div>
+        ) : (
+          <IdleVerdict kiosk={kiosk} />
+        )}
       </div>
     </div>
   );
@@ -350,20 +544,42 @@ function IdleVerdict({ kiosk }: { kiosk?: boolean }) {
       <div className="scan-verdict">READY</div>
       <p className="muted">
         {kiosk
-          ? 'Hold your badge up to the camera, or type the six-character code under it.'
-          : 'Scan a badge or type a code. The result appears here.'}
+          ? 'Hold the QR code on your badge up to the camera. No badge? Please see the registration desk.'
+          : 'Scan a badge. The result appears here. No badge? Find the person by name below.'}
       </p>
     </div>
   );
 }
 
+/** The scan never reached the server. Red, because nobody was checked in. */
+function FailedVerdict({ kiosk, queued }: { kiosk?: boolean; queued: number }) {
+  return (
+    <div className="scan-result scan-unknown" role="alert">
+      <div className="scan-verdict">NOT RECORDED</div>
+      <div className="scan-name">Check the connection</div>
+      <div className="scan-meta">
+        {kiosk ? (
+          'This scan did not go through. Please see a member of staff at the registration desk.'
+        ) : (
+          <>
+            This scan did not reach the server. It is saved on this device and will be sent again
+            automatically ({queued} waiting). Until then, this person is not checked in.
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean }) {
+  const when = (iso: string | undefined) => whenCheckedIn(iso, new Date(), TIME_ZONE);
+
   if (result.error) {
     return (
       <div className="scan-result scan-unknown">
         <div className="scan-verdict">ERROR</div>
         <div className="scan-name">{result.error}</div>
-        <div className="scan-meta">Nothing was written. Try again.</div>
+        <div className="scan-meta">Nothing was recorded. Try again.</div>
       </div>
     );
   }
@@ -380,9 +596,7 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
               'Nothing was recorded. Please see a member of staff at the registration desk.'
             ) : (
               <>
-                Checked against every <code>qrSecret</code> and every <code>claimCode</code> for
-                this event. Nothing was written to <code>checkIns</code>. Logged as{' '}
-                <code>{result.scanEventId}</code>.
+                Nothing was recorded. Check the code and try again.
               </>
             )}
           </div>
@@ -406,10 +620,10 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
       {result.outcome === 'ok' ? (
         <div className="scan-meta">
           {kiosk ? (
-            <>Checked in at {timeOf(result.checkedInAt)}. You are all set. Enjoy the conference.</>
+            <>Checked in at {when(result.checkedInAt)}. Enjoy the conference.</>
           ) : (
             <>
-              Checked in at {timeOf(result.checkedInAt)}. Wrote <code>{result.checkInPath}</code>.
+              Checked in at {when(result.checkedInAt)}.
             </>
           )}
         </div>
@@ -419,15 +633,13 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
         <div className="scan-meta">
           {kiosk ? (
             <>
-              Already checked in at <strong>{timeOf(result.checkedInAt)}</strong>. Nothing more to
+              Already checked in at <strong>{when(result.checkedInAt)}</strong>. Nothing more to
               do. You are on the list. If that was not you, please tell a member of staff.
             </>
           ) : (
             <>
-              Already checked in at <strong>{timeOf(result.checkedInAt)}</strong> at{' '}
-              <strong>{result.stationLabel}</strong>. Nothing was written this time. The second{' '}
-              <code>create</code> failed with <code>already-exists</code>, which is the duplicate
-              check. Wave them through.
+              Already checked in at <strong>{when(result.checkedInAt)}</strong> at{' '}
+              <strong>{result.stationLabel}</strong>. Nothing more to do.
             </>
           )}
         </div>
@@ -449,15 +661,65 @@ function ScanVerdict({ result, kiosk }: { result: ScanResult; kiosk?: boolean })
       ) : null}
 
       {/*
+        A required release this person has not signed.
+
+        It sits under the verdict as something for the desk to raise, not as a
+        refusal. On a kiosk it names no document and asks the person to come to
+        the desk: an unattended screen telling somebody which release they have
+        not signed is a screen telling the queue behind them too.
+
+        ⚠️ "They are checked in" only where they are. A cancelled or transferred
+        ticket is not checked in, and this line used to say it was — directly
+        under a verdict saying the opposite, which is the one moment a desk
+        volunteer is reading fast and deciding whether to let somebody past.
+      */}
+      {result.onlyExtra ? (
+        <div className="scan-meta" style={{ color: 'var(--kgc-orange)', fontWeight: 600 }}>
+          {kiosk ? (
+            <>{result.onlyExtra} only. Your badge is for the {result.onlyExtra.toLowerCase()}, not the main conference.</>
+          ) : (
+            <>
+              {result.onlyExtra} only: not a Main Conference ticket. Send them to the {result.onlyExtra.toLowerCase()}.
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {result.noWorkshops ? (
+        <div className="scan-meta" style={{ color: 'var(--kgc-orange)', fontWeight: 600 }}>
+          {kiosk ? (
+            <>This badge does not include Workshops. Please see the registration desk.</>
+          ) : (
+            <>No Workshops on this badge. Check their ticket before they go in.</>
+          )}
+        </div>
+      ) : null}
+
+      {result.consentOutstanding?.length ? (
+        <div className="scan-meta" style={{ color: 'var(--kgc-orange)', fontWeight: 600 }}>
+          {kiosk ? (
+            <>Form not signed. Please see the registration desk before you go in.</>
+          ) : (
+            <>
+              Form not signed: <strong>{result.consentOutstanding.join(', ')}</strong>.{' '}
+              {result.outcome === 'ok' || result.outcome === 'duplicate'
+                ? 'They are checked in. Ask them to sign.'
+                : 'Ask them to sign.'}
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {/*
         The provenance line is diagnostics for whoever is running the desk — a
         scan id is pasteable into the Firebase console, which is exactly why it
         does not belong on an unattended screen.
       */}
       {kiosk ? null : (
         <div className="scan-foot muted">
-          {result.matchedOn ? `matched on ${result.matchedOn} · ` : null}
-          {result.source} · <code>scanEvents/{result.scanEventId}</code>
-          {result.scanEventReplayed ? ' · replay, original entry kept' : null}
+          {result.matchedOn === 'claimCode' ? 'typed code · ' : result.matchedOn ? 'badge · ' : null}
+          {result.source}
+          {result.scanEventReplayed ? ' · repeat scan' : null}
         </div>
       )}
     </div>

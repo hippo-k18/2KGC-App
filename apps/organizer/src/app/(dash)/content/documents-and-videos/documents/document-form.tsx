@@ -29,7 +29,15 @@ export interface EditableDocument {
    */
   status: 'draft' | 'published' | 'cancelled';
   order: number;
+  /** The session whose page this handout appears on, or `''` for none. */
+  sessionId: string;
   visibleToTicketTypes: string[];
+}
+
+/** One line in the session picker: enough to tell two identically-named talks apart. */
+export interface SessionOption {
+  id: string;
+  label: string;
 }
 
 /**
@@ -56,10 +64,13 @@ export interface EditableDocument {
 export function DocumentForm({
   existing,
   ticketTypeNames,
+  sessions,
 }: {
   existing?: EditableDocument;
   /** Names, not ids — `apps/web` matches the restriction on the name. */
   ticketTypeNames: string[];
+  /** The whole programme, so slides can be put on the talk they belong to. */
+  sessions: SessionOption[];
 }) {
   const [state, action] = useActionState<DocumentState, FormData>(saveDocumentAction, {});
 
@@ -135,6 +146,30 @@ export function DocumentForm({
           hint="Low numbers first."
         />
       </FormGrid>
+
+      {/*
+        Attaching to a session puts the row on that talk's page in the app and
+        in the agenda on the website, as well as leaving it in the main list.
+        It is a second place to find the same handout, not a move — somebody
+        looking for "the slides from this morning" and somebody looking for
+        "all the slides" are both right.
+      */}
+      <Select
+        name="sessionId"
+        label="Session"
+        defaultValue={existing?.sessionId ?? ''}
+        error={state.fieldErrors?.sessionId}
+        width="lg"
+        options={[
+          { value: '', label: 'Not attached to a session' },
+          ...sessions.map((s) => ({ value: s.id, label: s.label })),
+        ]}
+        hint={
+          sessions.length === 0
+            ? 'No sessions are on the agenda yet.'
+            : 'Shows this handout on that session’s page as well as in the documents list.'
+        }
+      />
 
       <FieldSet
         legend="Visible to"

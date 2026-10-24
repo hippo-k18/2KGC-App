@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import type {
   CSSProperties,
+  FormEvent,
+  FormHTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
@@ -107,6 +109,40 @@ function inputClass(width: FieldWidth | undefined, invalid: boolean): string {
 }
 
 /**
+ * A prefix for the ids of the fields inside it.
+ *
+ * A field's id falls back to its `name`, which is right until one screen
+ * carries two forms. The attendee panel has an edit form and a transfer form,
+ * each with `name`, `email`, `title` and `company`; the reviewers screen has
+ * one "add a criterion" form and an inline editor per criterion, so `label`,
+ * `min`, `max` and `description` appear four times over. Every
+ * `<label for="email">` on such a page then points at the *first* `email` on
+ * the page: clicking the label beside the second form focuses a box in the
+ * first, and a screen reader announces the field's name twice over.
+ *
+ * Wrap each form in one of these with a word for that form, and its fields get
+ * `<scope>-<name>`. Readable ids, stable across renders, and unique per form —
+ * where `useId` alone would give `:r7:-email`, which is a valid id that cannot
+ * be written into a CSS selector without escaping it.
+ *
+ * An explicit `id` still wins: `CharCount` finds its field by id, so a screen
+ * has to be able to name one.
+ */
+const FieldScope = createContext('');
+
+export function FieldIdScope({ scope, children }: { scope: string; children: ReactNode }) {
+  return <FieldScope.Provider value={scope}>{children}</FieldScope.Provider>;
+}
+
+function useFieldId(id: string | undefined, name: string | undefined): string {
+  const scope = useContext(FieldScope);
+  const fallback = useId();
+  if (id) return id;
+  if (!name) return fallback;
+  return scope ? `${scope}-${name}` : name;
+}
+
+/**
  * Label, control, error, hint — in that order, and always in that order.
  *
  * The error goes *above* the hint rather than below it because the hint is
@@ -184,8 +220,7 @@ export function Field({
   required,
   ...rest
 }: FieldProps) {
-  const fallbackId = useId();
-  const fieldId = id ?? name ?? fallbackId;
+  const fieldId = useFieldId(id, name);
   return (
     <FieldFrame
       htmlFor={fieldId}
@@ -223,8 +258,7 @@ export function Textarea({
   rows = 6,
   ...rest
 }: TextareaProps) {
-  const fallbackId = useId();
-  const fieldId = id ?? name ?? fallbackId;
+  const fieldId = useFieldId(id, name);
   return (
     <FieldFrame
       htmlFor={fieldId}
@@ -280,8 +314,7 @@ export function Select({
   children,
   ...rest
 }: SelectProps) {
-  const fallbackId = useId();
-  const fieldId = id ?? name ?? fallbackId;
+  const fieldId = useFieldId(id, name);
   return (
     <FieldFrame
       htmlFor={fieldId}
@@ -355,7 +388,7 @@ export function DateTimeField({
         timeZoneNote ? (
           <>
             {hint ? <>{hint} </> : null}
-            Wall clock in {timeZoneNote}.
+            Time in {timeZoneNote}.
           </>
         ) : (
           hint
@@ -399,6 +432,12 @@ export interface MoneyFieldProps extends ControlExtras {
   currencyName?: string;
   currencyDefault?: string;
   currencies?: string[];
+  /**
+   * The words before the echoed figure. "Buyers are charged" unless the
+   * figure is not what buyers pay: a tier whose price phases set the price
+   * (T262) passes its own.
+   */
+  previewLabel?: string;
 }
 
 /**
@@ -433,9 +472,9 @@ export function MoneyField({
   currencyName,
   currencyDefault = 'usd',
   currencies = ['usd', 'eur', 'gbp'],
+  previewLabel = 'Buyers are charged',
 }: MoneyFieldProps) {
-  const fallbackId = useId();
-  const fieldId = id ?? name ?? fallbackId;
+  const fieldId = useFieldId(id, name);
   const [amount, setAmount] = useState(defaultValue);
   const [currency, setCurrency] = useState(currencyDefault);
 
@@ -503,7 +542,7 @@ export function MoneyField({
         <span className="muted" style={{ fontSize: 13 }} aria-live="polite">
           {valid ? (
             <>
-              Buyers are charged{' '}
+              {previewLabel}{' '}
               <strong>
                 {new Intl.NumberFormat('en-US', {
                   style: 'currency',
@@ -665,6 +704,98 @@ export function FormActions({
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
 /**
+ * ── Forms whose result does not wait on the refreshed page (T284, T286) ────
+ *
+ * With `<form action>` and `useActionState`, the pending state and the result
+ * banner commit in the same React transition as the page the server sends
+ * back after `revalidatePath`. React 19.2, as bundled by Next 15.5, can lose
+ * the retry for that transition (a chunk resolving synchronously inside its
+ * ping listener while the render is "suspended with delay"), and then the
+ * button says "Saving…" for ever although the action finished. React 19.3
+ * fixes it; until the dashboard is on it, a form that matters uses this pair:
+ *
+ *   const [state, run] = useFormAction(saveThingAction, {});
+ *   <ActionForm run={run}> … <SubmitButton>Save</SubmitButton> </ActionForm>
+ *
+ * The action is called directly and its result set as ordinary state the
+ * moment it returns. The server still revalidates; the refreshed page commits
+ * when React gets to it and nothing on the form waits for it.
+ *
+ * One difference from a form action: React does not reset the form after the
+ * save. An edit form keeps what was just saved, which is what it showed after
+ * the reset anyway. A form that adds something passes `resetOnSuccess`.
+ */
+export interface FormRun<S> {
+  pending: boolean;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  /** Kept for `ActionForm`; not for callers. */
+  readonly _state?: S;
+}
+
+export function useFormAction<S extends FormState>(
+  action: (prev: S, formData: FormData) => Promise<S>,
+  initial: S,
+  options: { resetOnSuccess?: boolean; onSuccess?: (state: S) => void } = {},
+): [S, FormRun<S>] {
+  const [state, setState] = useState<S>(initial);
+  const [pending, setPending] = useState(false);
+  const busy = useRef(false);
+  const last = useRef(initial);
+  const opts = useRef(options);
+  opts.current = options;
+
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (busy.current) return;
+    const form = e.currentTarget;
+    // The pressed button's name and value, as a form action would send them.
+    const submitter = (e.nativeEvent as SubmitEvent).submitter;
+    const data = new FormData(form, submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement ? submitter : null);
+    busy.current = true;
+    setPending(true);
+    void (async () => {
+      try {
+        const result = await action(last.current, data);
+        last.current = result;
+        setState(result);
+        if (result.ok) {
+          if (opts.current.resetOnSuccess) form.reset();
+          opts.current.onSuccess?.(result);
+        }
+      } catch (err) {
+        // A redirect (an expired session) is the router's to follow.
+        if (String((err as { digest?: unknown })?.digest ?? '').startsWith('NEXT_REDIRECT')) throw err;
+        const failed = { error: 'Could not reach the server. Check your connection and try again.' } as S;
+        last.current = failed;
+        setState(failed);
+      } finally {
+        busy.current = false;
+        setPending(false);
+      }
+    })();
+  };
+
+  return [state, { pending, onSubmit }];
+}
+
+const ActionFormPending = createContext<boolean | undefined>(undefined);
+
+/** A `<form>` driven by `useFormAction`; its `SubmitButton`s show its pending state. */
+export function ActionForm({
+  run,
+  children,
+  ...rest
+}: { run: FormRun<unknown>; children: ReactNode } & Omit<FormHTMLAttributes<HTMLFormElement>, 'action' | 'onSubmit'>) {
+  return (
+    <ActionFormPending.Provider value={run.pending}>
+      <form {...rest} onSubmit={run.onSubmit}>
+        {children}
+      </form>
+    </ActionFormPending.Provider>
+  );
+}
+
+/**
  * Submit, with the pending state the form actually has.
  *
  * `useFormStatus` reports the status of the enclosing `<form>`, and only from a
@@ -686,6 +817,7 @@ export function SubmitButton({
   style,
   name,
   value,
+  pending: pendingProp,
 }: {
   children: ReactNode;
   pendingLabel?: ReactNode;
@@ -696,8 +828,16 @@ export function SubmitButton({
   /** For a form with two submits — `name`/`value` say which one was pressed. */
   name?: string;
   value?: string;
+  /**
+   * For a form that submits through `onSubmit` rather than `action`, where
+   * `useFormStatus` never reports pending. Inside an `ActionForm` this is
+   * filled in already; `useFormAction` below says why such forms exist.
+   */
+  pending?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const scoped = useContext(ActionFormPending);
+  const pending = pendingProp ?? scoped ?? status.pending;
   return (
     <button
       type="submit"

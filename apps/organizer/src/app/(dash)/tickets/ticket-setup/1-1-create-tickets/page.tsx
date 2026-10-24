@@ -10,17 +10,19 @@ import {
   PageHeader,
   Panel,
   ProgressBar,
+  ROW_ACTION,
   Table,
   Tag,
 } from '../../../ui';
 import { toggleTicketVisibilityAction } from './actions';
 import { SoldCountForm } from './sold-count-form';
 import { TicketForm } from './ticket-form';
+import { salesWindowText } from '@/lib/sales-window';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Tickets › Ticket Setup › 1.1 Create Tickets.
+ * Tickets › Ticket Setup › 1.1 Create & Edit Tickets.
  *
  * Whova numbers this screen and so do we — the Tickets tab is a sequenced
  * setup flow in their product ("Step 1", "Step 2", "Step 3") and renumbering it
@@ -75,19 +77,28 @@ export default async function CreateTicketsPage({
   const editing = edit ? all.find((t) => t.id === edit) : undefined;
   const showForm = Boolean(creating) || Boolean(editing) || Boolean(requestedAudience);
 
-  const totalSold = tickets.reduce((n, t) => n + t.quantitySold, 0);
+  /**
+   * What an organizer reads as "sold" is the orders ledger, not the counter.
+   *
+   * `quantitySold` is a best-effort tally kept for the sold-out check, and it
+   * drifts: a test purchase that was later erased, an order written before it
+   * carried a tier id, a refund. The ledger is what was actually paid for, so
+   * it is the number shown. The counter only matters where it can stop a sale,
+   * which is a tier with a cap.
+   */
+  const soldOf = (id: string) => ledger.sold.get(id) ?? 0;
+  const totalSold = tickets.reduce((n, t) => n + soldOf(t.id), 0);
 
   return (
     <>
       <PageHeader
-        title="1.1 Create Tickets"
+        title="1.1 Create & Edit Tickets"
         info={
           <>
-            <strong>These documents are the price list</strong>
+            <strong>This is the price list</strong>
             <p>
-              The website reads <code>ticketTypes</code> to decide what to sell and hands Stripe the
-              same <code>priceCents</code>, so an edit here changes what the next buyer pays with no
-              deploy. A tier cannot be deleted (orders point at it by id) only hidden.
+              The website sells what is listed here. A price change applies to the next buyer.
+              A ticket cannot be deleted, only hidden.
             </p>
           </>
         }
@@ -121,20 +132,19 @@ export default async function CreateTicketsPage({
           {editing && editing.audience !== 'attendee' && (
             /*
               Arrived from 2.1 Exhibitor Tickets or Sponsor Tickets. Saying so
-              matters because the surrounding screen is titled "1.1 Create
-              Tickets" and every other tier on it is an attendee tier — an
+              matters because the surrounding screen is titled "1.1 Create &
+              Edit Tickets" and every other tier on it is an attendee tier — an
               organizer who does not notice which record they opened is one Save
               away from editing the wrong price list.
             */
             <Banner kind="info">
               <strong>This is a {editing.audience} package, not an attendee ticket.</strong> It
-              sells at <code>/tickets/{editing.audience}</code> and stays a {editing.audience}{' '}
-              package when you save. The Audience field below is what decides that.
+              stays a {editing.audience} package when you save, unless you change Audience below.
             </Banner>
           )}
-          {editing && editing.quantitySold > 0 && (
+          {editing && soldOf(editing.id) > 0 && (
             <Banner kind="info">
-              <strong>{editing.quantitySold} of these have already been sold.</strong> Changing the
+              <strong>{soldOf(editing.id)} of these have already been sold.</strong> Changing the
               price affects future purchases only. Past orders keep the amount they were charged.
             </Banner>
           )}
@@ -152,25 +162,31 @@ export default async function CreateTicketsPage({
           {editing &&
             editing.quantityTotal !== undefined &&
             (ledger.outstanding.get(editing.id) ?? 0) > 0 &&
-            editing.quantitySold + (ledger.outstanding.get(editing.id) ?? 0) >
+            soldOf(editing.id) + (ledger.outstanding.get(editing.id) ?? 0) >
               editing.quantityTotal && (
               <Banner kind="warning">
                 <strong>
                   {ledger.outstanding.get(editing.id)} more seats are on invoices that have been
                   raised and not paid.
                 </strong>{' '}
-                {editing.quantitySold} sold plus those exceeds the cap of {editing.quantityTotal}.
-                Capacity is checked when an invoice is raised, not when it is paid, so every one of
-                them will register on payment whatever this cap says.
+                {soldOf(editing.id)} sold plus those is over the cap of {editing.quantityTotal}.
+                Each of them will register when the invoice is paid.
               </Banner>
             )}
-          <TicketForm existing={editing} defaultAudience={requestedAudience} />
+          <TicketForm
+            existing={editing}
+            sold={editing ? soldOf(editing.id) : undefined}
+            defaultAudience={requestedAudience}
+            extraTargets={all
+              .filter((t) => t.audience === 'attendee' && !t.bundleOf?.length && t.kind !== 'extra' && !t.addOnFor)
+              .map((t) => ({ id: t.id, name: t.name }))}
+          />
           {editing && (
             <SoldCountForm
               id={editing.id}
               name={editing.name}
               stored={editing.quantitySold}
-              ledger={ledger.sold.get(editing.id) ?? 0}
+              ledger={soldOf(editing.id)}
             />
           )}
         </Panel>
@@ -188,6 +204,7 @@ export default async function CreateTicketsPage({
           ) : (
             <>
               <Table
+                stackSm
                 cols={[
                   { key: 'name', label: 'Ticket', className: 'cell-fill' },
                   { key: 'price', label: 'Price', className: 'cell-sm' },
@@ -211,7 +228,7 @@ export default async function CreateTicketsPage({
                       )}
                     </div>
                     <div className="muted" style={{ fontSize: 11 }}>
-                      {t.tagline || <em>no tagline</em>} · <code>{t.id}</code>
+                      {t.tagline || <em>no tagline</em>}
                     </div>
                   </div>,
 
@@ -219,24 +236,24 @@ export default async function CreateTicketsPage({
 
                   <div key="s">
                     <div style={{ fontSize: 13 }}>
-                      {t.quantitySold}
+                      {soldOf(t.id)}
                       {t.quantityTotal ? ` / ${t.quantityTotal}` : ''}
                     </div>
                     {t.quantityTotal ? (
-                      <ProgressBar pct={Math.min(100, (t.quantitySold / t.quantityTotal) * 100)} />
+                      <ProgressBar pct={Math.min(100, (soldOf(t.id) / t.quantityTotal) * 100)} />
                     ) : (
                       <span className="muted" style={{ fontSize: 11 }}>
                         unlimited
                       </span>
                     )}
                     {/*
-                      The counter against the ledger. It only appears when the
-                      two disagree, because on a healthy catalogue this column
-                      should be a number and not a reconciliation.
+                      Only a capped tier can be closed by the counter, so that
+                      is the only place a mismatch is a problem worth red text.
+                      On an unlimited tier the counter decides nothing.
                     */}
-                    {(ledger.sold.get(t.id) ?? 0) !== t.quantitySold && (
+                    {typeof t.quantityTotal === 'number' && soldOf(t.id) !== t.quantitySold && (
                       <div style={{ color: 'var(--danger)', fontSize: 11 }}>
-                        orders say {ledger.sold.get(t.id) ?? 0}
+                        The seat limit is counting {t.quantitySold}. Open Edit to correct it.
                       </div>
                     )}
                   </div>,
@@ -249,18 +266,11 @@ export default async function CreateTicketsPage({
                     with a buyer.
                   */
                   <span key="w" className="muted" style={{ fontSize: 12 }}>
-                    {t.salesOpenAtLocal || t.salesCloseAtLocal ? (
-                      <>
-                        {t.salesOpenAtLocal?.slice(0, 10) ?? 'now'} →{' '}
-                        {t.salesCloseAtLocal?.slice(0, 10) ?? 'no end'}
-                      </>
-                    ) : (
-                      'always'
-                    )}
+                    {salesWindowText(t)}
                   </span>,
 
-                  <div key="a" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <Link href={`?edit=${t.id}`} style={{ fontSize: 12 }}>
+                  <div key="a" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    <Link href={`?edit=${t.id}`} style={ROW_ACTION}>
                       Edit
                     </Link>
                     {/*
@@ -273,12 +283,11 @@ export default async function CreateTicketsPage({
                       <button
                         type="submit"
                         style={{
+                          ...ROW_ACTION,
                           background: 'none',
                           border: 0,
                           color: 'var(--link)',
                           cursor: 'pointer',
-                          fontSize: 12,
-                          padding: 0,
                         }}
                       >
                         {t.visible ? 'Hide' : 'Show'}
@@ -289,9 +298,8 @@ export default async function CreateTicketsPage({
               />
 
               <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-                {totalSold} {totalSold === 1 ? 'ticket' : 'tickets'} sold across all types. There is
-                no delete: orders reference a ticket type by id, and removing one would leave those
-                orders pointing at nothing. Hide it instead.
+                {totalSold} {totalSold === 1 ? 'ticket' : 'tickets'} sold across all types. Tickets
+                cannot be deleted. Hide them instead.
               </p>
             </>
           )}

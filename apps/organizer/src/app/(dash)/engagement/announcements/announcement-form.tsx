@@ -39,8 +39,7 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
           <span>Recipients</span>
           <span className="whova-form-label-suffix">*</span>
           <HelpTip>
-            A narrower audience would have to derive from registration question answers, which
-            nothing collects yet, so the only audience is everyone, counted live before you send.
+            Sending to a smaller group is not available yet.
           </HelpTip>
         </div>
         <div className="whova-radio-group">
@@ -54,9 +53,6 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
             />
             <span>All attendees ({recipientCount})</span>
           </label>
-          <div className="whova-radio-description">
-            Counted live from the attendee list, so this is the number it will actually reach.
-          </div>
         </div>
       </div>
 
@@ -122,8 +118,7 @@ export function AnnouncementForm({ recipientCount }: { recipientCount: number })
             <span>Send now</span>
           </label>
           <div className="whova-radio-description">
-            Deliberately the only option. A queued blast fires whether or not anybody is awake to
-            stop it, and a wrong-timezone send at 6am is the failure that actually happens.
+            Scheduled sending is not available yet.
           </div>
         </div>
       </div>

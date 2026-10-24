@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
+import { countsAsAttendee } from '@/lib/attendees-core';
 import { DEFAULT_LIST_ID, listRegistrations, listStations, recentCheckIns } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PageHeader, Panel, StatTiles, Table } from '../../../ui';
+import { stampOfInstant } from '@/lib/time';
+import { Email, GapPanel, PageHeader, Panel, StatTiles, Table } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,7 +49,7 @@ export default async function CheckoutPage() {
   const [registrations, stations] = await Promise.all([listRegistrations(), listStations()]);
   const rows = registrations.map((r) => r.row);
   const { rows: recent, total: checkedIn } = await recentCheckIns(DEFAULT_LIST_ID, rows, stations);
-  const active = rows.filter((r) => r.status === 'active').length;
+  const active = rows.filter(countsAsAttendee).length;
 
   return (
     <>
@@ -55,12 +57,8 @@ export default async function CheckoutPage() {
         title="Checkout"
         info={
           <>
-            <strong>Arrivals, never occupancy</strong>
-            <p>
-              A check-in document has no exit field, so nobody can be checked out and no figure
-              here means &ldquo;in the building&rdquo;. Occupancy is a safety number; this is not
-              one.
-            </p>
+            <strong>Arrivals only</strong>
+            <p>Checkout is not available yet. This page lists arrivals, not who is on site now.</p>
           </>
         }
         links={[
@@ -75,18 +73,15 @@ export default async function CheckoutPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Arrived at some point', value: checkedIn, sub: 'not a headcount for now' },
-          { label: 'Active registrations', value: active, sub: 'expected over the whole event' },
-          { label: 'Currently on site', value: '—', sub: 'no exit is recorded' },
+          { label: 'Arrived', value: checkedIn },
+          { label: 'Active registrations', value: active },
         ]}
       />
 
       <Panel>
         <h2 className="section-header">Arrivals at the main door ({checkedIn})</h2>
         <p className="body-2">
-          The most recent scans on the door list, in the order they happened. This is the whole of
-          what the building knows: each row is somebody who came through the entrance, and none of
-          them says whether that person is still here.
+          Checkout is not available yet, so this list does not show who has left.
         </p>
         <Table
           cols={[
@@ -98,12 +93,12 @@ export default async function CheckoutPage() {
           empty="Nobody has checked in yet"
           rows={recent.map((c) => [
             <span key="w" style={{ whiteSpace: 'nowrap' }}>
-              {c.checkedInAt ? c.checkedInAt.slice(0, 16).replace('T', ' ') : '—'}
+              {c.checkedInAt ? stampOfInstant(c.checkedInAt) : '—'}
             </span>,
             <span key="n">
               <strong>{c.name}</strong>
               <div className="muted" style={{ fontSize: 12 }}>
-                {c.email}
+                <Email address={c.email} />
               </div>
             </span>,
             c.ticketType ?? <span className="muted">—</span>,

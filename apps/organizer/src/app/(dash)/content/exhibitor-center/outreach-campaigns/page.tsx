@@ -32,11 +32,10 @@ export default async function ExhibitorOutreachPage() {
         title="Outreach Campaigns"
         info={
           <>
-            <strong>Prospects are not modelled</strong>
+            <strong>Not available yet</strong>
             <p>
-              <code>ExhibitorDoc</code> describes a company that has already booked. There is no
-              record for one that has not, and cold mail would go out from the domain that carries
-              the ticket receipts.
+              Prospect lists and outreach emails are not available yet. You can message the
+              exhibitors who have already booked.
             </p>
           </>
         }
@@ -60,7 +59,7 @@ export default async function ExhibitorOutreachPage() {
             value: summary.confirmed,
             sub: `${summary.provisional} provisional`,
           },
-          { label: 'Prospects', value: '—', sub: 'not inputted yet' },
+          { label: 'Prospects', value: 0, sub: 'none yet' },
         ]}
       />
 
@@ -68,7 +67,7 @@ export default async function ExhibitorOutreachPage() {
         <NotInputted
           what="prospects"
           action={
-            <Link className="whova-btn-main" href="/content/exhibitor-center/message-exhibitors">
+            <Link className="whova-btn-main primary" href="/content/exhibitor-center/message-exhibitors">
               Message the exhibitors you have
             </Link>
           }

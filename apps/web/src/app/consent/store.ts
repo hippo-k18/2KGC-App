@@ -98,7 +98,11 @@ async function resolveSubject(sub: string): Promise<SigningSubject | null> {
     const snap = await db().collection(COLLECTIONS.speakers).doc(id).get();
     if (!snap.exists) return null;
     const s = snap.data() as SpeakerDoc;
-    return { key: sub, name: s.name, email: s.contactEmail ?? '', kind: 'speaker' };
+    // The address is in the server-only `speakerContacts` since T252.
+    const contact = (await db().collection(COLLECTIONS.speakerContacts).doc(id).get()).data() as
+      | { email?: string }
+      | undefined;
+    return { key: sub, name: s.name, email: contact?.email ?? s.contactEmail ?? '', kind: 'speaker' };
   }
 
   if (sub.startsWith('vol_')) {

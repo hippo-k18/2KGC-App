@@ -1,0 +1,24 @@
+# Screenshot both sign-in panels with the keyboard up, to check it does not
+# cover the fields or the button (T208 found it did on an iPhone SE).
+# Run: maestro --device <udid> test app/.maestro/login-keyboard.yaml
+appId: tech.knowledgegraph.kgc
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: "Cancel"
+    optional: true
+- extendedWaitUntil:
+    visible: "Email me a sign-in code"
+    timeout: 30000
+- tapOn: "Email address"
+- inputText: "someone@example.com"
+- waitForAnimationToEnd
+- takeScreenshot: keyboard-email-code
+# Tapped with the keyboard still up: the link must be above it and take the tap.
+- tapOn: "Sign in with a password"
+- waitForAnimationToEnd
+- tapOn: "Password"
+- inputText: "password"
+- waitForAnimationToEnd
+- takeScreenshot: keyboard-password

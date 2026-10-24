@@ -58,7 +58,7 @@ export function TrackForm({ existing }: { existing?: EditableTrack }) {
             ...(state.fanOutOk ? null : { color: 'var(--danger)', fontWeight: 600 }),
           }}
         >
-          Agenda caches: {state.fanOut}
+          Agenda: {state.fanOut}
           {state.fanOutOk ? null : ' Use “Repair” below to rebuild them.'}
         </p>
       )}
@@ -79,11 +79,10 @@ export function TrackForm({ existing }: { existing?: EditableTrack }) {
               {existing.primaryCount === 0
                 ? 'none of which display it'
                 : `${existing.primaryCount} of which display it on the agenda card`}
-              . A rename rewrites those cards. Id <code>{existing.id}</code> never changes.
-              Sessions point at it.
+              . A rename updates those cards.
             </>
           ) : (
-            'The filter chip an attendee taps in the app. Short enough to read on a phone.'
+            'Attendees filter the agenda by this name. Keep it short.'
           )
         }
       />
@@ -140,7 +139,7 @@ export function TrackForm({ existing }: { existing?: EditableTrack }) {
         label="Description"
         rows={3}
         defaultValue={existing?.description}
-        hint="Organizer-facing. Nothing in the app or on the website renders it yet."
+        hint="For organizers only. Attendees do not see it yet."
       />
 
       <FormActions>

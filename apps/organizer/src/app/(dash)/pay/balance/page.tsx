@@ -43,11 +43,11 @@ export default async function BalancePage() {
           <>
             <strong>Where these figures come from</strong>
             <p>
-              KGC&rsquo;s own <code>orders</code>, not Stripe&rsquo;s ledger. The fee line is an
-              estimate; the real rate varies by card type and country.
+              Orders placed through the KGC website, not Stripe&rsquo;s ledger. The fee line is an
+              estimate. The real rate varies by card type and country.
             </p>
             {stripeEnabled() ? null : (
-              <p>No Stripe key is configured yet, so nothing has been charged.</p>
+              <p>Stripe is not connected yet, so nothing has been charged.</p>
             )}
           </>
         }
@@ -57,7 +57,7 @@ export default async function BalancePage() {
               {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
             </Tag>
           ) : (
-            <Tag color="grey">No Stripe key</Tag>
+            <Tag color="grey">Stripe not connected</Tag>
           )
         }
         actions={
@@ -65,7 +65,7 @@ export default async function BalancePage() {
             href={`https://dashboard.stripe.com/${stripeIsLive() ? '' : 'test/'}balance`}
             target="_blank"
             rel="noreferrer"
-            className="whova-btn-main"
+            className="whova-btn-main secondary"
           >
             Stripe balance ↗
           </a>
@@ -87,10 +87,9 @@ export default async function BalancePage() {
         the authoritative figure is the one in Stripe's dashboard.
       */}
       <Banner kind="info">
-        <strong>Stripe holds the money, not KGC.</strong> Payouts land in the bank account attached
-        to the Stripe account, on Stripe&rsquo;s own rolling schedule. Nobody has to release them.
-        The authoritative balance is the one in Stripe; the figures below are what KGC sold, and
-        differ by fees.
+        <strong>Stripe holds the money, not KGC.</strong> Payouts go to the bank account attached
+        to the Stripe account, on Stripe&rsquo;s schedule. The figures below are what KGC sold,
+        excluding test orders. The balance in Stripe differs by fees.
       </Banner>
 
       <StatTiles
@@ -127,6 +126,7 @@ export default async function BalancePage() {
               <strong key="v">{money(estimatedNet, s.currency)}</strong>,
             ],
           ]}
+          stackSm={false}
         />
         {/*
           Labelled an estimate three times on one screen, deliberately. A fee
@@ -134,9 +134,8 @@ export default async function BalancePage() {
           and the real one varies by card type, country and dispute.
         */}
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-          ⚠️ The fee line is an <strong>estimate</strong>. Stripe charges per transaction and the
-          real rate varies with card type and country; international cards and currency conversion
-          cost more. Take the actual figure from Stripe before it goes anywhere near a budget.
+          ⚠️ The fee line is an <strong>estimate</strong>. International cards and currency
+          conversion cost more. Take the actual figure from Stripe for a budget.
         </p>
       </Panel>
 

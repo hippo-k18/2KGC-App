@@ -5,6 +5,7 @@ import { speakerId as deriveSpeakerId } from '@kgc/scripts/src/lib/ids';
 import { appendAudit } from '@/lib/audit';
 import { buildPreview, parseCsv, SPEAKER_FIELDS, type Mapping, type RowError } from '@/lib/csv-import';
 import { db } from '@/lib/firestore';
+import { setSpeakerContact } from '@/lib/speaker-contacts';
 
 /**
  * Importing the speaker list.
@@ -175,7 +176,6 @@ export async function commitSpeakerImport(input: {
           title: (row.title ?? '').trim() || undefined,
           company: company || undefined,
           bio: (row.bio ?? '').trim() || undefined,
-          contactEmail: (row.contactEmail ?? '').trim() || undefined,
           // Only when the file supplies one, so a speaker whose headshot was
           // uploaded through the form last week keeps it.
           ...((row.photoURL ?? '').trim() ? { photoURL: row.photoURL.trim() } : {}),
@@ -189,11 +189,14 @@ export async function commitSpeakerImport(input: {
            * file header — but the model requires the array to exist, so a
            * genuinely new speaker gets an empty one.
            */
-          ...(existingId ? {} : { sessionIds: [], createdAt: new Date() }),
+          ...(existingId ? {} : { sessionIds: [], unlisted: false, createdAt: new Date() }),
           updatedAt: new Date(),
         },
         { merge: true },
       );
+      // Server-only (T252). A blank cell leaves an address alone, as above.
+      const email = (row.contactEmail ?? '').trim();
+      if (email) await setSpeakerContact(docId, email);
 
       if (existingId) updated++;
       else {

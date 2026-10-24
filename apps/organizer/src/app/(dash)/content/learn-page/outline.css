@@ -1,0 +1,528 @@
+/* Learn page editor: the outline (le-ol-) and the add block picker (le-pick-). */
+
+.le-ol {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--ink);
+  user-select: none;
+}
+
+.le-ol ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.le-ol-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding-right: 4px;
+  border-left: 3px solid transparent;
+  background: var(--surface);
+}
+
+.le-ol-row:hover {
+  background: var(--row-hover);
+}
+
+.le-ol-row.is-selected {
+  background: #e7f1fb;
+  border-left-color: #2069bc;
+}
+
+.le-ol-row.is-dragging {
+  opacity: 0.45;
+}
+
+.le-ol-row.is-section {
+  font-weight: 600;
+  border-top: 1px solid var(--line);
+}
+
+.le-ol-row.is-page {
+  font-weight: 600;
+}
+
+.le-ol-row.is-block {
+  padding-left: 18px;
+}
+
+.le-ol-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.le-ol-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.le-ol-row.is-hidden .le-ol-text {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.le-ol-kind {
+  flex: none;
+  color: var(--muted);
+}
+
+.le-ol-row.is-selected .le-ol-kind {
+  color: #2069bc;
+}
+
+.le-ol-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+}
+
+.le-ol-warn {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.le-ol-flag {
+  flex: none;
+  color: var(--muted);
+  display: inline-flex;
+}
+
+.le-ol-icon,
+.le-ol-handle,
+.le-ol-chev {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.le-ol-icon:hover,
+.le-ol-chev:hover {
+  background: rgba(32, 105, 188, 0.1);
+  color: var(--interactive);
+}
+
+.le-ol-icon:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: none;
+  color: var(--muted);
+}
+
+.le-ol-icon.is-danger:hover {
+  color: var(--danger);
+  background: rgba(208, 48, 38, 0.08);
+}
+
+.le-ol-handle {
+  width: 16px;
+  cursor: grab;
+  color: var(--faint);
+}
+
+.le-ol-chev svg {
+  transition: transform 0.12s ease;
+}
+
+.le-ol-chev[aria-expanded='false'] svg {
+  transform: rotate(-90deg);
+}
+
+.le-ol-chev-space {
+  flex: none;
+  width: 24px;
+}
+
+/*
+ * Only the selected row renders actions, and they sit beside the label rather
+ * than over it, so a hovered row is all label and a badge is never covered.
+ */
+.le-ol-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.le-ol-more-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.le-ol-more.is-open {
+  background: rgba(32, 105, 188, 0.14);
+  color: var(--interactive);
+}
+
+.le-ol-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 210px;
+  max-width: calc(100vw - 32px);
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+  font-weight: 400;
+}
+
+.le-ol-menu.is-up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.le-ol-menuitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.le-ol-menuitem svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.le-ol-menuitem:hover:not(:disabled),
+.le-ol-menuitem:focus-visible {
+  background: #eef4fb;
+  outline: none;
+}
+
+.le-ol-menuitem:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--interactive);
+}
+
+.le-ol-menuitem:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.le-ol-menuitem.is-danger,
+.le-ol-menuitem.is-danger svg {
+  color: var(--danger);
+}
+
+.le-ol-menuitem kbd {
+  margin-left: auto;
+  padding-left: 16px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.le-ol-main:focus-visible,
+.le-ol-icon:focus-visible,
+.le-ol-chev:focus-visible,
+.le-ol-handle:focus-visible,
+.le-ol-add:focus-visible,
+.le-ol-confirm button:focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: 1px;
+}
+
+.le-ol-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 8px 0 21px;
+  background: #fdf1f0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.le-ol-confirm.is-block {
+  padding-left: 39px;
+}
+
+.le-ol-confirm span {
+  flex: 1;
+}
+
+.le-ol-confirm button {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.le-ol-confirm button.is-yes {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.le-ol-addrow {
+  position: relative;
+  padding: 2px 0 6px 39px;
+}
+
+.le-ol-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 3px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--interactive);
+  cursor: pointer;
+}
+
+.le-ol-add:hover {
+  background: #e7f1fb;
+  border-color: var(--interactive);
+}
+
+.le-ol-addrow.is-section {
+  padding: 10px 8px;
+  border-top: 1px solid var(--line);
+}
+
+.le-ol-addrow.is-section .le-ol-add {
+  width: 100%;
+  justify-content: center;
+  height: 30px;
+}
+
+.le-ol-empty {
+  padding: 4px 8px 4px 39px;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.le-ol-drop {
+  position: relative;
+  height: 0;
+}
+
+.le-ol-drop::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: #2069bc;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.le-ol-drop.is-block::after {
+  left: 36px;
+}
+
+.le-ol-pickwrap {
+  position: relative;
+}
+
+/* ── Add block picker ── */
+
+.le-pick {
+  position: absolute;
+  z-index: 50;
+  top: 100%;
+  left: 0;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  margin-top: 4px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.le-pick-head {
+  margin: 0 2px 8px;
+  font-weight: 600;
+}
+
+.le-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.le-pick-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.le-pick-item:hover {
+  border-color: var(--interactive);
+  background: #f5f9fd;
+}
+
+.le-pick-item:focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: 1px;
+  border-color: var(--interactive);
+}
+
+.le-pick-thumb {
+  flex: none;
+}
+
+.le-pick-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.le-pick-label {
+  font-weight: 600;
+}
+
+.le-pick-hint {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+/* The picker floats over the whole editor, so the outline pane cannot clip it. */
+.le-pick {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  z-index: 1200;
+  width: 440px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35), 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Picker v2: search and categories (T318) ── */
+.le-pick-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 2px 8px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--muted);
+}
+.le-pick-search:focus-within { border-color: var(--interactive); box-shadow: 0 0 0 2px rgba(32, 105, 188, 0.2); }
+.le-pick-search input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+}
+.le-pick-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 2px 8px;
+}
+.le-pick-cat {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.le-pick-cat:hover { border-color: var(--interactive); }
+.le-pick-cat.is-on { background: var(--interactive); border-color: var(--interactive); color: #fff; }
+.le-pick-cat:focus-visible { outline: 2px solid var(--interactive); outline-offset: 1px; }
+.le-pick-cats[aria-disabled] .le-pick-cat { opacity: 0.6; }
+.le-pick-grid { max-height: min(56vh, 420px); overflow-y: auto; padding: 2px; }
+.le-pick-none { margin: 12px 2px; color: var(--muted); }
+.le-pick { width: 520px; }
+@media (max-width: 560px) {
+  .le-pick { width: calc(100vw - 24px); max-height: calc(100vh - 24px); overflow-y: auto; }
+  .le-pick-grid { grid-template-columns: 1fr; max-height: 52vh; }
+}
+
+/* ── Outline v2: search, several selected, column badges (T318) ── */
+.le-ol-search { position: sticky; top: 0; z-index: 2; padding: 8px 8px 6px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.le-ol-search-box { display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--muted); background: var(--surface); }
+.le-ol-search-box:focus-within { border-color: var(--interactive); box-shadow: 0 0 0 2px rgba(32, 105, 188, 0.2); }
+.le-ol-search-box input { flex: 1; min-width: 0; height: 30px; border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink); }
+.le-ol-multi { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--interactive); }
+.le-ol-link { border: 0; background: none; padding: 0; font: inherit; color: var(--interactive); text-decoration: underline; cursor: pointer; }
+.le-ol-col { flex: none; margin-left: 4px; padding: 0 5px; font-size: 10px; font-weight: 600; line-height: 16px; border-radius: 8px; background: #eef2f7; color: var(--muted); }
+
+/* A finger needs a bigger target than a pointer; the phone outline tab gets taller rows. */
+@media (max-width: 560px), (pointer: coarse) {
+  .le-ol-row { height: 40px; }
+  .le-ol-main { height: 36px; }
+  .le-ol-icon, .le-ol-chev { width: 32px; height: 32px; }
+  .le-ol-menuitem { height: 40px; }
+}

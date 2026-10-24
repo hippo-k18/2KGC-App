@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { COLLECTIONS } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { countWhereEvent } from '@/lib/data';
+import { countActiveRegistrations } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 
@@ -27,7 +26,7 @@ export default async function AttendeeLimitUpgradePage() {
   // A single `where('eventId', '==', …)` count. No second field, so no
   // composite index — the emulator would not catch a missing one and it fails
   // in production rather than here.
-  const registrations = await countWhereEvent(COLLECTIONS.registrations);
+  const registrations = await countActiveRegistrations();
 
   return (
     <>
@@ -35,15 +34,11 @@ export default async function AttendeeLimitUpgradePage() {
         title="Attendee Limit Upgrade"
         info={
           <>
-            <strong>No cap, and nothing to buy</strong>
-            <p>
-              Whova meters the attendee list and sells more of it. This dashboard bills nobody and
-              has no tiers. The limits that do exist are infrastructural, and they are listed
-              below.
-            </p>
+            <strong>No attendee limit</strong>
+            <p>This event has no cap on attendees, so there is nothing to upgrade.</p>
           </>
         }
-        tags={<Tag color="grey">nothing to buy</Tag>}
+        tags={<Tag color="grey">no limit</Tag>}
         links={[
           <Link key="a" href={ROUTES.attendees}>
             Attendees
@@ -56,32 +51,16 @@ export default async function AttendeeLimitUpgradePage() {
 
       <StatTiles
         tiles={[
-          { label: 'Registrations', value: registrations, sub: 'no ceiling applies' },
-          { label: 'Attendee cap', value: 'none', sub: 'no tier, no metering' },
-          { label: 'Cost per attendee', value: '$0', sub: 'from this dashboard' },
+          { label: 'Registrations', value: registrations },
+          { label: 'Attendee cap', value: 'none' },
         ]}
       />
 
       <Panel>
-        <h2 className="section-header">The limits that are real</h2>
-        <ul className="body-2" style={{ paddingLeft: 18 }}>
-          <li>
-            <strong>Firestore&rsquo;s free tier, not an attendee count.</strong> The project is on
-            the Spark plan: 50,000 document reads and 20,000 writes a day. A conference of a
-            thousand attendees is comfortably inside that, and the thing that would breach it is a
-            badly shaped query rather than a big list, which is why every read in this dashboard is
-            a single equality filter with the sorting done in memory.
-          </li>
-          <li>
-            <strong>Stripe takes a percentage of each ticket</strong>, which is the only per-attendee
-            cost on the money path and belongs to the ticket price rather than to this screen. The{' '}
-            <Link href={ROUTES.ordersSummary}>Orders summary</Link> has the actual figures.
-          </li>
-          <li>
-            <strong>The one hard ceiling is human.</strong> Check-in throughput at the door, and the
-            room. Neither is purchasable from here.
-          </li>
-        </ul>
+        <p className="body-2" style={{ margin: 0 }}>
+          There is no attendee limit on this event. Ticket sales and fees are on the{' '}
+          <Link href={ROUTES.ordersSummary}>Orders summary</Link>.
+        </p>
       </Panel>
 
       <GapPanel>

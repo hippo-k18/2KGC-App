@@ -61,11 +61,8 @@ export default async function VolunteerConsentFormsPage({
         title="Release & Consent Forms"
         info={
           <>
-            <strong>Recorded, not enforced</strong>
-            <p>
-              A missing waiver blocks nothing: no shift checks it and no door refuses anybody.
-              Signatures also have no expiry. A form has a version, not a renewal date.
-            </p>
+            <strong>Waivers are recorded only</strong>
+            <p>A missing waiver does not block a shift or check-in. Signatures do not expire.</p>
           </>
         }
         tags={
@@ -91,9 +88,7 @@ export default async function VolunteerConsentFormsPage({
           <Panel>
             <h2 className="section-header">{selected.title}</h2>
             <p className="body-2">
-              Version {selected.version}, {selected.status}. Every signature is stored against the
-              sha256 of the wording as it stood when it was given, and no client (this dashboard
-              included) can edit or delete one.{' '}
+              Version {selected.version}, {selected.status}. Signatures cannot be edited or deleted.{' '}
               <Link href="/attendees/call-for-volunteers/release-and-consent-forms">
                 Back to waivers
               </Link>
@@ -111,17 +106,7 @@ export default async function VolunteerConsentFormsPage({
               <Link href="/attendees/release-and-consent-forms?new=1">
                 Attendees › Release &amp; Consent Forms
               </Link>{' '}
-              and choose the <strong>Volunteers</strong> audience. One screen authors all three,
-              because only the audience differs. It will then be measured against the{' '}
-              {summary.total > 0 ? (
-                <>
-                  {summary.people} {summary.people === 1 ? 'person' : 'people'} on the{' '}
-                  <Link href="/attendees/call-for-volunteers/volunteer-manager">roster</Link>
-                </>
-              ) : (
-                <Link href="/attendees/call-for-volunteers/volunteer-manager">volunteer roster</Link>
-              )}
-              .
+              and choose the <strong>Volunteers</strong> audience.
             </div>
           </EmptyState>
         </Panel>

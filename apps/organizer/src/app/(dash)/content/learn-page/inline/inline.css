@@ -1,0 +1,808 @@
+/*
+ * Editing the Learn page where it is drawn (T329). The words keep the page's
+ * own type; a field shows a faint dashed line on hover and a ring while the
+ * caret is in it. Boxes and bars that float over the page use the dashboard's
+ * type, at their real size whatever the preview's zoom (`--le-unzoom`).
+ */
+
+/* ── Fields ────────────────────────────────────────────────────────────── */
+
+.lp-root .lp-plain {
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+  border-radius: 2px;
+  cursor: text;
+  min-width: 1ch;
+  white-space: pre-wrap;
+}
+
+/* Zero specificity, so a block's own `display: block` (a number, a name) still wins. */
+:where(.lp-root span.lp-plain:not(.lp-btn):not(.btn)) {
+  display: inline-block;
+}
+
+.lp-root .lp-plain:hover,
+.lp-root .lp-rich-field:hover .rt-content {
+  outline-color: rgb(32 105 188 / 45%);
+}
+
+.lp-root .lp-plain:focus,
+.lp-root .lp-rich-field .rt-content:focus {
+  outline: 2px solid rgb(32 105 188 / 55%);
+  outline-offset: 2px;
+}
+
+.lp-root .lp-plain:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.45;
+  font-style: italic;
+  font-weight: 400;
+  pointer-events: none;
+}
+
+/* A field's own note about its limit (T343). Over it: a red underline, and
+   the count while the caret is in it. Typing at it: the limit, briefly. */
+.lp-root .lp-plain[data-limit-note],
+.lp-root .rt-content[data-limit-note] {
+  position: relative;
+}
+/* Rich fields carry the same attributes from paste-limit.ts (T348). */
+.lp-root .lp-plain[data-limit-over],
+.lp-root .rt-content[data-limit-over] {
+  text-decoration: underline wavy #c62828;
+  text-underline-offset: 3px;
+}
+.lp-root .lp-plain[data-limit-note]:focus::after,
+.lp-root .rt-content[data-limit-note]:focus::after {
+  content: attr(data-limit-note);
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 4px;
+  z-index: 30;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #333;
+  color: #fff;
+  font: 600 12px/1.35 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-style: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  text-decoration: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.lp-root .lp-plain[data-limit-over]:focus::after,
+.lp-root .rt-content[data-limit-over]:focus::after {
+  background: #b3261e;
+}
+
+.lp-root .lp-rich-field .rt-content {
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+  border-radius: 2px;
+  min-height: 1em;
+  cursor: text;
+}
+
+.lp-root .lp-rich-field .rt-inline {
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+}
+
+.lp-root .lp-rich-field .rt-content p.is-editor-empty:first-child::before {
+  color: currentColor;
+  opacity: 0.45;
+  font-style: italic;
+}
+
+/* A list item's words sit on the line after its bold title, as on the page. */
+.lp-root .lp-inline-rich,
+.lp-root .lp-inline-rich .rt,
+.lp-root .lp-inline-rich .rt-frame,
+.lp-root .lp-inline-rich .rt-scroll,
+.lp-root .lp-inline-rich .rt-body {
+  display: inline;
+}
+
+.lp-root .lp-inline-rich .rt-content,
+.lp-root .lp-inline-rich .rt-content p {
+  display: inline;
+  margin: 0;
+}
+
+/* Room to click into an empty item. */
+.lp-root .lp-inline-rich .rt-content p.is-editor-empty {
+  display: inline-block;
+  min-width: 8ch;
+}
+
+/* ── Repeating items ───────────────────────────────────────────────────── */
+
+.lp-root .lp-item-shell {
+  position: relative;
+}
+
+.lp-root .lp-item-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  /* Over the item's own picture and its "+ Picture" (T332). */
+  z-index: 8;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 50%;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
+}
+
+/* A list item's x sits in the margin before its bullet; other items keep theirs at the top right. */
+.lp-root .lp-list > li.lp-item-shell > .lp-item-remove {
+  left: -26px;
+  right: auto;
+  top: 2px;
+}
+
+.lp-root .lp-item-shell:hover > .lp-item-remove,
+.lp-root .lp-item-shell:focus-within > .lp-item-remove {
+  display: inline-flex;
+}
+
+.lp-root .lp-item-remove:hover {
+  color: #b91c1c;
+  border-color: #b91c1c;
+}
+
+/* A question's x sits in its line, so it always takes its room and only
+   shows or hides: appearing on focus moved the page under the pointer, and a
+   click that began on the next block ended on the section (T332). */
+.lp-root .lp-acc-item summary .lp-item-remove {
+  position: static;
+  display: inline-flex;
+  visibility: hidden;
+  margin-left: 8px;
+}
+
+.lp-root .lp-item-shell > summary:hover .lp-item-remove,
+.lp-root .lp-item-shell:focus-within > summary .lp-item-remove {
+  visibility: visible;
+}
+
+.lp-root .lp-tab.lp-item-shell .lp-item-remove {
+  top: -6px;
+  right: -6px;
+}
+
+.lp-root .lp-item-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 6px 12px;
+  border: 1px dashed rgb(32 105 188 / 55%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 85%);
+  color: #1f5fa8;
+  font: 600 13px/1.2 'Open Sans', Arial, sans-serif;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.lp-root .lp-item-add:hover {
+  background: #eef5fc;
+}
+
+.lp-root .lp-item-add.is-quiet {
+  margin: 4px 0 0;
+  padding: 2px 8px;
+  border-color: transparent;
+  background: transparent;
+  font-weight: 400;
+}
+
+.lp-root .lp-item-add.is-quiet:hover {
+  border-color: rgb(32 105 188 / 45%);
+}
+
+.lp-root .lp-edit-hint {
+  margin: 6px 0 0;
+  font: 12px/1.4 'Open Sans', Arial, sans-serif;
+  color: #6b7280;
+  text-align: left;
+}
+
+.lp-root .lp-edit-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Floating boxes ────────────────────────────────────────────────────── */
+
+.lp-root .lp-link-edit,
+.lp-root .lp-img-edit,
+.lp-root .lp-li-edit {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.lp-root .lp-img-edit {
+  display: block;
+}
+
+.lp-root .lp-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: min(360px, 90vw);
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  zoom: var(--le-unzoom, 1);
+  font: 400 13px/1.4 'Open Sans', Arial, sans-serif;
+  color: #272338;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: default;
+}
+
+.lp-root .lp-pop {
+  z-index: 100;
+}
+
+.lp-root .lp-link-pop {
+  flex-direction: column;
+  align-items: stretch;
+  width: 300px;
+}
+
+.lp-root .lp-pop-label,
+.lp-root .lp-url-field label,
+.lp-root .lp-img-alt label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.lp-root .lp-pop-input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: #272338;
+}
+
+.lp-root .lp-pop-input:focus {
+  outline: none;
+  border-color: #2180b2;
+  box-shadow: 0 0 0 2px rgb(33 128 178 / 20%);
+}
+
+.lp-root .lp-pop-input[aria-invalid='true'] {
+  border-color: #b91c1c;
+}
+
+.lp-root .lp-pop-note {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.lp-root .lp-pop-error {
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.lp-root .lp-pop button {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: #272338;
+  cursor: pointer;
+}
+
+.lp-root .lp-pop button:hover {
+  background: #f1f3f5;
+}
+
+.lp-root .lp-pop button[aria-checked='true'],
+.lp-root .lp-pop button[aria-expanded='true'] {
+  border-color: #2180b2;
+  background: #e3f1f8;
+  color: #155f87;
+}
+
+.lp-root .lp-pop .lp-pop-remove {
+  color: #b91c1c;
+}
+
+.lp-root .lp-link-pop .lp-pop-remove {
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  height: auto;
+  background: none;
+}
+
+/* Image */
+
+.lp-root .lp-img-hit {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+}
+
+.lp-root .lp-img-hit:hover,
+.lp-root .lp-img-hit:focus-visible {
+  outline: 2px solid rgb(32 105 188 / 55%);
+}
+
+.lp-root .lp-person .lp-img-hit,
+.lp-root .lp-quote-photo,
+.lp-root figcaption .lp-img-edit {
+  width: auto;
+}
+
+.lp-root figcaption .lp-img-edit {
+  display: inline-block;
+  flex: none;
+}
+
+.lp-root .lp-img-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 6px 10px;
+  border: 1px dashed rgb(32 105 188 / 55%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 70%);
+  color: #1f5fa8;
+  font: 600 13px/1.2 'Open Sans', Arial, sans-serif;
+  aspect-ratio: auto !important;
+}
+
+.lp-root .lp-person .lp-img-add {
+  width: 100%;
+  aspect-ratio: 1 / 1 !important;
+  font-size: 28px;
+}
+
+.lp-root .lp-img-sizes {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.lp-root .lp-img-sizes button {
+  min-width: 34px;
+  padding: 0 6px;
+}
+
+.lp-root .lp-img-alt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.lp-root .lp-url-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  font: 400 13px/1.4 'Open Sans', Arial, sans-serif;
+  color: #272338;
+  text-align: left;
+}
+
+.lp-root .lp-video .lp-url-field,
+.lp-root .lp-edit-stack > .lp-url-field {
+  max-width: 480px;
+  margin-top: 8px;
+  zoom: var(--le-unzoom, 1);
+}
+
+/* LinkedIn */
+
+.lp-root .lp-li-edit .lp-li {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.lp-root .lp-li-edit .lp-li.is-empty {
+  opacity: 0.35;
+}
+
+.lp-root .lp-li-pop {
+  right: 0;
+  left: auto;
+  width: 280px;
+}
+
+/* On a person card the box opens above the name, over the photo: under the
+   icon it covered the role, which could not be clicked until it closed (T343). */
+@media (min-width: 701px) {
+  .lp-root .lp-person .lp-person-row {
+    position: relative;
+  }
+
+  .lp-root .lp-person .lp-li-edit {
+    position: static;
+  }
+
+  .lp-root .lp-person .lp-li-pop {
+    top: auto;
+    bottom: calc(100% + 6px);
+  }
+
+  /* A person's Photo tools sit on the photo's own lower edge, inside the
+     card: under it they covered this person's name and the next card's, and
+     took their clicks (T348). */
+  .lp-root .lp-person .lp-img-bar {
+    top: auto;
+    right: 6px;
+    bottom: 28px;
+    left: 6px;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* A long unbroken figure wraps inside its column: it ran over the next
+   item's label, and a click on its end landed there (T348). */
+.lp-root .lp-stat-value {
+  overflow-wrap: anywhere;
+}
+
+/* ── Table ─────────────────────────────────────────────────────────────── */
+
+.lp-root .lp-table-wrap {
+  position: relative;
+  padding: 0 22px 22px 0;
+}
+
+.lp-root .lp-table-edit .rt-content table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lp-root .lp-table-edit .rt-content th,
+.lp-root .lp-table-edit .rt-content td {
+  padding: 10px 12px;
+  border: 1px solid #d7dde5;
+  text-align: left;
+  vertical-align: top;
+}
+
+.lp-root .lp-table-edit .rt-content th {
+  background: #f1f4f8;
+  font-weight: 700;
+}
+
+.lp-root .lp-table-edit.is-striped .rt-content tr:nth-child(even) td {
+  background: #f7f9fb;
+}
+
+.lp-root .lp-table-plus {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #2180b2;
+  border-radius: 50%;
+  background: #fff;
+  color: #2180b2;
+  font: 700 15px/1 'Open Sans', Arial, sans-serif;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.lp-root .lp-table-wrap:hover .lp-table-plus,
+.lp-root .lp-table-wrap:focus-within .lp-table-plus {
+  opacity: 1;
+}
+
+.lp-root .lp-table-plus:hover,
+.lp-root .lp-table-plus:focus-visible {
+  background: #2180b2;
+  color: #fff;
+  opacity: 1;
+}
+
+.lp-root .lp-table-plus-col {
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.lp-root .lp-table-plus-row {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ── "+" between blocks ────────────────────────────────────────────────── */
+
+/*
+ * The + sits in the left margin, beside the line between two blocks, so it
+ * never covers words; hovering that margin (or the line) shows it. No z-index
+ * on the gap itself: every gap's + then stacks above every gap's hover zone.
+ */
+.lp-root .lp-gap {
+  position: relative;
+  height: 0;
+}
+
+.lp-root .lp-gap-btn {
+  position: absolute;
+  left: -34px;
+  top: -11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #2180b2;
+  border-radius: 50%;
+  background: #fff;
+  color: #2180b2;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 15%);
+  zoom: var(--le-unzoom, 1);
+  z-index: 22;
+}
+
+/* A thin line across the gap while the + shows. */
+.lp-root .lp-gap::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  background: #2180b2;
+  opacity: 0;
+  transition: opacity 0.12s;
+  pointer-events: none;
+}
+
+/* The hover zone: a strip of the left margin at the line, never over the words. */
+.lp-root .lp-gap::after {
+  content: '';
+  position: absolute;
+  left: -48px;
+  width: 48px;
+  top: -14px;
+  height: 28px;
+  z-index: 20;
+}
+
+.lp-root .lp-gap:hover .lp-gap-btn,
+.lp-root .lp-gap:focus-within .lp-gap-btn,
+.lp-root .lp-gap[data-open] .lp-gap-btn,
+.lp-root .lp-gap:hover::before,
+.lp-root .lp-gap[data-open]::before {
+  opacity: 1;
+}
+
+/* Hovering a block shows the + in the margin above it, so there is something to find. */
+.lp-root .lp-drop-slot:hover > .lp-gap .lp-gap-btn {
+  opacity: 0.5;
+}
+
+.lp-root .lp-gap-btn:hover,
+.lp-root .lp-gap-btn[aria-expanded='true'] {
+  background: #2180b2;
+  color: #fff;
+  opacity: 1;
+}
+
+.lp-root .lp-gap.is-last {
+  height: 22px;
+  margin-top: 4px;
+}
+
+.lp-root .lp-gap.is-last .lp-gap-btn {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0.55;
+}
+
+.lp-root .lp-gap.is-last::before {
+  top: 10px;
+}
+
+.lp-root .lp-gap.is-last::after {
+  display: none;
+}
+
+.lp-root .lp-section-empty .lp-gap.is-last .lp-gap-btn {
+  opacity: 1;
+}
+
+/* The picker a + opens, drawn over the editor rather than inside the zoomed preview. */
+.lp-gap-pick {
+  /* Inside the editor's layer: above its panes (up to 1050), below its dialogs (1100 and up). */
+  z-index: 1080;
+  overflow: auto;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 22%);
+  background: #fff;
+  font: 400 13px/1.4 'Open Sans', Arial, sans-serif;
+  color: #272338;
+  text-align: left;
+}
+
+.lp-gap-pick .le-pick {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 700px) {
+  .lp-gap-pick {
+    max-height: 75vh;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 22%);
+  }
+}
+
+/* ── On a phone: floating boxes become a sheet along the bottom ─────────── */
+
+@media (max-width: 700px) {
+  .lp-root .lp-pop {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-width: none;
+    max-height: 70vh;
+    overflow: auto;
+    transform: none;
+    border-radius: 12px 12px 0 0;
+    padding: 12px 16px 20px;
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 22%);
+  }
+
+  .lp-root .lp-item-remove,
+  .lp-root .lp-acc-item summary .lp-item-remove {
+    display: inline-flex;
+    visibility: visible;
+  }
+
+  /* Inside the item's corner, not over it: there the block's own + and "!"
+     sat on top of the first item's x, and a row of cards cut off the x of
+     the others (T343 F7). */
+  .lp-root .lp-item-remove {
+    top: 4px;
+    right: 4px;
+  }
+
+  /* On a phone there is no hover: a + shows only around the block being edited, and at the end of each section. */
+  .lp-root .lp-gap:not(.is-last) {
+    display: none;
+  }
+
+  .lp-root .lp-drop-slot:has(> .lp-block[data-selected]) > .lp-gap,
+  .lp-root .lp-drop-slot:has(> .lp-block[data-selected]) + .lp-drop-slot > .lp-gap {
+    display: block;
+  }
+
+  .lp-root .lp-gap .lp-gap-btn {
+    left: auto;
+    right: -4px;
+    opacity: 0.85;
+  }
+
+  .lp-root .lp-gap.is-last .lp-gap-btn {
+    left: 50%;
+    right: auto;
+  }
+
+  .lp-root .lp-gap::after {
+    display: none;
+  }
+}
+
+/* A link's words are a field while editing, not an <a>: keep the link's look. */
+.lp-root span.lp-textlink,
+.lp-root span.lp-btn-text {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Controls keep their real size whatever the preview's zoom. */
+.lp-root .lp-item-add,
+.lp-root .lp-edit-hint,
+.lp-root .lp-item-remove,
+.lp-root .lp-table-plus {
+  zoom: var(--le-unzoom, 1);
+}
+
+.lp-root .lp-img-edit img.lp-quote-photo {
+  width: 56px;
+  height: 56px;
+}
+
+/* The selected block's boxes sit over the + of the gap below it. */
+.lp-root .lp-drop-slot:has(> .lp-block[data-selected]) {
+  position: relative;
+  z-index: 30;
+}
+
+/* While a box is open its neighbouring + stays out of the way, and on a
+   wide screen also while words are typed. On a phone the + beside the block
+   being typed in is the only one there is, so it stays (T332). */
+.lp-root .lp-drop-slot:has(.lp-pop) > .lp-gap,
+.lp-root .lp-drop-slot:has(.lp-pop) + .lp-drop-slot > .lp-gap {
+  visibility: hidden;
+}
+
+@media (min-width: 701px) {
+  .lp-root .lp-drop-slot:has(.ProseMirror-focused) > .lp-gap,
+  .lp-root .lp-drop-slot:has(.ProseMirror-focused) + .lp-drop-slot > .lp-gap {
+    visibility: hidden;
+  }
+}
+
+/* On a phone a sheet covers the bottom of the screen: the page has room
+   below it, so the words being typed and the last + can scroll clear (T332).
+   The room is always there, not only while a sheet is open: taking it away as
+   a sheet closed moved the page under the finger that closed it (T343). */
+@media (max-width: 700px) {
+  .le-pane-preview .lp-root {
+    padding-bottom: 60vh;
+  }
+}

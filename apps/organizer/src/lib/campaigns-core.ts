@@ -46,9 +46,11 @@ export interface Suppressible {
   unsubscribedAt?: string;
   /** ISO timestamp. Present means the mailbox is dead. */
   bouncedAt?: string;
+  /** ISO timestamp. Present means the reader marked our mail as spam. */
+  complainedAt?: string;
 }
 
-export type SuppressionReason = 'unsubscribed' | 'bounced' | 'unsubscribed and bounced';
+export type SuppressionReason = 'unsubscribed' | 'bounced' | 'unsubscribed and bounced' | 'marked as spam';
 
 /**
  * Why this contact may not be emailed, or null if they may be.
@@ -59,6 +61,8 @@ export type SuppressionReason = 'unsubscribed' | 'bounced' | 'unsubscribed and b
  * was the failure the original comment on that function warned about.
  */
 export function suppressionReasonFor(c: Suppressible): SuppressionReason | null {
+  // A spam complaint outranks the rest: it is the one that costs the domain.
+  if (c.complainedAt) return 'marked as spam';
   if (c.unsubscribedAt && c.bouncedAt) return 'unsubscribed and bounced';
   if (c.unsubscribedAt) return 'unsubscribed';
   if (c.bouncedAt) return 'bounced';
@@ -119,6 +123,8 @@ export function skipReasonText(reason: SuppressionReason): string {
       return 'Excluded: this address hard-bounced. Campaign mail to it is suppressed.';
     case 'unsubscribed and bounced':
       return 'Excluded: this address unsubscribed and has also hard-bounced. Campaign mail to it is suppressed.';
+    case 'marked as spam':
+      return 'Excluded: this reader marked our mail as spam. Campaign mail to it is suppressed.';
   }
 }
 

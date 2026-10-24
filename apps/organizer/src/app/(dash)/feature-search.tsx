@@ -100,7 +100,8 @@ export function FeatureSearch({ entries }: { entries: SearchEntry[] }) {
         el instanceof HTMLInputElement ||
         el instanceof HTMLTextAreaElement ||
         el?.isContentEditable === true;
-      const shortcut = e.key === '/' ? !typing : (e.metaKey || e.ctrlKey) && e.key === 'k';
+      const shortcut =
+        e.key === '/' ? !typing && !e.metaKey && !e.ctrlKey && !e.altKey : (e.metaKey || e.ctrlKey) && e.key === 'k';
       if (!shortcut) return;
       e.preventDefault();
       input.current?.focus();

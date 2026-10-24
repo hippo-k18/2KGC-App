@@ -38,11 +38,9 @@ export default async function ExhibitorQuestionFormsPage({
       ]}
       intro={
         <p className="body-2" style={{ marginTop: 0 }}>
-          Ask for the things that decide the floor plan and the load-in: company name as it should
-          appear on signage, the booth contact&rsquo;s mobile number, whether they are shipping a
-          stand. ⚠️ Answers land on the <em>registration</em>, not on an{' '}
-          <code>exhibitors</code> record. The two collections have no link, so a purchase still
-          does not create the exhibitor profile the app lists.
+          Ask for what decides the floor plan and the load-in: the company name for signage, the
+          booth contact&rsquo;s mobile number, whether they are shipping a stand. Answers are saved
+          on the registration. They do not create an exhibitor profile.
         </p>
       }
     />

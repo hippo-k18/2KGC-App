@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { imageCensus } from '@/lib/images';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel, StatTiles } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,18 +43,10 @@ export default async function PhotoBoothPage() {
         title="Photo Booth"
         info={
           <>
-            <strong>Nothing captures or composites yet</strong>
-            <p>
-              The camera needs a development build rather than Expo Go. Storage is no longer the
-              blocker. Uploads work from this dashboard already.
-            </p>
-            <p>
-              Drawing a branded frame onto a photo on the device is the piece with no easy answer.
-              React Native has no canvas.
-            </p>
+            <strong>Not available yet</strong>
+            <p>Attendees cannot take framed photos in the app yet.</p>
           </>
         }
-        tags={<Tag color="grey">not inputted yet</Tag>}
         links={[
           <Link key="c" href="/engagement/photos/photo-collection">
             Photo Collection
@@ -70,15 +62,18 @@ export default async function PhotoBoothPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Photos taken', value: 0, sub: 'not inputted yet' },
-          { label: 'Frames', value: 0, sub: 'not inputted yet' },
+          { label: 'Photos taken', value: 0 },
+          { label: 'Frames', value: 0 },
           { label: 'Images uploaded', value: census.uploaded, sub: 'across the whole event' },
         ]}
       />
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Booth photos</h2>
-        <NotInputted what="booth photos" />
+        <EmptyState>
+          <p className="empty-title">No booth photos yet</p>
+          <p className="empty-sub">The photo booth is not available in the app yet.</p>
+        </EmptyState>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

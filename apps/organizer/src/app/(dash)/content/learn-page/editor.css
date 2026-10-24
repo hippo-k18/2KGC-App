@@ -1,0 +1,524 @@
+/*
+ * The Learn page editor's shell (T310): a full-window workspace in the
+ * dashboard's colours. The tab-strip blue for the top bar, the page grey
+ * behind the preview, the design-system blue for selection.
+ */
+
+.le-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--page-bg);
+  font-family: var(--font);
+  color: var(--ink, #333);
+  font-size: 14px;
+}
+
+.le-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 12px;
+  background: var(--topnav-bg);
+  color: #fff;
+  flex-wrap: wrap;
+}
+
+.le-bar-left,
+.le-bar-mid,
+.le-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.le-bar-left { flex: 1 1 auto; }
+.le-bar-right { justify-content: flex-end; }
+
+.le-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #fff;
+  text-decoration: none;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.le-back:hover { background: var(--topnav-hover); }
+
+.le-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.le-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.16);
+  white-space: nowrap;
+}
+.le-status-saving,
+.le-status-unsaved { background: rgba(255, 255, 255, 0.28); }
+.le-status-error,
+.le-status-conflict { background: #dd4b39; }
+
+.le-badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f39c12;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.le-group {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.le-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.le-icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
+.le-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.le-icon-btn.is-on { background: #fff; color: var(--topnav-bg); }
+
+.le-bar .btn-default { background: #fff; }
+.le-bar .whova-btn-main { background: #fff; color: var(--interactive); font-weight: 600; }
+.le-bar .whova-btn-main:hover { background: #e9ecf1; }
+.le-bar .whova-btn-main:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.le-root :focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: 2px;
+}
+.le-bar :focus-visible { outline-color: #fff; }
+
+.le-banner {
+  margin: 8px 12px 0;
+}
+.le-banner-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+/* "Load their version" asks before it throws away unsaved words (T332). */
+.le-conflict-confirm { align-items: center; }
+.le-conflict-confirm > span { flex: 1 1 100%; font-weight: 600; }
+.le-problems {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.le-flash {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 1050;
+  margin: 0;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.le-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 330px;
+}
+.le-body.is-narrow { grid-template-columns: minmax(0, 1fr); }
+
+.le-pane {
+  min-height: 0;
+  overflow: auto;
+}
+.le-pane-outline {
+  background: #fff;
+  border-right: 1px solid var(--line-strong);
+}
+.le-pane-settings {
+  background: #fff;
+  border-left: 1px solid var(--line-strong);
+}
+.le-body.is-narrow .le-pane { border: 0; }
+
+.le-pane-preview {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.le-frame {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), 0 8px 24px rgba(0, 0, 0, 0.08);
+  flex: none;
+  transition: width 0.2s ease;
+}
+
+.le-tabs {
+  display: flex;
+  background: #fff;
+  border-bottom: 1px solid var(--line-strong);
+}
+.le-tabs button {
+  flex: 1;
+  border: 0;
+  background: none;
+  padding: 12px 8px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  position: relative;
+}
+.le-tabs button.is-on {
+  color: var(--interactive);
+  border-bottom-color: var(--interactive);
+}
+.le-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f39c12;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+@media (max-width: 899px) {
+  .le-hide-narrow { display: none !important; }
+  .le-bar { gap: 6px 8px; }
+  .le-bar-left { flex-basis: 100%; }
+  .le-bar-mid { flex: 1; }
+  .le-pane-preview { padding: 8px; }
+}
+
+/* ── Dialogs ─────────────────────────────────────────────────────────────── */
+
+.le-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.le-modal {
+  background: #fff;
+  border-radius: 6px;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+.le-modal.is-wide { width: min(1080px, 100%); }
+.le-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.le-modal-head h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.le-modal-head .le-icon-btn { color: var(--muted); }
+.le-modal-head .le-icon-btn:hover { background: var(--row-hover); }
+.le-modal-body {
+  padding: 16px 18px;
+  overflow: auto;
+}
+.le-modal-body p { margin: 0 0 12px; line-height: 20px; }
+.le-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+}
+.le-muted { color: var(--muted); }
+
+.le-changes {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  max-height: 260px;
+  overflow: auto;
+}
+.le-change-group + .le-change-group { margin-top: 10px; }
+.le-change-group h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.le-change-group ul { margin: 0; padding-left: 18px; }
+.le-change-group li { line-height: 20px; }
+.le-count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.le-history {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 360px;
+}
+.le-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  max-height: 520px;
+  overflow: auto;
+}
+.le-history-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.le-history-list li:hover { background: var(--row-hover); }
+.le-history-list li.is-on {
+  background: #e7f1fb;
+  box-shadow: inset 3px 0 0 var(--interactive);
+}
+.le-history-when { font-weight: 600; }
+.le-history-who,
+.le-history-note { font-size: 12px; color: var(--muted); }
+.le-history-note { font-style: italic; }
+.le-live-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--success, #00a65a);
+  padding: 0 6px;
+  border-radius: 8px;
+}
+.le-history-preview {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--page-bg);
+  overflow: auto;
+  max-height: 520px;
+  padding: 8px;
+}
+.le-history-frame {
+  background: #fff;
+  width: fit-content;
+  margin: 0 auto;
+}
+.le-history-help { margin-top: 12px !important; font-size: 12px; }
+
+@media (max-width: 699px) {
+  .le-history { grid-template-columns: minmax(0, 1fr); }
+  .le-history-list { max-height: 200px; }
+}
+
+/*
+ * The account menu (T320). Once the bar wraps, the second row is full with
+ * undo, the widths, History and Publish, so the menu takes the right end of
+ * the first row instead, beside the title.
+ */
+@media (max-width: 899px) {
+  .le-bar { position: relative; }
+  .le-bar-left { flex-wrap: wrap; padding-right: 44px; }
+  .le-bar .acct-editor { position: absolute; right: 12px; top: 6px; }
+}
+
+/* ── v2 shell (T318) ─────────────────────────────────────────────────────── */
+
+.le-root .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.le-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.le-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: #1f2937;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+button.le-chip { cursor: pointer; }
+.le-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.le-chip.is-green .le-chip-dot { background: #16a34a; }
+.le-chip.is-amber .le-chip-dot { background: #d97706; }
+.le-chip.is-grey .le-chip-dot { background: #6b7280; }
+.le-chip.is-red { background: #fee2e2; color: #991b1b; }
+.le-chip.is-red .le-chip-dot { background: #dc2626; }
+.le-chip.is-blue .le-chip-dot { background: #2069bc; }
+
+.le-zoom { align-items: center; }
+.le-zoom-value {
+  min-width: 46px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.le-zoom-value:hover { background: rgba(255, 255, 255, 0.18); }
+.le-pane-preview[data-zoomed] { justify-content: flex-start; }
+
+.le-menu-wrap { position: relative; }
+.le-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 1100;
+  min-width: 280px;
+  padding: 6px;
+  background: #fff;
+  color: var(--ink, #333);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+.le-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.le-menu-item:hover,
+.le-menu-item:focus-visible { background: #eef4fb; outline: none; }
+.le-menu-item kbd { font-family: inherit; font-size: 11px; color: var(--muted); }
+.le-menu-item:disabled { color: var(--muted); cursor: not-allowed; background: none; }
+
+.le-banner-tight { margin: 0; }
+
+.le-bulk {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #eef4fb;
+  border-bottom: 1px solid #c7dbf1;
+  font-size: 13px;
+}
+.le-bulk strong { margin-right: 4px; color: var(--interactive); }
+.le-bulk-move select { height: 30px; font-size: 13px; }
+.le-bulk-clear { border: 0; background: none; padding: 0 4px; font: inherit; color: var(--interactive); text-decoration: underline; cursor: pointer; }
+
+.le-pane-outline { display: flex; flex-direction: column; }
+.le-pane-outline > .le-ol { flex: 1; }
+.le-ol-clip {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: #fff;
+  border-top: 1px solid var(--line);
+}
+.le-ol-cliptn {
+  flex: 1;
+  height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.le-ol-cliptn:hover:not(:disabled) { border-color: var(--interactive); color: var(--interactive); }
+.le-ol-cliptn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@media (max-width: 899px) {
+  .le-zoom { display: none; }
+  .le-chips { order: 3; }
+}
+@media (max-width: 480px) {
+  .le-bar-right { flex-wrap: wrap; }
+  .le-menu { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; min-width: 0; }
+}
+
+/* Below 1400px the page tools live in the More menu, so the bar stays one row. */
+@media (max-width: 1399px) {
+  .le-hide-mid { display: none !important; }
+}
+@media (max-width: 480px) {
+  .le-hide-phone { display: none !important; }
+  .le-bar .le-icon-btn { width: 28px; }
+}
+
+/* Restore asks first when the draft has unpublished changes (T325, E F5). */
+.le-history-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  width: 100%;
+}
+.le-history-confirm > span:first-child { flex: 1 1 240px; }
+.le-history-confirm-actions { display: flex; gap: 8px; }
+
+/* Changing a saved section from the page (T325, E F1). */
+.le-saved-edit-error { margin: 8px 0 0; color: #a94442; }

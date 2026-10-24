@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
-import { SITE } from '@/lib/site';
+import { fieldsForSessionType, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
+import { formatDeadline, SITE } from '@/lib/site';
 import { loadOwnSubmission } from '@/lib/submissions';
 import { SubmissionForm } from '../../submission-form';
 import { withdrawAction } from '../../actions';
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, noarchive: true },
 };
 
+/** Per-request, and it has to be. Reads a capability token. One author's draft must never be served to another from a cache. */
 export const dynamic = 'force-dynamic';
 
 /**
@@ -60,23 +62,35 @@ export default async function SubmissionTokenPage({
   const own = await loadOwnSubmission(payload.sid);
   if (!own) notFound();
 
+  // Min's settings name the close date; while it is unset, say "the call closes".
+  const closes = own.call.cfp
+    ? (own.call.cfp.closeDay ?? 'the call closes')
+    : (formatDeadline(own.call.closesAtLocal, own.call.timeZone) ?? own.call.closesAtLocal);
+
+  /*
+   * Submitted and waiting for a decision (T276): the page closes to this. An
+   * untold rejection arrives here as `submitted`, so it reads the same.
+   */
+  const received = own.status === 'submitted' && !own.decided;
+
   return (
     <section>
-      <div className="wrap narrow" style={{ paddingBottom: 48 }}>
+      <div className="wrap narrow cfp-page" style={{ paddingBottom: 48 }}>
         <p className="eyebrow">{own.call.title}</p>
-        <h1>{own.title || 'Your submission'}</h1>
+        <h1>{received ? 'Submission received' : own.title || 'Your submission'}</h1>
 
-        {r === 'submitted' && (
+        {received && (
           <p className="notice" role="status">
-            <strong>Submitted.</strong> We have emailed you this link. Keep it: it is how you
-            come back, and you can change anything below while the call is open.
+            <strong>Thank you, we have your submission.</strong>{' '}
+            {r === 'submitted' ? 'We have emailed you this link. ' : ''}Keep it to see what you sent
+            and, later, our decision. The submission is final and can no longer be changed.
           </p>
         )}
         {r === 'saved' && (
           <p className="notice" role="status">
             <strong>Saved as a draft.</strong> This has <strong>not</strong> been submitted and
             nobody will read it. Come back through the link we have emailed you and press{' '}
-            <em>Submit</em> before {own.call.closesAtLocal.replace('T', ' ')}.
+            <em>Submit</em> before {closes}.
           </p>
         )}
         {r === 'withdrawn' && (
@@ -87,13 +101,20 @@ export default async function SubmissionTokenPage({
         )}
         {r === 'error' && (
           <p className="notice bad" role="alert">
-            <strong>That did not work, and nothing has changed.</strong> Email{' '}
-            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and a person will sort
-            it out.
+            <strong>Something went wrong and nothing was changed.</strong> Email{' '}
+            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will help.
           </p>
         )}
 
-        {own.decided && (
+        {own.decided === 'waitlisted' && (
+          <p className="notice" role="status">
+            <strong>This is on the waiting list.</strong> The programme is full for now. If a
+            place opens we will offer it to you, and we will write to you either way. It can no
+            longer be edited.
+          </p>
+        )}
+
+        {own.decided && own.decided !== 'waitlisted' && (
           <p className={`notice ${own.decided === 'accepted' ? '' : 'warn'}`} role="status">
             <strong>
               {own.decided === 'accepted'
@@ -101,7 +122,9 @@ export default async function SubmissionTokenPage({
                 : 'This was not accepted this year.'}
             </strong>{' '}
             {own.decided === 'accepted'
-              ? 'The programme committee will be in touch about scheduling. This is not a slot yet.'
+              ? own.cfp
+                ? 'We have emailed you a link to send your bio, headshot and session details.'
+                : 'The programme committee will be in touch about scheduling. This is not a slot yet.'
               : 'We had more good submissions than we have room for. You are very welcome to submit again.'}{' '}
             It can no longer be edited.
           </p>
@@ -117,8 +140,7 @@ export default async function SubmissionTokenPage({
         {own.status === 'draft' && !own.decided && own.editable && (
           <p className="notice warn" role="status">
             <strong>This is still a draft.</strong> It has not been submitted and nobody is reading
-            it. Press <em>Submit</em> at the bottom before{' '}
-            {own.call.closesAtLocal.replace('T', ' ')}.
+            it. Press <em>Submit</em> at the bottom before {closes}.
           </p>
         )}
 
@@ -135,9 +157,8 @@ export default async function SubmissionTokenPage({
         */}
         {own.formMoved && own.editable && (
           <p className="notice">
-            The organizers have changed the questions since you started, and the form below asks
-            the current ones. Anything you have already written is kept. Read through before you
-            save.
+            The organizers have changed the questions since you started. The form shows the current
+            ones and keeps what you already wrote. Check it before you save.
           </p>
         )}
 
@@ -147,7 +168,7 @@ export default async function SubmissionTokenPage({
           <ReadOnly own={own} />
         )}
 
-        {own.editable && own.status !== 'withdrawn' && (
+        {own.withdrawable && own.status !== 'withdrawn' && (
           <form action={withdrawAction} style={{ marginTop: 28 }}>
             <input type="hidden" name="token" value={token} />
             <details>
@@ -189,9 +210,26 @@ export default async function SubmissionTokenPage({
  */
 function ReadOnly({ own }: { own: Awaited<ReturnType<typeof loadOwnSubmission>> }) {
   if (!own) return null;
+  // Only the questions this type was asked (T280 B#4): a talk has no workshop outline to show.
+  const asked = fieldsForSessionType(own.fields, own.sessionType).filter((f) => f.kind !== 'description');
   return (
     <div className="checkout">
       <h2 style={{ marginTop: 0 }}>{own.title || 'Untitled'}</h2>
+      <dl className="submission-facts">
+        {own.sessionType && (
+          <div>
+            <dt>Session Type &amp; Format</dt>
+            <dd>{typeLabel(own.sessionType)}</dd>
+          </div>
+        )}
+        {own.submittedOn && (
+          <div>
+            <dt>Submitted</dt>
+            <dd>{own.submittedOn}</dd>
+          </div>
+        )}
+      </dl>
+      <h3>Session Description</h3>
       {own.abstract
         .split(/\n\s*\n/)
         .map((para) => para.trim())
@@ -202,20 +240,36 @@ function ReadOnly({ own }: { own: Awaited<ReturnType<typeof loadOwnSubmission>> 
           </p>
         ))}
 
-      <p className="hint">
+      {own.resourceLink && (
+        <>
+          <h3>Additional Resources or Supporting Materials</h3>
+          <p>
+            <a href={own.resourceLink} rel="noopener noreferrer nofollow" target="_blank">
+              {own.resourceLink}
+            </a>
+          </p>
+        </>
+      )}
+
+      <h3>About you</h3>
+      <p>
         {own.author.name}
         {own.author.affiliation ? `, ${own.author.affiliation}` : ''}
-        {own.author.coAuthors.length > 0
-          ? ` · with ${own.author.coAuthors.map((c) => c.name).join(', ')}`
-          : ''}
       </p>
+      {own.author.coAuthors.length > 0 && (
+        <p>
+          Co-Speakers or Co-Authors:{' '}
+          {own.author.coAuthors
+            .map((c) => (c.affiliation ? `${c.name} (${c.affiliation})` : c.name))
+            .join(', ')}
+        </p>
+      )}
 
-      {own.fields.filter((f) => f.kind !== 'description').length > 0 && (
+      {asked.length > 0 && (
         <>
           <h3>Your answers</h3>
           <dl>
-            {own.fields
-              .filter((f) => f.kind !== 'description')
+            {asked
               .map((f) => {
                 const value = own.answers[f.id];
                 return (
@@ -223,7 +277,7 @@ function ReadOnly({ own }: { own: Awaited<ReturnType<typeof loadOwnSubmission>> 
                     <dt style={{ fontWeight: 600 }}>{f.prompt}</dt>
                     <dd style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
                       {value === undefined || value === ''
-                        ? '—'
+                        ? 'No answer'
                         : typeof value === 'boolean'
                           ? value
                             ? 'Yes'

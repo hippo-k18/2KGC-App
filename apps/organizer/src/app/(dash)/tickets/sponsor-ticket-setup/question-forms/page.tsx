@@ -24,10 +24,8 @@ export default async function SponsorQuestionFormsPage({
       ]}
       intro={
         <p className="body-2" style={{ marginTop: 0 }}>
-          A sponsorship is agreed in a conversation and confirmed by a purchase, so the useful
-          questions here are the ones that conversation always forgets: the marketing contact who is
-          not the person paying, the legal entity name for the invoice, and who to send the
-          deliverables checklist to. None of those is derivable from a card payment.
+          Useful questions for sponsors: the marketing contact, the legal entity name for the
+          invoice, and who should get the deliverables checklist.
         </p>
       }
     />

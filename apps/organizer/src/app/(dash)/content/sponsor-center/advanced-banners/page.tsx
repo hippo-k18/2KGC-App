@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { listSponsors, TIER_ORDER } from '@/lib/data';
+import { tierName } from '@kgc/shared';
+import { listSponsors } from '@/lib/data';
+import { sponsorTiers } from '@/lib/event';
 import { publicUrl } from '@/lib/webpages';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
@@ -34,17 +36,13 @@ export const dynamic = 'force-dynamic';
  * and it is the order the website already uses.
  */
 
-/**
- * The size weights: Platinum 3, Gold 2, Silver 1, Bronze 1. Written down rather
- * than guessed at each call site, because a rotation that treats a platinum
- * sponsor as a bronze one is a refund conversation.
- */
-const WEIGHT: Record<string, number> = { platinum: 3, gold: 2, silver: 1, bronze: 1 };
 
 export default async function AdvancedBannersPage() {
   await requireOrganizer();
 
-  const sponsors = await listSponsors();
+  const [sponsors, tiers] = await Promise.all([listSponsors(), sponsorTiers()]);
+  /** The logo size each tier was given on Sponsor Tiering. */
+  const WEIGHT: Record<string, number> = Object.fromEntries(tiers.map((t) => [t.id, t.size]));
 
   const withLogo = sponsors.filter((s) => s.hasLogo);
   const withoutLogo = sponsors.filter((s) => !s.hasLogo);
@@ -60,7 +58,7 @@ export default async function AdvancedBannersPage() {
    */
   const totalWeight = withLogo.reduce((n, s) => n + (WEIGHT[s.tier] ?? 1), 0);
 
-  const byTier = TIER_ORDER.map((tier) => {
+  const byTier = tiers.map(({ id: tier }) => {
     const inTier = sponsors.filter((s) => s.tier === tier);
     const shown = inTier.filter((s) => s.hasLogo);
     return {
@@ -78,11 +76,10 @@ export default async function AdvancedBannersPage() {
         title="Advanced Banners"
         info={
           <>
-            <strong>Derived, not configured</strong>
+            <strong>Set by tier</strong>
             <p>
-              The order below comes from each sponsor&rsquo;s tier, so it cannot disagree with the
-              records. The app has no banner surface for it to drive yet. The public sponsor page
-              is the one that applies it today.
+              The order below comes from each sponsor&rsquo;s tier. The public sponsor page uses
+              it. Banners in the app are not available yet.
             </p>
           </>
         }
@@ -111,18 +108,16 @@ export default async function AdvancedBannersPage() {
       <StatTiles
         tiles={[
           { label: 'Sponsors', value: sponsors.length, sub: `${withLogo.length} with a logo` },
-          { label: 'Would rotate', value: withLogo.length, sub: 'on a surface that exists' },
+          { label: 'Would rotate', value: withLogo.length, sub: 'have a logo' },
           { label: 'No logo', value: withoutLogo.length, sub: 'cannot be shown at all' },
           { label: 'No link', value: noLink.length, sub: 'shown, but not clickable' },
         ]}
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What a tier buys, as a number</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Weight by tier</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
-          Platinum 3, Gold 2, Silver 1, Bronze 1. Share counts only sponsors with a logo: one
-          without cannot appear at all, and including it would overstate the total and understate
-          everybody else.
+          Platinum 3, Gold 2, Silver 1, Bronze 1. Share counts only sponsors with a logo.
         </p>
         <Table
           cols={[
@@ -132,8 +127,8 @@ export default async function AdvancedBannersPage() {
             { key: 's', label: 'Share of impressions', className: 'cell-fill' },
           ]}
           rows={byTier.map((r) => [
-            <Tag key="t" small color={r.tier === 'platinum' ? 'purple' : 'blue'}>
-              {r.tier}
+            <Tag key="t" small color={r.tier === tiers[0]?.id ? 'purple' : 'blue'}>
+              {tierName(tiers, r.tier)}
             </Tag>,
             r.weight,
             <span key="n">
@@ -152,15 +147,14 @@ export default async function AdvancedBannersPage() {
       <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>The rotation, in order</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
-          Derived from the tier on each sponsor record, not stored. A second per-sponsor weight
-          would mean two answers to &ldquo;why is one above the other?&rdquo;, and the stored one
-          would go stale the moment a sponsor upgrades.
+          The order follows each sponsor&rsquo;s tier. To move a sponsor, change their tier in{' '}
+          <Link href="/content/sponsor-center/sponsor-manager">Sponsor Manager</Link>.
         </p>
         {sponsors.length === 0 ? (
           <NotInputted
             what="sponsors"
             action={
-              <Link className="whova-btn-main" href="/content/sponsor-center/sponsor-manager?new=1">
+              <Link className="whova-btn-main primary" href="/content/sponsor-center/sponsor-manager?new=1">
                 Add the first one
               </Link>
             }
@@ -183,8 +177,8 @@ export default async function AdvancedBannersPage() {
                 {s.website ?? 'no link'}
               </div>
             </div>,
-            <Tag key="t" small color={s.tier === 'platinum' ? 'purple' : 'blue'}>
-              {s.tier}
+            <Tag key="t" small color={s.tier === tiers[0]?.id ? 'purple' : 'blue'}>
+              {tierName(tiers, s.tier)}
             </Tag>,
             !s.hasLogo ? (
               <span key="s" style={{ color: 'var(--danger)', fontSize: 12 }}>

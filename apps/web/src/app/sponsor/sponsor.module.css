@@ -1,0 +1,145 @@
+/*
+ * The sponsor page's opening (T173): a sponsor's quote, set large and calm, and
+ * six photos from past conferences under it.
+ *
+ * The photo cells have a fixed aspect ratio and the images fill them, so
+ * nothing moves when the photos arrive.
+ */
+
+.hero {
+  padding-block: clamp(40px, 7vw, 88px) clamp(40px, 6vw, 72px);
+  background: var(--white);
+}
+
+/* The page's h1, set as a small label above the quote. */
+.title {
+  margin: 0 0 clamp(16px, 2.4vw, 28px);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--highlight);
+}
+
+.quote {
+  margin: 0;
+}
+
+.quote blockquote {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.quote blockquote p {
+  margin: 0;
+  font-size: clamp(1.6rem, 3.6vw, 2.6rem);
+  line-height: 1.22;
+  letter-spacing: -0.015em;
+  font-weight: 700;
+  color: var(--navy);
+  /* Measured in the quote's own size, so about two or three lines on a laptop. */
+  max-width: 24ch;
+  text-wrap: balance;
+}
+
+.quote figcaption {
+  margin-top: clamp(14px, 2vw, 22px);
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.photos {
+  list-style: none;
+  margin: clamp(32px, 5vw, 56px) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (width >= 768px) {
+  .photos {
+    gap: 14px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.photos li {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--wash);
+}
+
+.photo {
+  object-fit: cover;
+}
+
+/* ------------------------------------------------------- call to action -- */
+
+/*
+ * One call to action after the photos (T187): a short heading and line on the
+ * left, one large button on the right, on the page's wash. The button is 56px
+ * tall at every width, and full width on a phone.
+ */
+.cta {
+  display: grid;
+  gap: 24px 48px;
+  align-items: center;
+  padding: clamp(28px, 4vw, 48px);
+  border-radius: 18px;
+  background: var(--wash);
+}
+
+@media (width >= 900px) {
+  .cta {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.ctaTitle {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--navy);
+}
+
+.ctaLine {
+  margin: 10px 0 0;
+  max-width: 46ch;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--body);
+}
+
+.ctaActions {
+  display: grid;
+  gap: 12px;
+}
+
+@media (width >= 560px) {
+  .ctaActions {
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+  }
+}
+
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 14px 32px;
+  font-size: 1.05rem;
+  border-width: 2px;
+}
+
+/* The call for speakers sits at the end of the page now, so a jump to #speak
+   (the footer's "Speak at KGC") scrolls it under the sticky header. Clear the
+   header plus 4px, as `.day-head` does. */
+.speak {
+  scroll-margin-top: calc(var(--header-h) + 4px);
+}

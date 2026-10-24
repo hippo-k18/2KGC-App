@@ -17,6 +17,28 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
+// Watching the workspace root also lets Metro bundle anything under it, and
+// expo-go-share.sh puts this Metro on a public link (T240: any repo .js or
+// .json file, `.secrets/` included, could be fetched as a bundle). The app
+// bundles only app/, packages/ and node_modules/, so keep the rest out of
+// Metro's file map: secrets, env files, the websites, the Cloud Functions,
+// the Node scripts and the tests. A file that is not in the map cannot be
+// resolved, bundled or served as an asset, whatever the URL asks for.
+const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const root = escape(workspaceRoot + path.sep);
+const app = escape(projectRoot + path.sep);
+const notBundled = [
+  new RegExp(`^${root}\\.secrets(/.*)?$`),
+  /(^|\/)\.env(\.[^/]*)?$/,
+  new RegExp(`^${root}(apps|functions|scripts|tests|demo|docs)(/.*)?$`),
+  new RegExp(`^${app}(scripts|preview-out|expo-go-out)(/.*)?$`),
+];
+const defaultBlockList = config.resolver.blockList;
+config.resolver.blockList = [
+  ...(Array.isArray(defaultBlockList) ? defaultBlockList : defaultBlockList ? [defaultBlockList] : []),
+  ...notBundled,
+];
+
 // `packages/shared` is `"type": "module"` so the Node-based scripts in
 // `scripts/` can import it, and Node's ESM resolver requires a file extension
 // on relative imports — hence its `index.ts` re-exporting `./models.js`.

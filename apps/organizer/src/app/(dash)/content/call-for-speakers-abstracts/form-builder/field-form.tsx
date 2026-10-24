@@ -1,7 +1,9 @@
 'use client';
 
-import { useActionState, useState } from 'react';
-import type { CallFormFieldDef } from '@kgc/shared';
+import { useState } from 'react';
+import type { CallFormFieldDef, CallSessionType } from '@kgc/shared';
+import { typeLabel } from '@kgc/scripts/src/lib/cfp-core';
+import { draftWarnings, type BuiltInLayout } from '@kgc/scripts/src/lib/cfp-form-layout';
 import {
   CheckboxField,
   Field,
@@ -10,7 +12,8 @@ import {
   Select,
   SubmitButton,
   Textarea,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../../form';
 import { saveFieldAction } from './actions';
 
@@ -31,26 +34,48 @@ import { saveFieldAction } from './actions';
  * The id is what answers are stored under. Rewording is safe and the field keeps
  * its id; *retyping* it is not, and mints a new form version. The distinction is
  * on screen because it is the one an organizer cannot infer.
+ *
+ * ── A question that repeats one is flagged as it is typed (T301) ──────────
+ *
+ * The same check the builder's list runs, against the built-in fields and the
+ * call's other questions. A warning, never a refusal: it is shown above the
+ * save button and saving still works.
  */
 export function FieldForm({
   callId,
   existing,
   answered,
+  sessionTypes = [],
+  layout,
+  questions = [],
 }: {
   callId: string;
   existing?: CallFormFieldDef;
   /** How many submissions already answered this question. Zero for a new one. */
   answered: number;
+  /** The call's session types. With two or more, a question can be limited to some. */
+  sessionTypes?: CallSessionType[];
+  /** The fields the website always draws, for the duplicate check. */
+  layout?: BuiltInLayout;
+  /** The call's questions as saved, for the duplicate check. */
+  questions?: Pick<CallFormFieldDef, 'id' | 'prompt' | 'kind'>[];
 }) {
-  const [state, action] = useActionState<FormState, FormData>(saveFieldAction, {});
   const [kind, setKind] = useState<CallFormFieldDef['kind']>(existing?.kind ?? 'short-text');
+  const [prompt, setPrompt] = useState(existing?.prompt ?? '');
+  const [state, action] = useFormAction(
+    saveFieldAction,
+    {},
+    // The form clears after adding a question, and the warning has to clear with it.
+    { resetOnSuccess: !existing, onSuccess: () => !existing && setPrompt('') },
+  );
+  const warnings = layout && prompt.trim() ? draftWarnings({ id: existing?.id, prompt, kind }, questions, layout) : [];
 
   const hasOptions = kind === 'choice' || kind === 'multi-choice';
   const hasLength = kind === 'short-text' || kind === 'long-text';
   const isDescription = kind === 'description';
 
   return (
-    <form action={action}>
+    <ActionForm run={action}>
       <input type="hidden" name="callId" value={callId} />
       {existing && <input type="hidden" name="id" value={existing.id} />}
       <FormBanner state={state} />
@@ -59,10 +84,9 @@ export function FieldForm({
         <p className="whova-banner warning" role="note" style={{ marginBottom: 16 }}>
           <span>
             ⚠️ {answered} {answered === 1 ? 'submission has' : 'submissions have'} already answered
-            this. Rewording the prompt is safe. The question keeps its id and the answers stay
-            attached. Changing its <strong>type</strong>, its options, or removing it mints a new
-            form version, and those {answered} answers stay pinned to the version they were given
-            under. Nothing is destroyed either way.
+            this. Rewording the prompt keeps those answers attached. Changing its{' '}
+            <strong>type</strong> or its options, or removing it, starts a new form version. The
+            earlier answers are kept under the old version.
           </span>
         </p>
       )}
@@ -90,17 +114,29 @@ export function FieldForm({
         required
         rows={isDescription ? 4 : 2}
         defaultValue={existing?.prompt}
-        placeholder={
-          isDescription
-            ? 'Your abstract will be read by three reviewers. Aim for 300 words.'
-            : 'What is the main contribution of this work?'
-        }
+        onChange={(e) => setPrompt(e.target.value)}
         hint={
           isDescription
             ? 'Shown between questions. It asks nothing and stores nothing.'
-            : 'What the submitter reads. The answer is stored under an id derived from this the first time it is saved, and that id never changes afterwards.'
+            : 'What the submitter reads.'
         }
       />
+
+      {warnings.length > 0 && (
+        <div className="whova-banner warning" role="note" style={{ marginTop: -4 }}>
+          <div>
+            {warnings.map((w) => (
+              <p key={w} style={{ margin: 0 }}>
+                ⚠️ {w}
+              </p>
+            ))}
+            <p style={{ margin: '4px 0 0' }}>
+              Applicants would be asked twice. If this asks for something different, you can still
+              save it.
+            </p>
+          </div>
+        </div>
+      )}
 
       {hasOptions && (
         <Textarea
@@ -109,7 +145,6 @@ export function FieldForm({
           rows={5}
           required
           defaultValue={(existing?.options ?? []).join('\n')}
-          placeholder={'Research\nIndustry case study\nTooling'}
           hint="One per line. At least two, and no two the same."
         />
       )}
@@ -148,15 +183,39 @@ export function FieldForm({
           defaultChecked={existing?.required ?? false}
           description={
             kind === 'consent'
-              ? 'A consent box cannot be required. Consent that cannot be withheld is not consent, and the validator refuses it. If this is a condition of submitting, make it a plain checkbox and say so in the prompt.'
+              ? 'A consent box cannot be required. If agreeing is a condition of submitting, use a plain checkbox and say so in the prompt.'
               : 'A submitter cannot finish without answering. Nothing stops them saving a draft.'
           }
         />
       )}
 
+      {sessionTypes.length > 1 && (
+        /*
+         * T249: one call takes talks and workshops, and a workshop is asked
+         * things a talk is not. None ticked means everyone is asked. A
+         * required question is only required of the types it is asked of.
+         */
+        <fieldset style={{ border: 0, margin: '0 0 16px', padding: 0 }}>
+          <legend className="whova-form-label">Ask only of</legend>
+          {sessionTypes.map((t) => (
+            <CheckboxField
+              key={t}
+              name="sessionTypes"
+              value={t}
+              label={typeLabel(t)}
+              defaultChecked={existing?.sessionTypes?.includes(t) ?? false}
+            />
+          ))}
+          <p className="body-2" style={{ margin: '4px 0 0' }}>
+            Leave all unticked to ask everyone. Changing this does not start a new form version:
+            answers already given are kept.
+          </p>
+        </fieldset>
+      )}
+
       <FormActions>
         <SubmitButton>{existing ? 'Save question' : 'Add question'}</SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }

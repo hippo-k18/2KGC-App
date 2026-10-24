@@ -16,6 +16,20 @@ interface ScreenProps {
   /** Horizontal gutter. Set false for edge-to-edge lists. */
   padded?: boolean;
   contentStyle?: ViewStyle;
+  /**
+   * For a screen with a text field below the fold. iOS then insets the scroll
+   * view by the keyboard and scrolls the focused field clear of it, which is
+   * what a `KeyboardAvoidingView` would do with one more wrapper. Off by
+   * default, because a screen that already has that wrapper would move twice.
+   * Android resizes the window itself and web has no keyboard to avoid.
+   */
+  avoidKeyboard?: boolean;
+  /**
+   * Let a tap on a button reach it while the keyboard is up, rather than only
+   * dismissing the keyboard. Implied by `avoidKeyboard`; set it on its own for
+   * a screen that moves its content clear of the keyboard some other way.
+   */
+  persistTaps?: boolean;
 }
 
 /**
@@ -29,6 +43,8 @@ export function Screen({
   grouped = false,
   padded = true,
   contentStyle,
+  avoidKeyboard = false,
+  persistTaps = false,
 }: ScreenProps) {
   const colors = useTheme();
   const background = grouped ? colors.groupedBackground : colors.background;
@@ -48,6 +64,8 @@ export function Screen({
     <ScrollView
       style={{ backgroundColor: background }}
       contentInsetAdjustmentBehavior="automatic"
+      automaticallyAdjustKeyboardInsets={avoidKeyboard}
+      keyboardShouldPersistTaps={avoidKeyboard || persistTaps ? 'handled' : undefined}
       contentContainerStyle={inner}>
       {children}
     </ScrollView>

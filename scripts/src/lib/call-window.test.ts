@@ -3,8 +3,10 @@ import {
   callWindow,
   canEditSubmission,
   daysUntilClose,
+  pickShownCall,
   submissionRefusal,
   type CallWindowInput,
+  type ShownCallCandidate,
 } from "./call-window.js";
 
 /**
@@ -129,5 +131,49 @@ describe("daysUntilClose", () => {
 
   it("floors at zero rather than going negative", () => {
     expect(daysUntilClose(call(), CLOSES + 10 * DAY)).toBe(0);
+  });
+});
+
+describe("pickShownCall (T277)", () => {
+  const NOW = Date.UTC(2026, 10, 15);
+  const DAY = 86_400_000;
+  const call = (id: string, over: Partial<ShownCallCandidate> = {}): ShownCallCandidate => ({
+    id,
+    eventId: "kgc-2027",
+    showOnWebsite: true,
+    status: "published",
+    opensAtMs: NOW - 10 * DAY,
+    closesAtMs: NOW + 60 * DAY,
+    updatedAtMs: NOW - DAY,
+    ...over,
+  });
+
+  it("picks the one call with Show on website ticked", () => {
+    expect(pickShownCall([call("a", { showOnWebsite: false }), call("b")], "kgc-2027", NOW)?.id).toBe("b");
+  });
+
+  it("shows nothing when no call has it", () => {
+    expect(pickShownCall([call("a", { showOnWebsite: false }), call("b", { showOnWebsite: undefined })], "kgc-2027", NOW)).toBeNull();
+  });
+
+  it("ignores a draft, a cancelled call, a closed call and another event's call", () => {
+    const calls = [
+      call("draft", { status: "draft" }),
+      call("cancelled", { status: "cancelled" }),
+      call("closed", { closesAtMs: NOW - DAY }),
+      call("other", { eventId: "kgc-2026" }),
+    ];
+    expect(pickShownCall(calls, "kgc-2027", NOW)).toBeNull();
+  });
+
+  it("still shows a published call that has not opened yet", () => {
+    expect(pickShownCall([call("soon", { opensAtMs: NOW + DAY })], "kgc-2027", NOW)?.id).toBe("soon");
+  });
+
+  it("takes the one saved last if two ever have it, whatever order they come in", () => {
+    const older = call("older", { updatedAtMs: NOW - 5 * DAY });
+    const newer = call("newer", { updatedAtMs: NOW - DAY });
+    expect(pickShownCall([older, newer], "kgc-2027", NOW)?.id).toBe("newer");
+    expect(pickShownCall([newer, older], "kgc-2027", NOW)?.id).toBe("newer");
   });
 });

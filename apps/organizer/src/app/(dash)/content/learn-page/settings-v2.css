@@ -1,0 +1,306 @@
+/* Learn page editor: v2 block, section and page settings (le-v2-). Builds on settings.css. */
+
+.le-v2-lead {
+  margin: 0 0 12px;
+}
+
+/* ── colour field ── */
+
+.le-v2-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 6px;
+}
+
+.le-v2-color {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 4px 2px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.le-v2-color:hover {
+  background: var(--row-hover);
+}
+
+.le-v2-color input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.le-v2-color:has(input:checked) {
+  border-color: var(--interactive);
+}
+
+.le-v2-color:has(input:focus-visible) {
+  outline: 2px solid var(--interactive);
+  outline-offset: 2px;
+}
+
+.le-v2-color-chip {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+}
+
+.le-v2-color-chip.default {
+  background: linear-gradient(135deg, var(--surface) 45%, var(--line-strong) 45% 55%, var(--surface) 55%);
+}
+
+.le-v2-color-chip.custom {
+  background: conic-gradient(#c2410c, #f5c518, #0f766e, #2069bc, #7c3aed, #c2410c);
+}
+
+.le-v2-color-name {
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+  color: var(--body);
+  overflow-wrap: anywhere;
+}
+
+.le-v2-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.le-v2-picker {
+  flex: none;
+  width: 40px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.le-v2-picker:focus-visible,
+.le-v2-range:focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: 2px;
+}
+
+.le-v2-custom-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.le-v2-hex.whova-text-input {
+  width: 96px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.le-v2-clear {
+  display: inline-block;
+  margin-top: 8px;
+}
+
+/* ── link name ── */
+
+.le-v2-anchor .le-set-field {
+  margin-bottom: 8px;
+}
+
+.le-v2-anchor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+/* ── items ── */
+
+.le-v2-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 8px;
+}
+
+@media (max-width: 360px) {
+  .le-v2-pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+.le-v2-row-toggle {
+  padding-left: 8px;
+}
+
+.le-v2-add-image {
+  margin-top: 4px;
+}
+
+.le-v2-add-image .le-set-img {
+  margin-bottom: 6px;
+}
+
+/* Logos take their alt text from the company name field, so the image field's own box is hidden. */
+.le-v2-noalt .le-set-img > .le-set-field {
+  display: none;
+}
+
+.le-v2-select.whova-text-input {
+  width: 100%;
+  padding-right: 28px;
+}
+
+.le-v2-number.whova-text-input {
+  width: 120px;
+}
+
+/* ── callout tones ── */
+
+.le-v2-tone {
+  display: block;
+  width: 18px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.le-v2-tone-info {
+  background: #e3f5fd;
+  border-left: 3px solid #2069bc;
+}
+
+.le-v2-tone-success {
+  background: #e6f4ea;
+  border-left: 3px solid #1e7e34;
+}
+
+.le-v2-tone-warning {
+  background: #fff7e8;
+  border-left: 3px solid #c27c00;
+}
+
+.le-v2-tone-brand {
+  background: #1b2942;
+  border-left: 3px solid #8dccee;
+}
+
+/* ── overlay slider ── */
+
+.le-v2-range {
+  display: block;
+  width: 100%;
+  margin: 4px 0 0;
+  accent-color: var(--interactive);
+}
+
+/* ── share preview ── */
+
+.le-v2-share {
+  margin: 0 0 14px;
+}
+
+.le-v2-share-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.le-v2-share-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1200 / 630;
+  object-fit: cover;
+  background: var(--surface-alt);
+}
+
+.le-v2-share-img.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.le-v2-share-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-alt);
+  min-width: 0;
+}
+
+.le-v2-share-domain {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: lowercase;
+}
+
+.le-v2-share-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.le-v2-share-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--body);
+}
+
+.le-v2-tablegrid { overflow-x: auto; margin-bottom: 8px; }
+.le-v2-tablegrid table { border-collapse: collapse; }
+.le-v2-tablegrid td { padding: 2px; vertical-align: middle; }
+.le-v2-tablegrid input { min-width: 96px; }
+.le-v2-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+
+/* Saved section picker on a linked (reusable) block. */
+.le-v2-lib-now { margin: 0 0 8px; line-height: 18px; color: var(--ink); }
+.le-v2-lib-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.le-v2-lib-choice {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d6dbe0;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.le-v2-lib-choice:hover { border-color: var(--interactive); }
+.le-v2-lib-choice.is-current { border-color: var(--interactive); background: #eef5fb; }
+.le-v2-lib-name { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.le-v2-lib-meta { flex: none; font-size: 12px; color: var(--body); }
+.le-v2-lib-error p { margin: 0 0 6px; color: var(--danger, #dd4b39); }
+.le-v2-lib-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+
+/* A linked section's look comes from the library (T325, E F4): shown, not changeable. */
+.le-set-lockable { margin: 0; padding: 0; border: 0; min-width: 0; }
+.le-set-lockable:disabled { opacity: 0.6; }

@@ -1,0 +1,448 @@
+/*
+ * Learn page editor v2 extras (T318): the section templates and library, the
+ * schedule and preview link dialogs, the first-run tour and the help panel.
+ * Every class starts with le-x- so this file cannot restyle the shell.
+ */
+
+.le-x-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.le-x-tabs button:focus-visible,
+.le-x-filter button:focus-visible,
+.le-x-tpl:focus-visible,
+.le-x-acc button:focus-visible,
+.le-x-banner-link:focus-visible,
+.le-x-tour-card :focus-visible,
+.le-x-help:focus-visible {
+  outline: 2px solid var(--interactive);
+  outline-offset: 2px;
+}
+
+.le-x-gap-top { margin-top: 12px; }
+
+/* ── Add a section ───────────────────────────────────────────────────────── */
+
+.le-x-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  margin: -4px 0 14px;
+}
+.le-x-tabs button {
+  border: 0;
+  background: none;
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+.le-x-tabs button:hover { color: var(--ink, #333); }
+.le-x-tabs button.is-on {
+  color: var(--interactive);
+  border-bottom-color: var(--interactive);
+}
+
+.le-x-tabpanel { min-height: 280px; }
+
+.le-x-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.le-x-filter button {
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  border-radius: 14px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink, #333);
+  cursor: pointer;
+}
+.le-x-filter button:hover { background: var(--row-hover); }
+.le-x-filter button.is-on {
+  background: var(--interactive);
+  border-color: var(--interactive);
+  color: #fff;
+}
+
+.le-x-tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.le-x-tpl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.le-x-tpl:hover {
+  border-color: var(--interactive);
+  background: #f7fafd;
+}
+.le-x-tpl-thumb {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-bottom: 4px;
+}
+.le-x-tpl-name { font-weight: 600; }
+.le-x-tpl-hint {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+}
+
+.le-x-empty {
+  max-width: 460px;
+  margin: 40px auto;
+  text-align: center;
+}
+
+.le-x-lib {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.le-x-lib-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 12px 14px;
+}
+.le-x-lib-row + .le-x-lib-row { border-top: 1px solid var(--line); }
+.le-x-lib-main {
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.le-x-lib-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.le-x-lib-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.le-x-lib-rename {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.le-x-lib-rename .whova-text-input { flex: 1; min-width: 0; }
+.le-x-lib-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 14px;
+}
+.le-x-lib-insert {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.le-x-lib-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+.le-x-lib-manage {
+  display: flex;
+  gap: 12px;
+  align-self: center;
+}
+.le-x-lib-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+.le-x-danger-link { color: var(--danger, #dd4b39) !important; }
+
+.le-x-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: #fdf3f2;
+  border: 1px solid #f2c6c0;
+}
+.le-x-confirm > span {
+  flex: 1 1 220px;
+  line-height: 18px;
+}
+.le-x-lib-uses {
+  flex-basis: 100%;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* ── Schedule ───────────────────────────────────────────────────────────── */
+
+.le-x-sched-now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border-radius: 4px;
+  background: #e7f1fb;
+}
+.le-x-sched-now p { margin: 0 !important; }
+.le-x-sched-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+}
+.le-x-sched-form .whova-form-group { flex: 1 1 160px; }
+.le-x-sched-zone {
+  font-size: 12px;
+  margin-top: -4px !important;
+}
+.le-x-field-error {
+  color: var(--danger, #dd4b39);
+  font-weight: 600;
+}
+
+.le-x-sched-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #e7f1fb;
+  border-bottom: 1px solid #c9dff4;
+  color: #154a86;
+  font-size: 13px;
+}
+.le-x-sched-banner svg { flex: none; }
+.le-x-banner-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--interactive);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── Preview link ───────────────────────────────────────────────────────── */
+
+.le-x-link-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.le-x-link-input {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.le-x-live {
+  min-height: 18px;
+  margin: 4px 0 0 !important;
+  font-size: 12px;
+  color: var(--muted);
+}
+.le-x-link-manage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.le-x-danger-text { color: var(--danger, #dd4b39); }
+
+/* ── Tour ───────────────────────────────────────────────────────────────── */
+
+.le-x-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+}
+.le-x-tour-shade {
+  position: absolute;
+  inset: 0;
+}
+.le-x-tour-shade.is-dim { background: rgba(0, 0, 0, 0.45); }
+.le-x-tour-ring {
+  position: fixed;
+  border-radius: 6px;
+  border: 2px solid #fff;
+  outline: 3px solid var(--interactive);
+  /* The rest of the window dims around the ring. */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+.le-x-tour-card {
+  position: fixed;
+  width: min(340px, calc(100vw - 32px));
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+.le-x-tour-count {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.le-x-tour-title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.le-x-tour-body {
+  margin: 0 0 14px;
+  line-height: 20px;
+}
+.le-x-tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.le-x-tour-nav {
+  display: flex;
+  gap: 8px;
+}
+.le-x-tour-skip { color: var(--muted) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .le-x-tour-ring { transition: none; }
+}
+
+/* On a phone the card is a sheet along the bottom, so it never covers the ring sideways. */
+@media (max-width: 600px) {
+  .le-x-tour-card {
+    top: auto !important;
+    left: 0 !important;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    border-radius: 12px 12px 0 0;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Help panel ─────────────────────────────────────────────────────────── */
+
+.le-x-help {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1050;
+  width: min(380px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-left: 1px solid var(--line-strong);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+}
+.le-x-help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.le-x-help-head h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.le-x-help-head .le-icon-btn { color: var(--muted); }
+.le-x-help-head .le-icon-btn:hover { background: var(--row-hover); }
+.le-x-help-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 16px 20px;
+}
+.le-x-help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.le-x-acc {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.le-x-acc-item + .le-x-acc-item { border-top: 1px solid var(--line); }
+.le-x-acc h3 { margin: 0; font-size: 14px; }
+.le-x-acc button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.le-x-acc button:hover { background: var(--row-hover); }
+.le-x-acc button svg {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.le-x-acc-item.is-open button svg { transform: rotate(180deg); }
+.le-x-acc-panel { padding: 0 12px 12px; }
+.le-x-acc-panel p {
+  margin: 0;
+  line-height: 20px;
+  color: var(--body, #444);
+}
+.le-x-help-contact {
+  margin: 16px 0 0;
+  font-size: 13px;
+}
+
+/* ── Narrow screens ─────────────────────────────────────────────────────── */
+
+@media (max-width: 899px) {
+  .le-x-tpl-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 599px) {
+  .le-x-tpl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .le-x-tpl { padding: 8px; }
+  .le-x-lib-actions { width: 100%; }
+  .le-x-link-row { flex-wrap: wrap; }
+  .le-x-link-input { flex-basis: 100%; }
+  .le-x-help { width: 100vw; border-left: 0; }
+}

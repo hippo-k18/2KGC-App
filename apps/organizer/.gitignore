@@ -1,5 +1,6 @@
 # Next.js build output and dev cache.
 .next/
+.next-*/
 out/
 next-env.d.ts
 

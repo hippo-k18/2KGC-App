@@ -54,6 +54,8 @@ export interface NavNode {
 export const NAV: NavNode[] = [
   { name: "content", title: "Content", slug: "content", widthClass: "small", children: [
     { name: "basics", title: "Basics", slug: "basics" },
+    // Not Whova's: the KGC | Learn page editor, for the website's Learn page (T309).
+    { name: "learn_page", title: "Learn Page", slug: "learn-page" },
     { name: "branding_center", title: "Branding Center", slug: "branding-center", children: [
       { name: "app_branding", title: "App Branding", slug: "app-branding" },
       { name: "customize_resources", title: "Customize Resources", slug: "customize-resources" },
@@ -71,7 +73,14 @@ export const NAV: NavNode[] = [
       { name: "message_speakers", title: "Message Speakers", slug: "message-speakers" },
       { name: "speaker_release_consent", title: "Release & Consent Forms", slug: "release-and-consent-forms" }
     ] },
-    { name: "call_for_speakers", title: "Call For Speakers/Abstracts", slug: "call-for-speakers-abstracts" },
+    // Not Whova's: the call's own screens, named as the call's header links name them, so Dates and emails is in the rail (T293).
+    { name: "call_for_speakers", title: "Call For Speakers/Abstracts", slug: "call-for-speakers-abstracts", children: [
+      { name: "cfp_weekly_review", title: "Weekly review", slug: "review" },
+      { name: "cfp_dates_emails", title: "Dates and emails", slug: "rolling-review" },
+      { name: "cfp_submissions", title: "Submissions", slug: "submissions" },
+      { name: "cfp_submission_form", title: "Submission form", slug: "form-builder" },
+      { name: "cfp_reviewers", title: "Reviewers", slug: "reviewers" }
+    ] },
     { name: "exhibitor_center", title: "Exhibitor Center", slug: "exhibitor-center", children: [
       { name: "exhibitor_manager", title: "Exhibitor Manager", slug: "exhibitor-manager" },
       { name: "exhibitor_messages", title: "Message Exhibitors", slug: "message-exhibitors" },
@@ -131,7 +140,8 @@ export const NAV: NavNode[] = [
       { name: "meet_ups", title: "Meet-ups", slug: "meet-ups" },
       { name: "discussion_topics", title: "Discussion Topics", slug: "discussion-topics" },
       { name: "social_groups", title: "Social Groups", slug: "social-groups" },
-      { name: "attendee_matchmaking", title: "Attendee Matchmaking", slug: "attendee-matchmaking" }
+      { name: "attendee_matchmaking", title: "Attendee Matchmaking", slug: "attendee-matchmaking" },
+      { name: "community_reports", title: "Reports", slug: "reports" }
     ] },
     { name: "gamification", title: "Gamification", slug: "gamification", tag: "hot" },
     { name: "meetings", title: "1-1 Meeting Scheduler", slug: "1-1-meeting-scheduler" },
@@ -184,7 +194,7 @@ export const NAV: NavNode[] = [
   ] },
   { name: "tickets", title: "Tickets", slug: "tickets", widthClass: "large", children: [
     { name: "ticket_setup", title: "Ticket Setup", slug: "ticket-setup", tag: "step", tagLabel: "Step 1", children: [
-      { name: "create_tickets_attendee", title: "1.1 Create Tickets", slug: "1-1-create-tickets" },
+      { name: "create_tickets_attendee", title: "1.1 Create & Edit Tickets", slug: "1-1-create-tickets" },
       { name: "group_tickets", title: "Create Group Tickets", slug: "create-group-tickets" },
       { name: "question_form", title: "1.2 Question Forms", slug: "1-2-question-forms" },
       { name: "event_reg_confirm", title: "1.3 Confirmation Emails", slug: "1-3-confirmation-emails" },
@@ -245,7 +255,7 @@ export const NAV: NavNode[] = [
       { name: "ticket_tiering", title: "Ticket Tiering", slug: "ticket-tiering" },
       { name: "attendee_categories", title: "Attendee Categories", slug: "attendee-categories" }
     ] },
-    { name: "hubspot_guide", title: "HubSpot connection guide", slug: "hubspot-connection-guide" },
+    { name: "hubspot_guide", title: "HubSpot", slug: "hubspot-connection-guide" },
     { name: "memberclicks_export_guide", title: "MemberClicks connection guide", slug: "memberclicks-connection-guide" },
     { name: "zapier_export_guide", title: "Export to AMS/CRM", slug: "export-to-ams-crm" }
   ] },
@@ -307,7 +317,8 @@ export const NAV: NavNode[] = [
       { name: "post_event_access_duration", title: "Post Event Access Duration", slug: "post-event-access-duration" },
       { name: "code_access_control", title: "Code Access Control", slug: "code-access-control" }
     ] },
-    { name: "report", title: "Report", slug: "report" }
+    { name: "report", title: "Report", slug: "report" },
+    { name: "email_log", title: "Email Log", slug: "email-log" }
   ] }
 ];
 
@@ -320,6 +331,7 @@ export const NAV: NavNode[] = [
  */
 export const IMPLEMENTED = new Set<string>([
   'content/basics',
+  'content/learn-page',
   'content/agenda-center/session-manager',
   'content/agenda-center/track-manager',
   'content/speaker-center/speaker-manager',
@@ -328,6 +340,7 @@ export const IMPLEMENTED = new Set<string>([
   'attendees/manage-attendees/attendees',
   'attendees/check-in-and-checkout/check-in',
   'tools/report',
+  'tools/email-log',
   'tickets/ticket-setup/1-1-create-tickets',
   'tickets/orders-and-transactions/summary',
   'tickets/orders-and-transactions/attendee-orders',
@@ -347,6 +360,7 @@ export const IMPLEMENTED = new Set<string>([
   'engagement/community/discussion-topics',
   'engagement/community/social-groups',
   'engagement/community/attendee-matchmaking',
+  'engagement/community/reports',
   'marketing/event-webpages/agenda-webpage/general-purpose',
   'marketing/event-webpages/speaker-webpage',
   'marketing/event-webpages/sponsor-webpage/sponsor-list',
@@ -403,6 +417,11 @@ export const IMPLEMENTED = new Set<string>([
   'content/branding-center/customize-resources',
   'content/branding-center/web-app-speaker-page',
   'content/call-for-speakers-abstracts',
+  'content/call-for-speakers-abstracts/review',
+  'content/call-for-speakers-abstracts/rolling-review',
+  'content/call-for-speakers-abstracts/submissions',
+  'content/call-for-speakers-abstracts/form-builder',
+  'content/call-for-speakers-abstracts/reviewers',
   'content/exhibitor-center/message-exhibitors',
   'content/exhibitor-center/outreach-campaigns',
   'content/fair-center/fair-manager',
@@ -495,7 +514,7 @@ export const IMPLEMENTED = new Set<string>([
 ]);
 
 /** Nodes we added that Whova has no equivalent for. Rendered with an `ours` tag. */
-export const OURS = new Set<string>([]);
+export const OURS = new Set<string>(['engagement/community/reports']);
 
 export interface Resolved {
   node: NavNode;
@@ -544,6 +563,7 @@ export function counts(): { total: number; implemented: number } {
  */
 export const ROUTES = {
   basics: '/content/basics',
+  learnPage: '/content/learn-page',
   sessionManager: '/content/agenda-center/session-manager',
   trackManager: '/content/agenda-center/track-manager',
   speakerManager: '/content/speaker-center/speaker-manager',
@@ -552,6 +572,7 @@ export const ROUTES = {
   attendees: '/attendees/manage-attendees/attendees',
   checkIn: '/attendees/check-in-and-checkout/check-in',
   report: '/tools/report',
+  emailLog: '/tools/email-log',
   /** Kept under its Whova-era name so copied server actions revalidate correctly. */
   warRoom: '/tools/report',
   createTickets: '/tickets/ticket-setup/1-1-create-tickets',
@@ -564,7 +585,9 @@ export const ROUTES = {
   discountCodes: '/tickets/ticket-setup/discount-codes',
   analyticsExports: '/attendees/manage-attendees/analytics-and-exports',
   moderateBoard: '/tools/moderator-tools/community-board',
+  communityReports: '/engagement/community/reports',
   qaManager: '/content/agenda-center/session-qanda-manager',
+  streamingSetup: '/virtual-and-hybrid/online-session-manager/streaming-setup',
 } as const;
 
 /**

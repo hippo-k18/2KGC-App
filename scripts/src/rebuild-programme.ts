@@ -241,6 +241,8 @@ async function main() {
       name: s.name,
       displayOrder: i,
       sessionIds: [],
+      // Explicit: the app lists speakers by `unlisted == false` (T252).
+      unlisted: false,
       ...(s.company ? { company: s.company } : {}),
       ...(s.role ? { title: s.role } : {}),
       ...(s.featured ? { featured: true } : {}),

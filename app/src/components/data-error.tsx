@@ -82,24 +82,18 @@ function copyFor(error: unknown, subject: string): Copy {
         icon: 'lock',
         title: 'Your pass has not reached this device',
         message:
-          `The server refused to send ${subject}. Access is carried in the token this ` +
-          'device received when you signed in, and that can be up to an hour behind ' +
-          'your registration. Try again, or sign out and sign in again. If it still ' +
-          'fails, the registration desk can check your ticket.',
-        short:
-          `The server refused to send ${subject}. This device's sign-in token is ` +
-          'older than your registration. Try again, or sign out and sign in again.',
-        retryLabel: 'Refresh access and try again',
+          `Could not load ${subject}. Try again, or sign out and sign in again. If it ` +
+          'still fails, see the registration desk.',
+        short: `Could not load ${subject}. Try again, or sign out and sign in again.`,
+        retryLabel: 'Try again',
         offerSignOut: true,
       };
     case 'signed-out':
       return {
         icon: 'person.slash',
         title: 'You are signed out',
-        message:
-          `Loading ${subject} needs a signed-in account, and this device no longer ` +
-          'has one. Sign in again to carry on.',
-        short: `Loading ${subject} needs a signed-in account. Sign in again to carry on.`,
+        message: `Sign in again to load ${subject}.`,
+        short: `Sign in again to load ${subject}.`,
         retryLabel: 'Try again',
         offerSignOut: true,
       };
@@ -107,26 +101,17 @@ function copyFor(error: unknown, subject: string): Copy {
       return {
         icon: 'wifi.slash',
         title: 'No connection',
-        message:
-          `Could not reach the server to load ${subject}. Nothing is wrong with your ` +
-          'registration; it will load once you are back online.',
-        short:
-          `Could not reach the server to load ${subject}. Nothing is wrong with your ` +
-          'registration; it will load once you are back online.',
+        message: `Could not load ${subject}. It will load once you are back online.`,
+        short: `Could not load ${subject}. It will load once you are back online.`,
         retryLabel: 'Try again',
         offerSignOut: false,
       };
     case 'misconfigured':
       return {
         icon: 'exclamationmark.triangle',
-        title: `Could not query ${subject}`,
-        message:
-          'The server rejected the query itself, which means this build of the app ' +
-          'is missing a database index for it. Nothing you can do from here changes ' +
-          'that, so please tell someone at the registration desk.',
-        short:
-          'The server rejected the query itself; a database index is missing. ' +
-          'Please tell someone at the registration desk.',
+        title: `Could not load ${subject}`,
+        message: 'Something is wrong on our side. Please tell the registration desk.',
+        short: 'Something is wrong on our side. Please tell the registration desk.',
         retryLabel: 'Try again',
         offerSignOut: false,
       };
@@ -134,13 +119,8 @@ function copyFor(error: unknown, subject: string): Copy {
       return {
         icon: 'exclamationmark.triangle',
         title: `Could not load ${subject}`,
-        message:
-          'The reason is not one this screen recognises, so it is quoted below ' +
-          'exactly as it arrived. Try again, and tell the registration desk if it ' +
-          'keeps happening.',
-        short:
-          'The reason is not one this screen recognises; the code is below. Try ' +
-          'again, and tell the registration desk if it keeps happening.',
+        message: 'Try again. If it keeps happening, tell the registration desk.',
+        short: 'Try again. If it keeps happening, tell the registration desk.',
         retryLabel: 'Try again',
         offerSignOut: false,
       };

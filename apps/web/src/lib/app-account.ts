@@ -4,7 +4,12 @@ import { getAuth } from 'firebase-admin/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firestore';
 import { COLLECTIONS, type RegistrationDoc, type UserDoc } from '@kgc/shared';
-import { provisionAttendeeAccount, uidForEmail, type ProvisionResult } from './app-account-core';
+import {
+  endAppAccessIfNoTicket,
+  provisionAttendeeAccount,
+  uidForEmail,
+  type ProvisionResult,
+} from './app-account-core';
 import { recordError } from './errors';
 
 /**
@@ -68,6 +73,26 @@ export async function provisionPurchaserAccount(input: {
   }
 
   return result;
+}
+
+/**
+ * After a refund or dispute withdrew tickets: end app access for each address
+ * left with no active ticket. See `endAppAccessIfNoTicket` for who keeps it.
+ *
+ * Never throws, like the provisioning it undoes. A refund that has already
+ * moved money must not turn into a webhook 5xx over an Auth call, so a failure
+ * is recorded in `auditLog` for a person to act on.
+ */
+export async function endAppAccessAfterWithdrawal(emails: (string | null | undefined)[]): Promise<string[]> {
+  const revoked: string[] = [];
+  for (const email of new Set(emails.filter((e): e is string => Boolean(e)))) {
+    try {
+      if ((await endAppAccessIfNoTicket(getAuth(), db(), email)) === 'revoked') revoked.push(email);
+    } catch (err) {
+      await recordError('account.revoke', err, { path: 'users', id: email });
+    }
+  }
+  return revoked;
 }
 
 /**

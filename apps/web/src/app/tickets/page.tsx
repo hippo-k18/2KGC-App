@@ -1,16 +1,22 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { siteEvent, ticketSalesOpen } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { tiersOrNull } from '@/lib/catalogue';
 import { formatPrice, type Tier } from '@/lib/tickets';
+import { monthName } from '@kgc/shared';
 import s from './tickets.module.css';
+import { TicketSalesClosed } from './sales-closed';
+import { termsPublished } from '@/lib/terms-core';
+import { INVOICE_PUBLIC } from '@/lib/invoice-public';
 
 export const metadata: Metadata = {
-  title: 'Tickets',
+  title: 'Knowledge Graph Conference Tickets',
   description:
     'All Access, Main Conference, Workshops and Virtual tickets for the Knowledge Graph Conference 2027.',
 };
 
+/** Per-request, and it has to be. Prices and how many of each tier are left. `catalogue.ts` refuses to degrade quietly for exactly this reason: a stale price is indistinguishable from a correct one at the moment a card is charged, and a tier that sold out a minute ago must not still be on sale. */
 export const dynamic = 'force-dynamic';
 
 /**
@@ -34,151 +40,136 @@ export const dynamic = 'force-dynamic';
  *
  * ── The shape ─────────────────────────────────────────────────────────────
  *
- * Two panels on one line at 2/3 and 1/3 — the flagship and Main Conference —
- * then the rest as rows. Adapted from `options/v8`; `tickets.module.css` header
- * carries the reasoning and the reductions.
- *
- * ⚠️ **The two rows below are meant to be partly cut off at the fold.** That is
- * the point of the sizing, not a layout that ran out of room: a page ending
- * cleanly under the top line reads as a page with two tickets on it, and
- * Workshops and Virtual are then never found. If you add vertical space here,
- * check what the fold does at 900px before you keep it.
+ * Three cards with one structure, the dearest one featured, each with its
+ * details folded behind "What's included". `tickets.module.css` says why.
  */
 
 /**
- * The flagship: name, price and button on one line, contents in columns below.
+ * One ticket card. The same structure for all three tickets.
  *
- * The button says "Choose", not "Choose All Access (VIP)". With the tier name
- * in it the button came to 301px, the three items on the strip totalled 683px
- * inside 670px, and the whole block wrapped to three lines — 115px instead of
- * 59px, which is most of the height the rows below need to reach the fold. The
- * name it would have repeated is six inches to its left. `aria-label` carries
- * the full phrase, so nothing is lost to a screen reader reading the button out
- * of context.
+ * At rest it shows only what a buyer compares: the name, the price (with the
+ * phase it belongs to and the Super Early Bird price it replaced), a one-line
+ * summary and Choose. Everything the ticket includes sits behind "What's
+ * included", which the owner asked for on 2026-09-07 (expandable cards, less
+ * text) and again on 2026-09-27 when the page had filled back up.
+ *
+ * `featured` changes colour only: the navy card and the orange button.
+ * `<details>` gives the disclosure its expanded state and keyboard handling for
+ * free, with no client JavaScript.
+ *
+ * Two parts: `cardMain` (the head, the price block and the summary) and the
+ * details. On a laptop the first row's cards share row tracks for the head,
+ * price and summary through `subgrid`, so those lines match across both cards,
+ * and put the details on a row of their own, so opening one card grows that
+ * card alone (T034, T038). The layout variants place them.
  */
-function LeadPanel({ tier }: { tier: Tier }) {
-  /*
-   * The grouped shape is the panel's structure. A group with items becomes a
-   * column; a group that is only a heading — "KGC Video Library Subscription
-   * (3 months)" — becomes the line under them, because an empty column with a
-   * rule over it reads as something that failed to load.
+function TicketCard({
+  tier,
+  featured = false,
+  layout,
+}: {
+  tier: Tier;
+  featured?: boolean;
+  /**
+   * Where the card sits: `wide` is All Access and `narrow` Main Conference,
+   * side by side at 50/50 on the first row (the names are older than the
+   * split), and `row` is Virtual across the full width underneath. The markup
+   * is the same for all three; only the CSS differs.
    */
-  const groups = tier.groups?.length ? tier.groups : [{ heading: '', items: [...tier.includes] }];
-  const columns = groups.filter((g) => g.items && g.items.length > 0);
-  const extras = groups.filter((g) => !g.items || g.items.length === 0).map((g) => g.heading);
+  layout: 'wide' | 'narrow' | 'row';
+}) {
+  /*
+   * The same content each card showed before its details were folded away:
+   * the featured card its grouped list, with heading-only groups ("KGC Video
+   * Library Subscription (3 months)") under "Also included"; the others their
+   * flat `includes`, whose copy differs from their `groups`.
+   */
+  const grouped = featured && tier.groups?.length ? tier.groups : null;
+  const columns = grouped
+    ? grouped.filter((g) => g.items?.length)
+    : [{ heading: '', items: [...tier.includes] }];
+  const extras = grouped ? grouped.filter((g) => !g.items?.length).map((g) => g.heading) : [];
+  const addOns = tier.addOns?.length
+    ? `Add ${tier.addOns
+        .map((a) => `${a.name} for ${formatPrice(a.priceCents, tier.currency)}`)
+        .join(' or ')} at checkout.`
+    : null;
 
   return (
-    <article className={s.lead} aria-labelledby="lead-name">
-      <div className={s.leadHead}>
-        <h2 id="lead-name" className={s.leadName}>
-          {tier.name}
-        </h2>
-        <p className={s.leadPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
-
-        {tier.onSale ? (
-          <Link
-            className={s.leadCta}
-            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
-            aria-label={`Choose ${tier.name}`}
-          >
-            Choose
-          </Link>
-        ) : (
-          <p className={s.leadClosed}>{tier.unavailableReason ?? 'Not available'}</p>
-        )}
-      </div>
-
-      <div className={s.leadBody}>
-        {columns.map((g, i) => (
-          <div className={s.group} key={g.heading || i}>
-            {g.heading ? <h3 className={s.groupHead}>{g.heading}</h3> : null}
-            <ul className={s.groupItems}>
-              {(g.items ?? []).map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
+    <article
+      className={`${s.card} ${s[layout]}${featured ? ` ${s.featured}` : ''}`}
+      aria-labelledby={`name-${tier.id}`}
+    >
+      <div className={s.cardMain}>
+        <div className={s.cardTop}>
+          <div className={s.cardTitle}>
+            <h2 id={`name-${tier.id}`} className={s.cardName}>
+              {tier.name}
+            </h2>
+            {tier.badge ? <p className={s.badge}>{tier.badge}</p> : null}
           </div>
-        ))}
-        {extras.length > 0 && (
-          <p className={s.extras}>
-            <span className={s.extrasLabel}>Also included</span>
-            {extras.map((heading) => (
-              <span className={s.extrasItem} key={heading}>
-                {heading}
-              </span>
-            ))}
+
+          {tier.onSale ? (
+            <Link
+              className={s.cta}
+              href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
+              aria-label={`Choose ${tier.name}`}
+            >
+              Choose
+            </Link>
+          ) : (
+            <p className={s.closed}>{tier.unavailableReason ?? 'Not available'}</p>
+          )}
+        </div>
+
+        <div className={s.priceBlock}>
+        <div className={s.priceRow}>
+          <p className={s.price}>{formatPrice(tier.priceCents, tier.currency)}</p>
+          {tier.phase ? <p className={s.phase}>{tier.phase}</p> : null}
+        </div>
+        {tier.earlierPhases?.map((e) => (
+          <p className={s.earlier} key={e.name}>
+            <s aria-label={`${e.name} price ${formatPrice(e.priceCents, tier.currency)}, no longer available`}>
+              {formatPrice(e.priceCents, tier.currency)}
+            </s>{' '}
+            {e.name}
+            {e.soldOut ? ', sold out' : ''}
           </p>
-        )}
-      </div>
-    </article>
-  );
-}
-
-/**
- * Main Conference, in the third beside the flagship.
- *
- * `includes` flat rather than `groups`: there is one column of room here, and
- * group headings in a single narrow column are rules with one item under each.
- */
-function SecondPanel({ tier }: { tier: Tier }) {
-  return (
-    <article className={s.second} aria-labelledby="second-name">
-      <h2 id="second-name" className={s.secondName}>
-        {tier.name}
-      </h2>
-      <p className={s.secondPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
-
-      <ul className={s.secondItems}>
-        {tier.includes.map((line) => (
-          <li key={line}>{line}</li>
         ))}
-      </ul>
+        </div>
 
-      {tier.onSale ? (
-        <p className={s.secondCta}>
-          <Link
-            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
-            aria-label={`Choose ${tier.name}`}
-          >
-            Choose
-          </Link>
-        </p>
-      ) : (
-        <p className={s.secondClosed}>{tier.unavailableReason ?? 'Not available'}</p>
-      )}
+        <p className={s.summary}>{tier.tagline}</p>
+      </div>
+
+        <details className={s.more}>
+          <summary className={s.moreToggle}>
+            What’s included<span className="sr-only"> in {tier.name}</span>
+          </summary>
+          <div className={s.moreBody}>
+            {columns.map((g, i) => (
+              <div key={g.heading || i}>
+                {g.heading ? <h3 className={s.groupHead}>{g.heading}</h3> : null}
+                <ul className={s.items}>
+                  {(g.items ?? []).map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {extras.length > 0 ? (
+              <div>
+                <h3 className={s.groupHead}>Also included</h3>
+                <ul className={s.items}>
+                  {extras.map((heading) => (
+                    <li key={heading}>{heading}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {addOns ? <p className={s.addOn}>{addOns}</p> : null}
+          </div>
+        </details>
     </article>
-  );
-}
-
-/** One row: identity and price, everything it includes, and the way in. */
-function AlternativeRow({ tier }: { tier: Tier }) {
-  return (
-    <li className={s.alt}>
-      <div className={s.altIdent}>
-        <h3 className={s.altName}>{tier.name}</h3>
-        <p className={s.altPrice}>{formatPrice(tier.priceCents, tier.currency)}</p>
-      </div>
-
-      <ul className={s.altItems}>
-        {tier.includes.map((line) => (
-          <li key={line}>{line}</li>
-        ))}
-      </ul>
-
-      <div className={s.altAction}>
-        {tier.onSale ? (
-          <Link
-            className={s.altCta}
-            href={`/tickets/checkout?tier=${encodeURIComponent(tier.id)}`}
-            aria-label={`Choose ${tier.name}`}
-          >
-            Choose
-          </Link>
-        ) : (
-          <p className={s.altClosed}>{tier.unavailableReason ?? 'Not available'}</p>
-        )}
-      </div>
-    </li>
   );
 }
 
@@ -187,6 +178,10 @@ export default async function TicketsPage({
 }: {
   searchParams: Promise<{ cancelled?: string }>;
 }) {
+  if (!(await ticketSalesOpen())) return <TicketSalesClosed />;
+  const ev = await siteEvent();
+  // Links to /terms only once it is published. See `lib/terms-core.ts`.
+  const terms = termsPublished();
   const params = await searchParams;
 
   /**
@@ -197,12 +192,20 @@ export default async function TicketsPage({
   const tiers = (await tiersOrNull()) ?? [];
 
   /*
-   * The two panels are the two dearest tiers, by price, rather than by id or by
-   * the `featured` flag. Four tiers carry `featured`, and an id written into a
-   * layout is an id that is wrong the first time somebody edits the catalogue.
+   * Dearest first, by price rather than by id or the `featured` flag, so the
+   * order survives an edit to the catalogue. The dearest card is the featured
+   * one.
    */
   const ranked = [...tiers].sort((a, b) => b.priceCents - a.priceCents);
-  const [lead, second, ...rest] = ranked;
+
+  /*
+   * The soonest day any ticket on sale gets dearer. Only the month is said,
+   * never the new price.
+   */
+  const risesOn = tiers
+    .filter((t) => t.onSale && t.risesOn)
+    .map((t) => t.risesOn!)
+    .sort()[0];
 
   return (
     <>
@@ -210,8 +213,11 @@ export default async function TicketsPage({
         <header className={s.head}>
           <h1 className={s.h1}>Tickets</h1>
           <p className={s.orient}>
-            {SITE.datesLong} at {SITE.venueShort}.
+            {ev.datesShort} at {ev.venueShort}.
           </p>
+          {risesOn ? (
+            <p className={s.rise}>Prices will increase in {monthName(risesOn)}</p>
+          ) : null}
 
           {params.cancelled && (
             <p className={s.cancelled}>
@@ -220,24 +226,41 @@ export default async function TicketsPage({
           )}
         </header>
 
-        {lead ? (
+        {ranked.length > 0 ? (
           <>
-            <div className={s.top}>
-              <LeadPanel tier={lead} />
-              {second && <SecondPanel tier={second} />}
+            <div className={s.cards}>
+              {ranked.map((t, i) => (
+                <TicketCard
+                  key={t.id}
+                  tier={t}
+                  featured={i === 0}
+                  layout={i === 0 ? 'wide' : i === 1 ? 'narrow' : 'row'}
+                />
+              ))}
             </div>
-
-            {rest.length > 0 && (
-              <ul className={s.altRows}>
-                {rest.map((t) => (
-                  <AlternativeRow key={t.id} tier={t} />
-                ))}
-              </ul>
+            {INVOICE_PUBLIC && (
+              <>
+                {/*
+                  The invoice route, on the page rather than only in the questions
+                  below (T147). A company that cannot pay by card did not find it
+                  at the bottom of an FAQ; one quiet row under the cards, the same
+                  shape as them, so it does not compete with Choose.
+                */}
+                <div className={s.invoice}>
+                  <p className={s.invoiceText}>
+                    <strong>Buying for a team?</strong> Pay by invoice with a PO number, on net 14
+                    to 60 terms.
+                  </p>
+                  <Link className={s.cta} href="/tickets/invoice">
+                    Pay by invoice
+                  </Link>
+                </div>
+              </>
             )}
           </>
         ) : (
           <p className={s.empty}>
-            Ticket sales for {SITE.name} have not opened yet. Write to{' '}
+            Ticket sales for {ev.name} have not opened yet. Write to{' '}
             <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> and we will tell you
             the moment they do.
           </p>
@@ -258,12 +281,30 @@ export default async function TicketsPage({
             <summary>Can I transfer my ticket to someone else?</summary>
             <div className="answer">
               <p>
-                Yes, up to a week before the conference. Mail{' '}
+                Yes, until April 26, 2027, a week before the conference. Mail{' '}
                 <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> with the new
                 attendee’s details and we will move the registration.
+                {terms && (
+                  <>
+                    {' '}
+                    The <Link href="/terms#transfers">terms</Link> have the details.
+                  </>
+                )}
               </p>
             </div>
           </details>
+
+          {terms && (
+            <details>
+              <summary>Can I get a refund?</summary>
+              <div className="answer">
+                <p>
+                  Refunds and cancellations are set out in the{' '}
+                  <Link href="/terms#refunds">terms</Link>.
+                </p>
+              </div>
+            </details>
+          )}
 
           <details>
             <summary>Is there a student rate?</summary>
@@ -283,8 +324,8 @@ export default async function TicketsPage({
             <summary>What if I use a different email address at work?</summary>
             <div className="answer">
               <p>
-                Sign in with either and use the claim code from your confirmation page. We can
-                attach alternate addresses to one registration.
+                Buy with the one you want your ticket on. If you need both, write to us and we will
+                attach the second address to your registration.
               </p>
             </div>
           </details>
@@ -292,10 +333,17 @@ export default async function TicketsPage({
           <details>
             <summary>Can we pay by invoice?</summary>
             <div className="answer">
-              <p>
-                Yes. <Link href="/tickets/invoice">Request one here</Link>. Net-14 to net-60 terms,
-                with a PO number on the invoice.
-              </p>
+              {INVOICE_PUBLIC ? (
+                <p>
+                  Yes. <Link href="/tickets/invoice">Request one here</Link>. Net-14 to net-60
+                  terms, with a PO number on the invoice.
+                </p>
+              ) : (
+                <p>
+                  Email us at <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> for
+                  group or invoice billing.
+                </p>
+              )}
             </div>
           </details>
         </div>
@@ -315,7 +363,7 @@ export default async function TicketsPage({
               </div>
               <div>
                 <p className="k">Address</p>
-                <p className="v">Cornell Tech &amp; globally online</p>
+                <p className="v">Jay Conference Bryant Park &amp; globally online</p>
               </div>
             </div>
           </div>

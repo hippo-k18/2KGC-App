@@ -1,27 +1,42 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import type Stripe from 'stripe';
-import { COLLECTIONS, EVENT_ID, type EntitlementDoc, type OrderDoc } from '@kgc/shared';
+import { COLLECTIONS, ticketLabel, type EntitlementDoc, type OrderDoc, type RegistrationDoc } from '@kgc/shared';
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
+import { currentHolder, releaseAdmission, removeOrderExtras, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
 import { cartLines } from '@/app/tickets/cart-order';
-import { splitAcrossSeats } from '@/app/tickets/seats-core';
-import { provisionPurchaserAccount } from '@/lib/app-account';
+import { ticketingInvoice, websiteCheckout } from '@/lib/checkout-source';
+import { noteIgnoredStripe } from '@/lib/stripe-ignored';
+import { splitByWeight } from '@/app/tickets/seats-core';
+import { endAppAccessAfterWithdrawal, provisionPurchaserAccount } from '@/lib/app-account';
 import {
   grantOrderEntitlements,
   uidForEmail,
   withdrawOrderEntitlements,
 } from '@/lib/app-account-core';
 import { incrementSold, tierFulfilment } from '@/lib/catalogue';
-import { sendPurchaseConfirmation, sendRefundConfirmation } from '@/lib/email';
+import {
+  sendPurchaseConfirmation,
+  sendRefundConfirmation,
+  sendTicketWithdrawn,
+  type SendOutcome,
+} from '@/lib/email';
+import { claimConfirmation, confirmationsOutstanding, sendClaimed } from '@/lib/fulfil-order';
+import { isOrderSettledError } from '@kgc/scripts/src/lib/fulfilment';
+import { countOrderSeatsOnce } from '@kgc/scripts/src/lib/order-claims';
 import { recordError, recordWarning } from '@/lib/errors';
 import { db } from '@/lib/firestore';
-import { fulfilOrder } from '@/lib/fulfil-order';
+import { kickHubspot, kickHubspotForOrder } from '@/lib/hubspot-trigger';
+import { fulfilCheckoutSession } from '@/lib/checkout-fulfil';
 import { seatsFromInvoice } from '@/lib/invoicing';
 import { mintOrderToken } from '@/lib/order-token';
 import {
   cancelRegistrationByOrder,
+  cancelUnpaidOrder,
   ensureRegistration,
+  invoiceOrderId,
   markInvoiceOrderPaid,
+  orderIdFor,
   seatsFromOrder,
 } from '@/lib/registrations';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
@@ -131,28 +146,50 @@ export async function POST(req: NextRequest) {
     case 'checkout.session.async_payment_failed':
     case 'checkout.session.expired': {
       // Nothing was ever fulfilled for these, so there is no registration to
-      // withdraw — but the order should stop saying `pending` for ever.
+      // withdraw, but the order should stop saying `pending` for ever. Only a
+      // pending order changes; see `cancelUnpaidOrder` for what this used to
+      // cancel by mistake.
       const session = event.data.object;
-      const outcome = await cancelRegistrationByOrder({
-        externalId: session.id,
-        reason: 'payment_failed',
+      // A Payment Link or any other session in the shared account expires too.
+      // Only ours has an order to close (T142); the rest is not ticketing.
+      if (!websiteCheckout(session.metadata)) {
+        return NextResponse.json({ received: true, ignored: 'not a ticketing session' });
+      }
+      const outcome = await cancelUnpaidOrder(session.id, {
+        email: session.customer_details?.email ?? session.customer_email,
+        name: session.customer_details?.name ?? session.metadata?.name,
       });
       return NextResponse.json({
         received: true,
         eventId: event.id,
         orderId: outcome.orderId,
-        registrationId: outcome.registrationId,
+        outcome: outcome.outcome,
       });
     }
 
     case 'charge.refunded': {
       const charge = event.data.object;
-      // The order is keyed by the Checkout session id, which a charge does not
-      // carry directly — it is reachable through the payment intent.
-      const sessionId = await sessionIdForPaymentIntent(charge.payment_intent);
-      if (!sessionId) {
-        return NextResponse.json({ received: true, skipped: 'no checkout session for charge' });
+      // The order is keyed by the Checkout session or the invoice, neither of
+      // which a charge carries directly; both are reachable through the
+      // payment intent.
+      const target = await paymentTarget(charge.payment_intent);
+      if (!target?.ours) {
+        // Not a ticket: a sponsorship, a Payment Link, a manual charge or an
+        // invoice raised by hand. Nothing to withdraw, no order invented, no
+        // seat moved; noted quietly rather than raised as a warning (T142).
+        await noteIgnoredStripe({
+          eventType: event.type,
+          kind: 'refund',
+          stripeId: charge.id,
+          amountCents: charge.amount_refunded,
+          currency: charge.currency,
+          email: charge.billing_details?.email ?? charge.receipt_email ?? undefined,
+          name: charge.billing_details?.name ?? undefined,
+          description: charge.description ?? target?.externalId ?? paymentIntentId(charge.payment_intent) ?? undefined,
+        });
+        return NextResponse.json({ received: true, ignored: 'not a ticketing payment' });
       }
+      const sessionId = target.externalId;
 
       const outcome = await cancelRegistrationByOrder({
         externalId: sessionId,
@@ -204,13 +241,21 @@ export async function POST(req: NextRequest) {
        * `withdrawOrderEntitlements` removes only `source: 'order'` grants, so a
        * speaker's or a staff member's access survives a refund of something
        * they also bought.
+       *
+       * `holderEmail`, not `email`: after a transfer the buyer paid and somebody
+       * else holds the seat, and it is the holder's access that goes with the
+       * ticket. It is the buyer's own address on every order nobody transferred.
        */
       let entitlementsWithdrawn = 0;
-      if (outcome.newlyRefunded && outcome.registrationId && outcome.email) {
+      const cancelledEmail = outcome.holderEmail ?? outcome.email;
+      // A badge kept for Workshops loses what this order granted, as a
+      // cancelled one does (2026-10-07).
+      if (outcome.newlyRefunded && (outcome.registrationId || outcome.keptAs) && cancelledEmail) {
         try {
           entitlementsWithdrawn = await withdrawOrderEntitlements(
             db(),
-            uidForEmail(outcome.email),
+            uidForEmail(cancelledEmail),
+            outcome.orderId,
           );
         } catch (err) {
           await recordError('entitlement.withdraw', err, {
@@ -232,20 +277,110 @@ export async function POST(req: NextRequest) {
        * again for exactly the purchases with the most money on them.
        */
       const seatsCancelled = outcome.newlyRefunded
-        ? await cancelExtraSeats(sessionId, outcome.email)
+        ? await cancelExtraSeats(sessionId, outcome.email, outcome.orderId)
         : [];
+      if (outcome.unfulfilled) await warnUnfulfilled(event.type, outcome.orderId, sessionId, outcome.email);
+      // Once, on the delivery that withdrew the tickets, not on Stripe's replays.
+      const appAccessEnded = outcome.newlyRefunded ? await endAccessFor([outcome.registrationId, ...seatsCancelled]) : [];
 
-      // Only tell someone their ticket is void when it actually is.
+      /**
+       * Workshops refunded on its own: it came off the badge, which stays
+       * valid. Only what that order granted goes with it (owner, 2026-10-06).
+       */
+      if (outcome.extrasRemoved?.length && cancelledEmail) {
+        try {
+          const kinds = new Set<EntitlementDoc['kind']>();
+          for (const id of outcome.extrasRemoved) {
+            for (const k of (await tierFulfilment(id))?.entitlements ?? []) kinds.add(k);
+          }
+          entitlementsWithdrawn += await withdrawOrderEntitlements(
+            db(),
+            uidForEmail(cancelledEmail),
+            outcome.orderId,
+            [...kinds],
+          );
+        } catch (err) {
+          await recordError('entitlement.withdraw', err, { path: 'orders', id: outcome.orderId });
+        }
+      }
+
+      // HubSpot (T333): the order's tickets, and a transferred seat's holder.
+      // After every write above and before the mails, which may throw. On a
+      // replay too, because a partial refund changes the order. Never throws.
+      if (!outcome.unfulfilled) {
+        await kickHubspotForOrder(outcome.orderId, [outcome.registrationId, ...seatsCancelled], 'refund');
+      }
+
+      /**
+       * Who is told what.
+       *
+       * The buyer always gets the receipt: they paid, and the money is theirs.
+       * What it may say about a badge depends on what the refund actually did,
+       * which is why both flags are passed rather than assumed — a ticket that
+       * a second paid order still covers has not stopped scanning, and after a
+       * transfer the badge that stopped is not the buyer's.
+       *
+       * The holder gets their own mail, and only when there is one: a refund
+       * that cancelled a ticket somebody else was holding. They are owed the
+       * sentence the buyer's receipt used to carry on their behalf, since the
+       * alternative is finding out at the door.
+       *
+       * Each row in the mail log is stamped with the registration belonging to
+       * the person it went to. The buyer's receipt files under the buyer, which
+       * is where their purchase confirmation already sits; the holder's under
+       * the holder. Stamping both with the cancelled registration filed the
+       * buyer's receipt in a stranger's history.
+       */
+      const buyerRegistrationId = outcome.email ? registrationId(outcome.email) : undefined;
+      const transferred = Boolean(outcome.holderEmail && outcome.holderEmail !== outcome.email);
+
+      /**
+       * Once each, however many times Stripe delivers this refund (T135B,
+       * TK-230). Keyed by the cumulative amount, so a second refund that
+       * completes a partial one still gets its receipt, and claimed with the
+       * same `confirmations` map as a purchase. Not retried through a 5xx: the
+       * refund has already happened and the dashboard can resend.
+       */
+      const once = async (key: string, to: string, send: () => Promise<SendOutcome>) => {
+        const attempt = await claimConfirmation(outcome.orderId, key, { evenIfSettled: true });
+        if (attempt === null) return;
+        await sendClaimed({ orderId: outcome.orderId, rid: key, attempts: attempt, to }, send);
+      };
+
       if (outcome.fullyRefunded && outcome.email) {
-        await sendRefundConfirmation({
-          to: outcome.email,
-          name: outcome.name,
-          ticketType: outcome.ticketType,
-          amountCents: outcome.refundedCents,
-          currency: outcome.currency,
-          orderId: outcome.orderId,
-          registrationId: outcome.registrationId ?? undefined,
-        });
+        const to = outcome.email;
+        await once(`refund:${outcome.refundedCents}`, to, () =>
+          sendRefundConfirmation({
+            to,
+            name: outcome.name,
+            ticketType: outcome.ticketType,
+            amountCents: outcome.refundedCents,
+            currency: outcome.currency,
+            orderId: outcome.orderId,
+            registrationId: buyerRegistrationId,
+            ticketCancelled: Boolean(outcome.registrationId),
+            transferred,
+            ...(outcome.extraOnly
+              ? { extraRemoved: { name: outcome.ticketType ?? 'Workshops', remaining: outcome.remainingLabel ?? '' } }
+              : outcome.keptAs
+                ? { extraRemoved: { name: outcome.ticketType ?? 'Main Conference', remaining: outcome.keptAs } }
+                : {}),
+          }),
+        );
+      }
+
+      if (outcome.fullyRefunded && outcome.registrationId && transferred && outcome.holderEmail) {
+        const to = outcome.holderEmail;
+        const rid = outcome.registrationId;
+        await once(`withdrawn:${rid}`, to, () =>
+          sendTicketWithdrawn({
+            to,
+            name: outcome.holderName,
+            ticketType: outcome.ticketType,
+            orderId: outcome.orderId,
+            registrationId: rid,
+          }),
+        );
       }
 
       return NextResponse.json({
@@ -261,6 +396,10 @@ export async function POST(req: NextRequest) {
         seatsReturned,
         seatsCancelled,
         entitlementsWithdrawn,
+        ...(appAccessEnded.length ? { appAccessEnded: appAccessEnded.length } : {}),
+        ...(outcome.unfulfilled ? { unfulfilled: true } : {}),
+        ...(outcome.extrasRemoved?.length ? { extrasRemoved: outcome.extrasRemoved } : {}),
+        ...(outcome.keptAs ? { keptAs: outcome.keptAs } : {}),
       });
     }
 
@@ -273,10 +412,19 @@ export async function POST(req: NextRequest) {
       // in a dispute with us, and an automated "your ticket is cancelled" is
       // the wrong opening move. The dashboard surfaces it for a human instead.
       const dispute = event.data.object;
-      const sessionId = await sessionIdForPaymentIntent(dispute.payment_intent);
-      if (!sessionId) {
-        return NextResponse.json({ received: true, skipped: 'no checkout session for dispute' });
+      const target = await paymentTarget(dispute.payment_intent);
+      if (!target?.ours) {
+        await noteIgnoredStripe({
+          eventType: event.type,
+          kind: 'dispute',
+          stripeId: dispute.id,
+          amountCents: dispute.amount,
+          currency: dispute.currency,
+          description: [dispute.reason, target?.externalId].filter(Boolean).join(' · ') || undefined,
+        });
+        return NextResponse.json({ received: true, ignored: 'not a ticketing payment' });
       }
+      const sessionId = target.externalId;
       const outcome = await cancelRegistrationByOrder({
         externalId: sessionId,
         reason: 'disputed',
@@ -284,15 +432,96 @@ export async function POST(req: NextRequest) {
       // A disputed group purchase is the same problem as a refunded one: the
       // buyer's ticket is withdrawn and their three colleagues' are not.
       const seatsCancelled = outcome.newlyRefunded
-        ? await cancelExtraSeats(sessionId, outcome.email)
+        ? await cancelExtraSeats(sessionId, outcome.email, outcome.orderId)
         : [];
+      // The seats go back on sale while the tickets are withdrawn, once, for
+      // the same reason a refund gives them back (T135, S3).
+      const seatsReturned: string[] = [];
+      if (outcome.newlyRefunded) {
+        for (const line of outcome.lines) {
+          await incrementSold(line.ticketTypeId, -line.quantity);
+          seatsReturned.push(line.ticketTypeId);
+        }
+      }
+      if (outcome.unfulfilled) await warnUnfulfilled(event.type, outcome.orderId, sessionId, outcome.email);
+      // Once, on the delivery that withdrew the tickets, not on Stripe's replays.
+      const appAccessEnded = outcome.newlyRefunded ? await endAccessFor([outcome.registrationId, ...seatsCancelled]) : [];
+      // HubSpot (T333), as for a refund. Never throws.
+      if (outcome.newlyRefunded) {
+        await kickHubspotForOrder(outcome.orderId, [outcome.registrationId, ...seatsCancelled], 'refund');
+      }
+
+      /**
+       * A person has to answer a dispute in Stripe, with evidence, by its
+       * deadline; the webhook can only withdraw the tickets. Said in
+       * `auditLog`, once, so it shows on the dashboard rather than only in
+       * Stripe's own inbox (T257 #7).
+       */
+      if (outcome.newlyRefunded || outcome.unfulfilled) {
+        const due = dispute.evidence_details?.due_by;
+        await recordWarning(
+          'dispute.opened',
+          {
+            disputeId: dispute.id,
+            amountCents: dispute.amount,
+            currency: dispute.currency,
+            reason: dispute.reason,
+            buyer: outcome.email ?? '',
+            ticketsWithdrawn: [outcome.registrationId, ...seatsCancelled].filter(Boolean).length,
+            ...(due ? { evidenceDueBy: new Date(due * 1000).toISOString() } : {}),
+            note: 'A chargeback was opened and its tickets were withdrawn. Answer it in Stripe before the evidence deadline.',
+          },
+          { path: 'orders', id: outcome.orderId },
+        );
+      }
       return NextResponse.json({
         received: true,
         eventId: event.id,
         orderId: outcome.orderId,
         registrationId: outcome.registrationId,
         seatsCancelled,
+        seatsReturned,
+        ...(appAccessEnded.length ? { appAccessEnded: appAccessEnded.length } : {}),
+        ...(outcome.unfulfilled ? { unfulfilled: true } : {}),
+        ...(outcome.keptAs ? { keptAs: outcome.keptAs } : {}),
       });
+    }
+
+    case 'charge.dispute.closed': {
+      /**
+       * A dispute settled in our favour leaves the order `cancelled` and the
+       * attendee without a badge, because `dispute.created` withdrew them and
+       * nothing put them back (T257 #7). Putting them back is a decision for a
+       * person: the buyer may have been refunded meanwhile, or the seat sold
+       * on. So this raises it in `auditLog` and changes nothing itself.
+       *
+       * `warning_closed` is an inquiry that closed without becoming a
+       * chargeback, which is the same outcome for the tickets. A lost dispute
+       * needs nothing: the tickets are already withdrawn.
+       */
+      const dispute = event.data.object;
+      if (dispute.status !== 'won' && dispute.status !== 'warning_closed') {
+        return NextResponse.json({ received: true, noted: `dispute ${dispute.status}` });
+      }
+      const target = await paymentTarget(dispute.payment_intent);
+      if (!target?.ours) return NextResponse.json({ received: true, ignored: 'not a ticketing payment' });
+      const oid = orderIdFor(target.externalId);
+      const order = (await db().collection(COLLECTIONS.orders).doc(oid).get()).data() as OrderDoc | undefined;
+      await recordWarning(
+        'dispute.won',
+        {
+          disputeId: dispute.id,
+          amountCents: dispute.amount,
+          currency: dispute.currency,
+          buyer: order?.email ?? '',
+          orderStatus: order?.status ?? 'missing',
+          note:
+            'A chargeback was settled in our favour, so the money stays. Its tickets were withdrawn when it was opened: ' +
+            'reinstate them on the dashboard, and mark the order paid, unless the buyer was refunded since.',
+        },
+        { path: 'orders', id: oid },
+      );
+      return NextResponse.json({ received: true, eventId: event.id, orderId: oid, reinstate: 'raised in auditLog' });
     }
 
     case 'invoice.paid': {
@@ -308,16 +537,43 @@ export async function POST(req: NextRequest) {
       const invoice = event.data.object;
 
       /**
+       * Only an invoice ticketing raised. The Stripe account also invoices
+       * sponsors and others by hand, and an invoice is ours only if our code
+       * marked it (`ticketingInvoice`) or we hold its order record. Metadata
+       * that merely looks like an attendee list registers nobody (T142).
+       */
+      const invoiceOrder = invoice.id
+        ? ((await db().collection(COLLECTIONS.orders).doc(invoiceOrderId(invoice.id)).get()).data() as
+            | OrderDoc
+            | undefined)
+        : undefined;
+      if (!invoice.id || (!ticketingInvoice(invoice.metadata) && invoiceOrder?.channel !== 'invoice')) {
+        if (invoice.id) {
+          await noteIgnoredStripe({
+            eventType: event.type,
+            kind: 'invoice',
+            stripeId: invoice.id,
+            amountCents: invoice.amount_paid ?? invoice.total ?? 0,
+            currency: invoice.currency ?? 'usd',
+            email: invoice.customer_email ?? undefined,
+            name: invoice.customer_name ?? undefined,
+            description: invoice.number ?? invoice.description ?? undefined,
+          });
+        }
+        return NextResponse.json({ received: true, ignored: 'not a ticketing invoice' });
+      }
+
+      /**
        * Seats come from our own order record first, Stripe metadata second.
        *
        * Metadata is capped at 500 characters and `raiseInvoice` truncates the
        * attendee JSON to 480, so a large invoice yields a cut-off string that
        * fails to parse — and `seatsFromInvoice` returns an empty list by
        * design, which would register nobody for an invoice that has just been
-       * paid. The order document has no such limit. Metadata still covers the
-       * case of an invoice raised straight in the Stripe dashboard.
+       * paid. The order document has no such limit. Metadata covers a marked
+       * invoice whose order record failed to write when it was raised.
        */
-      const seats = invoice.id
+      const listed = invoice.id
         ? await seatsFromOrder(invoice.id).then((rows) =>
             rows.length > 0
               ? rows
@@ -325,8 +581,35 @@ export async function POST(req: NextRequest) {
           )
         : [];
 
+      /**
+       * A seat that names no ticket is not registered as anything. It used to
+       * become "Main Conference" by default, which is a ticket nobody chose
+       * (T135, S11). Organizers are told and register it by hand.
+       */
+      const untyped = listed.filter((s) => !s.ticketType);
+      const seats = listed.filter((s) => s.ticketType);
+      if (untyped.length > 0) {
+        await recordWarning(
+          'invoice.seatWithoutTicket',
+          {
+            invoiceId: invoice.id ?? '',
+            seats: untyped.map((s) => s.email),
+            note: 'These seats name no ticket type, so no ticket was issued. Register them by hand.',
+          },
+          { path: 'orders', id: invoice.id ?? '' },
+        );
+      }
+
       if (seats.length === 0) {
         return NextResponse.json({ received: true, skipped: 'no attendee list for invoice' });
+      }
+
+      /**
+       * A refunded or cancelled invoice issues nothing on a replay, the same
+       * rule as a card purchase. Answered 200: there is nothing to retry.
+       */
+      if (invoiceOrder?.status === 'refunded' || invoiceOrder?.status === 'cancelled') {
+        return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${invoiceOrder.status}` });
       }
 
       /**
@@ -338,7 +621,12 @@ export async function POST(req: NextRequest) {
        * is a slow conversation with somebody's finance department.
        */
       const total = invoice.total ?? 0;
-      const shares = splitAcrossSeats(total, seats.length);
+      // Weighted by each seat's invoiced price where the order has it (group
+      // rate, mixed tickets); even shares for seats recovered from metadata.
+      const shares = splitByWeight(
+        total,
+        seats.map((s) => ('priceCents' in s && typeof s.priceCents === 'number' ? s.priceCents : 0)),
+      );
 
       /**
        * One order for the invoice, not one per seat.
@@ -385,7 +673,22 @@ export async function POST(req: NextRequest) {
       let accountsCreated = 0;
       let accountsFailed = 0;
 
-      for (const [i, seat] of seats.entries()) {
+      const oid = invoiceOrderId(invoice.id!);
+      const extendedOnly: string[] = [];
+      /**
+       * Admission seats first, then extras (Workshops), so a Main Conference
+       * seat on this invoice exists before Workshops is added to it. Each
+       * keeps its own position as its seat number, so a replay is the same
+       * seat. Emails go out after the walk, once per badge.
+       */
+      const isExtra = (s: (typeof seats)[number]) => Boolean(s.ticketTypeId && tiers.get(s.ticketTypeId)?.extra);
+      const walk = [...seats.keys()].sort((x, y) => Number(isExtra(seats[x]!)) - Number(isExtra(seats[y]!)));
+      const mail = new Map<
+        string,
+        { to: string; name: string; share: number; temporaryPassword?: string | null; extraOnly: boolean; addedExtra?: string }
+      >();
+      for (const i of walk) {
+        const seat = seats[i]!;
         const amountCents = shares[i] ?? 0;
         const tier = seat.ticketTypeId ? (tiers.get(seat.ticketTypeId) ?? null) : null;
 
@@ -401,14 +704,39 @@ export async function POST(req: NextRequest) {
           if (tier.remaining !== undefined) tier.remaining -= 1;
         }
 
-        const result = await ensureRegistration({
-          email: seat.email,
-          name: seat.name,
-          ticketType: seat.ticketType,
-        });
+        let result: Awaited<ReturnType<typeof ensureRegistration>>;
+        try {
+          result = await ensureRegistration({
+            email: seat.email,
+            name: seat.name,
+            ticketType: seat.ticketType,
+            // Same numbering as the dashboard's mark-paid, so either path that
+            // runs second lands on the same tickets.
+            purchase: { orderId: oid, seat: i + 1 },
+            ticketTypeId: seat.ticketTypeId || undefined,
+          });
+        } catch (err) {
+          // Refunded while this delivery was walking the seats.
+          if (isOrderSettledError(err)) {
+            return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${err.status}` });
+          }
+          throw err;
+        }
         registered.push(result.registrationId);
-
-        if (seat.ticketTypeId && result.created) await incrementSold(seat.ticketTypeId);
+        if (result.extra?.extendedOnly) extendedOnly.push(result.registrationId);
+        if (result.extra?.refused) {
+          await recordWarning(
+            'extra.notAdded',
+            {
+              invoiceId: invoice.id ?? '',
+              email: result.email,
+              ticket: result.extra.name,
+              reason: result.extra.refused,
+              note: `${result.extra.name} was paid for on this invoice by somebody who already has it or whose ticket includes it. Check this attendee on the dashboard.`,
+            },
+            { path: 'orders', id: oid },
+          );
+        }
 
         /**
          * One account per attendee, not one per order.
@@ -428,24 +756,59 @@ export async function POST(req: NextRequest) {
         if (account.status === 'created') accountsCreated += 1;
         if (account.status === 'failed') accountsFailed += 1;
 
-        if (account.uid && tier) await grantSeatEntitlements(account.uid, tier.entitlements);
+        if (account.uid && tier) await grantSeatEntitlements(account.uid, tier.entitlements, oid);
 
-        // Each seat is a person who needs their own claim code — the billing
-        // contact's copy of the invoice does not get them into the app.
-        await sendPurchaseConfirmation({
+        const extraOnly = Boolean(result.extra?.extendedOnly && (!result.extra.refused || result.extra.refused === 'already'));
+        const prev = mail.get(result.registrationId);
+        mail.set(result.registrationId, {
           to: result.email,
-          name: result.name ?? '',
-          ticketType: result.ticketType ?? seat.ticketType,
-          amountCents,
-          currency: invoice.currency ?? 'usd',
-          orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
-          claimCode: result.claimCode,
-          registrationId: result.registrationId,
-          // Only ever the password this call actually generated. `null` on a
-          // redelivery, so a retried webhook does not mail a credential for an
-          // account that has since had its password changed.
-          temporaryPassword: account.temporaryPassword,
+          name: result.name ?? seat.name,
+          share: (prev?.share ?? 0) + amountCents,
+          temporaryPassword: prev?.temporaryPassword ?? account.temporaryPassword,
+          extraOnly: prev ? prev.extraOnly && extraOnly : extraOnly,
+          addedExtra: result.extra?.name ?? prev?.addedExtra,
         });
+      }
+
+      // Each badge is a person who needs their own confirmation; the billing
+      // contact's copy of the invoice does not get them into the app. Claimed
+      // on the order like a card purchase's, so a redelivered `invoice.paid`
+      // does not email every seat again (T135, S10/TK-255).
+      for (const [rid, m] of mail) {
+        const attempt = await claimConfirmation(oid, rid);
+        if (attempt === null) continue;
+        const reg = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+        await sendClaimed({ orderId: oid, rid, attempts: attempt, to: m.to }, () =>
+          sendPurchaseConfirmation({
+            to: m.to,
+            name: m.name,
+            ticketType: ticketLabel(reg),
+            amountCents: m.share,
+            currency: invoice.currency ?? 'usd',
+            orderUrl: `${origin}/order/${mintOrderToken({ rid })}`,
+            claimCode: reg?.claimCode ?? '',
+            orderId: oid,
+            registrationId: rid,
+            // Only ever the password this call actually generated. `null` on a
+            // redelivery, so a retried webhook does not mail a credential for an
+            // account that has since had its password changed.
+            temporaryPassword: m.temporaryPassword,
+            ...(m.extraOnly && m.addedExtra ? { addedExtra: m.addedExtra } : {}),
+          }),
+        );
+      }
+
+      /**
+       * Capacity, once for the whole invoice. Counting only the seats this
+       * delivery created missed every seat the dashboard's mark-paid had
+       * already registered, so those were never counted at all (T135B, N2).
+       * `countOrderSeatsOnce` is shared with mark-paid and counts the order
+       * once, whichever of the two runs first.
+       */
+      try {
+        await countOrderSeatsOnce(db(), oid, seats.map((s) => s.ticketTypeId));
+      } catch (err) {
+        await recordError('invoice.count', err, { path: 'orders', id: oid });
       }
 
       if (oversold.length > 0) {
@@ -458,13 +821,31 @@ export async function POST(req: NextRequest) {
 
       const orderId = await markInvoiceOrderPaid({
         invoiceId: invoice.id!,
-        registrationIds: registered,
+        // So refunding a Main Conference can refund Workshops paid on this
+        // invoice without anybody opening Stripe (T170).
+        stripePaymentIntentId: await invoicePaymentIntent(invoice),
+        registrationIds: [...new Set(registered)],
+        extraRegistrationIds: [...new Set(extendedOnly)],
         totalCents: total,
         taxCents: invoice.total_taxes?.reduce((sum, t) => sum + (t.amount ?? 0), 0) ?? 0,
         currency: invoice.currency ?? 'usd',
         hostedInvoiceUrl: invoice.hosted_invoice_url ?? undefined,
         invoicePdfUrl: invoice.invoice_pdf ?? undefined,
       });
+
+      // HubSpot (T333): every seat, now the order says paid. Never throws; a
+      // redelivery queues the same documents again, which is harmless.
+      await kickHubspot(registered, 'order');
+
+      // As for a card purchase: Stripe comes back until every seat's
+      // confirmation has gone out or used up its attempts.
+      const outstanding = await confirmationsOutstanding(orderId, registered);
+      if (outstanding.length > 0) {
+        return NextResponse.json(
+          { error: 'confirmation email not sent yet', confirmationsOutstanding: outstanding },
+          { status: 503 },
+        );
+      }
 
       return NextResponse.json({
         received: true,
@@ -478,6 +859,26 @@ export async function POST(req: NextRequest) {
         // Stripe event log means the capacity check ran and passed rather than
         // that it never ran.
         ...(oversold.length > 0 ? { oversold } : {}),
+      });
+    }
+
+    case 'invoice.voided':
+    case 'invoice.marked_uncollectible': {
+      /**
+       * An invoice that will never be paid. Its order stayed `pending` for
+       * ever, in the dashboard's outstanding count and total and in the
+       * reconcile's outstanding seats (T257 #9). Only a pending order moves:
+       * nothing was issued for it, so there is nothing to withdraw. An invoice
+       * we hold no order for is not ticketing's, and no stub is written.
+       */
+      const invoice = event.data.object;
+      if (!invoice.id) return NextResponse.json({ received: true, ignored: 'no invoice id' });
+      const outcome = await cancelUnpaidOrder(invoice.id, {}, { onlyIfExists: true });
+      return NextResponse.json({
+        received: true,
+        eventId: event.id,
+        orderId: outcome.orderId,
+        outcome: outcome.outcome,
       });
     }
 
@@ -496,58 +897,68 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * A charge knows its payment intent; the order is keyed by the Checkout
- * session. One lookup bridges them.
+ * The payment intent that paid an invoice, or undefined. Stripe's current API
+ * keeps it on the invoice's payments rather than the invoice itself. Never
+ * throws: without it a cascade refund falls back to a warning, as before.
  */
-async function sessionIdForPaymentIntent(
-  pi: string | Stripe.PaymentIntent | null,
-): Promise<string | null> {
-  const id = typeof pi === 'string' ? pi : pi?.id;
-  if (!id) return null;
-  const found = await stripe().checkout.sessions.list({ payment_intent: id, limit: 1 });
-  return found.data[0]?.id ?? null;
+async function invoicePaymentIntent(invoice: Stripe.Invoice): Promise<string | undefined> {
+  try {
+    const found = await stripe().invoicePayments.list({ invoice: invoice.id!, limit: 1 });
+    const pi = found.data[0]?.payment?.payment_intent;
+    return (typeof pi === 'string' ? pi : pi?.id) ?? undefined;
+  } catch (err) {
+    console.error('[webhook] could not read the payment intent for invoice', invoice.id, err);
+    return undefined;
+  }
+}
+
+function paymentIntentId(pi: string | Stripe.PaymentIntent | null): string | null {
+  return (typeof pi === 'string' ? pi : pi?.id) ?? null;
 }
 
 /**
- * Everything about a Checkout session the order record wants, fetched in one
- * call.
+ * What a charge paid for, from its payment intent: a Checkout session or an
+ * invoice. Orders are keyed by a hash of either id (`orderIdFor`,
+ * `invoiceOrderId`), so the id is all a refund needs.
  *
- * The event payload carries most of it, but not the charge id — that lives two
- * hops away on the payment intent, and it is the id an organizer needs to find
- * the payment in the Stripe dashboard or to issue a refund against it. One
- * retrieve with an expansion beats three round trips, and a failure here is
- * survivable: the order simply records less.
+ * An invoice's payment intent has no Checkout session, and until T136 that
+ * was the end of the lookup: refunding a paid invoice answered "no checkout
+ * session for charge" and left every seat active (T135, S2).
+ *
+ * `ours` is ticketing's own: a session carrying our marker, or a session or
+ * invoice we hold an order for. The order covers sales from before the
+ * session marker and every invoice our code raised. Everything else in the
+ * shared account (Payment Links, sponsorship invoices, manual charges) is not
+ * ours and changes nothing in ticketing (T142).
  */
-async function sessionDetail(session: Stripe.Checkout.Session): Promise<{
-  chargeId?: string;
-  promotionCode?: string;
-}> {
-  try {
-    const full = await stripe().checkout.sessions.retrieve(session.id, {
-      expand: ['payment_intent', 'discounts.promotion_code'],
-    });
-    const pi = full.payment_intent;
-    const latest = typeof pi === 'string' ? undefined : pi?.latest_charge;
-    const promo = full.discounts?.[0]?.promotion_code;
+async function paymentTarget(
+  pi: string | Stripe.PaymentIntent | null,
+): Promise<{ externalId: string; ours: boolean } | null> {
+  const id = paymentIntentId(pi);
+  if (!id) return null;
+  const hasOrder = async (externalId: string) =>
+    (await db().collection(COLLECTIONS.orders).doc(orderIdFor(externalId)).get()).exists;
 
-    return {
-      chargeId: typeof latest === 'string' ? latest : latest?.id,
-      promotionCode: typeof promo === 'string' ? promo : (promo?.code ?? undefined),
-    };
-  } catch (err) {
-    console.error('[webhook] could not expand session', session.id, err);
-    return {};
+  const found = await stripe().checkout.sessions.list({ payment_intent: id, limit: 1 });
+  const session = found.data[0];
+  if (session) {
+    return { externalId: session.id, ours: Boolean(websiteCheckout(session.metadata)) || (await hasOrder(session.id)) };
   }
+
+  const paid = await stripe().invoicePayments.list({ payment: { type: 'payment_intent', payment_intent: id }, limit: 1 });
+  const invoice = paid.data[0]?.invoice;
+  const invoiceId = typeof invoice === 'string' ? invoice : invoice?.id;
+  return invoiceId ? { externalId: invoiceId, ours: await hasOrder(invoiceId) } : null;
 }
 
 /**
  * Turn a paid Checkout session into a registration.
  *
- * Everything Stripe-shaped happens here; everything that writes to Firestore,
- * provisions an account or sends a receipt happens in `lib/fulfil-order.ts`.
- * The split exists because there is now a second caller — the localhost-only
- * rehearsal button on the tickets page — and the only way a rehearsal proves
- * anything is by running the same fulfilment the real purchase runs.
+ * The checks that decide *whether* to fulfil are here; the fulfilment itself
+ * is `fulfilCheckoutSession`, which `/checkout/return` runs too, so whichever
+ * of the two arrives first does the whole job and the other finds it done.
+ * Everything that writes to Firestore, provisions an account or sends a
+ * receipt is behind that, in `lib/fulfil-order.ts`.
  */
 async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, origin: string) {
   if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
@@ -564,49 +975,67 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
     return NextResponse.json({ received: true, skipped: 'no email on session' });
   }
 
-  const detail = await sessionDetail(session);
-  const customer = session.customer;
-  const paymentIntent = session.payment_intent;
+  /**
+   * Only a session the tickets page created becomes a ticket.
+   *
+   * Everything else paid in this Stripe account (a Payment Link, a session made
+   * in the Stripe dashboard, another integration) used to be fulfilled as a
+   * Main Conference ticket, because a missing `ticketType` fell back to that
+   * name. The owner's rule is that a ticket comes only from buying it on the
+   * website. So a foreign session is acknowledged with a 200, which stops
+   * Stripe retrying, and creates nothing: no order, registration, account,
+   * directory entry or email. The KGC Stripe account takes sponsorships and
+   * other payments as a matter of course, so this is not an alarm: it is noted
+   * in `stripeIgnored`, which Transaction History lists as "Stripe payments not
+   * from ticketing (ignored)", with the amount, payer and Stripe id, so a
+   * ticket somebody bought the wrong way can still be spotted (T142).
+   */
+  const ours = websiteCheckout(session.metadata);
+  if (!ours) {
+    // Not a ticket. Noted quietly, not as a warning: the account takes
+    // sponsorships and other payments as a matter of course (T142).
+    await noteIgnoredStripe({
+      eventType: event.type,
+      kind: 'payment',
+      stripeId: session.id,
+      amountCents: session.amount_total ?? 0,
+      currency: session.currency ?? 'usd',
+      email,
+      name: session.customer_details?.name ?? undefined,
+      description:
+        typeof session.payment_link === 'string' ? session.payment_link : (session.payment_link?.id ?? undefined),
+    });
+    return NextResponse.json({ received: true, skipped: 'not a website checkout session' });
+  }
 
-  const outcome = await fulfilOrder({
-    externalId: session.id,
-    email,
-    name: session.metadata?.name ?? session.customer_details?.name ?? '',
-    buyerName: session.customer_details?.name ?? undefined,
-    ticketType: session.metadata?.ticketType ?? 'Main Conference',
-    tierId: session.metadata?.tier,
-    amountCents: session.amount_total ?? 0,
-    currency: session.currency ?? 'usd',
-    // Stripe's own arithmetic, kept rather than recomputed — the dashboard
-    // should show the same subtotal and tax the buyer's receipt shows.
-    subtotalCents: session.amount_subtotal ?? undefined,
-    taxCents: session.total_details?.amount_tax ?? 0,
-    discountCents: session.total_details?.amount_discount ?? 0,
-    promotionCode: detail.promotionCode,
-    /**
-     * The tracked link this purchase came through, put into metadata by
-     * `startCheckout` and coming back out here — the only way across the Stripe
-     * redirect, because the buyer left our origin entirely.
-     *
-     * Undefined when the buyer arrived directly, which is most of them.
-     * Undefined is *unattributed*, not organic: an ad blocker, a cleared
-     * cookie, or a link shared onward as plain text all land here too.
-     */
-    campaignCode: session.metadata?.campaignCode || undefined,
-    /**
-     * The registration questions, answered on our page before the redirect and
-     * held in `pendingAnswers` until now. Claimed inside `fulfilOrder`, so a
-     * replay finds nothing there and leaves the answers already on the
-     * registration untouched.
-     */
-    answersRef: session.metadata?.answersRef,
-    channel: 'checkout',
-    origin,
-    stripeCustomerId: typeof customer === 'string' ? customer : (customer?.id ?? undefined),
-    stripePaymentIntentId:
-      typeof paymentIntent === 'string' ? paymentIntent : (paymentIntent?.id ?? undefined),
-    stripeChargeId: detail.chargeId,
-  });
+  const outcome = await fulfilCheckoutSession({ session, ours, email, origin });
+
+  // Refunded or cancelled before this delivery: acknowledged, nothing issued.
+  if (outcome.settled) {
+    return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${outcome.settled}` });
+  }
+
+  /**
+   * Somebody's confirmation has not gone out yet, so ask Stripe to come back.
+   *
+   * The ticket exists either way. What is missing is the email carrying its
+   * link and claim code, which for seats two and up is the only one they get.
+   * It may have failed in this run, or be in flight in the return redirect
+   * running alongside, which cannot be retried itself; in both cases Stripe's
+   * redelivery, minutes later, finds it failed (and sends it) or sent (and
+   * answers 200). Bounded by `CONFIRMATION_ATTEMPTS`, so a bad address does
+   * not fail the endpoint for days.
+   */
+  if (outcome.confirmationsOutstanding.length > 0) {
+    return NextResponse.json(
+      {
+        error: 'confirmation email not sent yet',
+        registrationId: outcome.registrationId,
+        confirmationsOutstanding: outcome.confirmationsOutstanding,
+      },
+      { status: 503 },
+    );
+  }
 
   return NextResponse.json({
     received: true,
@@ -648,18 +1077,21 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
  * because that file is owned elsewhere, and leaving three tickets valid after a
  * full refund was not an acceptable thing to leave for later.
  *
- * ── The rule it copies, and why the copy is deliberate ──────────────────────
+ * ── The rule it applies ─────────────────────────────────────────────────────
  *
  * "Cancel only when no other **paid** order covers this person." A colleague
  * who was seat three on a refunded group purchase *and* separately bought their
- * own ticket keeps the ticket they paid for. This is the same test
- * `cancelRegistrationByOrder` applies to the buyer, filtered in memory rather
- * than with a `status` clause for the same reason it gives: one person has a
- * handful of orders, and a third filter shape is a `failed-precondition`
- * waiting for a missing composite index.
+ * own ticket keeps the ticket they paid for. It is the same test
+ * `cancelRegistrationByOrder` applies to the buyer, and it is now the same
+ * code: `stillPaidElsewhere` in `@kgc/scripts`, asked about the seat's own
+ * address and the address of whoever holds it now, with the order being
+ * refunded left out.
  *
- * The order being refunded cannot appear in that query — it is keyed on the
- * buyer's address, not the seat's — so there is nothing to exclude.
+ * Leaving that order out is not decoration. A seat handed back to the buyer's
+ * own address resolves to a registration the buyer's orders cover, and this
+ * order is one of them — so it can appear in the result set. It does not today
+ * only because `cancelRegistrationByOrder` has already stamped it `refunded`
+ * before this runs, which is an ordering accident rather than a guarantee.
  *
  * Best-effort per seat: a registration that has since been deleted must not
  * stop the other two being withdrawn, and no failure here may reach Stripe as a
@@ -668,31 +1100,72 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
 async function cancelExtraSeats(
   sessionId: string,
   buyerEmail: string | null,
+  refundedOrderId: string,
 ): Promise<string[]> {
-  const cart = await cartLines(sessionId);
-  if (cart.length < 2) return [];
+  /**
+   * The seats this order paid for, from the order's own list, which names each
+   * ticket exactly. Since 2026-09-26 one address can hold several tickets, so
+   * deriving a seat's ticket from its address could cancel the wrong one.
+   * Index 0 is the buyer's, already handled by `cancelRegistrationByOrder`.
+   * An order written before the list existed falls back to the cart.
+   */
+  const orderSnap = await db().collection(COLLECTIONS.orders).doc(refundedOrderId).get();
+  const listed = ((orderSnap.data() as OrderDoc | undefined)?.registrationIds ?? []).slice(1);
+  let starts = listed;
+  if (starts.length === 0) {
+    const cart = await cartLines(sessionId);
+    if (cart.length < 2) return [];
+    const buyer = buyerEmail ? normaliseEmail(buyerEmail) : '';
+    starts = cart
+      .map((line) => normaliseEmail(line.attendeeEmail ?? ''))
+      .filter((e) => e && e !== buyer)
+      .map((e) => registrationId(e));
+  }
 
-  const buyer = buyerEmail ? normaliseEmail(buyerEmail) : '';
   const cancelled: string[] = [];
+  const extended = (orderSnap.data() as OrderDoc | undefined)?.extraRegistrationIds ?? [];
 
-  for (const line of cart) {
-    const seatEmail = normaliseEmail(line.attendeeEmail ?? '');
-    if (!seatEmail || seatEmail === buyer) continue;
-
+  for (const startId of starts) {
     try {
-      const sameEmail = await db()
-        .collection(COLLECTIONS.orders)
-        .where('eventId', '==', EVENT_ID)
-        .where('email', '==', seatEmail)
-        .get();
+      /**
+       * A seat can have been handed on since it was bought, and then the seat's
+       * own ticket is already dead while the seat belongs to somebody else.
+       * Follow it, for the same reason the buyer's seat is followed in
+       * `cancelRegistrationByOrder`.
+       */
+      const seatEmail = ((await db().collection(COLLECTIONS.registrations).doc(startId).get()).data() as
+        | RegistrationDoc
+        | undefined)?.email;
+      const holder = await currentHolder(db(), startId);
+      if (!holder) continue;
 
-      const stillPaidElsewhere = sameEmail.docs.some((d) => {
-        const o = d.data() as OrderDoc;
-        return o.status === 'paid' || o.status === 'partially_refunded';
-      });
-      if (stillPaidElsewhere) continue;
+      // This order only added Workshops to a badge somebody else paid for:
+      // take Workshops off and leave the badge (owner, 2026-10-06).
+      if (extended.includes(startId)) {
+        const removed = await removeOrderExtras(db(), holder.id, refundedOrderId);
+        if (removed.length) {
+          const kinds = new Set<EntitlementDoc['kind']>();
+          for (const id of removed) for (const k of (await tierFulfilment(id))?.entitlements ?? []) kinds.add(k);
+          await withdrawOrderEntitlements(db(), uidForEmail(holder.email), refundedOrderId, [...kinds]);
+        }
+        continue;
+      }
 
-      const rid = registrationId(seatEmail);
+      if (await stillPaidElsewhere(db(), [seatEmail, holder.email], refundedOrderId, [startId, holder.id])) {
+        continue;
+      }
+
+      const rid = holder.id;
+      /**
+       * Workshops on this badge from another payment keeps it, as a
+       * Workshops-only badge: the two tickets are independent (2026-10-07).
+       * What this order granted still goes.
+       */
+      const kept = await releaseAdmission(db(), rid, refundedOrderId);
+      if (kept.kept) {
+        await withdrawOrderEntitlements(db(), uidForEmail(holder.email), refundedOrderId);
+        continue;
+      }
       await db()
         .collection(COLLECTIONS.registrations)
         .doc(rid)
@@ -704,16 +1177,50 @@ async function cancelExtraSeats(
        * removes only `source: 'order'` grants, so a speaker's or a staff
        * member's access survives the refund of something they also sat on.
        */
-      await withdrawOrderEntitlements(db(), uidForEmail(seatEmail));
+      await withdrawOrderEntitlements(db(), uidForEmail(holder.email), refundedOrderId);
     } catch (err) {
-      await recordError('order.seatCancel', err, {
-        path: 'registrations',
-        id: registrationId(seatEmail),
-      });
+      await recordError('order.seatCancel', err, { path: 'registrations', id: startId });
     }
   }
 
   return cancelled;
+}
+
+/**
+ * A refund or dispute on an order that was never fulfilled. It touched no
+ * ticket and no seat count (see `decideRefund`), but fulfilment may have
+ * issued some seats before it failed, so a person checks them by hand.
+ */
+async function warnUnfulfilled(eventType: string, orderId: string, externalId: string, email: string | null) {
+  await recordWarning(
+    'refund.unfulfilledOrder',
+    {
+      eventType,
+      externalId,
+      buyer: email ?? '',
+      note:
+        'Money went back on an order that was never fulfilled, so no ticket was cancelled and no seat returned. ' +
+        'Check whether any ticket was issued for it and cancel it by hand.',
+    },
+    { path: 'orders', id: orderId },
+  );
+}
+
+/**
+ * The app access the withdrawn tickets gave, for each holder left with no
+ * active ticket (T259 #6). Best effort; see `endAppAccessAfterWithdrawal`.
+ */
+async function endAccessFor(rids: (string | null | undefined)[]): Promise<string[]> {
+  const emails: string[] = [];
+  for (const rid of new Set(rids.filter((r): r is string => Boolean(r)))) {
+    try {
+      const reg = (await db().collection(COLLECTIONS.registrations).doc(rid).get()).data() as RegistrationDoc | undefined;
+      if (reg?.status === 'cancelled' && reg.email) emails.push(reg.email);
+    } catch (err) {
+      await recordError('account.revoke', err, { path: 'registrations', id: rid });
+    }
+  }
+  return emails.length ? endAppAccessAfterWithdrawal(emails) : [];
 }
 
 /**
@@ -724,10 +1231,14 @@ async function cancelExtraSeats(
  * write is a support conversation, and a webhook that 500s over one is a retry
  * storm that eventually disables the endpoint and loses everybody's tickets.
  */
-async function grantSeatEntitlements(uid: string, kinds: EntitlementDoc['kind'][]): Promise<void> {
+async function grantSeatEntitlements(
+  uid: string,
+  kinds: EntitlementDoc['kind'][],
+  orderId?: string,
+): Promise<void> {
   if (kinds.length === 0) return;
   try {
-    await grantOrderEntitlements(db(), uid, kinds);
+    await grantOrderEntitlements(db(), uid, kinds, orderId);
   } catch (err) {
     await recordError('entitlement.grant', err, { path: 'users', id: uid });
   }

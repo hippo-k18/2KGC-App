@@ -91,10 +91,10 @@ export async function saveTrackAction(
    * unfile every talk in the track.
    */
   const docId = id || mintTrackId(name);
-  if (!docId) return { error: 'That name produces an empty id. Use some letters or numbers.' };
+  if (!docId) return { error: 'That name has no letters or numbers. Use some.' };
   if (!id) {
     const clash = await getTrack(docId);
-    if (clash) return { error: `“${clash.name}” already uses the id “${docId}”.` };
+    if (clash) return { error: `A track called “${clash.name}” is already on the list. Edit that one instead of adding a second.` };
   }
 
   try {
@@ -159,7 +159,7 @@ export async function saveTrackAction(
 
   return {
     ok: true,
-    message: existing ? `Saved ${name}.` : `Added ${name} as ${docId}.`,
+    message: existing ? `Saved ${name}.` : `Added ${name}.`,
     fanOut,
     fanOutOk,
   };
@@ -226,13 +226,13 @@ export async function reconcileAgendaCachesAction(
       dryRun,
       dangling: result.dangling,
       message: dryRun
-        ? `Would rewrite ${result.updated.length} of ${result.scanned} session(s). Nothing was written.`
+        ? `${result.updated.length} of ${result.scanned} session(s) need updating. Nothing was changed.`
         : summary,
       error: result.ok ? undefined : summary,
     };
   } catch (err) {
     recordError('agenda.reconcile', err);
-    return { error: err instanceof Error ? err.message : 'Could not check the agenda caches.' };
+    return { error: err instanceof Error ? err.message : 'Could not check the agenda.' };
   }
 }
 
@@ -319,13 +319,13 @@ export async function commitTrackImportAction(
       `Imported ${outcome.created} new ${outcome.created === 1 ? 'track' : 'tracks'}` +
       (outcome.updated ? `, updated ${outcome.updated} already on the list` : '') +
       (outcome.sessionsRecoloured
-        ? `, and rewrote the cached track name or colour on ${outcome.sessionsRecoloured} session${outcome.sessionsRecoloured === 1 ? '' : 's'}`
+        ? `, and updated the track name or colour on ${outcome.sessionsRecoloured} session${outcome.sessionsRecoloured === 1 ? '' : 's'}`
         : '') +
       '.' +
       // Never swallowed: a half-applied recolour leaves some agenda cards in the
       // old palette and nothing would notice on a later pass.
       (outcome.fanOutFailures.length
-        ? ` ⚠️ ${outcome.fanOutFailures.join('; ')}. Run the agenda cache check below.`
+        ? ` ⚠️ ${outcome.fanOutFailures.join('; ')}. Run the agenda check below.`
         : ''),
   };
 }

@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
 
   /**
+   * The development tools indicator, off.
+   *
+   * It is the dark circle in the corner of every screen on localhost. It never
+   * ships — it is a development-only overlay and the deployed dashboard has
+   * never carried it — but on a screen that is otherwise a one-to-one rebuild
+   * of somebody else's product it reads as a badge somebody stamped on the
+   * corner, and it was read as one. Nothing about the build changes.
+   */
+  devIndicators: false,
+
+  /**
    * `@kgc/shared` and `@kgc/scripts` are workspace packages published as raw
    * TypeScript (their `main` points straight at `src/`), so Next has to compile
    * them rather than treat them as prebuilt node_modules.
@@ -42,6 +53,48 @@ const nextConfig: NextConfig = {
       '.js': ['.ts', '.tsx', '.js'],
     };
     return config;
+  },
+
+  /**
+   * Server Action bodies up to 12 MB (Next's default is 1 MB), for the KGC |
+   * Learn page editor's image upload, which takes photographs up to 10 MB and
+   * resizes them on the server (T309). Every other upload still downsizes in
+   * the browser and checks its own 900 KB cap in `upload-limits.ts`, so this
+   * raises a ceiling none of them reach.
+   */
+  experimental: { serverActions: { bodySizeLimit: '12mb' } },
+
+  /**
+   * Where the build goes. `ORGANIZER_DIST_DIR` lets a test server build beside
+   * a dev server that is already running here rather than on top of its
+   * `.next` (AGENTS.md; `apps/web` has `WEB_DIST_DIR` for the same reason).
+   * Unset, which is every deploy, this is `.next` as always.
+   */
+  distDir: process.env.ORGANIZER_DIST_DIR || '.next',
+
+  /** No `x-powered-by: Next.js` on every response (T263). */
+  poweredByHeader: false,
+
+  /**
+   * The same security headers as www (T263). www's HSTS `includeSubDomains`
+   * does not cover this host until a browser has visited the apex, so a first
+   * `http://` visit on conference Wi-Fi could be downgraded; this host now
+   * sends its own. Framing is same-origin only: nothing outside should ever
+   * show the dashboard in a frame, under its own buttons.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+    ];
   },
 
   typescript: { ignoreBuildErrors: false },

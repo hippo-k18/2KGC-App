@@ -1,9 +1,20 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import type { AnswerValue } from '@kgc/scripts/src/lib/question-forms';
+import {
+  OTHER_TRACK,
+  PHONE_MAX,
+  RESOURCE_LINK_MAX,
+  TRACK_OTHER_MAX,
+  fieldsForSessionType,
+  typeLabel,
+  wordCount,
+} from '@kgc/scripts/src/lib/cfp-core';
 import type { OwnSubmission, PublicCall } from '@/lib/submissions';
 import { SubmissionFields } from './submission-fields';
+import { KeepTypedForm } from '@/components/keep-typed-form';
+import { formatDeadline } from '@/lib/site';
 import { submitAction, type SubmitState } from './actions';
 
 /**
@@ -55,8 +66,28 @@ export function SubmissionForm({
 
   const answers: Record<string, AnswerValue> | undefined = existing?.answers;
 
+  /*
+   * The form changes with the session type (T249): a workshop is asked for
+   * its learning objectives, outline and install list, a talk for its length.
+   * Which questions belong to which type is set per question in the
+   * dashboard's form builder, and the server applies the same filter, so a
+   * question hidden here is neither validated nor kept.
+   */
+  const [sessionType, setSessionType] = useState<string>(
+    existing?.sessionType ?? (call.sessionTypes.length === 1 ? call.sessionTypes[0] : ''),
+  );
+  const [words, setWords] = useState(() => wordCount(existing?.abstract ?? ''));
+  const [track, setTrack] = useState<string>(
+    existing?.trackId ?? (existing?.trackOther ? OTHER_TRACK : ''),
+  );
+  const cfp = call.cfp;
+  const fields = fieldsForSessionType(call.fields, sessionType || undefined);
+  const closesLabel = cfp
+    ? cfp.closeDay
+    : (formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal);
+
   return (
-    <form action={action} className="checkout">
+    <KeepTypedForm action={action} className="checkout">
       <input type="hidden" name="callId" value={call.id} />
       {token && <input type="hidden" name="token" value={token} />}
 
@@ -66,10 +97,28 @@ export function SubmissionForm({
         </p>
       )}
 
-      <h2 style={{ marginTop: 0 }}>Your submission</h2>
+      {call.sessionTypes.length > 0 && (
+        <div className="field">
+          <label htmlFor="sessionType">Session Type &amp; Format *</label>
+          <select
+            id="sessionType"
+            name="sessionType"
+            value={sessionType}
+            onChange={(e) => setSessionType(e.target.value)}
+          >
+            <option value="">Choose one…</option>
+            {call.sessionTypes.map((t) => (
+              <option key={t} value={t}>
+                {typeLabel(t)}
+              </option>
+            ))}
+          </select>
+          <FieldError message={errors.sessionType} />
+        </div>
+      )}
 
       <div className="field">
-        <label htmlFor="title">Title *</label>
+        <label htmlFor="title">Session Title *</label>
         <input
           id="title"
           name="title"
@@ -77,81 +126,98 @@ export function SubmissionForm({
           maxLength={200}
           defaultValue={existing?.title}
         />
-        {errors.title && (
-          <p className="hint" style={{ color: '#991b1b' }} role="alert">
-            {errors.title}
-          </p>
-        )}
+        <FieldError message={errors.title} />
       </div>
 
       <div className="field">
-        <label htmlFor="abstract">Abstract *</label>
-        <textarea id="abstract" name="abstract" rows={10} maxLength={10000} defaultValue={existing?.abstract} />
-        <p className="hint">
-          Plain text. Blank lines separate paragraphs. Up to 10,000 characters, which is about 1,500
-          words.
-        </p>
-        {errors.abstract && (
-          <p className="hint" style={{ color: '#991b1b' }} role="alert">
-            {errors.abstract}
+        <label htmlFor="abstract">Session Description *</label>
+        <textarea
+          id="abstract"
+          name="abstract"
+          rows={10}
+          maxLength={10000}
+          defaultValue={existing?.abstract}
+          onChange={(e) => setWords(wordCount(e.target.value))}
+        />
+        {cfp ? (
+          <p className={words > cfp.abstractMaxWords ? 'hint over' : 'hint'} aria-live="polite">
+            Up to {cfp.abstractMaxWords} words. Word count: {words}
+          </p>
+        ) : (
+          <p className="hint">
+            Plain text. Blank lines separate paragraphs. Up to 10,000 characters, which is about 1,500
+            words.
           </p>
         )}
+        <FieldError message={errors.abstract} />
       </div>
 
-      {call.sessionTypes.length > 0 && (
+      {cfp && call.askTalkLength && sessionType === 'talk' && (
         <div className="field">
-          <label htmlFor="sessionType">What are you offering it as? *</label>
-          <select id="sessionType" name="sessionType" defaultValue={existing?.sessionType ?? ''}>
+          <label htmlFor="durationMinutes">How long is your talk? *</label>
+          <select id="durationMinutes" name="durationMinutes" defaultValue={existing?.durationMinutes ?? ''}>
             <option value="">Choose one…</option>
-            {call.sessionTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            {cfp.talkMinutes.map((m) => (
+              <option key={m} value={m}>
+                {m} minutes
               </option>
             ))}
           </select>
-          {errors.sessionType && (
-            <p className="hint" style={{ color: '#991b1b' }} role="alert">
-              {errors.sessionType}
-            </p>
-          )}
+          <FieldError message={errors.durationMinutes} />
         </div>
       )}
 
-      {call.tracks.length > 0 && (
+      {call.askTrack && (call.tracks.length > 0 || call.allowOtherTrack) && (
         <div className="field">
           <label htmlFor="trackId">Track *</label>
-          <select id="trackId" name="trackId" defaultValue={existing?.trackId ?? ''}>
+          <select id="trackId" name="trackId" value={track} onChange={(e) => setTrack(e.target.value)}>
             <option value="">Choose one…</option>
             {call.tracks.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
             ))}
+            {call.allowOtherTrack && <option value={OTHER_TRACK}>Other</option>}
           </select>
-          {errors.trackId && (
-            <p className="hint" style={{ color: '#991b1b' }} role="alert">
-              {errors.trackId}
-            </p>
-          )}
+          <FieldError message={errors.trackId} />
         </div>
       )}
 
-      <SubmissionFields fields={call.fields} answers={answers} errors={errors} />
-
-      <h2>About you</h2>
+      {call.askTrack && call.allowOtherTrack && track === OTHER_TRACK && (
+        <div className="field">
+          <label htmlFor="trackOther">Which topic? *</label>
+          <input
+            id="trackOther"
+            name="trackOther"
+            maxLength={TRACK_OTHER_MAX}
+            defaultValue={existing?.trackOther}
+          />
+          <FieldError message={errors.trackOther} />
+        </div>
+      )}
 
       <div className="field">
-        <label htmlFor="authorName">Your name *</label>
+        <label htmlFor="resourceLink">Link to Additional Resources or Supporting Materials (Optional)</label>
+        <input
+          id="resourceLink"
+          name="resourceLink"
+          inputMode="url"
+          maxLength={RESOURCE_LINK_MAX}
+          defaultValue={existing?.resourceLink}
+        />
+        <FieldError message={errors.resourceLink} />
+      </div>
+
+      <SubmissionFields fields={fields} answers={answers} errors={errors} />
+
+      <div className="field">
+        <label htmlFor="authorName">Your Name *</label>
         <input id="authorName" name="authorName" maxLength={120} autoComplete="name" defaultValue={a?.name} />
-        {errors.authorName && (
-          <p className="hint" style={{ color: '#991b1b' }} role="alert">
-            {errors.authorName}
-          </p>
-        )}
+        <FieldError message={errors.authorName} />
       </div>
 
       <div className="field">
-        <label htmlFor="authorEmail">Your email *</label>
+        <label htmlFor="authorEmail">Your Email *</label>
         <input
           id="authorEmail"
           name="authorEmail"
@@ -161,32 +227,50 @@ export function SubmissionForm({
           defaultValue={a?.email}
         />
         <p className="hint">
-          Where the decision goes, and where we send your link back to this submission. There is
-          no password and no account.
+          We&apos;ll send submission updates, decisions, and a link to your submission to this email. No
+          password or account required.
         </p>
-        {errors.authorEmail && (
-          <p className="hint" style={{ color: '#991b1b' }} role="alert">
-            {errors.authorEmail}
+        <FieldError message={errors.authorEmail} />
+      </div>
+
+      <div className="field">
+        <label htmlFor="affiliation">{cfp ? 'Organization *' : 'Organization'}</label>
+        <input
+          id="affiliation"
+          name="affiliation"
+          maxLength={120}
+          autoComplete="organization"
+          defaultValue={a?.affiliation}
+        />
+        <FieldError message={errors.affiliation} />
+      </div>
+
+      <div className="field">
+        <label htmlFor="phone">Your Phone Number (Optional)</label>
+        <input
+          id="phone"
+          name="phone"
+          type="tel"
+          autoComplete="tel"
+          maxLength={PHONE_MAX}
+          defaultValue={a?.phone}
+        />
+        <FieldError message={errors.phone} />
+      </div>
+
+      {/* Min's plan asks for the bio after acceptance, through the speaker's own link. */}
+      {!cfp && (
+        <div className="field">
+          <label htmlFor="bio">A short bio</label>
+          <textarea id="bio" name="bio" rows={4} maxLength={1000} defaultValue={a?.bio} />
+          <p className="hint">
+            Optional. If your work is accepted, this becomes your speaker bio.
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="field">
-        <label htmlFor="affiliation">Affiliation</label>
-        <input id="affiliation" name="affiliation" maxLength={120} defaultValue={a?.affiliation} />
-      </div>
-
-      <div className="field">
-        <label htmlFor="bio">A short bio</label>
-        <textarea id="bio" name="bio" rows={4} maxLength={1000} defaultValue={a?.bio} />
-        <p className="hint">
-          Optional. If your work is accepted this becomes your speaker biography, so it is worth the
-          two minutes now.
-        </p>
-      </div>
-
-      <div className="field">
-        <label htmlFor="coAuthors">Co-authors</label>
+        <label htmlFor="coAuthors">Co-Speakers or Co-Authors (Optional)</label>
         <textarea
           id="coAuthors"
           name="coAuthors"
@@ -194,25 +278,35 @@ export function SubmissionForm({
           defaultValue={(a?.coAuthors ?? [])
             .map((c) => (c.affiliation ? `${c.name} (${c.affiliation})` : c.name))
             .join('\n')}
-          placeholder={'Ada Lovelace (Analytical Engines Ltd)\nGrace Hopper'}
         />
-        <p className="hint">One per line. Put an affiliation in brackets after the name if you want to.</p>
+        <p className="hint">One per line. Put an organization in brackets after the name if you want to.</p>
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <button type="submit" className="btn btn-primary" name="finish" value="1">
-          {existing?.status === 'submitted' ? 'Save changes' : 'Submit'}
+          Submit
         </button>
-        <button type="submit" className="btn btn-outline" name="finish" value="">
+        {/* Only a draft is ever on this form: a submitted one is read-only (T276). */}
+        {/* A draft may leave required questions empty; the server checks it loosely (T280 B#3). */}
+        <button type="submit" className="btn btn-outline" name="finish" value="" formNoValidate>
           Save as a draft
         </button>
       </div>
 
       <p className="hint" style={{ marginTop: 14 }}>
-        A draft is not submitted and is not read by anybody. You can come back to it from the link we
-        email you, until the call closes on {call.closesAtLocal.replace('T', ' ')}. After that the
-        server refuses any change. The deadline is real, not a hidden button.
+        A draft is not submitted and nobody reads it. You can come back to it from the link we
+        email you until the call closes{closesLabel ? ` on ${closesLabel}` : ''}. Once you press
+        Submit, the submission is final and can no longer be changed.
       </p>
-    </form>
+    </KeepTypedForm>
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p className="hint" style={{ color: '#991b1b' }} role="alert">
+      {message}
+    </p>
   );
 }

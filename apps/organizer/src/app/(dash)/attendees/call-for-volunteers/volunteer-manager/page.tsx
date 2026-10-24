@@ -4,7 +4,7 @@ import { listSessions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
 import { listVolunteers, overlappingShifts, summariseRoster, withRegistrations } from '@/lib/volunteers';
 import { ConfirmButton } from '../../../form';
-import { Banner, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, StatTiles, Table, Tag, listParams, paginate } from '../../../ui';
+import { Banner, Email, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, StatTiles, Table, Tag, listParams, paginate } from '../../../ui';
 import { deleteVolunteerAction, setVolunteerStatusAction } from './actions';
 import { VolunteerForm } from './form';
 
@@ -80,10 +80,10 @@ export default async function VolunteerManagerPage({
         title="Volunteer Manager"
         info={
           <>
-            <strong>A roster, not a recruitment portal</strong>
+            <strong>Volunteer roster</strong>
             <p>
-              Volunteers are added here or imported; there is no public sign-up form yet. A
-              volunteer holds no extra access. The roster records who is doing what and when.
+              Add volunteers here. There is no public sign-up form yet, and volunteers get no extra
+              access.
             </p>
           </>
         }
@@ -108,8 +108,7 @@ export default async function VolunteerManagerPage({
             .slice(0, 3)
             .map(([a, b]) => `${a.name}: ${a.role} and ${b.role} on ${a.day}`)
             .join('; ')}
-          {clashes.length > 3 ? `, and ${clashes.length - 3} more` : ''}. One of each pair has
-          nobody standing at it.
+          {clashes.length > 3 ? `, and ${clashes.length - 3} more` : ''}.
         </Banner>
       ) : null}
 
@@ -120,12 +119,12 @@ export default async function VolunteerManagerPage({
             value: summary.total,
             sub: summary.total
               ? `${summary.people} ${summary.people === 1 ? 'person' : 'people'}`
-              : 'not inputted yet',
+              : 'none yet',
           },
           {
             label: 'Confirmed',
             value: summary.confirmed,
-            sub: summary.total ? `of ${summary.total} shifts` : 'not inputted yet',
+            sub: summary.total ? `of ${summary.total} shifts` : 'none yet',
           },
           {
             label: 'Awaiting an answer',
@@ -135,7 +134,7 @@ export default async function VolunteerManagerPage({
           {
             label: 'No shift yet',
             value: summary.unscheduled,
-            sub: summary.unscheduled ? 'said yes to nothing in particular' : 'every row has a time',
+            sub: summary.unscheduled ? 'no day or time set' : 'every shift has a time',
           },
         ]}
       />
@@ -168,7 +167,7 @@ export default async function VolunteerManagerPage({
                 <span key="n">
                   <strong>{v.name}</strong>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    {v.email}
+                    <Email address={v.email} />
                     {v.phone ? ` · ${v.phone}` : ''}
                   </div>
                   {v.registrationId ? (
@@ -190,7 +189,7 @@ export default async function VolunteerManagerPage({
                     {v.day}
                     <div className="muted" style={{ fontSize: 12 }}>
                       {v.startsAtLocal || '—'}
-                      {v.endsAtLocal ? `–${v.endsAtLocal}` : ''}
+                      {v.endsAtLocal ? ` to ${v.endsAtLocal}` : ''}
                     </div>
                   </span>
                 ) : (
@@ -253,8 +252,7 @@ export default async function VolunteerManagerPage({
                     confirmLabel="Remove from roster"
                     hidden={{ id: v.id }}
                   >
-                    Takes {v.name} off the roster. Any waiver they signed stays. Consent
-                    signatures are append-only and nothing here can delete one.
+                    Takes {v.name} off the roster. Any waiver they signed is kept.
                   </ConfirmButton>
                 </span>,
               ])}

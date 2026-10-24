@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { SITE } from '@/lib/site';
+import { formatDeadline, SITE } from '@/lib/site';
 import { loadCall } from '@/lib/submissions';
 import { SubmissionForm } from '../submission-form';
+import { CallText } from '@/components/call-text';
 
+/** Per-request, and it has to be. Whether a call is still open, against a deadline that can pass while somebody is on the page. */
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
@@ -49,6 +51,43 @@ export async function generateMetadata({
  * answer "is KGC running a call this year?" to anybody who guessed a URL, which
  * is a question the committee may not have announced the answer to yet.
  */
+type Block = { kind: 'text'; text: string } | { kind: 'list'; items: string[] };
+
+/**
+ * The call's text as paragraphs and lists. Paragraphs are separated by a blank
+ * line, and a run of lines starting "- " (or "• ", "* ") is a bulleted list
+ * rather than literal hyphens (T261 #3). Plain text only, never markup.
+ */
+function instructionBlocks(text: string): Block[] {
+  const out: Block[] = [];
+  for (const para of text.split(/\n\s*\n/)) {
+    let lines: string[] = [];
+    let items: string[] = [];
+    const flushText = () => {
+      const t = lines.join('\n').trim();
+      if (t) out.push({ kind: 'text', text: t });
+      lines = [];
+    };
+    const flushList = () => {
+      if (items.length) out.push({ kind: 'list', items });
+      items = [];
+    };
+    for (const line of para.split('\n')) {
+      const bullet = /^\s*[-•*]\s+(.*\S)\s*$/.exec(line);
+      if (bullet) {
+        flushText();
+        items.push(bullet[1]);
+      } else {
+        flushList();
+        lines.push(line);
+      }
+    }
+    flushText();
+    flushList();
+  }
+  return out;
+}
+
 export default async function SubmitPage({ params }: { params: Promise<{ callId: string }> }) {
   const { callId } = await params;
   const call = await loadCall(callId);
@@ -56,23 +95,43 @@ export default async function SubmitPage({ params }: { params: Promise<{ callId:
 
   return (
     <section>
-      <div className="wrap narrow" style={{ paddingBottom: 48 }}>
+      <div className="wrap narrow cfp-page" style={{ paddingBottom: 48 }}>
         <p className="eyebrow">
           {SITE.shortName} {SITE.year}
         </p>
         <h1>{call.title}</h1>
 
-        {call.instructions
-          .split(/\n\s*\n/)
-          .map((para) => para.trim())
-          .filter(Boolean)
-          .map((para, i) => (
-            <p key={i} className={i === 0 ? 'lede' : undefined} style={{ whiteSpace: 'pre-wrap' }}>
-              {para}
-            </p>
-          ))}
+        {/*
+          Formatted text from the dashboard's editor when there is some (T277),
+          otherwise the plain text exactly as it has always been drawn.
+        */}
+        {call.instructionsDoc ? (
+          <CallText doc={call.instructionsDoc} />
+        ) : (
+          instructionBlocks(call.instructions).map((block, i) =>
+            block.kind === 'list' ? (
+              <ul key={i}>
+                {block.items.map((item, j) => (
+                  <li key={j}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p key={i} className={i === 0 ? 'lede' : undefined} style={{ whiteSpace: 'pre-wrap' }}>
+                {block.text}
+              </p>
+            ),
+          )
+        )}
 
-        {call.refusal ? (
+        {call.opensOn ? (
+          /*
+           * Early is not an error (T261 #3). Someone arriving before the call
+           * opens gets the date, not a red refusal and an address to complain to.
+           */
+          <p className="notice" role="status">
+            <strong>Opens {call.opensOn}.</strong>
+          </p>
+        ) : call.refusal ? (
           <>
             <p className="notice warn" role="status">
               <strong>{call.refusal}</strong>
@@ -83,17 +142,33 @@ export default async function SubmitPage({ params }: { params: Promise<{ callId:
                 promise the server will not keep, and somebody will spend twenty
                 minutes filling it in before finding out.
               */}
-              The submission form is not shown because nothing typed into it could be saved. If you
-              believe this is a mistake, email{' '}
+              Submissions cannot be saved right now, so the form is hidden. If you think this is a
+              mistake, email{' '}
               <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
             </p>
           </>
         ) : (
           <>
             <p className="notice">
-              Submissions close on <strong>{call.closesAtLocal.replace('T', ' ')}</strong> (
-              {call.timeZone}). You do not need an account: fill this in, and we will email you a
-              link that brings you back to it.
+              {call.cfp ? (
+                /*
+                 * Min's settings carry the close date (T249). While it is not
+                 * decided the sentence is left out, rather than showing the
+                 * placeholder deadline the call was created with.
+                 */
+                call.cfp.closeDay ? (
+                  <>
+                    Submissions close on <strong>{call.cfp.closeDay}</strong>.{' '}
+                  </>
+                ) : null
+              ) : (
+                <>
+                  Submissions close on{' '}
+                  <strong>{formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal}</strong>
+                  .{' '}
+                </>
+              )}
+              No account needed. We will email you a link back to your submission.
             </p>
             <SubmissionForm call={call} />
           </>

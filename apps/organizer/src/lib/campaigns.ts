@@ -5,10 +5,12 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   COLLECTIONS,
   EVENT_ID,
+  isSitePath,
   type CampaignLinkDoc,
   type ContactDoc,
   type EmailLogDoc,
 } from '@kgc/shared';
+import { FROM_ADDRESS } from '@kgc/scripts/src/lib/email';
 import { appendAudit } from './audit';
 import { campaignSkipRows, partitionAudience, suppressionReasonFor, type Excluded } from './campaigns-core';
 import { listOrders, type OrderRow } from './commerce';
@@ -74,6 +76,7 @@ export interface ContactRow {
   lists: string[];
   unsubscribedAt?: string;
   bouncedAt?: string;
+  complainedAt?: string;
   converted: boolean;
   createdAt: string;
 }
@@ -89,13 +92,15 @@ function iso(t: { toDate(): Date } | undefined): string | undefined {
 function toContactRow(id: string, c: ContactDoc): ContactRow {
   return {
     id,
-    email: c.email,
+    // Null once the contact has been erased; the row is kept as a suppression.
+    email: c.email ?? '',
     name: c.name ?? '',
     company: c.company ?? '',
     source: c.source ?? '',
     lists: c.lists ?? [],
     unsubscribedAt: iso(c.unsubscribedAt),
     bouncedAt: iso(c.bouncedAt),
+    complainedAt: iso(c.complainedAt),
     converted: c.converted === true,
     createdAt: iso(c.createdAt) ?? new Date(0).toISOString(),
   };
@@ -392,6 +397,8 @@ export async function recordSuppressedRecipients(input: {
           // invisible again by a different route.
           template: 'bulk-message',
           subject: input.subject,
+          // The address it would have gone from, as `send()` records (T305).
+          from: FROM_ADDRESS,
           status: 'skipped',
           reason: r.reason,
           campaignId: input.campaignId,
@@ -521,7 +528,8 @@ export async function saveLink(input: {
   }
 
   const destination = input.destination.trim() || '/tickets';
-  if (!destination.startsWith('/') || destination.startsWith('//')) {
+  // `isSitePath` also refuses `/\evil.com`, which browsers read as `//evil.com` (T263).
+  if (!isSitePath(destination)) {
     return {
       ok: false,
       error:

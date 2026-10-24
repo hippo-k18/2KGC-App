@@ -6,9 +6,17 @@ import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 import { speakerId as mintSpeakerId } from '@kgc/scripts/src/lib/ids';
 import { appendAudit } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
-import { getSpeaker } from '@/lib/data';
+import { getSpeaker, listSpeakers } from '@/lib/data';
+import {
+  approveSubmission,
+  rejectSubmission,
+  revokePortalLinks,
+  GROUP_RESEND_GUARD_MS,
+  sendPortalLink,
+} from '@/lib/speaker-portal';
 import { fanOutSpeakerRename, summariseFanOut } from '@/lib/denormalise';
 import { db } from '@/lib/firestore';
+import { setSpeakerContact, speakerContact } from '@/lib/speaker-contacts';
 import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
 import { removeImage, uploadImage, UploadRejected, UploadUnavailable } from '@/lib/uploads';
@@ -110,6 +118,7 @@ export async function saveSpeakerAction(
   const bio = String(formData.get('bio') ?? '').trim();
   const contactEmail = String(formData.get('contactEmail') ?? '').trim();
   const featured = String(formData.get('featured') ?? '') === '1';
+  const unlisted = String(formData.get('unlisted') ?? '') === '1';
 
   /*
    * Position is optional and an empty box means "no editorial position", not
@@ -173,7 +182,7 @@ export async function saveSpeakerAction(
     const clash = await getSpeaker(docId);
     if (clash) {
       return {
-        error: `“${clash.name}” already uses the id “${docId}”. If this is a different person, add their company to tell the two apart.`,
+        error: `A speaker called “${clash.name}” is already on the list. If this is a different person, add their company to tell the two apart.`,
       };
     }
   }
@@ -222,7 +231,8 @@ export async function saveSpeakerAction(
           title: title || FieldValue.delete(),
           company: company || FieldValue.delete(),
           bio: bio || FieldValue.delete(),
-          contactEmail: contactEmail || FieldValue.delete(),
+          // The address lives in `speakerContacts` (T252); never on this record.
+          contactEmail: FieldValue.delete(),
           social: anySocial ? social : FieldValue.delete(),
           /*
             Both are deletes rather than falsy values, for the reason above.
@@ -231,6 +241,13 @@ export async function saveSpeakerAction(
             be the absence of the key, not a value that happens to be falsy.
           */
           featured: featured ? true : FieldValue.delete(),
+          /*
+            Always a boolean, never absent: the app lists speakers with
+            `where('unlisted', '==', false)` and the rules require it, so a
+            speaker without the field would be missing from the People tab
+            (T252).
+          */
+          unlisted,
           displayOrder: displayOrder === null ? FieldValue.delete() : displayOrder,
           ...(photoURL === undefined ? {} : { photoURL }),
           // Never on an update — see the header. `userId` is absent for the
@@ -241,6 +258,7 @@ export async function saveSpeakerAction(
         },
         { merge: true },
       );
+    await setSpeakerContact(docId, contactEmail || undefined);
   } catch (err) {
     recordError('speaker.save', err);
     return { error: err instanceof Error ? err.message : 'Could not save the speaker.' };
@@ -273,7 +291,7 @@ export async function saveSpeakerAction(
           name: existing.name,
           title: existing.title ?? null,
           company: existing.company ?? null,
-          contactEmail: existing.contactEmail ?? null,
+          contactEmail: (await speakerContact(docId, existing.contactEmail)) ?? null,
           hasBio: Boolean(existing.bio),
           photoURL: existing.photoURL ?? null,
         }
@@ -302,10 +320,162 @@ export async function saveSpeakerAction(
 
   return {
     ok: true,
-    message: existing ? `Saved ${name}.` : `Added ${name} as ${docId}.`,
+    message: existing ? `Saved ${name}.` : `Added ${name}.`,
     fanOut,
     fanOutOk,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Self-service links
+// ---------------------------------------------------------------------------
+
+/**
+ * Send one speaker, or a group, the link to fill in their own profile. The same
+ * form is the reminder.
+ *
+ * `__incomplete` and `__all` rather than a checkbox column, which is the shape
+ * the reviewers screen already uses for the same job: the two groups an
+ * organizer actually sends to are "everybody who is missing something" and
+ * "everybody", and a selection UI is a lot of table state for a choice that has
+ * two useful answers.
+ *
+ * ⚠️ A speaker with no address is skipped and counted, never silently dropped.
+ * "Sent to 137" when 22 of them could not be reached is the sentence that makes
+ * an organizer believe the chase is done.
+ */
+export async function sendSpeakerLinkAction(
+  _prev: SpeakerState,
+  formData: FormData,
+): Promise<SpeakerState> {
+  const actor = await requireOrganizer();
+
+  const target = String(formData.get('speakerId') ?? '').trim();
+  const note = String(formData.get('note') ?? '').trim();
+  if (!target) return { error: 'Choose who to send it to.' };
+
+  try {
+    if (target !== '__all' && target !== '__incomplete') {
+      const result = await sendPortalLink({ speakerId: target, note, actor });
+      revalidatePath(ROUTES.speakerManager);
+      return result.ok ? { ok: true, message: result.message } : { error: result.error };
+    }
+
+    const speakers = await listSpeakers();
+    const audience = speakers.filter((s) => {
+      if (!s.contactEmail) return false;
+      return target === '__all' || !s.hasBio || !s.hasPhoto;
+    });
+    const noAddress = speakers.filter(
+      (s) => !s.contactEmail && (target === '__all' || !s.hasBio || !s.hasPhoto),
+    ).length;
+
+    if (audience.length === 0) {
+      return {
+        error: noAddress
+          ? `Nobody in that group has an address on file, so there is nowhere to send to. ${noAddress} ${noAddress === 1 ? 'speaker needs' : 'speakers need'} one adding first.`
+          : 'Nobody is in that group.',
+      };
+    }
+
+    /*
+     * A group send mails tens of people, so it is confirmed with the group's
+     * size typed in, like every other bulk send (T258 #14).
+     */
+    const confirm = String(formData.get('confirmCount') ?? '').trim();
+    if (Number(confirm) !== audience.length) {
+      return {
+        error: `Type ${audience.length} in the confirm box to send to this group. That is how many speakers will be emailed.`,
+      };
+    }
+
+    let sent = 0;
+    let failed = 0;
+    let recent = 0;
+    for (const s of audience) {
+      const result = await sendPortalLink({
+        speakerId: s.id,
+        note,
+        actor,
+        skipIfSentWithinMs: GROUP_RESEND_GUARD_MS,
+      });
+      if (result.outcome === 'sent') sent += 1;
+      else if (result.outcome === 'recent') recent += 1;
+      else failed += 1;
+    }
+
+    await appendAudit({
+      actor,
+      action: 'speaker.portalSendGroup',
+      targetPath: COLLECTIONS.speakers,
+      targetId: target,
+      before: {},
+      after: { group: target, size: audience.length, sent, failed, recent },
+    });
+
+    revalidatePath(ROUTES.speakerManager);
+    const summary =
+      `Sent to ${sent} ${sent === 1 ? 'speaker' : 'speakers'}.` +
+      (recent
+        ? ` ${recent} skipped: they were sent a link in the last day. Send to them one at a time if you need to.`
+        : '') +
+      (noAddress ? ` ${noAddress} skipped with no address on file.` : '') +
+      (failed ? ` ${failed} could not be sent. See the email log.` : '');
+    return sent > 0 || failed === 0 ? { ok: true, message: summary } : { error: summary };
+  } catch (err) {
+    recordError('speaker.portalSend', err);
+    return { error: err instanceof Error ? err.message : 'Could not send the link.' };
+  }
+}
+
+/**
+ * Approve or turn down what one speaker sent back.
+ *
+ * One action with two submit buttons rather than two actions, because the panel
+ * is one form: the note belongs to the rejection and the organizer types it
+ * before deciding which button to press.
+ */
+export async function decideSpeakerProfileAction(
+  _prev: SpeakerState,
+  formData: FormData,
+): Promise<SpeakerState> {
+  const actor = await requireOrganizer();
+
+  const speakerId = String(formData.get('speakerId') ?? '').trim();
+  const decision = String(formData.get('decision') ?? '');
+  if (!speakerId) return { error: 'That speaker is no longer on the list.' };
+
+  const result =
+    decision === 'approve'
+      ? await approveSubmission({ speakerId, actor })
+      : await rejectSubmission({ speakerId, note: String(formData.get('note') ?? ''), actor });
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(ROUTES.speakerManager);
+  if (decision === 'approve') {
+    // An approved bio changes the agenda's cached speaker panel and the session
+    // a slides link landed on, and both are read by other screens.
+    revalidatePath(ROUTES.sessionManager);
+  }
+  return { ok: true, message: result.message };
+}
+
+/** Stop every link this speaker holds. One field write; `speaker-portal.ts` says why. */
+export async function revokeSpeakerLinkAction(
+  _prev: SpeakerState,
+  formData: FormData,
+): Promise<SpeakerState> {
+  const actor = await requireOrganizer();
+
+  const speakerId = String(formData.get('speakerId') ?? '').trim();
+  if (!speakerId) return { error: 'Choose a speaker.' };
+
+  const result = await revokePortalLinks({ speakerId, actor });
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(ROUTES.speakerManager);
+  return { ok: true, message: result.message };
 }
 
 // ---------------------------------------------------------------------------

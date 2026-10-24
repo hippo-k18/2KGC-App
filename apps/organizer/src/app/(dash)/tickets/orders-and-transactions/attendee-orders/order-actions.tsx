@@ -1,5 +1,7 @@
 'use client';
 
+import { ConfirmCodeField } from '@/components/confirm-code';
+
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import {
@@ -113,19 +115,7 @@ export function RefundButton({
           style={{ marginBottom: 8, width: '100%' }}
         />
 
-        {needsPassphrase && (
-          <>
-            <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
-              Dashboard passphrase
-            </label>
-            <input
-              name="passphrase"
-              type="password"
-              autoComplete="off"
-              style={{ marginBottom: 8, width: '100%' }}
-            />
-          </>
-        )}
+        {needsPassphrase && <ConfirmCodeField variant="compact" />}
 
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
           Reason (goes on the audit record)
@@ -201,19 +191,7 @@ export function MarkPaidButton({
           </p>
         )}
 
-        {needsPassphrase && (
-          <>
-            <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
-              Dashboard passphrase
-            </label>
-            <input
-              name="passphrase"
-              type="password"
-              autoComplete="off"
-              style={{ marginBottom: 8, width: '100%' }}
-            />
-          </>
-        )}
+        {needsPassphrase && <ConfirmCodeField variant="compact" />}
 
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
           Why: PO number, or who authorised it

@@ -4,6 +4,7 @@ import { readPolls } from '@/lib/polls';
 import { ROUTES } from '@/lib/nav';
 import {
   Banner,
+  EmptyState,
   GapPanel,
   NotInputted,
   PageHeader,
@@ -14,7 +15,7 @@ import {
   Tag,
 } from '../../ui';
 import { PollForm } from '../poll-form';
-import { publishTallyAction, setPollOpenAction } from '../poll-actions';
+import { publishTallyAction, setLiveResultsAction, setPollOpenAction } from '../poll-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,12 +69,12 @@ export default async function LivePollingPage({
           <>
             <strong>Counted here, published on demand</strong>
             <p>
-              This screen counts the vote documents on every load, so its numbers are always right.
-              Attendees see a stored figure that only moves when you press <em>Publish the count</em>.
+              The counts on this screen are always current. Attendees see the result from the last
+              time you pressed <em>Publish the count</em>.
             </p>
             <p>
-              A genuinely live tally in the app needs the <code>tallyPoll</code> trigger, which is
-              written and waiting on one IAM grant from the project owner.
+              Turn on live results and open the room view, and the number attendees see is
+              republished every few seconds for as long as that page stays open.
             </p>
           </>
         }
@@ -83,7 +84,7 @@ export default async function LivePollingPage({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + New poll
             </Link>
           )
@@ -132,7 +133,7 @@ export default async function LivePollingPage({
             value: enabledSessions,
             sub: `of ${liveSessions} live sessions`,
           },
-          { label: 'Votes cast', value: votesCast, sub: 'counted, not read off a tally' },
+          { label: 'Votes cast', value: votesCast },
         ]}
       />
 
@@ -145,19 +146,20 @@ export default async function LivePollingPage({
         </Panel>
       ) : polls.length === 0 ? (
         <Panel>
-          <NotInputted
-            what="polls"
+          <EmptyState
             action={
-              <Link href="?new=1" className="whova-btn-main">
+              <Link href="?new=1" className="whova-btn-main secondary">
                 Create the first one
               </Link>
             }
-          />
+          >
+            <p className="empty-title">No polls yet</p>
+          </EmptyState>
         </Panel>
       ) : (
         polls.map((p) => (
           <Panel key={`${p.sessionId}:${p.id}`} style={{ marginBottom: 16 }}>
-            <div style={{ alignItems: 'baseline', display: 'flex', gap: 10 }}>
+            <div className="card-head" style={{ alignItems: 'baseline', display: 'flex', gap: 10 }}>
               <h2 style={{ fontSize: 15, margin: 0 }}>{p.question}</h2>
               {p.open ? (
                 <Tag color="green" fill="outline" small>
@@ -169,7 +171,11 @@ export default async function LivePollingPage({
                 </Tag>
               )}
               <span style={{ flex: 1 }} />
-              <Link href={`?edit=${p.sessionId}:${p.id}`} style={{ fontSize: 12 }}>
+              <Link
+                className="row-link"
+                href={`?edit=${p.sessionId}:${p.id}`}
+                style={{ fontSize: 12 }}
+              >
                 Edit
               </Link>
             </div>
@@ -202,6 +208,7 @@ export default async function LivePollingPage({
                 ),
               ])}
               empty={<NotInputted what="options on this poll" compact />}
+              stackSm={false}
             />
 
             <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12 }}>
@@ -219,17 +226,45 @@ export default async function LivePollingPage({
                 <input type="hidden" name="id" value={p.id} />
                 <button
                   type="submit"
-                  className={`whova-btn-main small${p.stale ? '' : ' secondary'}`}
+                  className={`whova-btn-main small ${p.stale ? 'primary' : 'secondary'}`}
                 >
                   Publish the count
                 </button>
               </form>
 
+              {/*
+                Live results and the room view are one control in two halves.
+                The switch decides whether attendees' phones follow the room,
+                and the room view is the page that does the following — so they
+                sit together, and the sentence below says which of the two is
+                doing the work.
+              */}
+              <form action={setLiveResultsAction}>
+                <input type="hidden" name="sessionId" value={p.sessionId} />
+                <input type="hidden" name="id" value={p.id} />
+                <input type="hidden" name="liveResults" value={p.liveResults ? 'false' : 'true'} />
+                <button type="submit" className="whova-btn-main secondary small">
+                  {p.liveResults ? 'Turn off live results' : 'Turn on live results'}
+                </button>
+              </form>
+
+              <a
+                href={`/engagement/live-polling/room/${encodeURIComponent(p.sessionId)}/${encodeURIComponent(p.id)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="whova-btn-main secondary small"
+              >
+                Room view ↗
+              </a>
+
               <span className="muted" style={{ fontSize: 12 }}>
                 {p.actualVotes} {p.actualVotes === 1 ? 'vote' : 'votes'} counted.{' '}
                 {p.talliesUpdatedAt
                   ? `The app shows ${p.storedTotal}, published ${p.talliesUpdatedAt.slice(0, 10)} ${p.talliesUpdatedAt.slice(11, 16)}.`
-                  : `The app shows ${p.storedTotal}; nothing has been published yet.`}
+                  : `The app shows ${p.storedTotal}; nothing has been published yet.`}{' '}
+                {p.liveResults
+                  ? 'Live results are on, so the room view keeps that number moving while it is open.'
+                  : ''}
               </span>
             </div>
           </Panel>
@@ -240,17 +275,14 @@ export default async function LivePollingPage({
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>A tally that moves on its own.</strong> The one thing on this screen that
-            genuinely needs <code>tallyPoll</code> deployed. Publishing the count is a snapshot; a
-            vote arriving a second later is not in it.
+            <strong>A tally that moves with nobody watching it.</strong> Live results are
+            republished by the room view, so they stop when that page is closed. A poll nobody is
+            projecting still needs <em>Publish the count</em>, and that is the one thing here that
+            genuinely needs <code>tallyPoll</code> deployed.
           </li>
           <li>
             <strong>Opening and closing from a phone.</strong> The moment to close a poll is on
             stage. These are forms on a desktop dashboard, which is the wrong device for it.
-          </li>
-          <li>
-            <strong>A results display for a projector.</strong> The per-option split is computed
-            here; a full-screen public page for it is not built.
           </li>
           <li>
             <strong>Multi-select polls.</strong> <code>PollVoteDoc.optionIds</code> is an array and

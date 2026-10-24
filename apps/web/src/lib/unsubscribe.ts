@@ -3,6 +3,7 @@ import 'server-only';
 import { FieldValue } from 'firebase-admin/firestore';
 import { COLLECTIONS, type ContactDoc } from '@kgc/shared';
 import { db } from './firestore';
+import type { UnsubscribeOutcome } from './unsubscribe-outcome';
 
 /**
  * Honouring a public unsubscribe.
@@ -86,20 +87,26 @@ export async function lookupContact(contactId: string): Promise<UnsubscribeConta
  * recorded. Both are success from the reader's point of view; the distinction
  * only changes what the page says.
  */
-export async function unsubscribeContact(contactId: string): Promise<boolean> {
+export async function unsubscribeContact(contactId: string): Promise<UnsubscribeOutcome> {
   const ref = db().collection(COLLECTIONS.contacts).doc(contactId);
 
+  /*
+   * A missing contact is an answer, not an error: nothing will be sent to it.
+   * Anything that throws from here is a write that did not happen, and the
+   * callers must say so (T258 #11). They used to answer "unsubscribed" either
+   * way, so Gmail told a reader they were off a list they were still on.
+   */
   return db().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists) throw new Error(`contact ${contactId} no longer exists`);
+    if (!snap.exists) return 'gone' as const;
 
     const c = snap.data() as ContactDoc;
-    if (c.unsubscribedAt) return false;
+    if (c.unsubscribedAt) return 'already' as const;
 
     tx.update(ref, {
       unsubscribedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return true;
+    return 'unsubscribed' as const;
   });
 }

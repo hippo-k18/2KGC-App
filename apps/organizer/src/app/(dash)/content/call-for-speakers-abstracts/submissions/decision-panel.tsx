@@ -1,18 +1,18 @@
 'use client';
 
-import { useActionState } from 'react';
 import {
   CheckboxField,
   FormActions,
   FormBanner,
   SubmitButton,
   Textarea,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../../form';
 import { decideAction } from './actions';
 
 /**
- * Accept or reject one abstract.
+ * Accept, waitlist or reject one abstract.
  *
  * ── Two submits, one form ──────────────────────────────────────────────────
  *
@@ -41,20 +41,53 @@ export function DecisionPanel({
   id,
   decided,
   authorEmail,
+  rolling,
+  accepted,
+  told,
 }: {
   id: string;
   /** True when a decision already stands — the buttons then say "change to". */
   decided: boolean;
   /** Absent when there is no identity document, which disables the mail. */
   authorEmail?: string;
+  /**
+   * The call runs the rolling review (T249). Accept then mails E2 and tells
+   * onboarding by itself, and Reject sends nothing, so there is no note and
+   * no notify box to get wrong.
+   */
+  rolling?: boolean;
+  /**
+   * Rolling review, and this stands accepted (T262). Rejecting it then
+   * needs the withdraw box: the speaker exists and may have been told.
+   */
+  accepted?: boolean;
+  /** The author was emailed the acceptance. */
+  told?: boolean;
 }) {
-  const [state, action] = useActionState<FormState, FormData>(decideAction, {});
+  const [state, action] = useFormAction(decideAction, {}, { resetOnSuccess: true });
 
   return (
-    <form action={action}>
-      <input type="hidden" name="id" value={id} />
+    <ActionForm run={action}>
+      {/*
+        ⚠️ Never a control named id. React posts the pressed button's name and value by
+        inserting a temporary input with `form={form.id}`, and a control named
+        `id` makes `form.id` return that control instead of a string. The
+        temporary input then belongs to no form, the verdict is dropped, and
+        every press answered "Choose accept, waitlist or reject." (T249).
+        `tests/parity/submitter-field-names.test.ts` holds the line.
+      */}
+      <input type="hidden" name="submissionId" value={id} />
       <FormBanner state={state} />
 
+      {rolling ? (
+        <p className="body-2">
+          Accept creates the speaker, emails {authorEmail ?? 'the author'} their acceptance with the
+          link for their details, and tells onboarding. Reject records the decision and sends nothing:
+          the author is told only when someone presses Send on Dates and emails, with every other
+          rejection.
+        </p>
+      ) : (
+        <>
       <Textarea
         label="A note for the author"
         name="note"
@@ -71,17 +104,37 @@ export function DecisionPanel({
             : 'Email the author, no address on file, so nothing can be sent'
         }
         disabled={!authorEmail}
-        description="Unticked by default. An email in somebody's inbox cannot be recalled by anything in this product, so this is the half of the decision that is genuinely final."
+        description="Unticked by default. An email cannot be recalled once it is sent."
       />
+        </>
+      )}
+
+      {rolling && accepted ? (
+        <CheckboxField
+          name="withdraw"
+          label="Withdraw the acceptance"
+          description={
+            told
+              ? 'Required to change the decision to rejected. The author has already been emailed their acceptance and will not get the “not accepted” email, so tell them yourself. The speaker becomes unlisted again.'
+              : 'Required to change the decision to rejected. Their acceptance email has not been sent and will not be. The speaker becomes unlisted again.'
+          }
+        />
+      ) : null}
 
       <FormActions>
         <SubmitButton name="verdict" value="accept" pendingLabel="Recording…">
           {decided ? 'Change to accepted' : 'Accept'}
         </SubmitButton>
+        {/* Min's rolling review has no waiting list (T252); a legacy call keeps it. */}
+        {!rolling && (
+          <SubmitButton name="verdict" value="waitlist" variant="secondary" pendingLabel="Recording…">
+            {decided ? 'Change to waitlisted' : 'Waitlist'}
+          </SubmitButton>
+        )}
         <SubmitButton name="verdict" value="reject" variant="danger" pendingLabel="Recording…">
           {decided ? 'Change to rejected' : 'Reject'}
         </SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
   );
 }
