@@ -2885,13 +2885,16 @@ html:has(dialog[open]) {
 }
 
 /*
- * The order status hint (T357). On a phone each order row is a card that clips
- * an open bubble at its edges, and there is no hover to open one anyway, so the
- * hint is a line of text under the chip there instead of an "i" (see the
- * `.order-status` rules in the phone block).
+ * The order status hint (T357), a line of text under the chip at every width.
+ * A bubble opened from the last table rows is clipped by the wrapper's
+ * sideways scroll (T359), and a phone has no hover to open one.
  */
 .order-status-hint {
-  display: none;
+  color: var(--muted, #8a949e);
+  font-size: 11px;
+  line-height: 15px;
+  margin-top: 4px;
+  max-width: 260px;
 }
 
 .infotip__bubble strong {
@@ -3644,20 +3647,6 @@ html:has(dialog[open]) {
 
   .infotip__bubble::before {
     display: none;
-  }
-
-  /* The order status hint as text under the chip (T357). */
-  .order-status .infotip {
-    display: none;
-  }
-
-  .order-status-hint {
-    color: var(--muted, #8a949e);
-    display: block;
-    font-size: 11px;
-    line-height: 15px;
-    margin-top: 4px;
-    max-width: 260px;
   }
 
   /*

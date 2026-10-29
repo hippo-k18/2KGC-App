@@ -4,7 +4,7 @@ import { listOrders, money, purchaseDay, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { matchesOrderFilter, orderFilterOf, orderStatusLabel } from '@/lib/order-status-core';
 import { stripeEnabled, stripeIsLive, stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
-import { Email, InfoTip, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
+import { Email, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { MarkPaidButton, RefundButton } from './order-actions';
 
 export const dynamic = 'force-dynamic';
@@ -47,17 +47,13 @@ function statusTag(o: OrderRow) {
   const { label, tone, hint } = orderStatusLabel(o);
   return (
     <>
-      <span className="order-status" style={{ alignItems: 'center', display: 'inline-flex', gap: 4 }}>
-        <Tag color={tone} fill="outline">
-          {label}
-        </Tag>
-        {hint ? (
-          <InfoTip label={`${label}: ${hint}`} align="right">
-            {hint}
-          </InfoTip>
-        ) : null}
-      </span>
-      {/* The same words, shown in place of the "i" on a phone (see `.order-status-hint`). */}
+      <Tag color={tone} fill="outline">
+        {label}
+      </Tag>
+      {/*
+        A line of text, not an InfoTip: the table wrapper scrolls sideways, which
+        clips a bubble opened from the last rows (T359), and a phone has no hover.
+      */}
       {hint ? (
         <div className="order-status-hint">
           {hint}
