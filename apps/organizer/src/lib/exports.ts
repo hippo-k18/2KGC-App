@@ -9,6 +9,7 @@ import {
   ticketLabel,
 } from '@kgc/shared';
 import { toCsv, type Column } from './csv';
+import { orderStatusLabel } from './order-status-core';
 import { answerColumns, formatAnswer, surveyAnswerRows } from './answer-exports-core';
 import { db } from './firestore';
 import { getForm } from './question-forms';
@@ -172,7 +173,10 @@ export const EXPORTS: ExportDef[] = [
       { header: 'Company', value: (o) => o.companyName ?? '' },
       { header: 'Ticket', value: (o) => o.ticketNames.join('; ') },
       { header: 'Seats', value: (o) => o.seatCount },
+      // The stored value, unchanged, so a sheet that filters on it still works;
+      // the readable name beside it says which `cancelled` is which (T357).
       { header: 'Status', value: (o) => o.status },
+      { header: 'Status (as shown)', value: (o) => orderStatusLabel(o).label },
       { header: 'Channel', value: (o) => o.channel },
       // Money as a plain decimal, not a formatted string: a finance person is
       // going to SUM this column, and "$799.00" sums to zero.

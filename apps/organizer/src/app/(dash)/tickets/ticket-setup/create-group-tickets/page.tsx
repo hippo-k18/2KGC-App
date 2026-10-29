@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listOrders, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
+import { orderStatusLabel } from '@/lib/order-status-core';
 import { Banner, Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -137,9 +138,12 @@ export default async function CreateGroupTicketsPage() {
             o.seatCount,
             money(o.totalCents, o.currency),
             <span key="st">
-              <Tag color={o.status === 'paid' ? 'green' : o.status === 'pending' ? 'orange' : 'red'}>
-                {o.status.replace('_', ' ')}
-              </Tag>
+              {/* Named as on Attendee Orders (T357); an invoice still owed stays orange here. */}
+              <span title={orderStatusLabel(o).hint}>
+                <Tag color={o.status === 'pending' ? 'orange' : orderStatusLabel(o).tone}>
+                  {orderStatusLabel(o).label}
+                </Tag>
+              </span>
               {o.hostedInvoiceUrl ? (
                 <>
                   {' '}

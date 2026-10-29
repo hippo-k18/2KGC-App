@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { TicketAudience } from '@kgc/shared';
 import { listOrders, listTicketTypes, money, purchaseDay, type OrderRow } from '@/lib/commerce';
+import { orderStatusLabel } from '@/lib/order-status-core';
 import { ROUTES } from '@/lib/nav';
 import { Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
 
@@ -29,6 +30,21 @@ import { Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag 
  * the whole invoice in both the sponsor and the attendee ledger would make the
  * two columns sum to more than was ever charged.
  */
+
+/**
+ * The same names as Attendee Orders (T357): an unpaid `cancelled` order is
+ * "Not completed", a disputed one "Chargeback", with the reason on hover.
+ */
+function StatusChip({ order }: { order: OrderRow }) {
+  const { label, tone, hint } = orderStatusLabel(order);
+  return (
+    <span title={hint}>
+      <Tag small color={tone}>
+        {label}
+      </Tag>
+    </span>
+  );
+}
 
 /** One order's exposure to a single audience, in minor units. */
 function shareForAudience(
@@ -185,15 +201,7 @@ export async function AudienceOrders({
                   .join(', ') || <em className="muted">—</em>}
               </span>,
 
-              <Tag
-                key="s"
-                small
-                color={
-                  m.order.status === 'paid' ? 'green' : m.order.status === 'refunded' ? 'red' : 'grey'
-                }
-              >
-                {m.order.status}
-              </Tag>,
+              <StatusChip key="s" order={m.order} />,
 
               <strong key="t">
                 {money(m.share, m.order.currency)}

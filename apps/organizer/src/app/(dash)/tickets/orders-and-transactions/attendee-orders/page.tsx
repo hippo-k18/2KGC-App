@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { requirePassphrase, requireOrganizer } from '@/lib/auth';
 import { listOrders, money, purchaseDay, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
+import { matchesOrderFilter, orderFilterOf, orderStatusLabel } from '@/lib/order-status-core';
 import { stripeEnabled, stripeIsLive, stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
-import { Email, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
+import { Email, InfoTip, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { MarkPaidButton, RefundButton } from './order-actions';
 
 export const dynamic = 'force-dynamic';
@@ -42,18 +43,27 @@ function statusTag(o: OrderRow) {
       </Tag>
     );
   }
-  const color =
-    o.status === 'paid'
-      ? 'green'
-      : o.status === 'refunded' || o.status === 'cancelled'
-        ? 'red'
-        : o.status === 'partially_refunded'
-          ? 'orange'
-          : 'grey';
+  // `cancelled` reads as "Not completed" or "Chargeback" (T357, `orderStatusLabel`).
+  const { label, tone, hint } = orderStatusLabel(o);
   return (
-    <Tag color={color} fill="outline">
-      {o.status.replace('_', ' ')}
-    </Tag>
+    <>
+      <span className="order-status" style={{ alignItems: 'center', display: 'inline-flex', gap: 4 }}>
+        <Tag color={tone} fill="outline">
+          {label}
+        </Tag>
+        {hint ? (
+          <InfoTip label={`${label}: ${hint}`} align="right">
+            {hint}
+          </InfoTip>
+        ) : null}
+      </span>
+      {/* The same words, shown in place of the "i" on a phone (see `.order-status-hint`). */}
+      {hint ? (
+        <div className="order-status-hint">
+          {hint}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -76,7 +86,7 @@ export default async function AttendeeOrdersPage({
   const all = await listOrders();
 
   const filtered = all.filter((o) => {
-    if (status && o.status !== status) return false;
+    if (!matchesOrderFilter(o, status)) return false;
     if (!q) return true;
     return (
       // The Email Log links here with `?q=<order id>` (T274).
@@ -108,6 +118,9 @@ export default async function AttendeeOrdersPage({
    * orders are neither "paid" nor "refunded" and were reachable only by paging
    * through All. The two states an organizer most needs to isolate — money
    * partly returned, and a checkout that expired — were the two with no filter.
+   *
+   * `cancelled` is counted as two tabs (T357): "Not completed" for checkouts
+   * that expired unpaid, and "Chargeback", shown only when there is one.
    */
   const counts = {
     all: all.length,
@@ -115,7 +128,8 @@ export default async function AttendeeOrdersPage({
     pending: all.filter((o) => o.status === 'pending').length,
     partially_refunded: all.filter((o) => o.status === 'partially_refunded').length,
     refunded: all.filter((o) => o.status === 'refunded').length,
-    cancelled: all.filter((o) => o.status === 'cancelled').length,
+    not_completed: all.filter((o) => orderFilterOf(o) === 'not_completed').length,
+    chargeback: all.filter((o) => orderFilterOf(o) === 'chargeback').length,
   };
 
   return (
@@ -199,7 +213,10 @@ export default async function AttendeeOrdersPage({
               ['pending', `Unpaid ${counts.pending}`],
               ['partially_refunded', `Part refunded ${counts.partially_refunded}`],
               ['refunded', `Refunded ${counts.refunded}`],
-              ['cancelled', `Cancelled ${counts.cancelled}`],
+              ['not_completed', `Not completed ${counts.not_completed}`],
+              ...(counts.chargeback > 0 || status === 'chargeback'
+                ? ([['chargeback', `Chargeback ${counts.chargeback}`]] as const)
+                : []),
             ] as const
           ).map(([value, label]) => {
             const p = new URLSearchParams(baseParams);

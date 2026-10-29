@@ -17,8 +17,9 @@ export const dynamic = 'force-dynamic';
  * it: `cancelUnpaidOrder` moves a pending order to `cancelled`, so an
  * abandonment stops saying `pending` for ever. A disputed sale is `cancelled`
  * too, and is left out here (`isAbandoned`). Those
- * orders are visible in Attendee Orders under the `cancelled` filter. This
- * screen is that same set, framed as what it is.
+ * orders are visible in Attendee Orders under the "Not completed" filter, which
+ * is what the dashboard calls an unpaid `cancelled` order (T357). This screen is
+ * that same set, framed as what it is.
  *
  * ── The catch that decides what can be built on top ─────────────────────────
  *
@@ -63,10 +64,10 @@ export default async function AbandonedRegistrationPage() {
             </p>
           </>
         }
-        tags={<Tag color={abandoned.length > 0 ? 'orange' : 'grey'} fill="outline">{abandoned.length} cancelled</Tag>}
+        tags={<Tag color={abandoned.length > 0 ? 'orange' : 'grey'} fill="outline">{abandoned.length} not completed</Tag>}
         links={[
-          <Link key="o" href={`${ROUTES.attendeeOrders}?status=cancelled`}>
-            Attendee Orders (cancelled)
+          <Link key="o" href={`${ROUTES.attendeeOrders}?status=not_completed`}>
+            Attendee Orders (not completed)
           </Link>,
           <Link key="t" href={ROUTES.transactionHistory}>
             Transaction History
@@ -91,13 +92,13 @@ export default async function AbandonedRegistrationPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Cancelled and expired orders</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Checkouts not completed</h2>
         <Table
           cols={[
             { key: 'e', label: 'Buyer', className: 'cell-md' },
             { key: 'c', label: 'Channel', className: 'cell-sm' },
             { key: 'a', label: 'Amount', className: 'cell-sm' },
-            { key: 'w', label: 'Marked cancelled', className: 'cell-fill' },
+            { key: 'w', label: 'Checkout closed', className: 'cell-fill' },
           ]}
           rows={abandoned.slice(0, 25).map((o) => [
             o.email || <span key="e" className="muted">no address recorded</span>,
