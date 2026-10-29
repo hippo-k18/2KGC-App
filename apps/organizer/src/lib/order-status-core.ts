@@ -33,6 +33,14 @@ export interface OrderStatusLabel {
 export const NOT_COMPLETED_HINT =
   'Started checkout but never paid. The payment page closed after 60 minutes. No money was taken.';
 
+/**
+ * An invoice order is `cancelled` too, when Stripe voids it or marks it
+ * uncollectible (`invoice.voided`, `invoice.marked_uncollectible`). Nobody
+ * opened a payment page for it, so it gets its own sentence (T358).
+ */
+export const INVOICE_NOT_COMPLETED_HINT =
+  'The invoice was voided or marked uncollectible in Stripe, so it was never paid. No money was taken.';
+
 export const CHARGEBACK_HINT =
   'The buyer disputed the payment with their bank, so the tickets were withdrawn. The dispute is handled in Stripe.';
 
@@ -52,7 +60,7 @@ export function matchesOrderFilter(order: { status: string; disputedAt?: unknown
   return orderFilterOf(order) === filter;
 }
 
-export function orderStatusLabel(order: { status: string; disputedAt?: unknown }): OrderStatusLabel {
+export function orderStatusLabel(order: { status: string; disputedAt?: unknown; channel?: string }): OrderStatusLabel {
   switch (order.status) {
     case 'paid':
       return { label: 'paid', tone: 'green' };
@@ -65,7 +73,11 @@ export function orderStatusLabel(order: { status: string; disputedAt?: unknown }
     case 'cancelled':
       return order.disputedAt
         ? { label: 'Chargeback', tone: 'red', hint: CHARGEBACK_HINT }
-        : { label: 'Not completed', tone: 'grey', hint: NOT_COMPLETED_HINT };
+        : {
+            label: 'Not completed',
+            tone: 'grey',
+            hint: order.channel === 'invoice' ? INVOICE_NOT_COMPLETED_HINT : NOT_COMPLETED_HINT,
+          };
     default:
       return { label: order.status.replace(/_/g, ' '), tone: 'grey' };
   }

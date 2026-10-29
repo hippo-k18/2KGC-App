@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHARGEBACK_HINT, NOT_COMPLETED_HINT, matchesOrderFilter, orderFilterOf, orderStatusLabel } from './order-status-core';
+import { CHARGEBACK_HINT, INVOICE_NOT_COMPLETED_HINT, NOT_COMPLETED_HINT, matchesOrderFilter, orderFilterOf, orderStatusLabel } from './order-status-core';
 
 /**
  * T357: "cancelled is a bit ambiguous". A cancelled order is either a checkout
@@ -14,6 +14,14 @@ describe('orderStatusLabel', () => {
       hint: NOT_COMPLETED_HINT,
     });
     expect(NOT_COMPLETED_HINT).toContain('No money was taken.');
+  });
+
+  it('says a voided invoice was voided, not that a payment page closed (T358)', () => {
+    const r = orderStatusLabel({ status: 'cancelled', channel: 'invoice' });
+    expect(r).toEqual({ label: 'Not completed', tone: 'grey', hint: INVOICE_NOT_COMPLETED_HINT });
+    expect(r.hint).not.toContain('payment page');
+    expect(orderStatusLabel({ status: 'cancelled', channel: 'checkout' }).hint).toBe(NOT_COMPLETED_HINT);
+    expect(orderStatusLabel({ status: 'cancelled', channel: 'invoice', disputedAt: '2026-10-01' }).label).toBe('Chargeback');
   });
 
   it('calls a cancelled order with disputedAt a "Chargeback", in red', () => {

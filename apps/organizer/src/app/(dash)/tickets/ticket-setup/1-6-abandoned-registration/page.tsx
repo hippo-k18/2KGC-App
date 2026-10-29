@@ -92,13 +92,13 @@ export default async function AbandonedRegistrationPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Checkouts not completed</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Orders not completed</h2>
         <Table
           cols={[
             { key: 'e', label: 'Buyer', className: 'cell-md' },
             { key: 'c', label: 'Channel', className: 'cell-sm' },
             { key: 'a', label: 'Amount', className: 'cell-sm' },
-            { key: 'w', label: 'Checkout closed', className: 'cell-fill' },
+            { key: 'w', label: 'Closed', className: 'cell-fill' },
           ]}
           rows={abandoned.slice(0, 25).map((o) => [
             o.email || <span key="e" className="muted">no address recorded</span>,
@@ -123,7 +123,7 @@ export default async function AbandonedRegistrationPage() {
           reading the column as a refund date in a finance review.
         */}
         <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          No money moved on these checkouts. The time is when the checkout expired or failed.
+          No money moved on these orders. The time is when the checkout expired or failed, or the invoice was voided.
         </p>
       </Panel>
 
