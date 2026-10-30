@@ -12,7 +12,7 @@ import {
 } from '@kgc/shared';
 import { FROM_ADDRESS } from '@kgc/scripts/src/lib/email';
 import { appendAudit } from './audit';
-import { campaignSkipRows, partitionAudience, suppressionReasonFor, type Excluded } from './campaigns-core';
+import { campaignSkipRows, isReminderOnly, onListOf, partitionAudience, suppressionReasonFor, type Excluded } from './campaigns-core';
 import { listOrders, type OrderRow } from './commerce';
 import { recordError } from './errors';
 import { db } from './firestore';
@@ -120,7 +120,10 @@ export async function listContacts(): Promise<ContactRow[]> {
 
 export interface ContactSummary {
   total: number;
+  /** Who an "All contacts" send would reach: not suppressed, not reminder-only. */
   mailable: number;
+  /** Made only for the checkout reminder's unsubscribe link and on no list (T364). Never in `mailable`. */
+  reminderOnly: number;
   unsubscribed: number;
   bounced: number;
   converted: number;
@@ -143,7 +146,8 @@ export function summariseContacts(contacts: ContactRow[]): ContactSummary {
 
   return {
     total: contacts.length,
-    mailable: contacts.filter(mailable).length,
+    mailable: contacts.filter((c) => mailable(c) && !isReminderOnly(c)).length,
+    reminderOnly: contacts.filter(isReminderOnly).length,
     unsubscribed: contacts.filter((c) => c.unsubscribedAt).length,
     bounced: contacts.filter((c) => c.bouncedAt).length,
     converted: contacts.filter((c) => c.converted).length,
@@ -175,7 +179,8 @@ export function audienceFor(
   contacts: ContactRow[],
   list: string,
 ): { recipients: ContactRow[]; suppressed: number; excluded: Excluded<ContactRow>[] } {
-  const onList = list === '*' ? contacts : contacts.filter((c) => c.lists.includes(list));
+  // `*` leaves out reminder-only contacts (T364): they never asked for marketing.
+  const onList = onListOf(contacts, list);
   const { recipients, excluded } = partitionAudience(onList);
   return { recipients, suppressed: excluded.length, excluded };
 }

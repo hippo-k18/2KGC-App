@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Firestore } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT, EVENT_ID, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
+import { COLLECTIONS, EVENT, EVENT_ID, REMINDER_CONTACT_SOURCE, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
 import { storedBody, type CaptureInput } from './email-capture.js';
 import { contactId } from './ids.js';
 import { ensureReferralCode, firstNameOf, inviteMailto, personalInviteUrl } from './referrals.js';
@@ -1571,7 +1571,8 @@ export interface CheckoutReminderInput extends CheckoutReminderMessageInput {
 /**
  * Make sure a contact document governs this address, so the unsubscribe link
  * has something to record against (the website's `unsubscribeContact` only
- * updates an existing contact). Created with no lists. A native `Date`, never
+ * updates an existing contact). Created with no lists and
+ * `REMINDER_CONTACT_SOURCE`, which keeps it out of every campaign audience. A native `Date`, never
  * a sentinel: see `log()`.
  */
 async function ensureReminderContact(store: Firestore, email: string, name?: string): Promise<void> {
@@ -1584,7 +1585,7 @@ async function ensureReminderContact(store: Firestore, email: string, name?: str
       eventId: EVENT_ID,
       email: email.trim().toLowerCase(),
       ...(name?.trim() ? { name: name.trim() } : {}),
-      source: 'Checkout not completed (reminder)',
+      source: REMINDER_CONTACT_SOURCE,
       lists: [],
       createdAt: now,
       updatedAt: now,

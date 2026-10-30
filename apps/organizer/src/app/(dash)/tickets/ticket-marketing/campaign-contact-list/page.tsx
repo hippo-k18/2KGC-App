@@ -107,20 +107,36 @@ export default async function CampaignContactListPage({
         ]}
       />
 
-      {summary.unsubscribed + summary.bounced > 0 && (
+      {summary.unsubscribed + summary.bounced + summary.reminderOnly > 0 && (
         <Banner kind="warning">
           <strong>
             {summary.mailable} of {summary.total} may be emailed.
           </strong>{' '}
-          {summary.unsubscribed} unsubscribed and {summary.bounced} bounced. Both are excluded from
-          every send and cannot be brought back by re-importing them.
+          {summary.unsubscribed + summary.bounced > 0 ? (
+            <>
+              {summary.unsubscribed} unsubscribed and {summary.bounced} bounced. Both are excluded from
+              every send and cannot be brought back by re-importing them.{' '}
+            </>
+          ) : null}
+          {summary.reminderOnly > 0 ? (
+            <>
+              {summary.reminderOnly} {summary.reminderOnly === 1 ? 'was' : 'were'} added only so the
+              checkout reminder could offer an unsubscribe link. They never signed up, so no campaign
+              includes them unless you add them to a list.
+            </>
+          ) : null}
         </Banner>
       )}
 
       <StatTiles
         tiles={[
           { label: 'Contacts', value: summary.total, sub: `${summary.lists.length} lists` },
-          { label: 'Mailable', value: summary.mailable, sub: 'after exclusions' },
+          {
+            label: 'Mailable',
+            value: summary.mailable,
+            // Contacts the checkout reminder made are on file but never in a campaign (T364).
+            sub: summary.reminderOnly ? `${summary.reminderOnly} reminder-only not included` : 'after exclusions',
+          },
           { label: 'Unsubscribed', value: summary.unsubscribed, sub: 'kept out of every send' },
           { label: 'Bounced', value: summary.bounced, sub: 'dead mailbox' },
         ]}

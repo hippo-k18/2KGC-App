@@ -31,11 +31,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   campaignSkipRows,
+  isReminderOnly,
+  onListOf,
   partitionAudience,
   skipReasonText,
   suppressionReasonFor,
   type Suppressible,
 } from '../../apps/organizer/src/lib/campaigns-core';
+import { REMINDER_CONTACT_SOURCE } from '@kgc/shared';
 
 /*
  * The token module reads its secret inside `secret()` on every call rather than
@@ -348,5 +351,22 @@ describe('the skipped rows a send writes to emailLog', () => {
 
   it('writes nothing when nobody was excluded', () => {
     expect(campaignSkipRows(partitionAudience([mailable]).excluded)).toEqual([]);
+  });
+});
+
+describe('reminder-only contacts (T364)', () => {
+  const reminder = { email: 'ada@x.com', source: REMINDER_CONTACT_SOURCE, lists: [] as string[] };
+  const listed = { ...reminder, email: 'bo@x.com', lists: ['VIP'] };
+  const ordinary = { email: 'cy@x.com', source: 'CSV import', lists: [] as string[] };
+
+  it('is the reminder source on no list, and nothing else', () => {
+    expect(isReminderOnly(reminder)).toBe(true);
+    expect(isReminderOnly(listed)).toBe(false);
+    expect(isReminderOnly(ordinary)).toBe(false);
+  });
+
+  it('is left out of "All contacts" and kept on a list an organizer chose', () => {
+    expect(onListOf([reminder, listed, ordinary], '*').map((c) => c.email)).toEqual(['bo@x.com', 'cy@x.com']);
+    expect(onListOf([reminder, listed, ordinary], 'VIP').map((c) => c.email)).toEqual(['bo@x.com']);
   });
 });

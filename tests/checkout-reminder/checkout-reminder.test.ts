@@ -19,6 +19,10 @@ import { db } from '@/lib/firestore';
 import { planReminders, runCheckoutReminders, saveReminderSettings } from '@/lib/checkout-reminder';
 import { REMINDER_SETTINGS_DOC } from '@/lib/checkout-reminder-core';
 import { POST } from '@/app/api/cron/checkout-reminder/route';
+import { audienceFor, listContacts, summariseContacts } from '@/lib/campaigns';
+import { readUnsubscribeToken } from '@kgc/scripts/src/lib/unsubscribe-token';
+// The website's own unsubscribe write, on its own store, against the same emulator.
+import { unsubscribeContact } from '../../apps/web/src/lib/unsubscribe';
 
 const H = 3_600_000;
 const D = 24 * H;
@@ -221,6 +225,36 @@ describe('the cron run', () => {
     for (let i = 0; i < 12; i++) await abandoned(`o${i}`, `p${i}@company.com`);
     expect(await runCheckoutReminders({ nowMs: DUE })).toMatchObject({ sent: 10 });
     expect(await runCheckoutReminders({ nowMs: DUE + 15 * 60_000 })).toMatchObject({ sent: 2 });
+  });
+});
+
+describe('reminder-only contacts stay out of campaigns (T364)', () => {
+  it('leaves them out of "All contacts" and its counts, includes them once on a list, and their unsubscribe link still works', async () => {
+    await switchOn();
+    await abandoned('o1', 'ada@company.com');
+    await db().collection(COLLECTIONS.contacts).doc(contactId('news@company.com')).set({ eventId: EVENT_ID, email: 'news@company.com', lists: ['Newsletter'], createdAt: new Date(ON) });
+    await runCheckoutReminders({ nowMs: DUE });
+    expect(resendBodies).toHaveLength(1);
+
+    let contacts = await listContacts();
+    expect(contacts.map((c) => c.email).sort()).toEqual(['ada@company.com', 'news@company.com']);
+    expect(audienceFor(contacts, '*').recipients.map((c) => c.email)).toEqual(['news@company.com']);
+    expect(summariseContacts(contacts)).toMatchObject({ total: 2, mailable: 1, reminderOnly: 1 });
+
+    // An organizer puts them on a list: now an ordinary contact.
+    await db().collection(COLLECTIONS.contacts).doc(contactId('ada@company.com')).update({ lists: ['VIP'] });
+    contacts = await listContacts();
+    expect(audienceFor(contacts, '*').recipients.map((c) => c.email).sort()).toEqual(['ada@company.com', 'news@company.com']);
+    expect(audienceFor(contacts, 'VIP').recipients.map((c) => c.email)).toEqual(['ada@company.com']);
+    await db().collection(COLLECTIONS.contacts).doc(contactId('ada@company.com')).update({ lists: [] });
+
+    // The one-click link in the reminder unsubscribes the contact it made.
+    const header = (resendBodies[0].headers as Record<string, string>)['List-Unsubscribe'];
+    const token = decodeURIComponent(/\/api\/unsubscribe\/([^>]+)>/.exec(header)![1]);
+    expect(readUnsubscribeToken(token)?.cid).toBe(contactId('ada@company.com'));
+    expect(await unsubscribeContact(contactId('ada@company.com'))).toBe('unsubscribed');
+    contacts = await listContacts();
+    expect(contacts.find((c) => c.email === 'ada@company.com')?.unsubscribedAt).toBeTruthy();
   });
 });
 

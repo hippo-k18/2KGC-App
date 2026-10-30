@@ -33,6 +33,8 @@
  * question.
  */
 
+import { REMINDER_CONTACT_SOURCE } from '@kgc/shared';
+
 /**
  * The minimum shape suppression needs.
  *
@@ -67,6 +69,21 @@ export function suppressionReasonFor(c: Suppressible): SuppressionReason | null 
   if (c.unsubscribedAt) return 'unsubscribed';
   if (c.bouncedAt) return 'bounced';
   return null;
+}
+
+/**
+ * A contact that exists only because the checkout reminder needed somewhere
+ * for its unsubscribe link to land (T363): that source, on no list. Never
+ * part of a campaign audience, "All contacts" included (T364). Adding them to
+ * a list is an organizer's explicit choice and makes them an ordinary contact.
+ */
+export function isReminderOnly(c: { source?: string; lists: readonly string[] }): boolean {
+  return c.source === REMINDER_CONTACT_SOURCE && c.lists.length === 0;
+}
+
+/** Who a campaign to `list` is addressed to, before suppression. `*` is everybody but reminder-only contacts. */
+export function onListOf<T extends { source?: string; lists: readonly string[] }>(contacts: readonly T[], list: string): T[] {
+  return list === '*' ? contacts.filter((c) => !isReminderOnly(c)) : contacts.filter((c) => c.lists.includes(list));
 }
 
 /** One contact who will not be mailed, and why. */

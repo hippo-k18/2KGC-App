@@ -2685,6 +2685,14 @@ export interface ContactDoc extends BaseDoc {
 }
 
 /**
+ * `ContactDoc.source` on a contact the checkout reminder made (T363), only so
+ * its unsubscribe link has a record to land on. These people never asked for
+ * marketing, so while `lists` is empty no campaign audience includes them
+ * (T364); an organizer who adds one to a list has decided otherwise.
+ */
+export const REMINDER_CONTACT_SOURCE = "Checkout not completed (reminder)";
+
+/**
  * `campaignLinks/{code}` — one tracked link.
  *
  * A short code that redirects to a page on the marketing site, counting the

@@ -76,7 +76,7 @@ export default async function OrganizerCoPromoPage() {
       channel: 'The mailing list',
       reach: c.mailable,
       unit: 'mailable contacts',
-      how: `${c.total} on file, ${c.unsubscribed + c.bounced} suppressed and never mailed.`,
+      how: `${c.total} on file, ${c.unsubscribed + c.bounced} suppressed and never mailed${c.reminderOnly ? `, ${c.reminderOnly} reminder-only not included` : ''}.`,
       href: '/tickets/ticket-marketing/email-campaign',
       label: 'Email Campaign',
     },
