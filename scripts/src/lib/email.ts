@@ -2,7 +2,15 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Firestore } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT, EVENT_ID, REMINDER_CONTACT_SOURCE, publicSiteOrigin, type EmailLogDoc } from '@kgc/shared';
+import {
+  CHECKOUT_REMINDER_INTERVAL_DAYS,
+  COLLECTIONS,
+  EVENT,
+  EVENT_ID,
+  REMINDER_CONTACT_SOURCE,
+  publicSiteOrigin,
+  type EmailLogDoc,
+} from '@kgc/shared';
 import { storedBody, type CaptureInput } from './email-capture.js';
 import { contactId } from './ids.js';
 import { ensureReferralCode, firstNameOf, inviteMailto, personalInviteUrl } from './referrals.js';
@@ -1504,10 +1512,18 @@ export const CHECKOUT_REMINDER_DEFAULTS = {
   button: 'Finish registering',
 } as const;
 
-/** `{first name}` filled in, or taken out with the space before it ("Hi {first name}," becomes "Hi,"). */
+/**
+ * `{first name}` filled in, or taken out cleanly when no name is known: with
+ * the comma or space before it ("Still thinking about it, {first name}?"
+ * becomes "Still thinking about it?", "Hi {first name}," becomes "Hi,"), or,
+ * at the start, with the comma and space after it.
+ */
 export function fillFirstName(text: string, name: string | undefined): string {
   const first = firstNameOf(name ?? '');
-  return first ? text.replace(/\{first name\}/gi, first) : text.replace(/\s*\{first name\}/gi, '');
+  if (first) return text.replace(/\{first name\}/gi, first);
+  return text
+    .replace(/^(\s*)\{first name\}\s*,?\s*/gim, '$1')
+    .replace(/,?[ \t]*\{first name\}/gi, '');
 }
 
 export interface CheckoutReminderMessageInput {
@@ -1525,7 +1541,7 @@ export function checkoutReminderMessage(input: CheckoutReminderMessageInput, uns
   const tickets = (input.ticketNames ?? []).filter(Boolean);
   const ticketLine = tickets.length ? `You picked: ${[...new Set(tickets)].join(', ')}.` : '';
   const why =
-    'You are getting this because you started buying a ticket for the Knowledge Graph Conference 2027 with this address. We send this reminder once.';
+    `You are getting this because you started buying a ticket for the Knowledge Graph Conference 2027 with this address. We send at most one reminder every ${CHECKOUT_REMINDER_INTERVAL_DAYS} days.`;
 
   const paragraphs = body
     .split(/\n\s*\n/)
@@ -1559,6 +1575,12 @@ export interface CheckoutReminderInput extends CheckoutReminderMessageInput {
    * checkout's close time.
    */
   issuedAt: number;
+  /**
+   * Which try this is for the order, from 1. The first try's Idempotency-Key
+   * is the order id; a retry adds the attempt number, so a retry is never
+   * answered with Resend's stored reply to the try that failed (T366).
+   */
+  attempt?: number;
   /** Who pressed Send me a test. Absent on the automatic sends. */
   actor?: string;
   /**
@@ -1591,6 +1613,11 @@ async function ensureReminderContact(store: Firestore, email: string, name?: str
       updatedAt: now,
     });
   });
+}
+
+/** The reminder's idempotency key for one try: the order id, plus the attempt number after the first. */
+export function reminderIdempotencyKey(orderId: string, attempt = 1): string {
+  return attempt > 1 ? `${orderId}:attempt-${attempt}` : orderId;
 }
 
 /** Send the reminder. Never throws; not sent at all (logged `failed`) without a working unsubscribe link. */
@@ -1632,7 +1659,7 @@ export async function sendCheckoutReminder(store: Firestore, input: CheckoutRemi
     orderId: input.orderId,
     actor: input.actor,
     replyTo: input.replyTo,
-    ...(input.test || !input.orderId ? {} : { idempotencyKey: input.orderId }),
+    ...(input.test || !input.orderId ? {} : { idempotencyKey: reminderIdempotencyKey(input.orderId, input.attempt) }),
     unsubscribeUrl: links.oneClick,
   });
 }

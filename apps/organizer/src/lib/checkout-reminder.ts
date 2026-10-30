@@ -18,9 +18,12 @@ import {
   DEFAULT_DELAY_HOURS,
   REMINDER_SETTINGS_DOC,
   SENDS_PER_RUN,
+  baseAddress,
   candidates,
   decide,
+  lookupAddresses,
   normaliseEmail,
+  orderFacts,
   type Decision,
   type PersonFacts,
   type ReminderOrder,
@@ -147,14 +150,20 @@ export interface ReminderPlan {
   orders: ReminderOrder[];
 }
 
-/** Has this person bought since, and are they suppressed? Read for candidates only. */
+/**
+ * Has this person bought since, are they waiting on an invoice, and are they
+ * suppressed? Read for candidates only, and every lookup folds case and
+ * `+tag`, so `ada+kgc@x` who left a checkout and `ada@x` who paid are one
+ * person (T366).
+ */
 async function factsFor(email: string, orders: readonly ReminderOrder[]): Promise<Omit<PersonFacts, 'reminder'>> {
-  const e = normaliseEmail(email);
-  let bought = orders.some((o) => normaliseEmail(o.email) === e && (o.status === 'paid' || o.status === 'partially_refunded'));
+  const addrs = lookupAddresses(email);
+  const own = orderFacts(orders, email);
+  let bought = own.bought;
   if (!bought) {
     const [byEmail, byAlt] = await Promise.all([
-      db().collection(COLLECTIONS.registrations).where('email', '==', e).get(),
-      db().collection(COLLECTIONS.registrations).where('altEmails', 'array-contains', e).get(),
+      db().collection(COLLECTIONS.registrations).where('email', 'in', addrs).get(),
+      db().collection(COLLECTIONS.registrations).where('altEmails', 'array-contains-any', addrs).get(),
     ]);
     bought = [...byEmail.docs, ...byAlt.docs].some((d) => {
       const r = d.data() as RegistrationDoc;
@@ -162,25 +171,34 @@ async function factsFor(email: string, orders: readonly ReminderOrder[]): Promis
     });
   }
 
-  const contact = await db().collection(COLLECTIONS.contacts).doc(contactId(e)).get();
-  const c = contact.exists ? (contact.data() as ContactDoc) : undefined;
   // The suppression rule reads presence only; any truthy value means "set".
-  let suppressed: string | null = c
-    ? suppressionReasonFor({
-        email: e,
-        unsubscribedAt: c.unsubscribedAt ? 'set' : undefined,
-        bouncedAt: c.bouncedAt ? 'set' : undefined,
-        complainedAt: c.complainedAt ? 'set' : undefined,
-      })
-    : null;
+  let suppressed: string | null = null;
+  for (const a of addrs) {
+    const contact = await db().collection(COLLECTIONS.contacts).doc(contactId(a)).get();
+    const c = contact.exists ? (contact.data() as ContactDoc) : undefined;
+    suppressed = c
+      ? suppressionReasonFor({
+          email: a,
+          unsubscribedAt: c.unsubscribedAt ? 'set' : undefined,
+          bouncedAt: c.bouncedAt ? 'set' : undefined,
+          complainedAt: c.complainedAt ? 'set' : undefined,
+        })
+      : null;
+    if (suppressed) break;
+  }
   if (!suppressed) {
     // A bounce or complaint the webhook pinned on a mail with no contact behind it.
-    const logs = await db().collection(COLLECTIONS.emailLog).where('to', '==', e).get();
+    const logs = await db().collection(COLLECTIONS.emailLog).where('to', 'in', addrs).get();
     const bad = logs.docs.map((d) => d.data()).filter((d) => d.eventId === EVENT_ID);
     if (bad.some((d) => d.complainedAt)) suppressed = 'marked as spam';
     else if (bad.some((d) => d.bouncedAt)) suppressed = 'bounced';
   }
-  return { bought, suppressed };
+  return { bought, invoicePending: own.invoicePending, suppressed };
+}
+
+/** The `checkoutReminders` id for a person: one per inbox, so `+tag`s fold into it. */
+export function reminderPersonKey(email: string): string {
+  return hubspotPersonKey(baseAddress(email));
 }
 
 /** Who is next and when, and who is skipped and why. Reads only; the screen and the run share it. */
@@ -194,8 +212,10 @@ export async function planReminders(nowMs: number = Date.now()): Promise<Reminde
   const records = new Map(recordSnap.docs.map((d) => [d.id, toRecord(d.data() as CheckoutReminderDoc)]));
 
   const rows: PlanRow[] = [];
-  for (const [email, order] of candidates(orders, settings)) {
-    const key = hubspotPersonKey(email);
+  for (const order of candidates(orders, settings).values()) {
+    // Mail goes to the address they typed on the latest checkout.
+    const email = normaliseEmail(order.email);
+    const key = reminderPersonKey(email);
     try {
       const facts: PersonFacts = { ...(await factsFor(email, orders)), reminder: records.get(key) };
       rows.push({ email, key, decision: decide(order, facts, settings, nowMs, owners()) });
@@ -306,6 +326,7 @@ export async function runCheckoutReminders(opts: { nowMs?: number; limit?: numbe
         body: settings.body,
         replyTo: settings.replyTo,
         orderId: o.id,
+        attempt,
         issuedAt: o.closedAtMs,
       });
     } catch (err) {

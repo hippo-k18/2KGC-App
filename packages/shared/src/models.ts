@@ -2693,6 +2693,13 @@ export interface ContactDoc extends BaseDoc {
 export const REMINDER_CONTACT_SOURCE = "Checkout not completed (reminder)";
 
 /**
+ * The checkout reminder mails a person at most once in this many days (T363).
+ * Shared because the rule and the email's footer both state it, and the
+ * footer must say what the rule does (T366).
+ */
+export const CHECKOUT_REMINDER_INTERVAL_DAYS = 30;
+
+/**
  * `campaignLinks/{code}` — one tracked link.
  *
  * A short code that redirects to a page on the marketing site, counting the

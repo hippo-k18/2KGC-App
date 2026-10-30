@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { hubspotPersonKey } from '@kgc/scripts/src/lib/hubspot-sync';
 import { currentAccess, requireOrganizer } from '@/lib/auth';
-import { planReminders, type ReminderPlan } from '@/lib/checkout-reminder';
+import { planReminders, reminderPersonKey, type ReminderPlan } from '@/lib/checkout-reminder';
 import { reminderCell } from '@/lib/checkout-reminder-core';
 import { isAbandoned, listOrders, money } from '@/lib/commerce';
 import { recordError } from '@/lib/errors';
@@ -175,7 +174,7 @@ export default async function AbandonedRegistrationPage() {
 
 function RemindedCell({ orderId, email, plan }: { orderId: string; email: string; plan: ReminderPlan | null }) {
   if (!email || !plan) return <span className="muted">None</span>;
-  const cell = reminderCell(orderId, plan.records.get(hubspotPersonKey(email)));
+  const cell = reminderCell(orderId, plan.records.get(reminderPersonKey(email)));
   if (!cell) return <span className="muted">None</span>;
   return (
     <span style={{ fontSize: 13 }}>
@@ -246,7 +245,7 @@ function ReminderPanel({ plan, isOwner, ownerEmail }: { plan: ReminderPlan | nul
           at(r.decision.order.closedAtMs),
           r.decision.kind === 'wait' ? at(r.decision.dueAtMs) : 'On the next run',
         ])}
-        empty={settings.enabled ? 'Nobody is waiting for a reminder.' : 'Nothing while the reminder is off.'}
+        empty={settings.enabled ? 'Nobody is waiting for a reminder.' : 'Nothing is sent while the reminder is off.'}
       />
 
       <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Skipped</h3>
@@ -261,7 +260,7 @@ function ReminderPanel({ plan, isOwner, ownerEmail }: { plan: ReminderPlan | nul
           at(r.decision.order.closedAtMs),
           r.decision.kind === 'skip' ? r.decision.reason : '',
         ])}
-        empty="Nobody is skipped."
+        empty={settings.enabled ? 'Nobody is skipped.' : 'Nothing is sent while the reminder is off.'}
       />
     </Panel>
   );

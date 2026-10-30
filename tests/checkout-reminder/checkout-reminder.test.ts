@@ -13,10 +13,10 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { NextRequest } from 'next/server';
 
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
-import { hubspotPersonKey } from '@kgc/scripts/src/lib/hubspot-sync';
 import { contactId } from '@kgc/scripts/src/lib/ids';
 import { db } from '@/lib/firestore';
-import { planReminders, runCheckoutReminders, saveReminderSettings } from '@/lib/checkout-reminder';
+import { planReminders, reminderPersonKey, runCheckoutReminders, saveReminderSettings } from '@/lib/checkout-reminder';
+import { idempotencyKeyFor } from '@kgc/scripts/src/lib/email';
 import { REMINDER_SETTINGS_DOC } from '@/lib/checkout-reminder-core';
 import { POST } from '@/app/api/cron/checkout-reminder/route';
 import { audienceFor, listContacts, summariseContacts } from '@/lib/campaigns';
@@ -31,6 +31,7 @@ const ON = Date.UTC(2026, 9, 29, 12);
 const DUE = ON + H + D + 60_000;
 
 let resendBodies: Record<string, unknown>[] = [];
+let resendKeys: string[] = [];
 let resendStatus = 200;
 
 beforeAll(() => {
@@ -43,6 +44,7 @@ beforeEach(async () => {
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
   resendBodies = [];
+  resendKeys = [];
   resendStatus = 200;
   process.env.RESEND_API_KEY = 're_test_not_real';
   delete process.env.EMAIL_CAPTURE_DIR;
@@ -51,6 +53,7 @@ beforeEach(async () => {
     vi.fn(async (url: string, init?: RequestInit) => {
       if (!String(url).startsWith('https://api.resend.com/')) throw new Error(`unexpected fetch ${url}`);
       resendBodies.push(JSON.parse(String(init?.body)));
+      resendKeys.push(String(new Headers(init?.headers).get('Idempotency-Key')));
       return resendStatus === 200
         ? new Response(JSON.stringify({ id: `re_${resendBodies.length}` }), { status: 200 })
         : new Response(JSON.stringify({ message: 'refused' }), { status: resendStatus });
@@ -79,7 +82,7 @@ async function abandoned(id: string, email: string, over: Record<string, unknown
     .set({ eventId: EVENT_ID, externalId: `cs_${id}`, provider: 'stripe', email, status: 'cancelled', totalCents: 0, refundedCents: 0, currency: 'usd', purchasedAt: at, updatedAt: at, ...over });
 }
 
-const record = async (email: string) => (await db().collection(COLLECTIONS.checkoutReminders).doc(hubspotPersonKey(email)).get()).data();
+const record = async (email: string) => (await db().collection(COLLECTIONS.checkoutReminders).doc(reminderPersonKey(email)).get()).data();
 
 describe('the cron run', () => {
   it('sends nothing while the reminder is off', async () => {
@@ -88,6 +91,15 @@ describe('the cron run', () => {
     expect(await runCheckoutReminders({ nowMs: DUE })).toMatchObject({ ran: false, sent: 0 });
     expect(resendBodies).toHaveLength(0);
     expect((await db().collection(COLLECTIONS.checkoutReminders).get()).size).toBe(0);
+  });
+
+  it('lists nobody as next or skipped while off, even with enabledAt kept from before (T366)', async () => {
+    await abandoned('o1', 'ada@company.com');
+    await abandoned('o2', 'someone@example.com');
+    await switchOn({ enabled: false });
+    const plan = await planReminders(DUE);
+    expect(plan.settings.enabledAtMs).toBe(ON);
+    expect(plan.rows).toEqual([]);
   });
 
   it('sends one reminder with the name, ticket, footer and one-click unsubscribe, and records it', async () => {
@@ -111,6 +123,7 @@ describe('the cron run', () => {
     expect(mail.text).toContain('You picked: Main Conference.');
     expect(mail.text).toContain('https://www.knowledgegraph.tech/tickets');
     expect(mail.text).toContain('109 West 39th Street');
+    expect(mail.text).toContain('We send at most one reminder every 30 days.');
     expect(mail.text).toMatch(/Unsubscribe: https:\/\/www\.knowledgegraph\.tech\/u\//);
     expect(mail.headers['List-Unsubscribe']).toMatch(/^<https:\/\/www\.knowledgegraph\.tech\/api\/unsubscribe\//);
     expect(mail.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
@@ -185,6 +198,31 @@ describe('the cron run', () => {
     expect(await runCheckoutReminders({ nowMs: DUE + 15 * 60_000 })).toMatchObject({ skipped: 0 });
   });
 
+  it('folds +tag and case: a purchase or ticket under the bare address counts (T366)', async () => {
+    await switchOn();
+    await abandoned('o1', 'Ada+kgc@Company.com');
+    await db().collection(COLLECTIONS.orders).doc('paid').set({ eventId: EVENT_ID, email: 'ada@company.com', status: 'paid', channel: 'checkout', totalCents: 79900, currency: 'usd', purchasedAt: new Date(ON + 2 * H), registrationIds: ['r1'] });
+    await abandoned('o2', 'bilal+conf@company.com');
+    await db().collection(COLLECTIONS.registrations).doc('r2').set({ eventId: EVENT_ID, email: 'bilal@company.com', altEmails: [], status: 'active' });
+    await abandoned('o3', 'chen+x@company.com');
+    await db().collection(COLLECTIONS.contacts).doc(contactId('chen@company.com')).set({ eventId: EVENT_ID, email: 'chen@company.com', lists: [], unsubscribedAt: new Date(ON) });
+
+    await runCheckoutReminders({ nowMs: DUE });
+    expect(resendBodies).toHaveLength(0);
+    expect(await record('ada@company.com')).toMatchObject({ status: 'skipped', reason: 'bought a ticket since' });
+    expect(await record('bilal@company.com')).toMatchObject({ status: 'skipped', reason: 'bought a ticket since' });
+    expect(await record('chen@company.com')).toMatchObject({ status: 'skipped', reason: 'unsubscribed' });
+  });
+
+  it('skips somebody holding a pending invoice (T366)', async () => {
+    await switchOn();
+    await abandoned('o1', 'ada@company.com');
+    await db().collection(COLLECTIONS.orders).doc('inv').set({ eventId: EVENT_ID, email: 'ada@company.com', status: 'pending', channel: 'invoice', totalCents: 79900, currency: 'usd', purchasedAt: new Date(ON + 2 * H) });
+    await runCheckoutReminders({ nowMs: DUE });
+    expect(resendBodies).toHaveLength(0);
+    expect(await record('ada@company.com')).toMatchObject({ status: 'skipped', reason: 'invoice pending' });
+  });
+
   it('skips suppressed and test addresses', async () => {
     await switchOn({ skipList: ['staff@kgc.test'] });
     await abandoned('o1', 'gone@company.com');
@@ -216,8 +254,14 @@ describe('the cron run', () => {
     for (let i = 0; i < 5; i++) await runCheckoutReminders({ nowMs: DUE + i * 15 * 60_000 });
     expect(resendBodies).toHaveLength(3);
     expect(await record('ada@company.com')).toMatchObject({ status: 'failed', attempts: 3 });
-    // The same mail each time, so Resend's idempotency key would hold.
+    // The same mail each time, but each try under its own key (T366): the first
+    // as before, the retries never answered with the failed try's stored reply.
     expect(new Set(resendBodies.map((b) => JSON.stringify(b))).size).toBe(1);
+    expect(resendKeys).toEqual([
+      idempotencyKeyFor('checkout-reminder', 'o1', 'ada@company.com'),
+      idempotencyKeyFor('checkout-reminder', 'o1:attempt-2', 'ada@company.com'),
+      idempotencyKeyFor('checkout-reminder', 'o1:attempt-3', 'ada@company.com'),
+    ]);
   });
 
   it('sends at most ten a run', async () => {

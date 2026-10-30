@@ -464,7 +464,7 @@ export const EMAIL_FORMATS: EmailFormat[] = [
     name: 'Checkout reminder',
     template: 'checkout-reminder',
     sender: 'sendCheckoutReminder',
-    when: 'Automatically, once, to someone who reached the payment page and did not pay, when switched on under Tickets > Ticket Setup > 1.6 Abandoned Registration. The words shown are the defaults.',
+    when: 'Automatically, to someone who reached the payment page and did not pay, when switched on under Tickets > Ticket Setup > 1.6 Abandoned Registration. At most one every 30 days per person. The words shown are the defaults.',
     to: 'The person who started the checkout',
     variants: [
       v('ticket', 'Name and ticket known', () =>

@@ -1,6 +1,6 @@
 # The checkout reminder (T363): every 15 minutes, email the people who left
-# the Stripe payment page a day ago (once each). Reuses the call for papers
-# timer's secret file, like kgc-hubspot-cron.
+# the Stripe payment page a day ago (at most one per person every 30 days).
+# Reuses the call for papers timer's secret file, like kgc-hubspot-cron.
 #   cp kgc-reminder-cron.service kgc-reminder-cron.timer /etc/systemd/system/
 #   systemctl daemon-reload && systemctl enable --now kgc-reminder-cron.timer
 # Needs /etc/kgc-cfp-cron.env (CRON_SECRET) and the same CRON_SECRET in

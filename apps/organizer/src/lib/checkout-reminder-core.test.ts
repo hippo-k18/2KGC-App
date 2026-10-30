@@ -5,6 +5,8 @@ import {
   SENDING_LEASE_MS,
   baseAddress,
   candidates,
+  lookupAddresses,
+  orderFacts,
   checkSettings,
   decide,
   isRemindable,
@@ -49,21 +51,51 @@ describe('who is a candidate', () => {
   });
 
   it('is nobody while the reminder has never been switched on', () => {
-    expect(candidates([order()], { enabledAtMs: undefined }).size).toBe(0);
+    expect(candidates([order()], { enabled: true, enabledAtMs: undefined }).size).toBe(0);
   });
 
   it('never includes a checkout that closed before the reminder was switched on', () => {
-    const c = candidates([order({ id: 'old', closedAtMs: ON - 1 }), order({ id: 'b', email: 'b@co.com', closedAtMs: ON - D })], { enabledAtMs: ON });
+    const c = candidates([order({ id: 'old', closedAtMs: ON - 1 }), order({ id: 'b', email: 'b@co.com', closedAtMs: ON - D })], { enabled: true, enabledAtMs: ON });
     expect(c.size).toBe(0);
   });
 
   it('keeps one checkout per person, the latest, whatever the case of the address', () => {
     const c = candidates(
       [order({ id: 'a', closedAtMs: ON + H }), order({ id: 'b', email: 'ADA@Company.com ', closedAtMs: ON + 3 * H }), order({ id: 'c', closedAtMs: ON + 2 * H })],
-      { enabledAtMs: ON },
+      { enabled: true, enabledAtMs: ON },
     );
     expect([...c.keys()]).toEqual(['ada@company.com']);
     expect(c.get('ada@company.com')?.id).toBe('b');
+  });
+});
+
+describe('switched off (T366)', () => {
+  it('has no candidates, even with enabledAt kept from an earlier spell on', () => {
+    expect(candidates([order()], { enabled: false, enabledAtMs: ON }).size).toBe(0);
+    expect(candidates([order()], { enabled: true, enabledAtMs: ON }).size).toBe(1);
+  });
+});
+
+describe('+tag and case are one person (T366)', () => {
+  it('groups checkouts across +tags under the bare address', () => {
+    const c = candidates([order({ id: 'a', email: 'Ada+kgc@Company.com' }), order({ id: 'b', closedAtMs: ON + 2 * H })], { enabled: true, enabledAtMs: ON });
+    expect([...c.keys()]).toEqual(['ada@company.com']);
+    expect(c.get('ada@company.com')?.id).toBe('b');
+  });
+
+  it('counts a purchase or a pending invoice under any +tag or case', () => {
+    const paid = order({ id: 'p', email: 'ADA@company.com', status: 'paid' });
+    expect(orderFacts([paid], 'ada+kgc@company.com')).toEqual({ bought: true, invoicePending: false });
+    expect(orderFacts([order({ email: 'ada+x@company.com', status: 'partially_refunded' })], 'ada@company.com').bought).toBe(true);
+    expect(orderFacts([order({ email: 'ada@company.com', status: 'refunded' })], 'ada@company.com').bought).toBe(false);
+    const invoice = order({ email: 'ada@company.com', status: 'pending', channel: 'invoice' });
+    expect(orderFacts([invoice], 'Ada+kgc@company.com')).toEqual({ bought: false, invoicePending: true });
+    expect(orderFacts([order({ email: 'ada@company.com', status: 'pending', channel: 'checkout' })], 'ada@company.com').invoicePending).toBe(false);
+  });
+
+  it('looks a person up as typed and without the tag', () => {
+    expect(lookupAddresses('Ada+kgc@X.com')).toEqual(['ada+kgc@x.com', 'ada@x.com']);
+    expect(lookupAddresses('ada@x.com')).toEqual(['ada@x.com']);
   });
 });
 
@@ -82,6 +114,11 @@ describe('test addresses', () => {
 
 describe('decide', () => {
   const due = ON + H + 24 * H;
+
+  it('skips somebody waiting on an invoice, after "bought since"', () => {
+    expect(decide(order(), { ...clean, invoicePending: true }, settings, due)).toMatchObject({ kind: 'skip', reason: 'invoice pending' });
+    expect(decide(order(), { ...clean, bought: true, invoicePending: true }, settings, due)).toMatchObject({ reason: 'bought a ticket since' });
+  });
 
   it('waits until the delay has passed, then sends', () => {
     expect(decide(order(), clean, settings, due - 1)).toMatchObject({ kind: 'wait', dueAtMs: due });

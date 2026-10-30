@@ -1,4 +1,4 @@
-import type { CheckoutReminderDoc } from '@kgc/shared';
+import { CHECKOUT_REMINDER_INTERVAL_DAYS, type CheckoutReminderDoc } from '@kgc/shared';
 
 /**
  * The checkout reminder's decisions (T363), with no Firestore in sight so
@@ -14,7 +14,7 @@ import type { CheckoutReminderDoc } from '@kgc/shared';
 export const REMINDER_SETTINGS_DOC = 'checkoutReminder';
 export const DEFAULT_DELAY_HOURS = 24;
 /** One reminder per person in this window, whatever they abandon in it. */
-export const REMIND_AGAIN_AFTER_DAYS = 30;
+export const REMIND_AGAIN_AFTER_DAYS = CHECKOUT_REMINDER_INTERVAL_DAYS;
 /** The first try and at most two retries on later runs. */
 export const MAX_ATTEMPTS = 3;
 /** A `sending` claim older than this was a run that died mid-send; it counts as a failed try. */
@@ -69,6 +69,8 @@ export interface ReminderRecord {
 export interface PersonFacts {
   /** Holds a paid or partly refunded order, or an active ticket. */
   bought: boolean;
+  /** Holds an invoice order still waiting to be paid: they chose to pay another way (T366). */
+  invoicePending?: boolean;
   /** `suppressionReasonFor` on their contact, or a bounce or complaint on any mail to them. */
   suppressed: string | null;
   reminder?: ReminderRecord;
@@ -118,16 +120,41 @@ export function isRemindable(o: ReminderOrder): boolean {
 }
 
 /**
+ * What this person's own orders say, matched on `baseAddress`: a paid or
+ * partly refunded order means they bought; an invoice still pending means
+ * they chose to pay another way and are waiting on it.
+ */
+export function orderFacts(orders: readonly ReminderOrder[], email: string): { bought: boolean; invoicePending: boolean } {
+  const base = baseAddress(email);
+  const mine = orders.filter((o) => o.email && baseAddress(o.email) === base);
+  return {
+    bought: mine.some((o) => o.status === 'paid' || o.status === 'partially_refunded'),
+    invoicePending: mine.some((o) => o.status === 'pending' && o.channel === 'invoice'),
+  };
+}
+
+/** The addresses to look a person up under: as typed, and without the `+tag`. */
+export function lookupAddresses(email: string): string[] {
+  return [...new Set([normaliseEmail(email), baseAddress(email)])];
+}
+
+/**
  * The latest remindable checkout per person that closed after the reminder
  * was switched on. Before `enabledAt` nothing is a candidate, so switching it
- * on never mails a backlog.
+ * on never mails a backlog, and while it is off nobody is (T366: the screen
+ * listed people as due on the next run of a switched-off reminder).
+ *
+ * Keyed by `baseAddress`, so `ada+kgc@x` and `ada@x` are one person.
  */
-export function candidates(orders: readonly ReminderOrder[], settings: Pick<ReminderSettings, 'enabledAtMs'>): Map<string, ReminderOrder> {
+export function candidates(
+  orders: readonly ReminderOrder[],
+  settings: Pick<ReminderSettings, 'enabled' | 'enabledAtMs'>,
+): Map<string, ReminderOrder> {
   const out = new Map<string, ReminderOrder>();
-  if (settings.enabledAtMs === undefined) return out;
+  if (!settings.enabled || settings.enabledAtMs === undefined) return out;
   for (const o of orders) {
     if (!isRemindable(o) || o.closedAtMs < settings.enabledAtMs) continue;
-    const key = normaliseEmail(o.email);
+    const key = baseAddress(o.email);
     const prev = out.get(key);
     if (!prev || o.closedAtMs > prev.closedAtMs) out.set(key, o);
   }
@@ -139,6 +166,7 @@ export function candidates(orders: readonly ReminderOrder[], settings: Pick<Remi
  *
  * The order of the checks is the order of the reasons on the screen: a person
  * who has since bought is "bought since" even if they also unsubscribed.
+ * Every address comparison folds case and `+tag` (`baseAddress`).
  */
 export function decide(
   order: ReminderOrder,
@@ -156,7 +184,7 @@ export function decide(
     if (r.status === 'sent') {
       const sentAt = r.sentAtMs ?? 0;
       if (r.orderId === order.id || order.closedAtMs <= sentAt) return { kind: 'done', order, note: 'reminded' };
-      if (nowMs - sentAt < REMIND_AGAIN_AFTER_DAYS * DAY) return { kind: 'skip', order, reason: 'reminded in the last 30 days' };
+      if (nowMs - sentAt < REMIND_AGAIN_AFTER_DAYS * DAY) return { kind: 'skip', order, reason: `reminded in the last ${REMIND_AGAIN_AFTER_DAYS} days` };
     } else if (r.status === 'sending' && nowMs - (r.claimedAtMs ?? 0) < SENDING_LEASE_MS) {
       return { kind: 'done', order, note: 'sending now' };
     } else if ((r.status === 'failed' || r.status === 'sending') && r.orderId === order.id) {
@@ -166,6 +194,7 @@ export function decide(
   }
 
   if (facts.bought) return { kind: 'skip', order, reason: 'bought a ticket since' };
+  if (facts.invoicePending) return { kind: 'skip', order, reason: 'invoice pending' };
   const test = testAddressReason(order.email, settings.skipList, owners);
   if (test) return { kind: 'skip', order, reason: test };
   if (facts.suppressed) return { kind: 'skip', order, reason: facts.suppressed };
