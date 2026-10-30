@@ -2037,7 +2037,12 @@ export interface EmailLogDoc {
     | "cfp-decision-declined"
     | "cfp-still-open"
     | "cfp-accept-notice"
-    | "cfp-weekly-reminder";
+    | "cfp-weekly-reminder"
+    /**
+     * The one reminder to somebody who reached the payment page and left
+     * without paying (T363). Carries an unsubscribe link, unlike the receipts.
+     */
+    | "checkout-reminder";
   subject: string;
   /**
    * The From header the mail went out with, e.g.
@@ -2119,6 +2124,57 @@ export interface EmailBodyDoc {
    * deleting once it is switched on; until then nothing is removed.
    */
   expireAt: Timestamp;
+}
+
+/**
+ * `settings/checkoutReminder` — the automatic reminder to people who left the
+ * payment page (T363), edited on Tickets › Ticket Setup › 1.6 Abandoned
+ * Registration. Off until an owner switches it on.
+ */
+export interface CheckoutReminderSettings {
+  enabled: boolean;
+  /**
+   * When it was last switched on. Only checkouts that closed after this are
+   * reminded, so switching it on never mails a backlog of old abandonments.
+   */
+  enabledAt?: Timestamp;
+  enabledBy?: string;
+  /** How long after the checkout closed the reminder goes. */
+  delayHours: number;
+  subject: string;
+  /** Plain text. Blank lines are paragraphs; `{first name}` is filled in. */
+  body: string;
+  replyTo: string;
+  /** Extra addresses never reminded (staff, testers). Matched without any `+tag`. */
+  skipList: string[];
+  updatedAt?: Timestamp;
+  updatedBy?: string;
+}
+
+/**
+ * `checkoutReminders/{personKey}` — one per person (the key is
+ * `hubspotPersonKey` of the address), not per checkout, so one person who
+ * left three carts gets one mail.
+ *
+ * Written only by the dashboard with the Admin SDK; no rules match block.
+ * `sending` is claimed in a transaction before the send, which is what stops
+ * two runs mailing the same person.
+ */
+export interface CheckoutReminderDoc {
+  eventId: string;
+  email: string;
+  /** The not-completed order the latest decision was about. */
+  orderId: string;
+  /** When that checkout closed. A later checkout can be reminded 30 days after `sentAt`. */
+  closedAt: Timestamp;
+  status: "sending" | "sent" | "failed" | "skipped";
+  /** Why not sent, for `skipped`; the provider's message, for `failed`. */
+  reason?: string;
+  /** Send attempts for this order. A failed send is tried at most three times in all. */
+  attempts: number;
+  claimedAt?: Timestamp;
+  sentAt?: Timestamp;
+  updatedAt: Timestamp;
 }
 
 /**

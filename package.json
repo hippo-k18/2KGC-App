@@ -44,6 +44,7 @@
     "publish:web": "bash scripts/publish-web.sh",
     "test:hubspot": "firebase emulators:exec --only firestore --config firebase.hubspot-test.json --project demo-hubspot \"vitest run --config tests/hubspot/vitest.config.mts\"",
     "test:send-jobs": "firebase emulators:exec --only firestore --config firebase.send-jobs-test.json --project demo-send-jobs \"vitest run --config tests/send-jobs/vitest.config.mts\"",
+    "test:checkout-reminder": "firebase emulators:exec --only firestore --config firebase.checkout-reminder-test.json --project demo-checkout-reminder \"vitest run --config tests/checkout-reminder/vitest.config.mts\"",
     "test:email-log": "firebase emulators:exec --only firestore --config firebase.email-log-test.json --project demo-email-log \"vitest run --config tests/email-log/vitest.config.mts\"",
     "test:learn-page": "firebase emulators:exec --only firestore,storage --config firebase.learn-page-test.json --project demo-learn-page \"vitest run --config tests/learn-page/vitest.config.mts\"",
     "test:learn-ops": "firebase emulators:exec --only firestore,storage --config firebase.learn-ops-test.json --project demo-learn-ops \"vitest run --config tests/learn-ops/vitest.config.mts\""

@@ -8,6 +8,8 @@ import {
   blogReviewDecisionMessage,
   blogReviewRequestMessage,
   bulkMessageMessage,
+  CHECKOUT_REMINDER_DEFAULTS,
+  checkoutReminderMessage,
   cfpAcceptNoticeMessage,
   cfpAcceptedMessage,
   cfpCloseAcceptedMessage,
@@ -71,7 +73,8 @@ export type SenderName =
   | 'sendBlogInvitation'
   | 'sendBlogReviewRequest'
   | 'sendBlogReviewDecision'
-  | 'sendCfpMessage';
+  | 'sendCfpMessage'
+  | 'sendCheckoutReminder';
 
 export interface FormatVariant {
   /** Short and stable, for the address bar. */
@@ -454,6 +457,20 @@ export const EMAIL_FORMATS: EmailFormat[] = [
       v('contact', 'Also on the contact list', () =>
         bulkMessageMessage({ name: SPEAKER, subject: 'Sample message subject', body: bulkBody }, site('/u/SAMPLE-TOKEN'), postalAddress()),
       ),
+    ],
+  },
+  {
+    id: 'checkout-reminder',
+    name: 'Checkout reminder',
+    template: 'checkout-reminder',
+    sender: 'sendCheckoutReminder',
+    when: 'Automatically, once, to someone who reached the payment page and did not pay, when switched on under Tickets > Ticket Setup > 1.6 Abandoned Registration. The words shown are the defaults.',
+    to: 'The person who started the checkout',
+    variants: [
+      v('ticket', 'Name and ticket known', () =>
+        checkoutReminderMessage({ name: ATTENDEE, ticketNames: ['Main Conference'], ...CHECKOUT_REMINDER_DEFAULTS }, site('/u/SAMPLE-TOKEN')),
+      ),
+      v('bare', 'Nothing known', () => checkoutReminderMessage({ ...CHECKOUT_REMINDER_DEFAULTS }, site('/u/SAMPLE-TOKEN'))),
     ],
   },
   {

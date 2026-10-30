@@ -1,9 +1,14 @@
 import Link from 'next/link';
-import { requireOrganizer } from '@/lib/auth';
+import { hubspotPersonKey } from '@kgc/scripts/src/lib/hubspot-sync';
+import { currentAccess, requireOrganizer } from '@/lib/auth';
+import { planReminders, type ReminderPlan } from '@/lib/checkout-reminder';
+import { reminderCell } from '@/lib/checkout-reminder-core';
 import { isAbandoned, listOrders, money } from '@/lib/commerce';
+import { recordError } from '@/lib/errors';
 import { ROUTES } from '@/lib/nav';
 import { stampOfInstant } from '@/lib/time';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { Banner, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { ReminderForm } from './reminder-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,15 +41,26 @@ export const dynamic = 'force-dynamic';
  * buyer's address, the seat names and the amount they were about to pay —
  * which is the only case on this screen that is actually followable up.
  *
- * That is why the rows below are mostly blank, and it is not a bug — it is the
- * consequence of never writing a buyer's details until they have paid. It does
- * mean recovery email cannot be sent from our own data: the address exists only
- * on the Stripe session. Whova can chase abandoners because Whova owns the form
- * from the first keystroke.
+ * Since T257 the stub also carries the address from the Stripe session, so
+ * most rows have somebody to write to.
+ *
+ * ── The reminder (T363) ─────────────────────────────────────────────────────
+ *
+ * One automatic email to each person who left, off until an owner switches it
+ * on. The rules are in `checkout-reminder-core.ts`; the panel below edits the
+ * settings, sends a test and shows who is next and who is skipped.
  */
 export default async function AbandonedRegistrationPage() {
   await requireOrganizer();
+  const access = await currentAccess();
+  const isOwner = Boolean(access?.roles.includes('owner'));
   const orders = await listOrders();
+  let plan: ReminderPlan | null = null;
+  try {
+    plan = await planReminders();
+  } catch (err) {
+    recordError('checkout-reminder.plan', err);
+  }
 
   const abandoned = orders.filter(isAbandoned);
   const withEmail = abandoned.filter((o) => o.email);
@@ -59,8 +75,8 @@ export default async function AbandonedRegistrationPage() {
           <>
             <strong>Checkouts that were started and not paid</strong>
             <p>
-              A single-seat card checkout that expires leaves no email address, so most of these
-              cannot be followed up. Recovery emails are not available yet.
+              The payment page closes after 60 minutes. You can send each person one automatic
+              reminder email, set up below.
             </p>
           </>
         }
@@ -91,7 +107,9 @@ export default async function AbandonedRegistrationPage() {
         ]}
       />
 
-      <Panel>
+      <ReminderPanel plan={plan} isOwner={isOwner} ownerEmail={access?.email ?? ''} />
+
+      <Panel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Orders not completed</h2>
         <Table
           cols={[
@@ -99,19 +117,21 @@ export default async function AbandonedRegistrationPage() {
             { key: 'c', label: 'Channel', className: 'cell-sm' },
             { key: 'a', label: 'Amount', className: 'cell-sm' },
             { key: 'w', label: 'Closed', className: 'cell-fill' },
+            { key: 'r', label: 'Reminded', className: 'cell-md' },
           ]}
           rows={abandoned.slice(0, 25).map((o) => [
             o.email || <span key="e" className="muted">no address recorded</span>,
             o.channel,
             o.totalCents === 0 ? <span key="a" className="muted">none</span> : money(o.totalCents, o.currency),
             <span key="w">
-              {o.refundedAt ? stampOfInstant(o.refundedAt) : ''}
+              {o.refundedAt ? stampOfInstant(o.refundedAt) : closedAt(o.id, plan)}
               {o.externalId ? (
                 <div className="muted" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
                   Stripe reference {o.externalId}
                 </div>
               ) : null}
             </span>,
+            <RemindedCell key="r" orderId={o.id} email={o.email} plan={plan} />,
           ])}
           empty={<NotInputted what="abandoned checkouts" compact />}
         />
@@ -140,12 +160,6 @@ export default async function AbandonedRegistrationPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>No recovery email.</strong> The sender exists and works; the addresses do not.
-            Getting them would mean either capturing the email before redirecting to Stripe — which
-            changes what this project stores about people who never buy — or reading expired
-            sessions back from the Stripe API on a schedule.
-          </li>
-          <li>
             <strong>No funnel.</strong> Whova reports viewed → started → abandoned → completed. The
             first two are page analytics, and there is no analytics of any kind on the website.
           </li>
@@ -157,4 +171,107 @@ export default async function AbandonedRegistrationPage() {
       </GapPanel>
     </>
   );
+}
+
+function RemindedCell({ orderId, email, plan }: { orderId: string; email: string; plan: ReminderPlan | null }) {
+  if (!email || !plan) return <span className="muted">None</span>;
+  const cell = reminderCell(orderId, plan.records.get(hubspotPersonKey(email)));
+  if (!cell) return <span className="muted">None</span>;
+  return (
+    <span style={{ fontSize: 13 }}>
+      {cell.text}
+      {cell.at ? <div className="muted" style={{ fontSize: 12 }}>{stampOfInstant(new Date(cell.at).toISOString())}</div> : null}
+    </span>
+  );
+}
+
+/**
+ * The reminder: settings (owners), then who is next and who is skipped, from
+ * the same `planReminders()` the timer runs, so the screen cannot promise a
+ * mail the run would not send.
+ */
+function ReminderPanel({ plan, isOwner, ownerEmail }: { plan: ReminderPlan | null; isOwner: boolean; ownerEmail: string }) {
+  if (!plan) {
+    return (
+      <Panel>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Reminder email</h2>
+        <Banner kind="danger">The reminder settings could not be read just now. Reload the page to try again.</Banner>
+      </Panel>
+    );
+  }
+  const { settings, rows } = plan;
+  const next = rows.filter((r) => r.decision.kind === 'wait' || r.decision.kind === 'send');
+  const skipped = rows.filter((r) => r.decision.kind === 'skip');
+  const at = (ms: number) => stampOfInstant(new Date(ms).toISOString());
+
+  return (
+    <Panel>
+      <h2 style={{ fontSize: 15, marginTop: 0 }}>
+        Reminder email{' '}
+        <Tag color={settings.enabled ? 'green' : 'grey'} small>
+          {settings.enabled ? 'On' : 'Off'}
+        </Tag>
+      </h2>
+      <p className="body-2" style={{ marginTop: 0 }}>
+        {settings.enabled
+          ? `On since ${settings.enabledAtMs ? at(settings.enabledAtMs) : 'now'}${settings.enabledBy ? `, switched on by ${settings.enabledBy}` : ''}. Each person who leaves the payment page gets one email ${settings.delayHours} hours later, unless they have bought a ticket since. Checked every 15 minutes.`
+          : 'Off. Nothing is sent. When you switch it on, each person who leaves the payment page from then on gets one email, a set number of hours later, unless they have bought a ticket since.'}
+      </p>
+
+      {isOwner ? (
+        <ReminderForm
+          ownerEmail={ownerEmail}
+          values={{
+            enabled: settings.enabled,
+            delayHours: settings.delayHours,
+            subject: settings.subject,
+            body: settings.body,
+            replyTo: settings.replyTo,
+            skipList: settings.skipList,
+          }}
+        />
+      ) : (
+        <p className="muted" style={{ fontSize: 13 }}>Only an owner can change the reminder or send a test.</p>
+      )}
+
+      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Next to get it</h3>
+      <Table
+        cols={[
+          { key: 'e', label: 'Who', className: 'cell-fill' },
+          { key: 'c', label: 'Checkout closed', className: 'cell-md' },
+          { key: 'd', label: 'Reminder due', className: 'cell-md' },
+        ]}
+        rows={next.map((r) => [
+          <span key="e" style={{ overflowWrap: 'anywhere' }}>{r.email}</span>,
+          at(r.decision.order.closedAtMs),
+          r.decision.kind === 'wait' ? at(r.decision.dueAtMs) : 'On the next run',
+        ])}
+        empty={settings.enabled ? 'Nobody is waiting for a reminder.' : 'Nothing while the reminder is off.'}
+      />
+
+      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Skipped</h3>
+      <Table
+        cols={[
+          { key: 'e', label: 'Who', className: 'cell-fill' },
+          { key: 'c', label: 'Checkout closed', className: 'cell-md' },
+          { key: 'w', label: 'Why', className: 'cell-md' },
+        ]}
+        rows={skipped.map((r) => [
+          <span key="e" style={{ overflowWrap: 'anywhere' }}>{r.email}</span>,
+          at(r.decision.order.closedAtMs),
+          r.decision.kind === 'skip' ? r.decision.reason : '',
+        ])}
+        empty="Nobody is skipped."
+      />
+    </Panel>
+  );
+}
+
+/**
+ * When the checkout closed, for a row with no `refundedAt`: an expiry does not
+ * stamp one, so the column was blank. The same time the reminder counts from.
+ */
+function closedAt(orderId: string, plan: ReminderPlan | null): string {
+  const ms = plan?.orders.find((o) => o.id === orderId)?.closedAtMs;
+  return ms ? stampOfInstant(new Date(ms).toISOString()) : '';
 }

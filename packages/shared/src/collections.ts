@@ -56,6 +56,11 @@ export const COLLECTIONS = {
    * and `integrations/hubspot/runs` the sync log. See `hubspot.ts`.
    */
   integrations: "integrations",
+  /**
+   * Server-only. The checkout reminder's record, one per person (T363): who
+   * was reminded, when, or why not. See `CheckoutReminderDoc`.
+   */
+  checkoutReminders: "checkoutReminders",
   /** Server-only. Contacts waiting to be sent to HubSpot, one per registration (T333). */
   hubspotQueue: "hubspotQueue",
   /**

@@ -1979,6 +1979,12 @@ describe('the money collections are closed to every client', () => {
      * record, which every ticket holder can list.
      */
     ['speakerContacts', 'ada-okonkwo-7f21'],
+    /*
+     * Who was sent the checkout reminder and who was skipped, with their
+     * address (T363), and the reminder's settings: its words and skip list.
+     */
+    ['checkoutReminders', 'p_0123'],
+    ['settings', 'checkoutReminder'],
   ] as const;
 
   for (const [collectionName, id] of closed) {

@@ -44,6 +44,7 @@ export const TEMPLATE_INFO: Record<EmailTemplate, { label: string; group: EmailG
   'invoice-raised': { label: 'Invoice raised', group: 'tickets' },
   'refund-confirmation': { label: 'Refund confirmation', group: 'tickets' },
   'ticket-cancelled': { label: 'Ticket cancelled', group: 'tickets' },
+  'checkout-reminder': { label: 'Checkout reminder', group: 'tickets' },
   'sign-in-code': { label: 'App sign-in code', group: 'sign-in' },
   'ticket-sign-in-code': { label: 'Website sign-in code', group: 'sign-in' },
   'dashboard-sign-in-code': { label: 'Dashboard sign-in code', group: 'sign-in' },

@@ -150,6 +150,11 @@ interface SendInput {
    */
   idempotencyKey?: string;
   /**
+   * Where replies go, when not the standard inbox. Only the checkout reminder
+   * sets it (T363), from its settings; everything else replies to contact@.
+   */
+  replyTo?: string;
+  /**
    * Values that must not be kept in the Email Log's stored copy: a sign-in
    * code. Masked in the subject, HTML and text before anything is written.
    */
@@ -333,7 +338,7 @@ async function send(store: Firestore, input: SendInput): Promise<SendOutcome> {
   // What the Email Log keeps: the message exactly as it is handed to Resend.
   const body: CaptureInput = {
     from: fromAddress(),
-    replyTo: replyTo(),
+    replyTo: input.replyTo ?? replyTo(),
     to: input.to,
     subject: input.subject,
     html: input.html,
@@ -1464,6 +1469,171 @@ export function seatPromotionCopy(sessionTitle: string): { subject: string; body
     subject: `You have a seat in ${sessionTitle}`,
     body: `A seat opened in ${sessionTitle} and you were first on the waitlist, so it is yours.\n\nIt is already in your agenda in the conference app. If you can no longer come, remove it there and the seat goes to the next person waiting.`,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Checkout reminder (T363)
+//
+// One email to somebody who reached the Stripe payment page and left without
+// paying. The dashboard decides who is due (`checkout-reminder-core.ts`) and
+// claims the person before calling this, so this only builds and sends.
+//
+// ⚠️ It is marketing in the law's eyes, not a receipt: nothing was bought. So
+// unlike every transactional mail above it carries an unsubscribe link, the
+// RFC 8058 headers and a postal address, and it is not sent at all when the
+// link cannot be built.
+// ---------------------------------------------------------------------------
+
+/**
+ * The postal address in the reminder's footer. The venue for now (owner,
+ * 2026-10-29); one constant so it can be changed for an office address later.
+ * Not `EMAIL_POSTAL_ADDRESS`: that is empty on the live hosts, and this mail
+ * must never go out without one.
+ */
+export const REMINDER_POSTAL_ADDRESS = 'Jay Conference Bryant Park, 109 West 39th Street, New York, NY 10018';
+
+/** Where the reminder's button goes: the ticket page, since an expired Stripe session cannot be reopened. */
+export const REMINDER_TICKETS_URL = 'https://www.knowledgegraph.tech/tickets';
+
+/** The words an owner starts from on 1.6 Abandoned Registration. `{first name}` is replaced, or dropped when no name is known. */
+export const CHECKOUT_REMINDER_DEFAULTS = {
+  subject: 'Your KGC 2027 ticket is still available',
+  body:
+    "Hi {first name}, you started registering for the Knowledge Graph Conference 2027 but didn't finish. Your spot is still available. " +
+    'If you need an invoice for your company, or have a question, just reply to this email.',
+  button: 'Finish registering',
+} as const;
+
+/** `{first name}` filled in, or taken out with the space before it ("Hi {first name}," becomes "Hi,"). */
+export function fillFirstName(text: string, name: string | undefined): string {
+  const first = firstNameOf(name ?? '');
+  return first ? text.replace(/\{first name\}/gi, first) : text.replace(/\s*\{first name\}/gi, '');
+}
+
+export interface CheckoutReminderMessageInput {
+  name?: string;
+  /** The tickets they had picked, when the order says (a group cart does, a single-seat stub does not). */
+  ticketNames?: string[];
+  subject: string;
+  body: string;
+}
+
+/** The reminder, built and not sent. `unsubscribePage` is the human `/u/{token}` page. */
+export function checkoutReminderMessage(input: CheckoutReminderMessageInput, unsubscribePage: string): EmailMessage {
+  const body = fillFirstName(input.body, input.name);
+  const subject = fillFirstName(input.subject, input.name);
+  const tickets = (input.ticketNames ?? []).filter(Boolean);
+  const ticketLine = tickets.length ? `You picked: ${[...new Set(tickets)].join(', ')}.` : '';
+  const why =
+    'You are getting this because you started buying a ticket for the Knowledge Graph Conference 2027 with this address. We send this reminder once.';
+
+  const paragraphs = body
+    .split(/\n\s*\n/)
+    .map((para) => para.trim())
+    .filter(Boolean)
+    .map((para) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(para).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+  const ticketHtml = ticketLine ? `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${esc(ticketLine)}</p>` : '';
+  const footer = `<p style="margin:26px 0 0;padding-top:16px;border-top:1px solid #e3e5e8;font-size:12px;color:#6b7280;line-height:1.6;">
+         ${esc(why)} <a href="${unsubscribePage}" style="color:#6b7280;">Unsubscribe</a>.
+       </p>
+       <p style="margin:8px 0 0;font-size:12px;color:#6b7280;line-height:1.6;">${esc(REMINDER_POSTAL_ADDRESS)}</p>`;
+
+  const html = shell(
+    esc(subject),
+    `${paragraphs}${ticketHtml}${button(REMINDER_TICKETS_URL, CHECKOUT_REMINDER_DEFAULTS.button)}${footer}`,
+  );
+  const text = `${body}${ticketLine ? `\n\n${ticketLine}` : ''}\n\n${CHECKOUT_REMINDER_DEFAULTS.button}: ${REMINDER_TICKETS_URL}\n\n--\nKnowledge Graph Conference 2027\n3-7 May 2027, Jay Conference Bryant Park, New York\n${REPLY_LINE_TEXT}\n\n${why}\nUnsubscribe: ${unsubscribePage}\n${REMINDER_POSTAL_ADDRESS}`;
+  return { subject, html, text };
+}
+
+export interface CheckoutReminderInput extends CheckoutReminderMessageInput {
+  to: string;
+  /** Where replies go. Defaults to the standard inbox. */
+  replyTo?: string;
+  /** The not-completed order this is about. Also the idempotency key, so a retry inside a day is one mail. */
+  orderId?: string;
+  /**
+   * Fixes the unsubscribe token, so a retried send builds the same mail and
+   * Resend's idempotency key holds (it refuses a different payload). The
+   * checkout's close time.
+   */
+  issuedAt: number;
+  /** Who pressed Send me a test. Absent on the automatic sends. */
+  actor?: string;
+  /**
+   * A test to the signed-in owner: no contact is created for them, and the
+   * link points at a contact that may not exist (it then says so).
+   */
+  test?: boolean;
+}
+
+/**
+ * Make sure a contact document governs this address, so the unsubscribe link
+ * has something to record against (the website's `unsubscribeContact` only
+ * updates an existing contact). Created with no lists. A native `Date`, never
+ * a sentinel: see `log()`.
+ */
+async function ensureReminderContact(store: Firestore, email: string, name?: string): Promise<void> {
+  const ref = store.collection(COLLECTIONS.contacts).doc(contactId(email));
+  await store.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.exists) return;
+    const now = new Date();
+    tx.set(ref, {
+      eventId: EVENT_ID,
+      email: email.trim().toLowerCase(),
+      ...(name?.trim() ? { name: name.trim() } : {}),
+      source: 'Checkout not completed (reminder)',
+      lists: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
+/** Send the reminder. Never throws; not sent at all (logged `failed`) without a working unsubscribe link. */
+export async function sendCheckoutReminder(store: Firestore, input: CheckoutReminderInput): Promise<SendOutcome> {
+  const subject = fillFirstName(input.subject, input.name);
+  let links: Awaited<ReturnType<typeof unsubscribeUrlFor>>;
+  try {
+    if (!input.test) await ensureReminderContact(store, input.to, input.name);
+    links = input.test
+      ? (() => {
+          const token = mintUnsubscribeToken(contactId(input.to), input.issuedAt);
+          const origin = publicSiteOrigin();
+          return { page: `${origin}/u/${token}`, oneClick: `${origin}/api/unsubscribe/${token}` };
+        })()
+      : await unsubscribeUrlFor(store, input.to, input.issuedAt);
+  } catch (err) {
+    console.warn('[email] could not prepare the checkout reminder', err);
+    links = 'error';
+  }
+  if (typeof links !== 'object') {
+    await log(store, {
+      to: input.to,
+      subject: headerText(subject),
+      template: 'checkout-reminder',
+      orderId: input.orderId,
+      actor: input.actor,
+      status: 'failed',
+      error: 'Not sent: the unsubscribe link could not be built. Check WEB_UNSUBSCRIBE_SECRET or WEB_ORDER_SECRET.',
+    });
+    return 'failed';
+  }
+
+  const message = checkoutReminderMessage(input, links.page);
+  return send(store, {
+    to: input.to,
+    ...message,
+    subject: input.test ? `[Test] ${message.subject}` : message.subject,
+    template: 'checkout-reminder',
+    orderId: input.orderId,
+    actor: input.actor,
+    replyTo: input.replyTo,
+    ...(input.test || !input.orderId ? {} : { idempotencyKey: input.orderId }),
+    unsubscribeUrl: links.oneClick,
+  });
 }
 
 // ---------------------------------------------------------------------------

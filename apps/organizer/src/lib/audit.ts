@@ -510,7 +510,13 @@ export interface AuditEntry {
     | 'hubspot.test'
     | 'hubspot.settings'
     | 'hubspot.createProperties'
-    | 'hubspot.syncAll';
+    | 'hubspot.syncAll'
+    /**
+     * The checkout reminder (T363): its settings, the on/off switch (which
+     * stamps `enabledAt`), and every Send me a test.
+     */
+    | 'checkoutReminder.settings'
+    | 'checkoutReminder.test';
   /**
    * Which screen made the change, where more than one can. Only the blog
    * access list sets it today: `dashboard` for Admin Settings, `blog` for the

@@ -1,0 +1,20 @@
+# The checkout reminder (T363): every 15 minutes, email the people who left
+# the Stripe payment page a day ago (once each). Reuses the call for papers
+# timer's secret file, like kgc-hubspot-cron.
+#   cp kgc-reminder-cron.service kgc-reminder-cron.timer /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now kgc-reminder-cron.timer
+# Needs /etc/kgc-cfp-cron.env (CRON_SECRET) and the same CRON_SECRET in
+# /opt/kgc/shared/organizer.env, both already there for kgc-cfp-cron. Nothing
+# is sent until an owner switches the reminder on in the dashboard.
+[Unit]
+Description=KGC checkout reminder
+After=network-online.target kgc-dashboard.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/kgc-cfp-cron.env
+# At most 10 sends a run; --max-time stops a hung one well before the next.
+TimeoutStartSec=6min
+# The live dashboard port, as in kgc-cfp-cron.service (`$$` is a literal `$`).
+# -o /dev/null: the JSON reply would otherwise fill the journal.
+ExecStart=/bin/sh -c 'curl -fsS -o /dev/null --max-time 300 -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:$$(cat /opt/kgc/live/organizer.port 2>/dev/null || echo 3100)/api/cron/checkout-reminder'
