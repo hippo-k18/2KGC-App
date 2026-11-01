@@ -157,7 +157,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    * cost one document read between them.
    */
   const [branding, ev, call] = await Promise.all([brandingSettings(), siteEvent(), shownCall()]);
-  // The call with "Show on website" ticked, for Apply to speak (T277).
+  // The call with "Show on website" ticked (T277). The footer's speaker link
+  // goes to it; Apply to speak is in the home hero only since T369.
   const applyHref = call ? `/submit/${call.id}` : undefined;
   // GA4 + GTM, off unless ANALYTICS_ENABLED=true. See `lib/analytics.ts`.
   const analytics = analyticsConfig();
@@ -175,7 +176,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           showAgenda={branding.showAgenda}
           showSpeakers={branding.showSpeakers}
           showTickets={branding.showTickets}
-          applyHref={applyHref}
           blogOrigin={separateBlogOrigin()}
           mainOrigin={mainSiteOrigin()}
         />

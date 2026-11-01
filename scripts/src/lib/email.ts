@@ -2623,7 +2623,8 @@ ${input.link}`;
 
 /** One block of a call-for-papers email. Text and HTML are rendered from the same list. */
 type CfpBlock =
-  | { p: string }
+  /** `href`, when set, ends the paragraph: a plain URL in the text part, the same URL as a link in HTML. */
+  | { p: string; href?: string }
   | { lines: string[] }
   | { bullets: string[] }
   | { link: { href: string; label: string } };
@@ -2646,7 +2647,7 @@ function cfpMessage(
 
   const text = all
     .map((b) => {
-      if ('p' in b) return b.p;
+      if ('p' in b) return b.href ? `${b.p} ${b.href}` : b.p;
       if ('lines' in b) return b.lines.join('\n');
       if ('bullets' in b) return b.bullets.map((x) => `  • ${x}`).join('\n');
       return `  → ${b.link.href}`;
@@ -2656,7 +2657,11 @@ function cfpMessage(
   const para = (inner: string) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${inner}</p>`;
   const html = all
     .map((b) => {
-      if ('p' in b) return para(esc(b.p));
+      if ('p' in b) {
+        return para(
+          b.href ? `${esc(b.p)} <a href="${esc(b.href)}" style="color:${BRAND};">${esc(b.href)}</a>` : esc(b.p),
+        );
+      }
       if ('lines' in b) {
         // The title block is indented in Min's copy; the sign-off is not.
         const indented = b.lines[0] !== 'Best,';
@@ -2782,10 +2787,22 @@ export function cfpAcceptedMessage(input: CfpAcceptedInput): CfpMessage {
         'are confirmed, so this is what gets you into the next announcement. If we have not heard ' +
         'from you after a week, we may give the slot to someone else.',
     },
+    // The owner's sentence, word for word, "KGC|Learn" included (T369).
+    ...(input.workshop
+      ? [
+          {
+            p: 'If you opted in for KGC|Learn Continuing Education Units (CEUs), please also complete this form:',
+            href: CEU_FORM_URL,
+          },
+        ]
+      : []),
     { p: "If there's anything you are unsure about, just reply to this email." },
     { p: 'Welcome aboard.' },
   ]);
 }
+
+/** The CEU sign-up form an accepted workshop is pointed at in E2 (T369). */
+export const CEU_FORM_URL = 'https://forms.gle/dDZpxjfkkWzscdJ56';
 
 /** E3. Five days after E2, if nothing has arrived. */
 export function cfpNudgeMessage(

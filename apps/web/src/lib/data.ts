@@ -301,7 +301,8 @@ export interface SiteEvent extends EventBasics {
  * saved venue is used in both places.
  */
 /**
- * The call the header's "Apply to speak" button links to, or null (T277).
+ * The call the home hero's "Apply to speak" button links to, or null (T277; in
+ * the header until T369).
  *
  * The call with "Show on website" ticked on the dashboard, while it is
  * published and has not closed. Before it opens the button still shows: the

@@ -7,6 +7,7 @@ import {
   listAnnouncements,
   listSponsorsByTier,
   programmeCounts,
+  shownCall,
   siteEvent,
 } from '@/lib/data';
 import { ATTENDEES_EXPECTED, HCLS_BADGE, HOME_VENUE_MARKER, SITE, homeVenue } from '@/lib/site';
@@ -169,6 +170,10 @@ export default async function HomePage() {
   // No prices anywhere, structured data included, while ticket sales are off.
   const tiers = branding.showTickets ? ((await tiersOrNull()) ?? []) : [];
   const { sponsorBands, agenda } = await programmeOrNothing();
+  // Apply to speak (T369): the call with "Show on website" ticked (T277), and
+  // only while there is one. The home hero is the only place it shows.
+  const call = await shownCall();
+  const applyHref = call ? `/submit/${call.id}` : undefined;
 
   /*
    * `schema.org/Event`, built from the agenda and the ticket catalogue this
@@ -285,11 +290,17 @@ export default async function HomePage() {
             price it carried now has to be found on the ticket cards, which is
             where someone looking for a price goes anyway.
           */}
-          {(branding.showTickets || branding.showAgenda) && (
+          {(branding.showTickets || applyHref || branding.showAgenda) && (
             <div className="cta">
               {branding.showTickets && (
                 <Link href="/tickets" className="btn btn-primary">
                   Register now
+                </Link>
+              )}
+              {/* Beside Register now and nowhere else, as the owner asked (T369). */}
+              {applyHref && (
+                <Link href={applyHref} className="btn btn-apply">
+                  Apply to speak
                 </Link>
               )}
               {branding.showAgenda && (

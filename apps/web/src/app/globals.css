@@ -510,36 +510,6 @@ section.tint {
 }
 
 /*
- * "Apply to speak" (T277), beside Register now while a call is shown on the
- * website. The owner asked for blue with white text: the theme's own blue,
- * `--palette-12`, where white text measures 6.8:1. Hover lifts it to a brighter
- * blue (white 5.1:1) so it separates further from the navy bar, and the focus
- * ring is white, since the site's teal ring barely shows on navy.
- */
-.site-header nav a.btn-apply {
-  background: var(--palette-12);
-  color: var(--white);
-  padding: 10px 18px;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.site-header nav a.btn-apply:hover,
-.site-header nav a.btn-apply[aria-current='page'] {
-  background: #1a6dcc;
-  color: var(--white);
-  box-shadow: none;
-}
-
-.site-header nav a.btn-apply:focus-visible {
-  outline: 2px solid var(--white);
-  outline-offset: 2px;
-}
-
-/*
  * The current page, as the live site marks it: the label and its 2px rule both
  * in the pale blue `--palette-4`, not orange.
  *
@@ -570,8 +540,7 @@ section.tint {
     padding-inline: 8px;
   }
 
-  .site-header nav a.btn-primary,
-  .site-header nav a.btn-apply {
+  .site-header nav a.btn-primary {
     padding-inline: 12px;
   }
 }
@@ -582,44 +551,7 @@ section.tint {
     padding-inline: 4px;
   }
 
-  .site-header nav a.btn-primary,
-  .site-header nav a.btn-apply {
-    padding-inline: 8px;
-  }
-}
-
-/*
- * With Apply to speak in the row as well (T277), the bar is up to 111px short
- * at 901px when Speakers and Agenda are on, and Register now wrapped onto a
- * second line. Only while that button is there, the row gets smaller type, and
- * below 1000px the wordmark takes its phone height. Without the button nothing
- * here applies and the measured sizes above stand.
- */
-@media (900px < width <= 1100px) {
-  .site-header nav:has(.btn-apply) a {
-    font-size: 14px;
-    padding-inline: 4px;
-  }
-
-  .site-header nav:has(.btn-apply) a.btn {
-    font-size: 13px;
-    padding-inline: 10px;
-    letter-spacing: 0;
-  }
-}
-
-@media (900px < width <= 1000px) {
-  .site-header .bar:has(.btn-apply) .logo img {
-    height: 44px;
-  }
-
-  .site-header nav:has(.btn-apply) a {
-    font-size: 13px;
-    padding-inline: 3px;
-  }
-
-  .site-header nav:has(.btn-apply) a.btn {
-    font-size: 12px;
+  .site-header nav a.btn-primary {
     padding-inline: 8px;
   }
 }
@@ -882,6 +814,22 @@ body.nav-open {
 
 .btn-ghost:hover {
   background: rgb(255 255 255 / 12%);
+}
+
+/*
+ * "Apply to speak", in the home hero beside Register now and nowhere else
+ * (T369; it was in the header from T277 until the owner moved it). The owner
+ * asked for blue with white text: the theme's own blue, `--palette-12`, where
+ * white text measures 6.8:1, and a brighter blue on hover (5.1:1).
+ */
+.btn-apply {
+  background: var(--palette-12);
+  color: var(--white);
+}
+
+.btn-apply:hover {
+  background: #1a6dcc;
+  color: var(--white);
 }
 
 /*
@@ -5884,6 +5832,21 @@ section.tint {
 }
 
 /*
+ * With no Register now after it, About KGC is the last thing in the bar, and a
+ * panel hanging right from it ran 79px past the window, so the page scrolled
+ * sideways even while the panel was closed. That happened whenever tickets were
+ * off and, since T369 took Apply to speak out of the bar, no longer had a
+ * button beside it to hold it in. There the panel hangs left from the trigger's
+ * right edge instead.
+ */
+@media (width > 900px) {
+  .site-header nav:not(:has(> a.btn)) .submenu {
+    left: auto;
+    right: 0;
+  }
+}
+
+/*
  * The panel and its trigger are separated by the header's own bottom padding, so
  * without this the menu closes while the pointer crosses the gap.
  */
@@ -8567,7 +8530,7 @@ body:has(.sign-screen) .sign-screen {
   grid-template-columns: minmax(0, 1fr);
 }
 
-@media (width > 900px) {
+@media (width >= 900px) {
   .invoice-cols {
     grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
   }

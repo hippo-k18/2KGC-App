@@ -88,6 +88,32 @@ describe('E2 and E3', () => {
     clean(m);
   });
 
+  it('points an accepted workshop at the CEU form, word for word, between the deadline and the reply line (T369)', () => {
+    const line =
+      'If you opted in for KGC|Learn Continuing Education Units (CEUs), please also complete this form: https://forms.gle/dDZpxjfkkWzscdJ56';
+    const m = cfpAcceptedMessage({ ...e2, workshop: true, typeLine: 'Workshop' });
+    expect(m.text).toContain(line);
+    const at = m.text.indexOf(line);
+    expect(at).toBeGreaterThan(m.text.indexOf('Please send them within one week'));
+    expect(at).toBeLessThan(m.text.indexOf("If there's anything you are unsure about"));
+    expect(m.html).toContain('KGC|Learn Continuing Education Units (CEUs), please also complete this form:');
+    expect(m.html).toMatch(
+      /<a href="https:\/\/forms\.gle\/dDZpxjfkkWzscdJ56"[^>]*>https:\/\/forms\.gle\/dDZpxjfkkWzscdJ56<\/a>/,
+    );
+    clean(m);
+  });
+
+  it('says nothing about CEUs to a talk, or in the E3 nudge', () => {
+    for (const m of [
+      cfpAcceptedMessage(e2),
+      cfpNudgeMessage(e2),
+      cfpNudgeMessage({ ...e2, workshop: true }),
+    ]) {
+      expect(`${m.text}\n${m.html}`).not.toContain('CEU');
+      expect(`${m.text}\n${m.html}`).not.toContain('forms.gle');
+    }
+  });
+
   it('nudges with the same date', () => {
     const m = cfpNudgeMessage(e2);
     expect(m.subject).toBe('Still need a few details for your KGC 2027 session');
