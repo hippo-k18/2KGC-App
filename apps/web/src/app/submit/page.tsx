@@ -8,7 +8,10 @@ export const dynamic = 'force-dynamic';
 /**
  * `/submit` is the address people guess for the call page (T372). A temporary
  * redirect (307), so browsers do not cache it and next year's call can take
- * over. `/submit/` is rewritten here by the middleware, so it is one hop too.
+ * over. `/submit/` reaches it through the middleware's trailing-slash 308.
+ * Not a middleware rewrite: behind Apache `request.url` is
+ * `https://localhost:…`, which Next proxies over TLS to a plain-HTTP port and
+ * answers 500 (T374).
  */
 export default async function SubmitIndex({
   searchParams,

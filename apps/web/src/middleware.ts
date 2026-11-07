@@ -104,13 +104,6 @@ function route(request: NextRequest): NextResponse {
     }
   }
 
-  // `/submit/` straight to `app/submit/page.tsx`, whose redirect to the call
-  // page is then the only hop (T372).
-  if (!blogHost && bare === '/submit' && path !== bare) {
-    // A plain URL: a cloned `nextUrl` puts the trailing slash back.
-    return NextResponse.rewrite(new URL(`/submit${url.search}`, request.url));
-  }
-
   if (bare !== path) return NextResponse.redirect(`${selfOrigin(request)}${bare}${url.search}`, 308);
 
   if (!blogHost) {
