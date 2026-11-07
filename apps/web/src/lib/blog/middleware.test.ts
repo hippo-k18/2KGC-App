@@ -131,3 +131,15 @@ describe('blog on its own host (BLOG_ORIGIN set), unchanged', () => {
     for (const p of ['/feed/', '/comments/feed/']) expect(hit('https://staging.knowledgegraph.tech', p).location).toBe(`${BLOG}/feed.xml`);
   });
 });
+
+describe('/submit/ (T372)', () => {
+  it('rewrites /submit/ onto /submit, keeping the query, so the call page is one hop', () => {
+    delete process.env.BLOG_ORIGIN;
+    process.env.WEB_PUBLIC_ORIGIN = WWW;
+    const r = hit(WWW, '/submit/?utm_source=x');
+    expect(r.location).toBeNull();
+    expect(r.rewrite).toBe(`${WWW}/submit?utm_source=x`);
+    expect(hit(WWW, '/submit').rewrite).toBeNull();
+    expect(hit(WWW, '/submit/call-for-speakers-kgc-2027/').location).toBe(`${WWW}/submit/call-for-speakers-kgc-2027`);
+  });
+});
