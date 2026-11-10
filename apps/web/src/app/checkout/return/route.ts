@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type Stripe from 'stripe';
-import { websiteCheckout } from '@/lib/checkout-source';
+import { merchCheckout, websiteCheckout } from '@/lib/checkout-source';
+import { fulfilMerchSession } from '@/lib/merch-fulfil';
 import { mintOrderToken } from '@/lib/order-token';
 import { fulfilCheckoutSession } from '@/lib/checkout-fulfil';
 import { orderIdFor } from '@/lib/registrations';
@@ -93,6 +94,19 @@ export async function GET(req: NextRequest) {
   // session in the account, a Payment Link's for one, could mint a ticket by
   // visiting this URL. The webhook is what tells organizers about such a
   // payment; this only declines to fulfil it.
+  // Merch on its own (T380): back to the holder's ticket page, which lists it.
+  const merchOnly = merchCheckout(session.metadata);
+  if (merchOnly) {
+    try {
+      await fulfilMerchSession({ session, holderRegistrationId: merchOnly.holderRegistrationId, email, origin });
+    } catch (err) {
+      await recordError('checkout.return', err, { path: 'stripe', id: session.id });
+    }
+    return NextResponse.redirect(
+      new URL(`/order/${mintOrderToken({ rid: merchOnly.holderRegistrationId })}?merch=1`, origin),
+    );
+  }
+
   const ours = websiteCheckout(session.metadata);
   if (!ours) return NextResponse.redirect(back);
 

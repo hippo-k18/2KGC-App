@@ -26,6 +26,7 @@ import {
   headerText,
   inviteForCode,
   invoiceRaisedMessage,
+  merchConfirmationMessage,
   postalAddress,
   purchaseConfirmationMessage,
   refundConfirmationMessage,
@@ -59,6 +60,7 @@ import { CODE_TTL_MINUTES } from './otp-core.js';
 /** The exported senders in `email.ts`, by name. The test checks this list is complete. */
 export type SenderName =
   | 'sendPurchaseConfirmation'
+  | 'sendMerchConfirmation'
   | 'sendInvoiceRaised'
   | 'sendRefundConfirmation'
   | 'sendTicketWithdrawn'
@@ -347,6 +349,12 @@ export const EMAIL_FORMATS: EmailFormat[] = [
         purchaseConfirmationMessage(purchase(), inviteForCode('SAMPLE1', ORDER_URL(), ATTENDEE)),
       ),
       v('no-invite', 'Without Bring your team', () => purchaseConfirmationMessage(purchase(), null)),
+      v('merch', 'With merch', () =>
+        purchaseConfirmationMessage(
+          { ...purchase(), merch: [{ itemId: 'socks', name: 'KGC socks', quantity: 1, unitPriceCents: 1500 }] },
+          null,
+        ),
+      ),
     ],
   },
   {
@@ -359,6 +367,26 @@ export const EMAIL_FORMATS: EmailFormat[] = [
     variants: [
       v('workshops', 'Workshops', () =>
         extraAddedMessage({ ...purchase(), ticketType: 'Main Conference + Workshops', amountCents: 39900, addedExtra: 'Workshops' }),
+      ),
+    ],
+  },
+  {
+    id: 'merch-confirmation',
+    name: 'Merch order',
+    template: 'merch-confirmation',
+    sender: 'sendMerchConfirmation',
+    when: 'After a ticket holder buys merch on its own from the merch page.',
+    to: 'The ticket holder',
+    variants: [
+      v('default', 'Socks and a T-shirt', () =>
+        merchConfirmationMessage({
+          ...purchase(),
+          amountCents: 6500,
+          merch: [
+            { itemId: 'socks', name: 'KGC socks', quantity: 2, unitPriceCents: 1500 },
+            { itemId: 'tshirt', name: 'T-shirt', optionId: 'et-al', optionLabel: 'Et al.', size: 'L', quantity: 1, unitPriceCents: 3500 },
+          ],
+        }),
       ),
     ],
   },

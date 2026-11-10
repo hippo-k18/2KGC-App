@@ -53,3 +53,4 @@ export * from "./learn-embed-core.js";
 export * from "./learn-page-share.js";
 export * from "./learn-render-core.js";
 export * from "./hubspot.js";
+export * from "./merch.js";

@@ -5,7 +5,8 @@ import { COLLECTIONS, ticketLabel, type EntitlementDoc, type OrderDoc, type Regi
 import { normaliseEmail, registrationId } from '@kgc/scripts/src/lib/ids';
 import { currentHolder, releaseAdmission, removeOrderExtras, stillPaidElsewhere } from '@kgc/scripts/src/lib/fulfilment';
 import { cartLines } from '@/app/tickets/cart-order';
-import { ticketingInvoice, websiteCheckout } from '@/lib/checkout-source';
+import { merchCheckout, ticketingInvoice, websiteCheckout } from '@/lib/checkout-source';
+import { fulfilMerchSession, settleMerchOrder } from '@/lib/merch-fulfil';
 import { noteIgnoredStripe } from '@/lib/stripe-ignored';
 import { splitByWeight } from '@/app/tickets/seats-core';
 import { endAppAccessAfterWithdrawal, provisionPurchaserAccount } from '@/lib/app-account';
@@ -150,6 +151,11 @@ export async function POST(req: NextRequest) {
       // pending order changes; see `cancelUnpaidOrder` for what this used to
       // cancel by mistake.
       const session = event.data.object;
+      // A merch-only session writes nothing before payment, so there is
+      // nothing to close (T380).
+      if (merchCheckout(session.metadata)) {
+        return NextResponse.json({ received: true, ignored: 'merch-only session, no order before payment' });
+      }
       // A Payment Link or any other session in the shared account expires too.
       // Only ours has an order to close (T142); the rest is not ticketing.
       if (!websiteCheckout(session.metadata)) {
@@ -190,6 +196,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: true, ignored: 'not a ticketing payment' });
       }
       const sessionId = target.externalId;
+
+      // Merch bought on its own (T380): the order records the refund and no
+      // ticket, seat or entitlement moves. Refunds stay manual in Stripe.
+      if (target.merchOnly) {
+        const merch = await settleMerchOrder({
+          orderId: orderIdFor(sessionId),
+          reason: 'refunded',
+          refundedCents: charge.amount_refunded,
+        });
+        return NextResponse.json({ received: true, eventId: event.id, orderId: orderIdFor(sessionId), merchOnly: true, ...(merch ?? { missing: true }) });
+      }
 
       const outcome = await cancelRegistrationByOrder({
         externalId: sessionId,
@@ -425,6 +442,24 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: true, ignored: 'not a ticketing payment' });
       }
       const sessionId = target.externalId;
+      if (target.merchOnly) {
+        const merch = await settleMerchOrder({ orderId: orderIdFor(sessionId), reason: 'disputed' });
+        if (merch?.newly) {
+          await recordWarning(
+            'dispute.opened',
+            {
+              disputeId: dispute.id,
+              amountCents: dispute.amount,
+              currency: dispute.currency,
+              reason: dispute.reason,
+              ticketsWithdrawn: 0,
+              note: 'A chargeback was opened on a merch-only order. No ticket was touched. Answer it in Stripe before the evidence deadline.',
+            },
+            { path: 'orders', id: orderIdFor(sessionId) },
+          );
+        }
+        return NextResponse.json({ received: true, eventId: event.id, orderId: orderIdFor(sessionId), merchOnly: true, ...(merch ?? { missing: true }) });
+      }
       const outcome = await cancelRegistrationByOrder({
         externalId: sessionId,
         reason: 'disputed',
@@ -505,6 +540,7 @@ export async function POST(req: NextRequest) {
       }
       const target = await paymentTarget(dispute.payment_intent);
       if (!target?.ours) return NextResponse.json({ received: true, ignored: 'not a ticketing payment' });
+      if (target.merchOnly) return NextResponse.json({ received: true, noted: `merch-only dispute ${dispute.status}` });
       const oid = orderIdFor(target.externalId);
       const order = (await db().collection(COLLECTIONS.orders).doc(oid).get()).data() as OrderDoc | undefined;
       await recordWarning(
@@ -933,7 +969,7 @@ function paymentIntentId(pi: string | Stripe.PaymentIntent | null): string | nul
  */
 async function paymentTarget(
   pi: string | Stripe.PaymentIntent | null,
-): Promise<{ externalId: string; ours: boolean } | null> {
+): Promise<{ externalId: string; ours: boolean; merchOnly?: boolean } | null> {
   const id = paymentIntentId(pi);
   if (!id) return null;
   const hasOrder = async (externalId: string) =>
@@ -942,7 +978,12 @@ async function paymentTarget(
   const found = await stripe().checkout.sessions.list({ payment_intent: id, limit: 1 });
   const session = found.data[0];
   if (session) {
-    return { externalId: session.id, ours: Boolean(websiteCheckout(session.metadata)) || (await hasOrder(session.id)) };
+    const merchOnly = Boolean(merchCheckout(session.metadata));
+    return {
+      externalId: session.id,
+      ours: merchOnly || Boolean(websiteCheckout(session.metadata)) || (await hasOrder(session.id)),
+      ...(merchOnly ? { merchOnly } : {}),
+    };
   }
 
   const paid = await stripe().invoicePayments.list({ payment: { type: 'payment_intent', payment_intent: id }, limit: 1 });
@@ -990,6 +1031,20 @@ async function fulfil(event: Stripe.Event, session: Stripe.Checkout.Session, ori
    * from ticketing (ignored)", with the amount, payer and Stripe id, so a
    * ticket somebody bought the wrong way can still be spotted (T142).
    */
+  /**
+   * Merch bought on its own by a ticket holder (T380). An order and a receipt;
+   * never a ticket, whatever else the metadata says.
+   */
+  const merchOnly = merchCheckout(session.metadata);
+  if (merchOnly) {
+    const merch = await fulfilMerchSession({ session, holderRegistrationId: merchOnly.holderRegistrationId, email, origin });
+    if (merch.settled) return NextResponse.json({ received: true, eventId: event.id, skipped: `order ${merch.settled}` });
+    if (merch.confirmationOutstanding) {
+      return NextResponse.json({ error: 'confirmation email not sent yet', orderId: merch.orderId }, { status: 503 });
+    }
+    return NextResponse.json({ received: true, eventId: event.id, orderId: merch.orderId, merchOnly: true });
+  }
+
   const ours = websiteCheckout(session.metadata);
   if (!ours) {
     // Not a ticket. Noted quietly, not as a warning: the account takes

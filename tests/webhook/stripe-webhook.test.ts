@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   sessionsList: vi.fn(),
   cartLines: vi.fn(),
   queueAndKickHubspot: vi.fn(),
+  fulfilMerchSession: vi.fn(),
+  settleMerchOrder: vi.fn(),
 }));
 
 vi.mock('@/lib/stripe', () => ({
@@ -96,13 +98,28 @@ vi.mock('@/lib/firestore', () => ({
 }));
 vi.mock('@/lib/order-token', () => ({ mintOrderToken: () => 'token' }));
 vi.mock('@/app/tickets/cart-order', () => ({ cartLines: mocks.cartLines }));
+// Merch (T380): the merch-only fulfilment is its own module, tested in
+// merch-fulfil.test.ts; here only which path a session takes. Item names are
+// read from Firestore, so the lines decode with their ids as names.
+vi.mock('@/lib/merch-fulfil', () => ({
+  fulfilMerchSession: mocks.fulfilMerchSession,
+  settleMerchOrder: mocks.settleMerchOrder,
+}));
+vi.mock('@/lib/merch', async () => {
+  // The cart a session's `merchRef` points at (T387), as `merchCarts` holds it.
+  const carts: Record<string, unknown[]> = { mc_test: [
+      { itemId: 'socks', name: 'KGC socks', quantity: 2, unitPriceCents: 1500 },
+      { itemId: 'tshirt', name: 'T-shirt', optionId: 'et-al', optionLabel: 'Et al.', size: 'L', quantity: 1, unitPriceCents: 3500 },
+    ] };
+  return { merchFromMetadata: async (md: Record<string, string> | null) => carts[md?.merchRef ?? ''] ?? [] };
+});
 // The HubSpot sync (T333). Never reached for real: no settings read, no network.
 vi.mock('@kgc/scripts/src/lib/hubspot-sync', () => ({ queueAndKickHubspot: mocks.queueAndKickHubspot }));
 
 import { POST } from '../../apps/web/src/app/api/stripe/webhook/route';
 import { GET as checkoutReturn } from '../../apps/web/src/app/checkout/return/route';
 import { NextRequest } from '../../apps/web/node_modules/next/server.js';
-import { CHECKOUT_SOURCE, ticketingInvoice, websiteCheckout } from '../../apps/web/src/lib/checkout-source';
+import { CHECKOUT_SOURCE, merchCheckout, ticketingInvoice, websiteCheckout } from '../../apps/web/src/lib/checkout-source';
 
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
 
@@ -167,6 +184,8 @@ beforeEach(() => {
   mocks.fulfilPurchase.mockResolvedValue({ registrationId: 'reg_1' });
   mocks.cartLines.mockResolvedValue([]);
   mocks.queueAndKickHubspot.mockResolvedValue(undefined);
+  mocks.fulfilMerchSession.mockResolvedValue({ orderId: 'ord_cs_live_test', registrationId: 'reg_holder', confirmationOutstanding: false });
+  mocks.settleMerchOrder.mockResolvedValue({ status: 'refunded', newly: true });
 });
 
 describe('which Checkout sessions become tickets', () => {
@@ -564,5 +583,165 @@ describe('the HubSpot sync triggers (T333)', () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ registered: 1, orderId: 'ord_in_1' });
+  });
+});
+
+
+/**
+ * Merch (T380). A merch-only payment from `/tickets/merch` must never become
+ * a ticket, and merch on a ticket purchase rides along without changing what
+ * the ticket path does. Refunds keep the shared-account rule: only our marked
+ * objects are acted on.
+ */
+describe('merch (T380)', () => {
+  const merchMeta = {
+    source: CHECKOUT_SOURCE,
+    kind: 'merch',
+    holder: 'reg_holder',
+    name: 'Ada Holder',
+    merchRef: 'mc_test',
+    merchCents: '6500',
+  };
+
+  it('reads a merch-only session as merch and never as a ticket', () => {
+    expect(merchCheckout(merchMeta)).toEqual({ holderRegistrationId: 'reg_holder' });
+    expect(websiteCheckout(merchMeta)).toBeNull();
+    // Without our marker, or without a holder, it is nobody's merch.
+    expect(merchCheckout({ ...merchMeta, source: 'payment-link' })).toBeNull();
+    expect(merchCheckout({ ...merchMeta, holder: '' })).toBeNull();
+    // A session that names a tier is not merch-only, whatever `kind` says.
+    expect(merchCheckout({ ...merchMeta, tier: 'main-conference' })).toBeNull();
+  });
+
+  it('fulfils a merch-only session as merch: no ticket, no account, no seat', async () => {
+    const res = await deliver({
+      id: 'evt_merch',
+      type: 'checkout.session.completed',
+      data: { object: session(merchMeta, { amount_total: 6500, amount_subtotal: 6500 }) },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ received: true, merchOnly: true, orderId: 'ord_cs_live_test' });
+    expect(mocks.fulfilMerchSession).toHaveBeenCalledTimes(1);
+    expect(mocks.fulfilMerchSession.mock.calls[0][0]).toMatchObject({ holderRegistrationId: 'reg_holder', email: 'buyer@example.com' });
+    expect(mocks.fulfilOrder).not.toHaveBeenCalled();
+    expect(mocks.fulfilPurchase).not.toHaveBeenCalled();
+    expect(mocks.ensureRegistration).not.toHaveBeenCalled();
+    expect(mocks.provisionPurchaserAccount).not.toHaveBeenCalled();
+    expect(mocks.incrementSold).not.toHaveBeenCalled();
+    expect(mocks.noteIgnoredStripe).not.toHaveBeenCalled();
+  });
+
+  it('asks Stripe to come back while the merch receipt is still unsent', async () => {
+    mocks.fulfilMerchSession.mockResolvedValue({ orderId: 'ord_cs_live_test', registrationId: 'reg_holder', confirmationOutstanding: true });
+    const res = await deliver({ id: 'evt_merch', type: 'checkout.session.completed', data: { object: session(merchMeta) } });
+    expect(res.status).toBe(503);
+    expect(mocks.fulfilOrder).not.toHaveBeenCalled();
+  });
+
+  it('a session that only looks like merch (no marker) is ignored, not fulfilled', async () => {
+    const res = await deliver({
+      id: 'evt_fake',
+      type: 'checkout.session.completed',
+      data: { object: session({ ...merchMeta, source: 'payment-link' }) },
+    });
+    expect(res.status).toBe(200);
+    expect(mocks.fulfilMerchSession).not.toHaveBeenCalled();
+    expect(mocks.fulfilOrder).not.toHaveBeenCalled();
+    expect(mocks.noteIgnoredStripe).toHaveBeenCalledTimes(1);
+  });
+
+  it('carries merch on a ticket purchase into fulfilment, and the ticket path is unchanged', async () => {
+    const res = await deliver({
+      id: 'evt_ticket_merch',
+      type: 'checkout.session.completed',
+      data: {
+        object: session(
+          { source: CHECKOUT_SOURCE, tier: 'main-conference', ticketType: 'Main Conference', name: 'Ada Buyer', seats: '1', merchRef: merchMeta.merchRef, merchCents: '6500' },
+          { amount_total: 86400, amount_subtotal: 86400 },
+        ),
+      },
+    });
+    expect(res.status).toBe(200);
+    expect(mocks.fulfilMerchSession).not.toHaveBeenCalled();
+    expect(mocks.fulfilOrder).toHaveBeenCalledTimes(1);
+    expect(mocks.fulfilOrder.mock.calls[0][0]).toMatchObject({
+      tierId: 'main-conference',
+      amountCents: 86400,
+      merch: [
+        { itemId: 'socks', quantity: 2, unitPriceCents: 1500 },
+        { itemId: 'tshirt', optionId: 'et-al', size: 'L', quantity: 1, unitPriceCents: 3500 },
+      ],
+    });
+  });
+
+  it('an expired merch-only session closes nothing', async () => {
+    const res = await deliver({ id: 'evt_exp', type: 'checkout.session.expired', data: { object: session(merchMeta, { payment_status: 'unpaid' }) } });
+    expect(res.status).toBe(200);
+    expect(mocks.cancelRegistrationByOrder).not.toHaveBeenCalled();
+  });
+
+  function charge(amount: number) {
+    return { id: 'ch_m', object: 'charge', payment_intent: 'pi_m', amount_refunded: amount, currency: 'usd', billing_details: {} };
+  }
+
+  it('a refund of a merch-only order records it on the order and leaves the ticket alone', async () => {
+    mocks.sessionsList.mockResolvedValue({ data: [{ id: 'cs_merch', metadata: merchMeta }] });
+    const res = await deliver({ id: 'evt_mr', type: 'charge.refunded', data: { object: charge(6500) } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ merchOnly: true, status: 'refunded' });
+    expect(mocks.settleMerchOrder).toHaveBeenCalledWith({ orderId: 'ord_cs_merch', reason: 'refunded', refundedCents: 6500 });
+    expect(mocks.cancelRegistrationByOrder).not.toHaveBeenCalled();
+    expect(mocks.incrementSold).not.toHaveBeenCalled();
+    expect(mocks.noteIgnoredStripe).not.toHaveBeenCalled();
+  });
+
+  it('a chargeback on a merch-only order withdraws no ticket', async () => {
+    mocks.sessionsList.mockResolvedValue({ data: [{ id: 'cs_merch', metadata: merchMeta }] });
+    mocks.settleMerchOrder.mockResolvedValue({ status: 'cancelled', newly: true });
+    const res = await deliver({
+      id: 'evt_md',
+      type: 'charge.dispute.created',
+      data: { object: { id: 'dp_m', payment_intent: 'pi_m', amount: 6500, currency: 'usd', reason: 'fraudulent' } },
+    });
+    expect(res.status).toBe(200);
+    expect(mocks.settleMerchOrder).toHaveBeenCalledWith({ orderId: 'ord_cs_merch', reason: 'disputed' });
+    expect(mocks.cancelRegistrationByOrder).not.toHaveBeenCalled();
+    expect(mocks.recordWarning).toHaveBeenCalledWith('dispute.opened', expect.objectContaining({ ticketsWithdrawn: 0 }), expect.anything());
+  });
+
+  it('a refund of a ticket order with merch still goes through the ticket refund path', async () => {
+    mocks.sessionsList.mockResolvedValue({
+      data: [{ id: 'cs_t', metadata: { source: CHECKOUT_SOURCE, tier: 'main-conference', ticketType: 'Main Conference', merchRef: merchMeta.merchRef } }],
+    });
+    mocks.cancelRegistrationByOrder.mockResolvedValue({
+      registrationId: 'reg_buyer',
+      orderId: 'ord_cs_t',
+      email: 'buyer@example.com',
+      refundedCents: 86400,
+      currency: 'usd',
+      fullyRefunded: true,
+      newlyRefunded: true,
+      lines: [{ ticketTypeId: 'main-conference', quantity: 1 }],
+    });
+    const res = await deliver({ id: 'evt_tr', type: 'charge.refunded', data: { object: charge(86400) } });
+    expect(res.status).toBe(200);
+    expect(mocks.settleMerchOrder).not.toHaveBeenCalled();
+    expect(mocks.cancelRegistrationByOrder).toHaveBeenCalledWith({ externalId: 'cs_t', reason: 'refunded', refundedCents: 86400 });
+    // Seats come back from `items`; merch is never a seat.
+    expect(mocks.incrementSold).toHaveBeenCalledWith('main-conference', -1);
+    expect(mocks.incrementSold).toHaveBeenCalledTimes(1);
+  });
+
+  it('/checkout/return sends a merch buyer back to their ticket page and issues nothing', async () => {
+    mocks.sessionsRetrieve.mockResolvedValue(session(merchMeta));
+    const res = await checkoutReturn(
+      new NextRequest('https://www.knowledgegraph.tech/checkout/return?session_id=cs_merch', {
+        headers: { host: 'www.knowledgegraph.tech', 'x-forwarded-proto': 'https' },
+      }),
+    );
+    expect(res.headers.get('location')).toBe('https://www.knowledgegraph.tech/order/token?merch=1');
+    expect(mocks.fulfilMerchSession).toHaveBeenCalledTimes(1);
+    expect(mocks.fulfilOrder).not.toHaveBeenCalled();
+    expect(mocks.fulfilPurchase).not.toHaveBeenCalled();
   });
 });

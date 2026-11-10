@@ -23,6 +23,10 @@ export const COLLECTIONS = {
   badgePrintJobs: "badgePrintJobs",
   ticketTypes: "ticketTypes",
   orders: "orders",
+  /** Merch sold at checkout and on /tickets/merch (T380). Server-only, like `ticketTypes`. */
+  merchItems: "merchItems",
+  /** The priced merch cart a Checkout session points at by `merchRef` (T387). Server-only. */
+  merchCarts: "merchCarts",
   /**
    * Server-only. Written by the website when it sends a transactional email,
    * read by the dashboard to answer "did the confirmation actually go out?".

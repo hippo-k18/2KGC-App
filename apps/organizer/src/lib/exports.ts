@@ -173,6 +173,10 @@ export const EXPORTS: ExportDef[] = [
       { header: 'Company', value: (o) => o.companyName ?? '' },
       { header: 'Ticket', value: (o) => o.ticketNames.join('; ') },
       { header: 'Seats', value: (o) => o.seatCount },
+      // Picked up at the conference (T380). One cell per order; the pickup
+      // list per item, design and size is on Ticket Add-ons.
+      { header: 'Merch', value: (o) => o.merchLabel },
+      { header: 'Merch total', value: (o) => (o.merch.reduce((n, l) => n + l.quantity * l.unitPriceCents, 0) / 100).toFixed(2) },
       // The stored value, unchanged, so a sheet that filters on it still works;
       // the readable name beside it says which `cancelled` is which (T357).
       { header: 'Status', value: (o) => o.status },

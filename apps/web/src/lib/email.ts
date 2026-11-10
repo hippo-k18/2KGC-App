@@ -3,10 +3,12 @@ import 'server-only';
 import {
   emailEnabled as sharedEmailEnabled,
   sendInvoiceRaised as sharedSendInvoiceRaised,
+  sendMerchConfirmation as sharedSendMerchConfirmation,
   sendPurchaseConfirmation as sharedSendPurchaseConfirmation,
   sendRefundConfirmation as sharedSendRefundConfirmation,
   sendTicketWithdrawn as sharedSendTicketWithdrawn,
   type InvoiceEmailInput,
+  type MerchEmailInput,
   type PurchaseEmailInput,
   type RefundEmailInput,
   type SendOutcome,
@@ -39,6 +41,7 @@ import { db } from './firestore';
 
 export type {
   InvoiceEmailInput,
+  MerchEmailInput,
   PurchaseEmailInput,
   RefundEmailInput,
   SendOutcome,
@@ -63,4 +66,8 @@ export function sendRefundConfirmation(input: RefundEmailInput): Promise<SendOut
 
 export function sendTicketWithdrawn(input: TicketWithdrawnInput): Promise<SendOutcome> {
   return sharedSendTicketWithdrawn(db(), input);
+}
+
+export function sendMerchConfirmation(input: MerchEmailInput): Promise<SendOutcome> {
+  return sharedSendMerchConfirmation(db(), input);
 }

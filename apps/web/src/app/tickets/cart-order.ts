@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { FieldValue } from 'firebase-admin/firestore';
-import { COLLECTIONS, EVENT_ID, type OrderDoc, type OrderLine } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, merchTotalCents, type MerchLine, type OrderDoc, type OrderLine } from '@kgc/shared';
 import { normaliseEmail } from '@kgc/scripts/src/lib/ids';
 import { db } from '@/lib/firestore';
 import { invoiceOrderId } from '@/lib/registrations';
@@ -102,7 +102,10 @@ export async function recordCartOrder(input: {
   channel?: NonNullable<OrderDoc['channel']>;
   /** The buyer fee, when it is switched on. Part of the total, not of any seat. */
   feeCents?: number;
+  /** Merch on the same order (T380). Not seats; listed apart from `items`. */
+  merch?: MerchLine[];
 }): Promise<string> {
+  const merchCents = merchTotalCents(input.merch ?? []);
   const oid = orderIdForSession(input.sessionId);
   const groupDiscountCents = input.seats.reduce((n, seat) => n + (seat.groupDiscountCents ?? 0), 0);
 
@@ -164,7 +167,7 @@ export async function recordCartOrder(input: {
     subtotalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0),
     taxCents: 0,
     discountCents: 0,
-    totalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0) + (input.feeCents ?? 0),
+    totalCents: input.seats.reduce((sum, s) => sum + s.priceCents, 0) + (input.feeCents ?? 0) + merchCents,
     refundedCents: 0,
     currency: input.currency,
     campaignCode: input.campaignCode,
@@ -176,6 +179,7 @@ export async function recordCartOrder(input: {
     ...(groupDiscountCents > 0 ? { groupDiscountCents } : {}),
     // Nobody is registered yet, and this empty list is what says so.
     registrationIds: [],
+    ...(merchCents > 0 ? { merch: input.merch, merchCents } : {}),
   };
 
   await db()

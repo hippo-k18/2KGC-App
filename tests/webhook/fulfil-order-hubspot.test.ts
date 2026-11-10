@@ -70,6 +70,10 @@ vi.mock('@/lib/email', () => ({
   sendTicketWithdrawn: vi.fn(),
 }));
 vi.mock('@/lib/stripe-ignored', () => ({ noteIgnoredStripe: vi.fn() }));
+vi.mock('@/lib/merch', async () => {
+  const carts: Record<string, unknown[]> = { mc_socks: [{ itemId: 'socks', name: 'KGC socks', quantity: 2, unitPriceCents: 1500 }] };
+  return { merchFromMetadata: async (md: Record<string, string> | null) => carts[md?.merchRef ?? ''] ?? [] };
+});
 vi.mock('@/lib/order-token', () => ({ mintOrderToken: () => 'token' }));
 vi.mock('@/lib/question-forms', () => ({ claimAnswers: async () => undefined }));
 vi.mock('@kgc/scripts/src/lib/referrals', () => ({
@@ -109,7 +113,7 @@ import { CHECKOUT_SOURCE } from '../../apps/web/src/lib/checkout-source';
 
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
 
-function deliverCheckout() {
+function deliverCheckout(merch?: { value: string; extraCents: number }) {
   const event = {
     id: 'evt_hs',
     type: 'checkout.session.completed',
@@ -123,11 +127,17 @@ function deliverCheckout() {
         customer: 'cus_1',
         payment_intent: 'pi_1',
         payment_link: null,
-        amount_total: 159800,
-        amount_subtotal: 159800,
+        amount_total: 159800 + (merch?.extraCents ?? 0),
+        amount_subtotal: 159800 + (merch?.extraCents ?? 0),
         currency: 'usd',
         total_details: { amount_tax: 0, amount_discount: 0 },
-        metadata: { source: CHECKOUT_SOURCE, tier: 'main-conference', ticketType: 'Main Conference', name: 'Ada Buyer' },
+        metadata: {
+          source: CHECKOUT_SOURCE,
+          tier: 'main-conference',
+          ticketType: 'Main Conference',
+          name: 'Ada Buyer',
+          ...(merch ? { merchRef: merch.value, merchCents: String(merch.extraCents) } : {}),
+        },
       },
     },
   };
@@ -211,5 +221,37 @@ describe('a paid checkout and the HubSpot sync (T333)', () => {
     const res = await deliverCheckout();
     expect(res.status).toBe(200);
     expect(mocks.sendPurchaseConfirmation).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+/**
+ * Merch on a group purchase (T380): written on the order, listed on the
+ * buyer's confirmation and charged to the buyer's share, never split across
+ * the seats or counted against a tier.
+ */
+describe('merch on a ticket purchase', () => {
+  it('goes on the order and the buyer\'s email, not on the colleague\'s', async () => {
+    const res = await deliverCheckout({ value: 'mc_socks', extraCents: 3000 });
+    expect(res.status).toBe(200);
+
+    const order = mocks.docs.get('orders/ord_cs_live_group')!;
+    expect(order).toMatchObject({
+      merch: [{ itemId: 'socks', name: 'KGC socks', quantity: 2, unitPriceCents: 1500 }],
+      merchCents: 3000,
+    });
+
+    const byTo = new Map(mocks.sendPurchaseConfirmation.mock.calls.map((c) => [(c as [{ to: string }])[0].to, (c as [Record<string, unknown>])[0]]));
+    expect(byTo.get('buyer@example.com')).toMatchObject({ amountCents: 79900 + 3000, merch: [{ itemId: 'socks', quantity: 2 }] });
+    expect(byTo.get('ben@example.com')).toMatchObject({ amountCents: 79900 });
+    expect(byTo.get('ben@example.com')).not.toHaveProperty('merch');
+    // Two seats sold, nothing for the socks.
+    expect(mocks.incrementSold).toHaveBeenCalledTimes(1);
+    expect(mocks.incrementSold).toHaveBeenCalledWith('main-conference', 2);
+  });
+
+  it('a purchase without merch writes no merch field', async () => {
+    await deliverCheckout();
+    expect(mocks.docs.get('orders/ord_cs_live_group') ?? {}).not.toHaveProperty('merch');
   });
 });

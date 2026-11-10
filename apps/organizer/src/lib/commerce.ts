@@ -11,6 +11,8 @@ import {
   type TicketTypeDoc,
   type WithId,
   priceNow,
+  merchLineLabel,
+  type MerchLine,
   type PricePhase,
 } from '@kgc/shared';
 import {
@@ -100,6 +102,11 @@ export interface OrderRow {
   markedPaidBy?: string;
   /** True when a refund can be issued from here — a paid Stripe card payment. */
   refundable: boolean;
+  /** Merch on the order (T380), and the same as one readable line for lists and the CSV. */
+  merch: MerchLine[];
+  merchLabel: string;
+  /** Merch bought on its own, from the website's merch page: no seats. */
+  merchOnly: boolean;
 }
 
 function iso(t: { toDate(): Date } | undefined): string | undefined {
@@ -139,7 +146,7 @@ function toRow(id: string, o: OrderDoc): OrderRow {
     channel: o.channel ?? 'checkout',
     ticketNames: items.map((i) => i.ticketTypeName).filter(Boolean),
     ticketTypeIds: items.map((i) => i.ticketTypeId).filter(Boolean),
-    seatCount: items.reduce((n, i) => n + (i.quantity || 1), 0) || 1,
+    seatCount: o.kind === 'merch' ? 0 : items.reduce((n, i) => n + (i.quantity || 1), 0) || 1,
     subtotalCents: o.subtotalCents ?? o.totalCents,
     taxCents: o.taxCents ?? 0,
     discountCents: o.discountCents ?? 0,
@@ -159,6 +166,9 @@ function toRow(id: string, o: OrderDoc): OrderRow {
     hostedInvoiceUrl: o.hostedInvoiceUrl,
     registrationIds: o.registrationIds ?? [],
     markedPaidBy: o.markedPaidBy,
+    merch: o.merch ?? [],
+    merchLabel: (o.merch ?? []).map((l) => `${merchLineLabel(l)} × ${l.quantity}`).join('; '),
+    merchOnly: o.kind === 'merch',
     /**
      * Refundable means all four of these at once, and each exclusion is a
      * different way the button would otherwise lie:

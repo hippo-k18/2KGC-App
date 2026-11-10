@@ -5,6 +5,7 @@ import type { WebsiteCheckout } from '@/lib/checkout-source';
 import { fulfilOrder, type FulfilOrderResult } from '@/lib/fulfil-order';
 import { referralFromMetadata } from '@/lib/referral-capture';
 import { stripe } from '@/lib/stripe';
+import { merchFromMetadata } from '@/lib/merch';
 
 /**
  * Fulfil a paid Checkout session that the tickets page started.
@@ -89,6 +90,7 @@ export async function fulfilCheckoutSession(input: {
     stripePaymentIntentId:
       typeof paymentIntent === 'string' ? paymentIntent : (paymentIntent?.id ?? undefined),
     stripeChargeId: detail.chargeId,
+    merch: await merchFromMetadata(session.metadata),
   });
 }
 

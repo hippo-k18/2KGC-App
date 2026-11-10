@@ -3,6 +3,8 @@ import { QrCode } from '@/components/qr-code';
 import { PassTilt } from '@/components/pass-tilt';
 import type { SiteEvent } from '@/lib/data';
 import { APP_URL, SITE } from '@/lib/site';
+import Link from 'next/link';
+import { MERCH_PICKUP_NOTE, merchLineLabel, type MerchLine } from '@kgc/shared';
 
 /** `https://app.example.org` → `app.example.org`. */
 const appHost = APP_URL?.replace(/^https?:\/\//, '') ?? '';
@@ -58,7 +60,22 @@ export interface OrderViewRegistration {
  * nothing else. The badge QR stays in Firestore for the app to fetch once the
  * attendee has actually authenticated. See `src/lib/qr.ts`.
  */
-export function OrderView({ ev, reg }: { ev: SiteEvent; reg: OrderViewRegistration }) {
+export function OrderView({
+  ev,
+  reg,
+  merch = [],
+  merchUrl,
+  merchJustBought = false,
+}: {
+  ev: SiteEvent;
+  reg: OrderViewRegistration;
+  /** Merch this person bought, on any order (T380). */
+  merch?: MerchLine[];
+  /** `/tickets/merch?t=…`, while any item is on sale. */
+  merchUrl?: string;
+  /** Back from a merch-only payment, which the webhook may still be recording. */
+  merchJustBought?: boolean;
+}) {
   /*
    * `name` and `ticketType` are both optional on `RegistrationDoc`, and not
    * merely in theory: a registration imported from a Whova CSV can arrive with
@@ -191,6 +208,32 @@ export function OrderView({ ev, reg }: { ev: SiteEvent; reg: OrderViewRegistrati
             <span className="pass-glare" aria-hidden="true" />
           </div>
         </PassTilt>
+
+        {(merch.length > 0 || merchUrl || merchJustBought) && (
+          <div className="order-merch">
+            <h2 style={{ fontSize: '1.1rem', margin: 0 }}>Merch</h2>
+            {merchJustBought && <p className="notice">Thanks for your merch order. A receipt is on its way.</p>}
+            {merch.length > 0 && (
+              <>
+                <ul>
+                  {merch.map((l, i) => (
+                    <li key={`${l.itemId}-${l.optionId ?? ''}-${l.size ?? ''}-${i}`}>
+                      {merchLineLabel(l)} × {l.quantity}
+                    </li>
+                  ))}
+                </ul>
+                <p className="hint">{MERCH_PICKUP_NOTE}</p>
+              </>
+            )}
+            {merchUrl && (
+              <p>
+                <Link href={merchUrl} className="btn btn-ghost-quiet btn-sm">
+                  {merch.length > 0 ? 'Buy more merch' : 'Buy KGC merch'}
+                </Link>
+              </p>
+            )}
+          </div>
+        )}
 
         <p className="muted order-fine">
           Questions about your ticket:{' '}

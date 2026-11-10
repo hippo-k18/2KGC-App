@@ -69,3 +69,19 @@ export function ticketingInvoice(metadata: Record<string, string> | null | undef
   if (!metadata) return false;
   return metadata.source?.trim() === CHECKOUT_SOURCE || metadata.kgcKind?.trim() === 'group-registration';
 }
+
+/**
+ * A merch-only session from `/tickets/merch` (T380): our marker, `kind: merch`
+ * and the ticket holder it was bought against. It never becomes a ticket:
+ * `websiteCheckout` refuses it (no `tier`), and the webhook and the return
+ * redirect send it to merch fulfilment instead.
+ */
+export function merchCheckout(
+  metadata: Record<string, string> | null | undefined,
+): { holderRegistrationId: string } | null {
+  if (!metadata) return null;
+  if (metadata.source?.trim() !== CHECKOUT_SOURCE || metadata.kind?.trim() !== 'merch') return null;
+  const holder = metadata.holder?.trim();
+  if (!holder || metadata.tier) return null;
+  return { holderRegistrationId: holder };
+}

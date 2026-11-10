@@ -8,8 +8,11 @@ import {
   EVENT,
   EVENT_ID,
   REMINDER_CONTACT_SOURCE,
+  MERCH_PICKUP_NOTE,
+  merchLineLabel,
   publicSiteOrigin,
   type EmailLogDoc,
+  type MerchLine,
 } from '@kgc/shared';
 import { storedBody, type CaptureInput } from './email-capture.js';
 import { contactId } from './ids.js';
@@ -737,6 +740,27 @@ export interface PurchaseEmailInput {
    * the whole badge label ("Main Conference + Workshops"). Same link, same QR.
    */
   addedExtra?: string;
+  /** Merch bought on the same order, listed under the ticket (T380). */
+  merch?: MerchLine[];
+}
+
+/** "KGC socks × 2, T-shirt (Et al., L) × 1", one per line. */
+function merchList(merch: readonly MerchLine[]): string[] {
+  return merch.map((l) => `${merchLineLabel(l)} × ${l.quantity}`);
+}
+
+/** The merch rows of a receipt table, and the pickup line under it. Empty with no merch. */
+function merchHtml(merch: readonly MerchLine[] | undefined): { rows: string; note: string } {
+  if (!merch?.length) return { rows: '', note: '' };
+  return {
+    rows: row('Merch', merchList(merch).map(esc).join('<br>')),
+    note: `<p style="margin:12px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">${esc(MERCH_PICKUP_NOTE)}</p>`,
+  };
+}
+
+function merchText(merch: readonly MerchLine[] | undefined): string {
+  if (!merch?.length) return '';
+  return `Merch:         ${merchList(merch).join('\n               ')}\n               ${MERCH_PICKUP_NOTE}\n`;
 }
 
 /**
@@ -799,10 +823,11 @@ export async function sendPurchaseConfirmation(store: Firestore, input: Purchase
  * `invite` is the "Bring your team" block, or null to leave it out.
  */
 export function purchaseConfirmationMessage(
-  input: Pick<PurchaseEmailInput, 'to' | 'name' | 'ticketType' | 'amountCents' | 'currency' | 'orderUrl'>,
+  input: Pick<PurchaseEmailInput, 'to' | 'name' | 'ticketType' | 'amountCents' | 'currency' | 'orderUrl' | 'merch'>,
   invite: { link: string; mailto: string } | null,
 ): { subject: string; html: string; text: string } {
   const price = formatPrice(input.amountCents, input.currency);
+  const merch = merchHtml(input.merch);
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
 
   const html = shell(
@@ -811,8 +836,9 @@ export function purchaseConfirmationMessage(
      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;margin:6px 0;">
        ${row('Attendee', esc(input.name || input.to))}
        ${row('Ticket', esc(input.ticketType))}
+       ${merch.rows}
        ${row('Paid', price)}
-     </table>
+     </table>${merch.note}
      ${button(input.orderUrl, 'View your ticket')}
      <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">Your badge QR code is in the KGC app. If you don't have the app, give your name at the registration desk. Keep this link private: anyone with it can see your ticket.</p>${
        invite
@@ -835,7 +861,7 @@ export function purchaseConfirmationMessage(
 
 Attendee:      ${input.name || input.to}
 Ticket:        ${input.ticketType}
-Paid:          ${price}
+${merchText(input.merch)}Paid:          ${price}
 
 View your ticket: ${input.orderUrl}
 
@@ -892,9 +918,10 @@ async function sendExtraAdded(
 
 /** The extra-added confirmation, built and not sent (T292). */
 export function extraAddedMessage(
-  input: Pick<PurchaseEmailInput, 'to' | 'name' | 'ticketType' | 'amountCents' | 'currency' | 'orderUrl'> & { addedExtra: string },
+  input: Pick<PurchaseEmailInput, 'to' | 'name' | 'ticketType' | 'amountCents' | 'currency' | 'orderUrl' | 'merch'> & { addedExtra: string },
 ): EmailMessage {
   const price = formatPrice(input.amountCents, input.currency);
+  const merch = merchHtml(input.merch);
   const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
   const extra = esc(input.addedExtra);
 
@@ -904,8 +931,9 @@ export function extraAddedMessage(
      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;margin:6px 0;">
        ${row('Attendee', esc(input.name || input.to))}
        ${row('Ticket', esc(input.ticketType))}
+       ${merch.rows}
        ${row('Paid', price)}
-     </table>
+     </table>${merch.note}
      ${button(input.orderUrl, 'View your ticket')}
      <p style="margin:16px 0 0;font-size:13px;color:#6b7280;line-height:1.6;">This is the same link as before. Don't forward it: anyone with the link can see your ticket.</p>`,
   );
@@ -914,7 +942,7 @@ export function extraAddedMessage(
 
 Attendee:      ${input.name || input.to}
 Ticket:        ${input.ticketType}
-Paid:          ${price}
+${merchText(input.merch)}Paid:          ${price}
 
 View your ticket: ${input.orderUrl}
 
@@ -922,6 +950,61 @@ View your ticket: ${input.orderUrl}
 ${REPLY_LINE_TEXT}`;
 
   return { subject: `${input.addedExtra} added to your Knowledge Graph Conference ticket`, html, text };
+}
+
+export interface MerchEmailInput {
+  to: string;
+  name: string;
+  merch: MerchLine[];
+  amountCents: number;
+  currency: string;
+  /** The buyer's `/order/{token}` link, which lists their merch. */
+  orderUrl: string;
+  orderId?: string;
+  registrationId?: string;
+}
+
+/** Merch bought on its own by a ticket holder, from `/tickets/merch` (T380). */
+export async function sendMerchConfirmation(store: Firestore, input: MerchEmailInput): Promise<SendOutcome> {
+  return send(store, {
+    to: input.to,
+    ...merchConfirmationMessage(input),
+    template: 'merch-confirmation',
+    orderId: input.orderId,
+    registrationId: input.registrationId,
+  });
+}
+
+/** The merch confirmation, built and not sent. */
+export function merchConfirmationMessage(
+  input: Pick<MerchEmailInput, 'to' | 'name' | 'merch' | 'amountCents' | 'currency' | 'orderUrl'>,
+): EmailMessage {
+  const price = formatPrice(input.amountCents, input.currency);
+  const greeting = firstNameOf(input.name) ? `Hi ${esc(firstNameOf(input.name))},` : 'Hi,';
+  const merch = merchHtml(input.merch);
+
+  const html = shell(
+    'Your KGC merch',
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${greeting} thanks for your order.</p>
+     <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;margin:6px 0;">
+       ${row('Name', esc(input.name || input.to))}
+       ${merch.rows}
+       ${row('Paid', price)}
+     </table>${merch.note}
+     ${button(input.orderUrl, 'View your ticket')}`,
+  );
+
+  const text = `${greeting} thanks for your KGC merch order.
+
+Name:          ${input.name || input.to}
+${merchText(input.merch)}Paid:          ${price}
+
+View your ticket: ${input.orderUrl}
+
+3-7 May 2027, Jay Conference Bryant Park, New York.
+${REPLY_LINE_TEXT}`;
+
+  return { subject: 'Your KGC merch order', html, text };
 }
 
 export interface InvoiceEmailInput {
