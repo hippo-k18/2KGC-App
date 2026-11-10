@@ -21,17 +21,36 @@ export interface MerchItemRow extends MerchItemDoc {
   id: string;
 }
 
+/**
+ * Only the fields the screen edits. The stored document also has Timestamps,
+ * which cannot cross into the client form (T380 gate).
+ */
+function toRow(id: string, d: MerchItemDoc): MerchItemRow {
+  return {
+    id,
+    eventId: d.eventId,
+    name: d.name,
+    priceCents: d.priceCents,
+    currency: d.currency || 'usd',
+    ...(d.imageUrl ? { imageUrl: d.imageUrl } : {}),
+    options: (d.options ?? []).map((o) => ({ id: o.id, label: o.label })),
+    sizes: [...(d.sizes ?? [])],
+    active: d.active === true,
+    sort: d.sort ?? 0,
+  };
+}
+
 export async function listMerchItems(): Promise<MerchItemRow[]> {
   const snap = await db().collection(COLLECTIONS.merchItems).where('eventId', '==', EVENT_ID).get();
   return snap.docs
-    .map((d) => ({ id: d.id, ...(d.data() as MerchItemDoc) }))
+    .map((d) => toRow(d.id, d.data() as MerchItemDoc))
     .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.name.localeCompare(b.name));
 }
 
 export async function getMerchItem(id: string): Promise<MerchItemRow | null> {
   const doc = await db().collection(COLLECTIONS.merchItems).doc(id).get();
   const data = doc.data() as MerchItemDoc | undefined;
-  return data && data.eventId === EVENT_ID ? { id: doc.id, ...data } : null;
+  return data && data.eventId === EVENT_ID ? toRow(doc.id, data) : null;
 }
 
 export async function saveMerchItem(id: string, item: Omit<MerchItemDoc, 'eventId'>): Promise<void> {
