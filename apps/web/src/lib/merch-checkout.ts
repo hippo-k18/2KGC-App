@@ -1,13 +1,17 @@
 import 'server-only';
 
+import { randomBytes } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import {
+  COLLECTIONS,
+  EVENT_ID,
   MERCH_PICKUP_NOTE,
-  encodeMerchMetadata,
   merchLineLabel,
   merchTotalCents,
   priceMerchCart,
   type MerchLine,
 } from '@kgc/shared';
+import { db } from './firestore';
 import { activeMerch } from './merch';
 
 /** What a refusal hands back to a form: the same shape as `CheckoutState`. */
@@ -51,8 +55,32 @@ export function merchLineItem(line: MerchLine, currency: string) {
   };
 }
 
-/** Session metadata for a merch cart: the lines and their sum, or nothing. */
-export function merchMetadata(merch: MerchLine[]): Record<string, string> {
-  if (merch.length === 0) return {};
-  return { merch: encodeMerchMetadata(merch), merchCents: String(merchTotalCents(merch)) };
+/**
+ * Write the priced cart where the webhook will find it, and return its ref
+ * (T387). Before the redirect, like a group's seat list: the cart no longer
+ * travels in metadata, because a long item or design name can take one value
+ * past Stripe's 500 characters. Throws on failure; callers refuse the checkout
+ * then, before any money moves.
+ */
+export async function recordMerchCart(merch: MerchLine[]): Promise<string> {
+  const ref = `mc_${randomBytes(12).toString('hex')}`;
+  await db()
+    .collection(COLLECTIONS.merchCarts)
+    .doc(ref)
+    .create({ eventId: EVENT_ID, lines: merch, merchCents: merchTotalCents(merch), createdAt: FieldValue.serverTimestamp() });
+  return ref;
 }
+
+/**
+ * Session metadata for a merch cart: a 27-character ref and the sum, whatever
+ * the cart holds. Nothing when there is no merch, so a ticket-only session is
+ * exactly as it was.
+ */
+export function merchMetadata(ref: string | undefined, merch: MerchLine[]): Record<string, string> {
+  if (!ref || merch.length === 0) return {};
+  return { merchRef: ref, merchCents: String(merchTotalCents(merch)) };
+}
+
+/** The buyer's sentence when a cart cannot be saved: nothing has been charged. */
+export const MERCH_SAVE_FAILED =
+  'We could not save your merch order, so we have not taken you to payment. Nothing was charged. Please try again.';

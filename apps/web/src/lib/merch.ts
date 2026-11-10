@@ -3,9 +3,10 @@ import 'server-only';
 import {
   COLLECTIONS,
   EVENT_ID,
-  decodeMerchMetadata,
+  cleanMerchLines,
   toMerchItem,
   type MerchItem,
+  type MerchCartDoc,
   type MerchItemDoc,
   type MerchLine,
   type OrderDoc,
@@ -41,19 +42,22 @@ export async function activeMerch(): Promise<MerchItem[]> {
   }
 }
 
-/** Lines from session metadata, named from the items as they are now (switched off or not). */
-export async function merchFromMetadata(value: string | null | undefined): Promise<MerchLine[]> {
-  if (!value) return [];
-  let items: Map<string, MerchItemDoc>;
-  try {
-    items = new Map((await allItems()).map(({ id, doc }) => [id, doc]));
-  } catch {
-    items = new Map();
+/**
+ * The cart a session points at with `merchRef` (T387), as priced and named at
+ * checkout. Empty when the session has no merch. Throws when the ref is there
+ * but the cart cannot be read, so the webhook answers 5xx and Stripe
+ * redelivers rather than fulfilling without the merch.
+ */
+export async function merchFromMetadata(metadata: Record<string, string> | null | undefined): Promise<MerchLine[]> {
+  const ref = metadata?.merchRef?.trim();
+  if (!ref) return [];
+  const snap = await db().collection(COLLECTIONS.merchCarts).doc(ref).get();
+  const cart = snap.data() as MerchCartDoc | undefined;
+  if (!cart || cart.eventId !== EVENT_ID) {
+    console.error('[merch] no merch cart for', ref);
+    return [];
   }
-  return decodeMerchMetadata(value, (itemId, optionId) => {
-    const item = items.get(itemId);
-    return { name: item?.name, optionLabel: item?.options?.find((o) => o.id === optionId)?.label };
-  });
+  return cleanMerchLines(cart.lines);
 }
 
 /**

@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
 import { brandingSettings, ticketSalesOpen } from '@/lib/data';
 import { MERCH_PICKUP_NOTE, buyerFeeCents, merchTotalCents, type MerchLine } from '@kgc/shared';
-import { merchFromForm, merchLineItem, merchMetadata } from '@/lib/merch-checkout';
+import { MERCH_SAVE_FAILED, merchFromForm, merchLineItem, merchMetadata, recordMerchCart } from '@/lib/merch-checkout';
 import { fulfilOrder } from '@/lib/fulfil-order';
 import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
@@ -499,6 +499,17 @@ export async function startCheckout(
    */
   const lines = groupSeatsIntoLines(seats);
 
+  // Merch: the priced cart is saved here and the session carries its ref (T387).
+  let merchRef: string | undefined;
+  if (merch.length > 0) {
+    try {
+      merchRef = await recordMerchCart(merch);
+    } catch (err) {
+      console.error('[checkout] could not save the merch cart', err);
+      return { error: MERCH_SAVE_FAILED };
+    }
+  }
+
   let sessionId: string;
   let url: string | null;
   /**
@@ -649,7 +660,7 @@ export async function startCheckout(
         // A reference, not the answers themselves: metadata caps at 500
         // characters per value, and a long-text answer would silently truncate.
         ...(answersRef ? { answersRef } : {}),
-        ...merchMetadata(merch),
+        ...merchMetadata(merchRef, merch),
       },
       success_url: `${origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
       // Back to the checkout page with the tier intact, not to `/tickets`,

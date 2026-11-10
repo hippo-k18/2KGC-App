@@ -71,8 +71,8 @@ vi.mock('@/lib/email', () => ({
 }));
 vi.mock('@/lib/stripe-ignored', () => ({ noteIgnoredStripe: vi.fn() }));
 vi.mock('@/lib/merch', async () => {
-  const { decodeMerchMetadata } = await import('@kgc/shared');
-  return { merchFromMetadata: async (v: string | undefined) => decodeMerchMetadata(v, () => ({ name: 'KGC socks' })) };
+  const carts: Record<string, unknown[]> = { mc_socks: [{ itemId: 'socks', name: 'KGC socks', quantity: 2, unitPriceCents: 1500 }] };
+  return { merchFromMetadata: async (md: Record<string, string> | null) => carts[md?.merchRef ?? ''] ?? [] };
 });
 vi.mock('@/lib/order-token', () => ({ mintOrderToken: () => 'token' }));
 vi.mock('@/lib/question-forms', () => ({ claimAnswers: async () => undefined }));
@@ -136,7 +136,7 @@ function deliverCheckout(merch?: { value: string; extraCents: number }) {
           tier: 'main-conference',
           ticketType: 'Main Conference',
           name: 'Ada Buyer',
-          ...(merch ? { merch: merch.value, merchCents: String(merch.extraCents) } : {}),
+          ...(merch ? { merchRef: merch.value, merchCents: String(merch.extraCents) } : {}),
         },
       },
     },
@@ -232,7 +232,7 @@ describe('a paid checkout and the HubSpot sync (T333)', () => {
  */
 describe('merch on a ticket purchase', () => {
   it('goes on the order and the buyer\'s email, not on the colleague\'s', async () => {
-    const res = await deliverCheckout({ value: 'socks~~~2~1500', extraCents: 3000 });
+    const res = await deliverCheckout({ value: 'mc_socks', extraCents: 3000 });
     expect(res.status).toBe(200);
 
     const order = mocks.docs.get('orders/ord_cs_live_group')!;

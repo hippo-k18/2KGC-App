@@ -2,12 +2,12 @@
 
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { MERCH_PICKUP_NOTE } from '@kgc/shared';
+import { MERCH_PICKUP_NOTE, metadataProblem } from '@kgc/shared';
 import { CHECKOUT_SOURCE } from '@/lib/checkout-source';
 import { checkoutCallerIp, checkoutStartAllowed } from '@/lib/checkout-limit';
 import { checkoutExpiresAt } from '@/lib/checkout-expiry';
 import { activeMerch } from '@/lib/merch';
-import { merchFromForm, merchLineItem, merchMetadata } from '@/lib/merch-checkout';
+import { MERCH_SAVE_FAILED, merchFromForm, merchLineItem, merchMetadata, recordMerchCart } from '@/lib/merch-checkout';
 import { readOrderToken } from '@/lib/order-token';
 import { getRegistration } from '@/lib/registrations';
 import { SITE } from '@/lib/site';
@@ -50,6 +50,27 @@ export async function startMerchCheckout(_prev: MerchCheckoutState, form: FormDa
   const origin = siteOrigin(h.get('host'), h.get('x-forwarded-proto'));
   const currency = items[0]!.currency;
 
+  let merchRef: string;
+  try {
+    merchRef = await recordMerchCart(merch);
+  } catch (err) {
+    console.error('[merch] could not save the merch cart', err);
+    return { error: MERCH_SAVE_FAILED };
+  }
+  const metadata = {
+    source: CHECKOUT_SOURCE,
+    kind: 'merch',
+    holder: reg.registrationId,
+    // Stripe caps a value at 500 characters; a name is far shorter, but never trusted to be.
+    name: (reg.name ?? '').slice(0, 200),
+    ...merchMetadata(merchRef, merch),
+  };
+  const problem = metadataProblem(metadata);
+  if (problem) {
+    console.error('[merch] metadata would be refused by Stripe:', problem);
+    return { error: `The payment processor would not accept this order. Nothing was charged. Email ${SITE.contactEmail}.` };
+  }
+
   let url: string | null;
   try {
     let methods: ('card' | 'link')[] = ['card', 'link'];
@@ -64,13 +85,7 @@ export async function startMerchCheckout(_prev: MerchCheckoutState, form: FormDa
         allow_promotion_codes: false,
         billing_address_collection: 'required',
         custom_text: { submit: { message: MERCH_PICKUP_NOTE } },
-        metadata: {
-          source: CHECKOUT_SOURCE,
-          kind: 'merch',
-          holder: reg.registrationId,
-          name: reg.name ?? '',
-          ...merchMetadata(merch),
-        },
+        metadata,
         success_url: `${origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/tickets/merch?t=${encodeURIComponent(token)}&cancelled=1`,
       });

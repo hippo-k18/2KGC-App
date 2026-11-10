@@ -106,8 +106,12 @@ vi.mock('@/lib/merch-fulfil', () => ({
   settleMerchOrder: mocks.settleMerchOrder,
 }));
 vi.mock('@/lib/merch', async () => {
-  const { decodeMerchMetadata } = await import('@kgc/shared');
-  return { merchFromMetadata: async (v: string | undefined) => decodeMerchMetadata(v) };
+  // The cart a session's `merchRef` points at (T387), as `merchCarts` holds it.
+  const carts: Record<string, unknown[]> = { mc_test: [
+      { itemId: 'socks', name: 'KGC socks', quantity: 2, unitPriceCents: 1500 },
+      { itemId: 'tshirt', name: 'T-shirt', optionId: 'et-al', optionLabel: 'Et al.', size: 'L', quantity: 1, unitPriceCents: 3500 },
+    ] };
+  return { merchFromMetadata: async (md: Record<string, string> | null) => carts[md?.merchRef ?? ''] ?? [] };
 });
 // The HubSpot sync (T333). Never reached for real: no settings read, no network.
 vi.mock('@kgc/scripts/src/lib/hubspot-sync', () => ({ queueAndKickHubspot: mocks.queueAndKickHubspot }));
@@ -595,7 +599,7 @@ describe('merch (T380)', () => {
     kind: 'merch',
     holder: 'reg_holder',
     name: 'Ada Holder',
-    merch: 'socks~~~2~1500|tshirt~et-al~L~1~3500',
+    merchRef: 'mc_test',
     merchCents: '6500',
   };
 
@@ -652,7 +656,7 @@ describe('merch (T380)', () => {
       type: 'checkout.session.completed',
       data: {
         object: session(
-          { source: CHECKOUT_SOURCE, tier: 'main-conference', ticketType: 'Main Conference', name: 'Ada Buyer', seats: '1', merch: merchMeta.merch, merchCents: '6500' },
+          { source: CHECKOUT_SOURCE, tier: 'main-conference', ticketType: 'Main Conference', name: 'Ada Buyer', seats: '1', merchRef: merchMeta.merchRef, merchCents: '6500' },
           { amount_total: 86400, amount_subtotal: 86400 },
         ),
       },
@@ -707,7 +711,7 @@ describe('merch (T380)', () => {
 
   it('a refund of a ticket order with merch still goes through the ticket refund path', async () => {
     mocks.sessionsList.mockResolvedValue({
-      data: [{ id: 'cs_t', metadata: { source: CHECKOUT_SOURCE, tier: 'main-conference', ticketType: 'Main Conference', merch: merchMeta.merch } }],
+      data: [{ id: 'cs_t', metadata: { source: CHECKOUT_SOURCE, tier: 'main-conference', ticketType: 'Main Conference', merchRef: merchMeta.merchRef } }],
     });
     mocks.cancelRegistrationByOrder.mockResolvedValue({
       registrationId: 'reg_buyer',

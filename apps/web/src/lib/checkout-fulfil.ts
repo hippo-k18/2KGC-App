@@ -90,7 +90,7 @@ export async function fulfilCheckoutSession(input: {
     stripePaymentIntentId:
       typeof paymentIntent === 'string' ? paymentIntent : (paymentIntent?.id ?? undefined),
     stripeChargeId: detail.chargeId,
-    merch: await merchFromMetadata(session.metadata?.merch),
+    merch: await merchFromMetadata(session.metadata),
   });
 }
 

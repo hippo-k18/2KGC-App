@@ -38,7 +38,7 @@ export async function fulfilMerchSession(input: {
   const { session, holderRegistrationId, origin } = input;
   const oid = orderIdFor(session.id);
   const ref = db().collection(COLLECTIONS.orders).doc(oid);
-  const merch = await merchFromMetadata(session.metadata?.merch);
+  const merch = await merchFromMetadata(session.metadata);
   const email = normaliseEmail(input.email);
   const pi = session.payment_intent;
   const customer = session.customer;

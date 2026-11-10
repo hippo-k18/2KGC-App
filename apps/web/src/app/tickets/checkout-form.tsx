@@ -571,7 +571,12 @@ export function CheckoutForm({
         )}
         <div className="summary">
           <span>
-            {quantity === 1 ? railName(selected, addOnsOf(selected.id, addOns)) : `${quantity} tickets`}
+            {/* "Total" once merch is in it: the ticket's name over a sum that includes socks misleads (T386). */}
+            {merchCents > 0
+              ? 'Total'
+              : quantity === 1
+                ? railName(selected, addOnsOf(selected.id, addOns))
+                : `${quantity} tickets`}
           </span>
           <span>{formatPrice(totalCents, selected.currency)}</span>
         </div>

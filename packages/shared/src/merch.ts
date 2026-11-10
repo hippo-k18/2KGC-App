@@ -5,16 +5,19 @@
  * Pure, so the website's checkout, its webhook and the dashboard's pickup list
  * all read a cart the same way, and so it can be tested without Firestore.
  *
- * ── Why the cart rides in Stripe metadata ───────────────────────────────────
+ * ── Why the cart is kept on our side, not in Stripe metadata ──────────────
  *
- * A ticket cart of several seats is written to the order document before the
- * redirect, because an attendee list does not fit in a 500-character metadata
- * value. A merch cart does: `socks~~~2~1500|tshirt~et-al~L~1~3500` is a line
- * per item, a few dozen characters each, and `MAX_MERCH_LINES` keeps the whole
- * value under the cap. Putting it there means a single-seat purchase still
- * writes no order before payment (the abandoned-checkout reminder reads
- * pending orders), and the unit price that reaches the webhook is the one the
- * server charged, not one the browser posted.
+ * A metadata value is capped at 500 characters and a session at 50 keys. The
+ * first version put the whole cart in one value, which held for the seeded
+ * ids and broke for an organizer's own long item and design names: six
+ * lines of a hoodie with long design names passed 500 and Stripe refused the
+ * checkout (T386 D1). So the priced cart is written to `merchCarts/{ref}`
+ * before the redirect, as a group's seat list is, and the session carries only
+ * `merchRef` and `merchCents`. Its own collection rather than a pending order,
+ * so a single-seat purchase still writes no order before payment (the
+ * abandoned-checkout reminder reads pending orders). The unit price that
+ * reaches the webhook is the one the server charged, not one the browser
+ * posted.
  */
 
 /** The sizes a shirt can offer. An item lists the ones it actually has. */
@@ -23,7 +26,7 @@ export type MerchSize = (typeof MERCH_SIZES)[number];
 
 /** Most of one line a buyer can take. A box of socks is not a cart. */
 export const MAX_MERCH_QUANTITY = 10;
-/** Lines on one purchase; keeps the metadata value well under 500 characters. */
+/** Lines on one purchase. A cart, not a stock list. */
 export const MAX_MERCH_LINES = 12;
 
 export const MERCH_PICKUP_NOTE = "Picked up at the conference, no shipping.";
@@ -166,38 +169,47 @@ export function priceMerchCart(posted: readonly string[], items: readonly MerchI
   return { ok: true, lines };
 }
 
-/** Stripe metadata value for a priced cart. Ids and figures only. */
-export function encodeMerchMetadata(lines: readonly MerchLine[]): string {
-  return lines
-    .map((l) => [l.itemId, l.optionId ?? "", l.size ?? "", l.quantity, l.unitPriceCents].join("~"))
-    .join("|");
+/** `merchCarts/{ref}`: the priced cart a Checkout session points at (T387). */
+export interface MerchCartDoc {
+  eventId: string;
+  lines: MerchLine[];
+  merchCents: number;
+}
+
+/** Stripe's documented metadata limits. */
+export const STRIPE_METADATA_LIMITS = { keys: 50, keyLength: 40, valueLength: 500 } as const;
+
+/** The first limit a metadata object breaks, or null when Stripe will take it. */
+export function metadataProblem(metadata: Record<string, string>): string | null {
+  const entries = Object.entries(metadata);
+  if (entries.length > STRIPE_METADATA_LIMITS.keys) return `${entries.length} keys`;
+  for (const [k, v] of entries) {
+    if (k.length > STRIPE_METADATA_LIMITS.keyLength) return `key ${k} is too long`;
+    if (String(v).length > STRIPE_METADATA_LIMITS.valueLength) return `${k} is ${String(v).length} characters`;
+  }
+  return null;
 }
 
 /**
- * Back from metadata. Names come from `names` (the items as they are now, or
- * the id when an item was deleted after the sale). Malformed lines are dropped:
- * metadata on a session is ours, but a hand-edited one must not throw in the
- * webhook.
+ * Lines read back from `merchCarts`. Our own document, but checked line by
+ * line so a hand-edited one cannot throw in the webhook.
  */
-export function decodeMerchMetadata(
-  value: string | null | undefined,
-  names: (itemId: string, optionId?: string) => { name?: string; optionLabel?: string } = () => ({}),
-): MerchLine[] {
-  if (!value) return [];
+export function cleanMerchLines(raw: unknown): MerchLine[] {
+  if (!Array.isArray(raw)) return [];
   const out: MerchLine[] = [];
-  for (const part of value.split("|")) {
-    const [itemId, optionId, size, qty, unit] = part.split("~");
-    const quantity = Number(qty);
-    const unitPriceCents = Number(unit);
-    if (!itemId || !Number.isInteger(quantity) || quantity <= 0 || !Number.isInteger(unitPriceCents) || unitPriceCents < 0) continue;
-    const known = names(itemId, optionId || undefined);
+  for (const l of raw as Partial<MerchLine>[]) {
+    if (!l || typeof l.itemId !== "string" || !l.itemId) continue;
+    if (!Number.isInteger(l.quantity) || (l.quantity as number) <= 0) continue;
+    if (!Number.isInteger(l.unitPriceCents) || (l.unitPriceCents as number) < 0) continue;
     out.push({
-      itemId,
-      name: known.name ?? itemId,
-      ...(optionId ? { optionId, optionLabel: known.optionLabel ?? optionId } : {}),
-      ...(size && (MERCH_SIZES as readonly string[]).includes(size) ? { size: size as MerchSize } : {}),
-      quantity,
-      unitPriceCents,
+      itemId: l.itemId,
+      name: typeof l.name === "string" && l.name ? l.name : l.itemId,
+      ...(typeof l.optionId === "string" && l.optionId
+        ? { optionId: l.optionId, optionLabel: typeof l.optionLabel === "string" ? l.optionLabel : l.optionId }
+        : {}),
+      ...(typeof l.size === "string" && (MERCH_SIZES as readonly string[]).includes(l.size) ? { size: l.size as MerchSize } : {}),
+      quantity: l.quantity as number,
+      unitPriceCents: l.unitPriceCents as number,
     });
   }
   return out;

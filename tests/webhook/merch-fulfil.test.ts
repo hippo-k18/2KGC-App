@@ -37,11 +37,11 @@ vi.mock('@/lib/firestore', () => ({
   }),
 }));
 vi.mock('@/lib/merch', async () => {
-  const { decodeMerchMetadata } = await import('@kgc/shared');
-  return {
-    merchFromMetadata: async (v: string | undefined) =>
-      decodeMerchMetadata(v, (id, opt) => ({ name: id === 'socks' ? 'KGC socks' : 'T-shirt', optionLabel: opt === 'et-al' ? 'Et al.' : undefined })),
-  };
+  const carts: Record<string, unknown[]> = { mc_test: [
+  { itemId: 'socks', name: 'KGC socks', quantity: 2, unitPriceCents: 1500 },
+  { itemId: 'tshirt', name: 'T-shirt', optionId: 'et-al', optionLabel: 'Et al.', size: 'L', quantity: 1, unitPriceCents: 3500 },
+] };
+  return { merchFromMetadata: async (md: Record<string, string> | null) => carts[md?.merchRef ?? ''] ?? [] };
 });
 vi.mock('@/lib/email', () => ({ sendMerchConfirmation: mocks.sendMerchConfirmation }));
 vi.mock('@/lib/order-token', () => ({ mintOrderToken: ({ rid }: { rid: string }) => `tok-${rid}` }));
@@ -75,7 +75,7 @@ const session = {
     kind: 'merch',
     holder: 'reg_holder',
     name: 'Ada Holder',
-    merch: 'socks~~~2~1500|tshirt~et-al~L~1~3500',
+    merchRef: 'mc_test',
     merchCents: '6500',
   },
 } as never;

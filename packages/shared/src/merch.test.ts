@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   MERCH_SEED,
-  MAX_MERCH_LINES,
-  decodeMerchMetadata,
+  cleanMerchLines,
   encodeMerchChoice,
-  encodeMerchMetadata,
   merchLineLabel,
   merchPickupList,
   merchTotalCents,
+  metadataProblem,
   priceMerchCart,
   toMerchItem,
   type MerchItem,
@@ -58,33 +57,34 @@ describe("priceMerchCart", () => {
   });
 });
 
-describe("metadata round trip", () => {
-  it("survives Stripe and stays under the 500-character cap at the line limit", () => {
-    const r = priceMerchCart(["socks|||2", "tshirt|a-little-semantics|XXL|1"], items);
-    if (!r.ok) throw new Error(r.error);
-    const value = encodeMerchMetadata(r.lines);
-    const names = (id: string, opt?: string) => {
-      const item = items.find((i) => i.id === id);
-      return { name: item?.name, optionLabel: item?.options.find((o) => o.id === opt)?.label };
-    };
-    expect(decodeMerchMetadata(value, names)).toEqual(r.lines);
-
-    const many = Array.from({ length: MAX_MERCH_LINES }, (_, i) => ({
-      itemId: `item-with-a-long-slug-${i}`,
-      name: "x",
-      optionId: "a-little-semantics-goes-a-long-way",
-      size: "XXL" as const,
-      quantity: 10,
-      unitPriceCents: 3500,
-    }));
-    expect(encodeMerchMetadata(many.slice(0, 6)).length).toBeLessThanOrEqual(500);
-  });
-
-  it("drops malformed lines instead of throwing", () => {
-    expect(decodeMerchMetadata("socks~~~x~1500|~~~1~1|tshirt~et-al~L~1~3500")).toEqual([
-      { itemId: "tshirt", name: "tshirt", optionId: "et-al", optionLabel: "et-al", size: "L", quantity: 1, unitPriceCents: 3500 },
+describe("cleanMerchLines", () => {
+  it("keeps good lines and drops malformed ones instead of throwing", () => {
+    expect(
+      cleanMerchLines([
+        { itemId: "socks", name: "KGC socks", quantity: 2, unitPriceCents: 1500 },
+        { itemId: "tshirt", name: "T-shirt", optionId: "et-al", optionLabel: "Et al.", size: "L", quantity: 1, unitPriceCents: 3500 },
+        { itemId: "x", quantity: 1.5, unitPriceCents: 1 },
+        { itemId: "", quantity: 1, unitPriceCents: 1 },
+        { itemId: "y", quantity: 1, unitPriceCents: -1 },
+        { itemId: "z", quantity: 1, unitPriceCents: 1, size: "XXXL" },
+        null,
+      ]),
+    ).toEqual([
+      { itemId: "socks", name: "KGC socks", quantity: 2, unitPriceCents: 1500 },
+      { itemId: "tshirt", name: "T-shirt", optionId: "et-al", optionLabel: "Et al.", size: "L", quantity: 1, unitPriceCents: 3500 },
+      { itemId: "z", name: "z", quantity: 1, unitPriceCents: 1 },
     ]);
-    expect(decodeMerchMetadata(undefined)).toEqual([]);
+    expect(cleanMerchLines(undefined)).toEqual([]);
+    expect(cleanMerchLines("socks")).toEqual([]);
+  });
+});
+
+describe("metadataProblem", () => {
+  it("names the first Stripe limit broken", () => {
+    expect(metadataProblem({ a: "x".repeat(500) })).toBeNull();
+    expect(metadataProblem({ a: "x".repeat(501) })).toBe("a is 501 characters");
+    expect(metadataProblem({ ["k".repeat(41)]: "x" })).toMatch(/too long/);
+    expect(metadataProblem(Object.fromEntries(Array.from({ length: 51 }, (_, i) => [`k${i}`, "x"])))).toBe("51 keys");
   });
 });
 
