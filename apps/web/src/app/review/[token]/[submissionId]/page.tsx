@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { assignmentFor, reviewerFor } from '@/lib/reviews';
 import { ReviewForm } from '../../review-form';
+import { KeepTypedForm } from '@/components/keep-typed-form';
 import { conflictAction } from '../../actions';
 
 export const metadata: Metadata = {
@@ -169,7 +170,7 @@ export default async function ReviewSubmissionPage({
             )}
 
             {!a.closed && (
-              <form action={conflictAction} style={{ marginTop: 28 }}>
+              <KeepTypedForm action={conflictAction} name="conflict" again="please press the button again" style={{ marginTop: 28 }}>
                 <input type="hidden" name="token" value={token} />
                 <input type="hidden" name="submissionId" value={a.submissionId} />
                 <details>
@@ -187,7 +188,7 @@ export default async function ReviewSubmissionPage({
                     Declare a conflict
                   </button>
                 </details>
-              </form>
+              </KeepTypedForm>
             )}
           </>
         )}

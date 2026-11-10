@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useRef, useState } from 'react';
+import { useStaleGuard } from '@/components/stale-guard';
 import type { AnswerValue } from '@kgc/scripts/src/lib/question-forms';
 import {
   OTHER_TRACK,
@@ -60,7 +61,10 @@ export function SubmissionForm({
    */
   token?: string;
 }) {
-  const [state, action] = useActionState<SubmitState, FormData>(submitAction, {});
+  // Survives a deploy while the form is open (T379); see `KeepTypedForm`.
+  const formRef = useRef<HTMLFormElement>(null);
+  const guard = useStaleGuard(formRef, 'please press the button again');
+  const [state, action] = useActionState<SubmitState, FormData>(guard.guardState(submitAction), {});
   const errors = state.fieldErrors ?? {};
   const a = existing?.author;
 
@@ -87,7 +91,7 @@ export function SubmissionForm({
     : (formatDeadline(call.closesAtLocal, call.timeZone) ?? call.closesAtLocal);
 
   return (
-    <KeepTypedForm action={action} className="checkout">
+    <KeepTypedForm action={action} className="checkout" guard={guard} formRef={formRef}>
       <input type="hidden" name="callId" value={call.id} />
       {token && <input type="hidden" name="token" value={token} />}
 

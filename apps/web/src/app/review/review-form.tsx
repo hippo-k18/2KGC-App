@@ -1,6 +1,8 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useRef } from 'react';
+import { KeepTypedForm } from '@/components/keep-typed-form';
+import { useStaleGuard } from '@/components/stale-guard';
 import type { Assignment } from '@kgc/scripts/src/lib/reviews';
 import { reviewAction, type ReviewState } from './actions';
 
@@ -18,13 +20,16 @@ import { reviewAction, type ReviewState } from './actions';
  * how a private remark reaches a rejection email.
  */
 export function ReviewForm({ assignment, token }: { assignment: Assignment; token: string }) {
-  const [state, action] = useActionState<ReviewState, FormData>(reviewAction, {});
+  // Survives a deploy while the form is open (T379); see `KeepTypedForm`.
+  const formRef = useRef<HTMLFormElement>(null);
+  const guard = useStaleGuard(formRef, 'please press the button again');
+  const [state, action] = useActionState<ReviewState, FormData>(guard.guardState(reviewAction), {});
   const errors = state.fieldErrors ?? {};
   const own = assignment.own;
   const submitted = own.status === 'submitted';
 
   return (
-    <form action={action} className="checkout">
+    <KeepTypedForm action={action} className="checkout" guard={guard} formRef={formRef}>
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="submissionId" value={assignment.submissionId} />
 
@@ -129,6 +134,6 @@ export function ReviewForm({ assignment, token }: { assignment: Assignment; toke
           </button>
         )}
       </div>
-    </form>
+    </KeepTypedForm>
   );
 }
