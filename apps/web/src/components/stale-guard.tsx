@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { SITE } from '@/lib/site';
 import {
   draftKey,
   isStaleActionError,
   keepsField,
   readDraft,
-  reloadedRecently,
+  staleNextStep,
   type SavedDraft,
 } from '@/lib/stale-action-core';
 
@@ -21,7 +21,7 @@ import {
  * should see what is about to go before it goes.
  */
 
-type Notice = 'reloaded' | 'failed' | null;
+type Notice = 'reloaded' | 'failed' | 'reload-needed' | null;
 type Control = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 
 function controls(form: HTMLFormElement): Control[] {
@@ -131,6 +131,16 @@ export function useStaleGuard(
   formName = 'form',
 ) {
   const [notice, setNotice] = useState<Notice>(null);
+  // Set once the guard has declined a second automatic reload (T388). The
+  // page's action ids are the old build's, so from here Send reloads.
+  const needsReload = useRef(false);
+
+  /** Keep the text and get the new build, because the person asked for it. */
+  const reloadNow = useCallback(() => {
+    const form = formRef.current;
+    if (form) save(form, draftKey(window.location.pathname, formName), Date.now());
+    window.location.reload();
+  }, [formRef, formName]);
 
   // Put back a draft saved before the reload, including fields that only
   // appear once an earlier one is set (a workshop's outline after its type).
@@ -167,13 +177,14 @@ export function useStaleGuard(
       const now = Date.now();
       const key = draftKey(window.location.pathname, formName);
       const previous = readDraft(store()?.getItem(key) ?? null, now);
-      if (stale && !reloadedRecently(previous, now)) {
+      if (stale && staleNextStep(previous, now) === 'reload') {
         save(form, key, now);
         window.location.reload();
         return 'reloading';
       }
       save(form, key, previous?.reloadedAt);
-      setNotice('failed');
+      if (stale) needsReload.current = true;
+      setNotice(stale ? 'reload-needed' : 'failed');
       return 'shown';
     },
     [formRef, formName],
@@ -183,6 +194,10 @@ export function useStaleGuard(
   const guardAction = useCallback(
     <A extends unknown[]>(fn: (...args: A) => unknown) =>
       async (...args: A): Promise<void> => {
+        if (needsReload.current) {
+          reloadNow();
+          return new Promise(() => {});
+        }
         setNotice(null);
         try {
           await fn(...args);
@@ -192,13 +207,17 @@ export function useStaleGuard(
           if (r === 'reloading') await new Promise(() => {});
         }
       },
-    [recover],
+    [recover, reloadNow],
   );
 
   /** For a `useActionState` action, `(prev, formData) => Promise<state>`. Only the stale case is caught. */
   const guardState = useCallback(
     <S, P>(fn: (prev: S, payload: P) => Promise<S>) =>
       async (prev: S, payload: P): Promise<S> => {
+        if (needsReload.current) {
+          reloadNow();
+          return new Promise<S>(() => {});
+        }
         try {
           return await fn(prev, payload);
         } catch (err) {
@@ -208,13 +227,20 @@ export function useStaleGuard(
           return prev;
         }
       },
-    [recover],
+    [recover, reloadNow],
   );
 
   const view: ReactNode =
     notice === 'reloaded' ? (
       <p className="notice warn" role="alert">
         The page was updated while you had it open. Your text is kept, {again}.
+      </p>
+    ) : notice === 'reload-needed' ? (
+      <p className="notice warn" role="alert">
+        The page was updated again. Your text is kept, please reload the page.{' '}
+        <button type="button" className="btn btn-outline" onClick={reloadNow} style={{ marginLeft: 8 }}>
+          Reload the page
+        </button>
       </p>
     ) : notice === 'failed' ? (
       <p className="notice bad" role="alert">

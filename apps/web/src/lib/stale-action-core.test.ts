@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DRAFT_MAX_AGE_MS, isStaleActionError, keepsField, readDraft, reloadedRecently } from './stale-action-core';
+import { DRAFT_MAX_AGE_MS, RELOAD_LOOP_MS, isStaleActionError, keepsField, readDraft, reloadedRecently, staleNextStep } from './stale-action-core';
 
 describe('stale action guard (T379)', () => {
   it('recognises the stale-build error and nothing else', () => {
@@ -38,5 +38,15 @@ describe('stale action guard (T379)', () => {
     expect(keepsField({ name: 'photoFile', type: 'file' })).toBe(false);
     expect(keepsField({ name: 'intent', type: 'submit' })).toBe(false);
     expect(keepsField({ name: 'kept', type: 'hidden', keep: true })).toBe(true);
+  });
+
+  it('reloads by itself once, then asks for a reload instead of Send (T388)', () => {
+    const now = 9_000_000;
+    // First stale press: nothing saved yet, so reload.
+    expect(staleNextStep(null, now)).toBe('reload');
+    // Second deploy a minute after that reload: ask, do not loop.
+    expect(staleNextStep({ at: now, values: {}, reloadedAt: now - 60_000 }, now)).toBe('ask-reload');
+    // Long after the last reload, a new deploy reloads by itself again.
+    expect(staleNextStep({ at: now, values: {}, reloadedAt: now - RELOAD_LOOP_MS - 1 }, now)).toBe('reload');
   });
 });

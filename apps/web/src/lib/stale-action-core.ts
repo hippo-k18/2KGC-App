@@ -64,6 +64,17 @@ export function reloadedRecently(previous: SavedDraft | null, now: number): bool
 }
 
 /**
+ * What a stale action does next (T388). The first time, reload by itself.
+ * Within `RELOAD_LOOP_MS` of that reload (a second deploy, or a fast
+ * rollback) it asks instead: the page still holds the old build's action
+ * ids, so pressing Send again would fail the same way, and only a reload
+ * the person chooses gets the new ones without risking a loop.
+ */
+export function staleNextStep(previous: SavedDraft | null, now: number): 'reload' | 'ask-reload' {
+  return reloadedRecently(previous, now) ? 'ask-reload' : 'reload';
+}
+
+/**
  * Which fields are kept. Never the capability token or Next's own `$ACTION_`
  * fields (a new build has new ids), never a file, never a button.
  */
