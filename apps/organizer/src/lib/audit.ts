@@ -436,6 +436,9 @@ export interface AuditEntry {
     /** The call-for-papers flow (T249). */
     | 'submission.cfpAccept'
     | 'submission.cfpWithdraw'
+    /** Leave on the weekly review, and a message to the author (T378). */
+    | 'submission.cfpLeave'
+    | 'submission.cfpContact'
     | 'submission.declineReason'
     | 'call.cfpSettings'
     | 'call.cfpPass'

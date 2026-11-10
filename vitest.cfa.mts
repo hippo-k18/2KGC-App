@@ -76,6 +76,7 @@ export default defineConfig({
             'tests/cfa/form-fields.test.ts',
             'tests/cfa/other-track.test.ts',
             'tests/cfa/call-text.test.ts',
+            'tests/cfa/weekly-review.test.ts',
           ],
         },
       },

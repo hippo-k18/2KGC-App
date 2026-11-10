@@ -14,6 +14,8 @@ import {
   cfpAcceptedMessage,
   cfpCloseAcceptedMessage,
   cfpCloseDeclinedMessage,
+  cfpContactDraft,
+  cfpPlainMessage,
   cfpNudgeMessage,
   cfpReceivedMessage,
   cfpStillOpenMessage,
@@ -259,6 +261,20 @@ export const EMAIL_FORMATS: EmailFormat[] = [
       v('nothing-new', 'Nothing new', () =>
         cfpWeeklyReminderMessage({ name: 'Sample Reviewer', fresh: 0, open: 12, link: dashboard('/content/call-for-speakers-abstracts/review') }),
       ),
+    ],
+  },
+  {
+    id: 'cfp-contact',
+    name: 'Message to an author',
+    template: 'cfp-contact',
+    sender: 'sendCfpMessage',
+    when: 'When an organizer presses Send in "Contact the author" on the weekly review or a submission page. The words are theirs.',
+    to: 'The person who submitted',
+    variants: [
+      v('default', 'As the dialog opens it', () => {
+        const draft = cfpContactDraft({ name: SPEAKER, title: TITLE });
+        return cfpPlainMessage(draft.subject, draft.text.replace('\n\n\n\n', '\n\nCould you send us a shorter abstract?\n\n'));
+      }),
     ],
   },
   {

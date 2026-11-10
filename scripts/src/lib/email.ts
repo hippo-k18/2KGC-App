@@ -2962,6 +2962,55 @@ export function cfpWeeklyReminderMessage(input: {
   );
 }
 
+/**
+ * Plain text an organizer typed, as an email (T378): the edited acceptance
+ * email and the message to an author. Blank lines split paragraphs, "•"
+ * lines become a list, and a web address becomes a link. Everything is
+ * escaped, so nothing typed can add markup.
+ */
+export function cfpPlainMessage(subject: string, text: string): CfpMessage {
+  const clean = text.replace(/\r\n?/g, '\n').trim();
+  const link = (line: string) =>
+    esc(line).replace(/https?:\/\/[^\s<>"']+/g, (u) => `<a href="${u}" style="color:${BRAND};">${u}</a>`);
+  const blocks = clean
+    .split(/\n\s*\n/)
+    .map((para) => para.split('\n'))
+    .map((lines) => {
+      const bullets = lines.every((l) => /^\s*[•*-]\s+/.test(l));
+      if (bullets) {
+        return `<ul style="margin:0 0 14px;padding-left:22px;font-size:15px;line-height:1.6;">${lines
+          .map((l) => `<li>${link(l.replace(/^\s*[•*-]\s+/, ''))}</li>`)
+          .join('')}</ul>`;
+      }
+      return `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;">${lines
+        .map((l) => link(l.replace(/^\s*→\s*/, '')))
+        .join('<br>')}</p>`;
+    })
+    .join('\n');
+  return { subject: headerText(subject), text: clean, html: shell(esc(headerText(subject)), blocks) };
+}
+
+/**
+ * The acceptance email as sent (T378): the standard one when the organizer
+ * left the words alone, so it keeps its button, else their text.
+ */
+export function cfpAcceptedAsEdited(standard: CfpMessage, edited?: { subject: string; text: string }): CfpMessage {
+  if (!edited) return standard;
+  const same = (a: string, b: string) => a.replace(/\r\n?/g, '\n').trim() === b.replace(/\r\n?/g, '\n').trim();
+  if (same(edited.subject, standard.subject) && same(edited.text, standard.text)) return standard;
+  if (same(edited.text, standard.text)) return { ...standard, subject: headerText(edited.subject) };
+  return cfpPlainMessage(edited.subject, edited.text);
+}
+
+/** What the "Contact the author" dialog starts with (T378). */
+export function cfpContactDraft(input: { name?: string; title: string }): { subject: string; text: string } {
+  const first = firstNameOf(input.name);
+  return {
+    subject: `About your KGC 2027 submission: ${input.title || 'Untitled'}`,
+    text: `${first ? `Hi ${first},` : 'Hi,'}\n\n\n\nBest,\nThe KGC team`,
+  };
+}
+
 type CfpTemplate = Extract<EmailLogDoc['template'], `cfp-${string}`>;
 
 /** Send one built call-for-papers message. Never throws, like every sender here. */

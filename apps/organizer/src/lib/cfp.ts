@@ -14,6 +14,7 @@ import {
   type SpeakerDoc,
   type SpeakerProfileEditDoc,
   type SubmissionDoc,
+  type SubmissionContactMessageDoc,
   type SubmissionIdentityDoc,
   type TrackDoc,
 } from '@kgc/shared';
@@ -34,12 +35,17 @@ import {
   sessionTypeLine,
   stillOpenRecipients,
   isOpen,
+  pickCurrentCfpCall,
   trackLabel,
   type CfpRow,
 } from '@kgc/scripts/src/lib/cfp-core';
+import { pickShownCall } from '@kgc/scripts/src/lib/call-window';
 import {
   cfpAcceptNoticeMessage,
+  cfpAcceptedAsEdited,
   cfpAcceptedMessage,
+  cfpContactDraft,
+  cfpPlainMessage,
   cfpCloseAcceptedMessage,
   cfpCloseDeclinedMessage,
   cfpNudgeMessage,
@@ -153,6 +159,7 @@ function toCfp(r: SubmissionRow, s: SubmissionDoc | undefined, tracks: Map<strin
     closeDecisionSent: Boolean(s?.closeDecision),
     stillOpenSentAtMs: ms(s?.stillOpenSentAt),
     declineReason: s?.declineReason,
+    leftAtMs: ms(s?.reviewLeft?.at),
   };
 }
 
@@ -195,15 +202,29 @@ export function callStillOpen(nowMs: number, call: Pick<CfpCall, 'cfp' | 'timeZo
   return !holdE2ForClose(nowMs, call.cfp, call.timeZone);
 }
 
-/** The call this flow is about: the published one with settings, else the newest published. */
-export async function currentCfpCallId(): Promise<string | null> {
+/**
+ * The call this flow is about when the URL names none: the one the website
+ * shows, else the published one with settings saved last (T378,
+ * `pickCurrentCfpCall`). The Submissions page opens on it too, rather than on
+ * whichever call closes last.
+ */
+export async function currentCfpCallId(nowMs = Date.now()): Promise<string | null> {
   const snap = await db().collection(COLLECTIONS.calls).where('eventId', '==', EVENT_ID).get();
-  const calls = snap.docs.map((d) => ({ id: d.id, c: d.data() as CallDoc }));
-  const pick =
-    calls.find(({ c }) => c.status === 'published' && c.cfp) ??
-    calls.find(({ c }) => c.status === 'published') ??
-    calls.find(({ c }) => c.cfp);
-  return pick?.id ?? null;
+  const millis = (t: unknown) => ms(t) ?? 0;
+  const calls = snap.docs.map((d) => {
+    const c = d.data() as CallDoc;
+    return {
+      id: d.id,
+      eventId: c.eventId,
+      status: c.status,
+      showOnWebsite: c.showOnWebsite,
+      hasCfp: Boolean(c.cfp),
+      opensAtMs: millis(c.opensAt),
+      closesAtMs: millis(c.closesAt),
+      updatedAtMs: millis(c.updatedAt),
+    };
+  });
+  return pickCurrentCfpCall(calls, pickShownCall(calls, EVENT_ID, nowMs)?.id)?.id ?? null;
 }
 
 /** Where a dashboard link in an email points. The scheduler has no request to read a host from. */
@@ -361,6 +382,8 @@ export async function acceptCfp(input: {
   submissionId: string;
   actor: string;
   nowMs?: number;
+  /** The acceptance email as edited in the Accept dialog (T378). Absent: the standard one. */
+  e2Edited?: { subject: string; text: string };
 }): Promise<AcceptResult> {
   const now = input.nowMs ?? Date.now();
   try {
@@ -491,6 +514,7 @@ export async function acceptCfp(input: {
         tz,
         nowMs: now,
         actor: input.actor,
+        edited: input.e2Edited,
       });
     }
 
@@ -521,6 +545,8 @@ export async function acceptCfp(input: {
       ...(hold ? { 'acceptance.e2HeldForE4': true } : {}),
       // A refused send is owed, and the hourly run retries it (T258 #5).
       ...(e2 === 'failed' ? { 'acceptance.e2Owed': true } : {}),
+      // The approved words, so that retry sends them rather than the standard ones (T378).
+      ...(input.e2Edited && !hold ? { 'acceptance.e2Edited': input.e2Edited } : {}),
       updatedAt: at,
     });
 
@@ -591,22 +617,73 @@ async function sendE2(input: {
   tz: string;
   nowMs: number;
   actor?: string;
+  edited?: { subject: string; text: string };
 }): Promise<SendOutcome> {
   return sendCfpMessage(db(), {
     to: input.to,
     template: 'cfp-accepted',
     submissionId: input.submissionId,
     actor: input.actor,
-    message: cfpAcceptedMessage({
-      name: input.name,
-      title: input.title,
-      typeLine: input.typeLine,
-      workshop: input.workshop,
-      link: `${publicSiteOrigin()}/speaker/${mintSpeakerToken(input.speakerId)}`,
-      dueDay: dayAfter(input.nowMs, DETAILS_DUE_DAYS, input.tz),
-      sessionNoticeDay: formatDay(input.cfp.sessionNoticeDate),
-    }),
+    message: cfpAcceptedAsEdited(standardE2(input), input.edited),
   });
+}
+
+/** E2 in the standard words, as `sendE2` would build it now. */
+function standardE2(input: {
+  name: string;
+  title: string;
+  typeLine: string;
+  workshop: boolean;
+  speakerId: string;
+  cfp: CallCfpSettings;
+  tz: string;
+  nowMs: number;
+}) {
+  return cfpAcceptedMessage({
+    name: input.name,
+    title: input.title,
+    typeLine: input.typeLine,
+    workshop: input.workshop,
+    link: `${publicSiteOrigin()}/speaker/${mintSpeakerToken(input.speakerId)}`,
+    dueDay: dayAfter(input.nowMs, DETAILS_DUE_DAYS, input.tz),
+    sessionNoticeDay: formatDay(input.cfp.sessionNoticeDate),
+  });
+}
+
+/** What the Accept dialog shows (T378). */
+export type AcceptPreview =
+  | { ok: true; held: boolean; to?: string; subject: string; text: string }
+  | { ok: false; error: string };
+
+/**
+ * The acceptance email Accept would send now, for the dialog to show and the
+ * organizer to edit. `held` when the call has closed and the email waits for
+ * the decision send; `to` absent when there is no author on file. Reads only.
+ */
+export async function previewAcceptEmail(submissionId: string, nowMs = Date.now()): Promise<AcceptPreview> {
+  const subRef = db().collection(COLLECTIONS.submissions).doc(submissionId);
+  const s = (await subRef.get()).data() as SubmissionDoc | undefined;
+  if (!s || s.eventId !== EVENT_ID) return { ok: false, error: 'That submission does not exist.' };
+  if (s.status === 'draft') return { ok: false, error: 'That submission is still a draft. Its author has not finished it.' };
+  if (s.status === 'withdrawn') return { ok: false, error: 'The author withdrew this, so it cannot be accepted.' };
+  const call = await getCfpCall(s.callId);
+  const cfp = call?.cfp ?? {};
+  const tz = call?.timeZone ?? TIME_ZONE;
+  const held = holdE2ForClose(nowMs, cfp, tz) && !s.closeDecision;
+  const identity = (
+    await subRef.collection(SUBCOLLECTIONS.identity).doc(SUBMISSION_IDENTITY_DOC).get()
+  ).data() as SubmissionIdentityDoc | undefined;
+  const msg = standardE2({
+    name: identity?.name ?? '',
+    title: s.title,
+    typeLine: sessionTypeLine(s.sessionType, s.durationMinutes),
+    workshop: s.sessionType === 'workshop',
+    speakerId: identity?.speakerId ?? deriveSpeakerId(identity?.name ?? '', identity?.affiliation),
+    cfp,
+    tz,
+    nowMs,
+  });
+  return { ok: true, held, to: identity?.email, subject: msg.subject, text: msg.text };
 }
 
 /**
@@ -627,11 +704,13 @@ async function sendOwedE2(
   if (!r.email) return 'not-owed';
   const at = Timestamp.fromMillis(nowMs);
   let speakerDocId: string | undefined;
+  let edited: { subject: string; text: string } | undefined;
   const mine = await db().runTransaction(async (tx) => {
     const d = (await tx.get(ref)).data() as SubmissionDoc | undefined;
     const a = d?.acceptance;
     if (d?.status !== 'accepted' || a?.e2Owed !== true || a.e2SentAt || !a.speakerId) return false;
     speakerDocId = a.speakerId;
+    edited = a.e2Edited;
     tx.update(ref, {
       'acceptance.e2Owed': FieldValue.delete(),
       'acceptance.e2SentAt': at,
@@ -654,6 +733,7 @@ async function sendOwedE2(
     tz: call.timeZone,
     nowMs,
     actor,
+    edited,
   });
   if (outcome !== 'sent') {
     await releaseSend(ref, {
@@ -804,10 +884,130 @@ export async function finishPass(callId: string, actor: string, nowMs = Date.now
     before: {},
     after: { lastPassAtMs: nowMs },
   });
-  return { ok: true, message: 'Pass finished. Anything you left stays on the list for next week.' };
+  return { ok: true, message: 'Pass finished. Talks you left are back on the list.' };
 }
 
 export { reviewQueue };
+
+/**
+ * Leave, on the weekly review (T378). Records the press on the submission and
+ * changes nothing else: the status stays, the Submissions page shows it as
+ * before. `reviewQueue` keeps it off the list until the next pass.
+ */
+export async function leaveCfp(input: { submissionId: string; actor: string; nowMs?: number }): Promise<CfpResult> {
+  const ref = db().collection(COLLECTIONS.submissions).doc(input.submissionId);
+  const now = input.nowMs ?? Date.now();
+  const at = Timestamp.fromMillis(now);
+  const result = await db().runTransaction(async (tx) => {
+    const s = (await tx.get(ref)).data() as SubmissionDoc | undefined;
+    if (!s || s.eventId !== EVENT_ID) return { ok: false as const, error: 'That submission does not exist.' };
+    if (!isOpen(s)) return { ok: false as const, error: 'That talk has already been decided, so there is nothing to leave.' };
+    tx.update(ref, { reviewLeft: { at, by: input.actor }, updatedAt: at });
+    return { ok: true as const, before: s.reviewLeft ? ms(s.reviewLeft.at) ?? null : null, status: s.status };
+  });
+  if (!result.ok) return result;
+  await appendAudit({
+    actor: input.actor,
+    action: 'submission.cfpLeave',
+    targetPath: `${COLLECTIONS.submissions}/${input.submissionId}`,
+    targetId: input.submissionId,
+    before: { status: result.status, leftAtMs: result.before },
+    after: { status: result.status, leftAtMs: now },
+  });
+  return { ok: true, message: 'Left for the next pass. Its status has not changed.' };
+}
+
+/** One message to the author, as the submission page lists it (T378). */
+export interface ContactMessage {
+  id: string;
+  atMs: number;
+  by: string;
+  to: string;
+  subject: string;
+  text: string;
+  outcome: SendOutcome;
+}
+
+/** What the Contact dialog starts with: the author's address and a greeting. */
+export async function contactDraft(
+  submissionId: string,
+): Promise<{ ok: true; to: string; subject: string; text: string } | { ok: false; error: string }> {
+  const subRef = db().collection(COLLECTIONS.submissions).doc(submissionId);
+  const s = (await subRef.get()).data() as SubmissionDoc | undefined;
+  if (!s || s.eventId !== EVENT_ID) return { ok: false, error: 'That submission does not exist.' };
+  const identity = (
+    await subRef.collection(SUBCOLLECTIONS.identity).doc(SUBMISSION_IDENTITY_DOC).get()
+  ).data() as SubmissionIdentityDoc | undefined;
+  if (!identity?.email) return { ok: false, error: 'There is no author on file for this submission, so there is nobody to write to.' };
+  return { ok: true, to: identity.email, ...cfpContactDraft({ name: identity.name, title: s.title }) };
+}
+
+/**
+ * Write to a submission's author (T378). One email from contact@, replies to
+ * contact@ like all mail; logged in the Email Log with its body and kept on
+ * the submission for its "Messages sent" list. The address is read here, never
+ * taken from the form.
+ */
+export async function contactAuthor(input: {
+  submissionId: string;
+  subject: string;
+  text: string;
+  actor: string;
+  nowMs?: number;
+}): Promise<CfpResult> {
+  const subject = input.subject.replace(/\s+/g, ' ').trim();
+  const text = input.text.replace(/\r\n?/g, '\n').trim();
+  if (!subject) return { ok: false, error: 'Write a subject.' };
+  if (!text) return { ok: false, error: 'Write a message.' };
+  if (subject.length > 200) return { ok: false, error: 'The subject is too long. Keep it under 200 characters.' };
+  if (text.length > 20_000) return { ok: false, error: 'The message is too long.' };
+  const draft = await contactDraft(input.submissionId);
+  if (!draft.ok) return draft;
+  const subRef = db().collection(COLLECTIONS.submissions).doc(input.submissionId);
+  const outcome = await sendCfpMessage(db(), {
+    to: draft.to,
+    template: 'cfp-contact',
+    submissionId: input.submissionId,
+    actor: input.actor,
+    message: cfpPlainMessage(subject, text),
+  });
+  const at = Timestamp.fromMillis(input.nowMs ?? Date.now());
+  await subRef.collection(SUBCOLLECTIONS.contactMessages).add({
+    eventId: EVENT_ID,
+    at,
+    by: input.actor,
+    to: draft.to,
+    subject,
+    text,
+    outcome,
+  } satisfies SubmissionContactMessageDoc);
+  await appendAudit({
+    actor: input.actor,
+    action: 'submission.cfpContact',
+    targetPath: `${COLLECTIONS.submissions}/${input.submissionId}`,
+    targetId: input.submissionId,
+    before: {},
+    after: { to: draft.to, subject, outcome },
+  });
+  if (outcome === 'sent') return { ok: true, message: `Sent to ${draft.to}. Replies arrive in the contact@ inbox.` };
+  if (outcome === 'skipped') return { ok: false, error: `Email is not switched on, so nothing was sent to ${draft.to}.` };
+  return { ok: false, error: `The email to ${draft.to} was refused, so nothing arrived. Try again, or write from the contact@ inbox.` };
+}
+
+/** Every message written to this submission's author, newest first. */
+export async function listContactMessages(submissionId: string): Promise<ContactMessage[]> {
+  const snap = await db()
+    .collection(COLLECTIONS.submissions)
+    .doc(submissionId)
+    .collection(SUBCOLLECTIONS.contactMessages)
+    .get();
+  return snap.docs
+    .map((d) => {
+      const m = d.data() as SubmissionContactMessageDoc;
+      return { id: d.id, atMs: ms(m.at) ?? 0, by: m.by, to: m.to, subject: m.subject, text: m.text, outcome: m.outcome };
+    })
+    .sort((a, b) => b.atMs - a.atMs);
+}
 
 // ---------------------------------------------------------------------------
 // E4 and E6, the two organizer-triggered sends
@@ -1172,6 +1372,7 @@ export interface CfpDetail {
   closeDecision?: { version: 'accepted' | 'declined'; reason?: string; sentAtMs?: number };
   declineReason?: string;
   stillOpenSentAtMs?: number;
+  reviewLeft?: { atMs?: number; by: string };
 }
 
 export async function getCfpDetail(submissionId: string): Promise<CfpDetail | null> {
@@ -1206,6 +1407,7 @@ export async function getCfpDetail(submissionId: string): Promise<CfpDetail | nu
       : undefined,
     declineReason: s.declineReason,
     stillOpenSentAtMs: ms(s.stillOpenSentAt),
+    reviewLeft: s.reviewLeft ? { atMs: ms(s.reviewLeft.at), by: s.reviewLeft.by } : undefined,
   };
 }
 

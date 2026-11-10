@@ -304,6 +304,8 @@ export const SUBCOLLECTIONS = {
    * list. Gated by ticket type in `firestore.rules`; see `SessionStreamDoc`.
    */
   watch: "watch",
+  /** `submissions/{id}/contactMessages/{auto}`: organizer messages to the author (T378). */
+  contactMessages: "contactMessages",
 } as const;
 
 /** The two documents inside `sessions/{id}/watch`. */

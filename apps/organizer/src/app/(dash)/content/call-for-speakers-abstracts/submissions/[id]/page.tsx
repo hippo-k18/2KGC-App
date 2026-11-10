@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { TIME_ZONE } from '@kgc/shared';
 import { fieldsAtVersion, type FormFieldDef } from '@kgc/scripts/src/lib/question-forms';
 import { requireOrganizer } from '@/lib/auth';
 import { getCall } from '@/lib/calls';
@@ -18,8 +19,9 @@ import { CFA_BASE } from '../../routes';
 import { DecisionPanel } from '../decision-panel';
 import { liftExclusionAction, undoDecisionAction } from '../actions';
 import { ExcludeReviewerForm } from '../exclude-form';
-import { getCfpCall, getCfpDetail, type CfpDetail } from '@/lib/cfp';
-import { cfpStatus, formatDay, dateIn, sessionTypeLine, trackLabel, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
+import { getCfpCall, getCfpDetail, listContactMessages, type CfpDetail, type ContactMessage } from '@/lib/cfp';
+import { ContactAuthor } from '../../cfp-dialogs';
+import { cfpStatus, formatDay, dateIn, leftThisPass, sessionTypeLine, trackLabel, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { cfpStatusReplyText } from '@kgc/scripts/src/lib/email';
 import { CfpStatusTag } from '../../cfp-ui';
 import { CopyBlock } from '../../rolling-review/forms';
@@ -59,13 +61,14 @@ export default async function SubmissionDetailPage({
   const submission = await getSubmission(id);
   if (!submission) notFound();
 
-  const [call, reviews, tracks, committee, cfpCall, cfp] = await Promise.all([
+  const [call, reviews, tracks, committee, cfpCall, cfp, messages] = await Promise.all([
     getCall(submission.callId),
     listReviews(id),
     listTrackOptions(),
     listReviewers(),
     getCfpCall(submission.callId),
     getCfpDetail(id),
+    listContactMessages(id),
   ]);
   const rolling = Boolean(cfpCall?.enabled);
 
@@ -223,6 +226,9 @@ export default async function SubmissionDetailPage({
               )}
               {submission.author.bio && <Row label="Bio">{submission.author.bio}</Row>}
             </dl>
+            <div style={{ margin: '12px 0' }}>
+              <ContactAuthor submissionId={submission.id} small />
+            </div>
             {linkable && (
               <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
                 Their own link back to this submission. Send it if they have lost theirs. The
@@ -246,6 +252,8 @@ export default async function SubmissionDetailPage({
           </>
         )}
       </Panel>
+
+      {messages.length > 0 && <MessagesSent messages={messages} timeZone={cfpCall?.timeZone} />}
 
       {fields.length > 0 && (
         <Panel style={{ marginTop: 16 }}>
@@ -410,6 +418,7 @@ export default async function SubmissionDetailPage({
           authorName={submission.author?.name}
           decisionDay={formatDay(cfpCall.cfp.decisionDate)}
           timeZone={cfpCall.timeZone}
+          leftThisPass={leftThisPass({ leftAtMs: cfp.reviewLeft?.atMs }, cfpCall.cfp.lastPassAtMs)}
         />
       )}
 
@@ -478,6 +487,53 @@ export default async function SubmissionDetailPage({
   );
 }
 
+/**
+ * What organizers have written to the author from "Contact the author"
+ * (T378), newest first. Replies go to the contact@ inbox, not here.
+ */
+function MessagesSent({ messages, timeZone }: { messages: ContactMessage[]; timeZone?: string }) {
+  const when = (atMs: number) =>
+    new Date(atMs).toLocaleString('en-GB', {
+      timeZone: timeZone ?? TIME_ZONE,
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  return (
+    <Panel style={{ marginTop: 16 }}>
+      <h2 className="section-header" style={{ marginTop: 0 }}>
+        Messages sent
+      </h2>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+        Written from Contact the author. Replies arrive in the contact@ inbox.
+      </p>
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0 }} data-messages-sent>
+        {messages.map((m) => (
+          <li key={m.id} style={{ borderTop: '1px solid var(--hairline)', padding: '12px 0' }}>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {when(m.atMs)} · {m.by} to {m.to}
+              {m.outcome !== 'sent' ? (
+                <>
+                  {' '}
+                  <Tag color="red" small>
+                    {m.outcome === 'skipped' ? 'not sent, email is off' : 'refused, not delivered'}
+                  </Tag>
+                </>
+              ) : null}
+            </div>
+            <strong style={{ display: 'block', margin: '4px 0' }}>{m.subject}</strong>
+            <p className="body-2" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+              {m.text}
+            </p>
+          </li>
+        ))}
+      </ol>
+    </Panel>
+  );
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <>
@@ -520,7 +576,9 @@ function RollingPanel({
   authorName,
   decisionDay,
   timeZone,
+  leftThisPass: left,
 }: {
+  leftThisPass?: boolean;
   detail: CfpDetail;
   status: ReturnType<typeof cfpStatus>;
   typeLine: string;
@@ -538,6 +596,16 @@ function RollingPanel({
       <dl style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 200px) 1fr', gap: '6px 12px', margin: 0 }}>
         <dt className="muted">Session</dt>
         <dd style={{ margin: 0 }}>{typeLine}</dd>
+        {left && detail.reviewLeft && status === 'open' ? (
+          <>
+            <dt className="muted">Weekly review</dt>
+            <dd style={{ margin: 0 }}>
+              Left by {detail.reviewLeft.by}
+              {detail.reviewLeft.atMs ? ` on ${day(detail.reviewLeft.atMs)}` : ''}. It comes back on the list
+              after the next pass.
+            </dd>
+          </>
+        ) : null}
         {a && (
           <>
             <dt className="muted">Acceptance email</dt>

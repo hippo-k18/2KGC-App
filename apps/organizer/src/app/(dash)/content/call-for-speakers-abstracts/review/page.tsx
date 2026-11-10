@@ -3,20 +3,21 @@ import { requireAccess } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
 import { canOpen } from '@/lib/team-core';
 import { currentCfpCallId, getCfpCall, listCfpSubmissions } from '@/lib/cfp';
-import { reviewCounts, reviewQueue, sessionTypeLine } from '@kgc/scripts/src/lib/cfp-core';
+import { REVIEW_HELP, holdE2ForClose, reviewCounts, reviewQueue, sessionTypeLine } from '@kgc/scripts/src/lib/cfp-core';
 import { NotInputted, PageHeader, Panel, StatTiles, Tag } from '../../../ui';
 import { CfpSettingsWarning, TypeFilter } from '../cfp-ui';
 import { CFA_BASE } from '../routes';
-import { FinishPass, RowDecision } from './row-decision';
+import { FinishPass, RefreshWhenStale, RowDecision } from './row-decision';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * François's weekly pass (T249, Min's plan §4).
  *
- * One list: every submission nobody has decided, what arrived since the last
- * pass first. Per row only what the plan names: name, organisation, track,
- * type, title, abstract. Per row three choices, and Leave is the default.
+ * One list: every submission nobody has decided and nobody has left this
+ * pass, what arrived since the last pass first. Per row only what the plan
+ * names: name, organisation, track, type, title, abstract. Per row three
+ * choices, each with its one line (T378), and a way to write to the author.
  * Three counters. Nothing else, so the pass stays short.
  */
 export default async function ReviewPage({
@@ -49,6 +50,8 @@ export default async function ReviewPage({
     ({ row }) => !type || row.sessionType === type,
   );
   const fresh = queue.filter((q) => q.isNew).length;
+  const renderedAtMs = Date.now();
+  const e2Held = holdE2ForClose(renderedAtMs, call.cfp, call.timeZone);
 
   return (
     <>
@@ -71,6 +74,11 @@ export default async function ReviewPage({
             : []),
         ]}
       />
+
+      <RefreshWhenStale renderedAtMs={renderedAtMs} />
+      <p className="body-2" style={{ margin: '12px 0', padding: '0 24px' }} data-review-intro>
+        {REVIEW_HELP.intro}
+      </p>
 
       <CfpSettingsWarning callId={call.id} cfp={call.cfp} />
 
@@ -114,7 +122,7 @@ export default async function ReviewPage({
                 <p className="body-2" style={{ whiteSpace: 'pre-wrap', margin: '0 0 12px' }}>
                   {row.abstract}
                 </p>
-                <RowDecision submissionId={row.id} />
+                <RowDecision submissionId={row.id} e2Held={e2Held} />
               </li>
             ))}
           </ol>
