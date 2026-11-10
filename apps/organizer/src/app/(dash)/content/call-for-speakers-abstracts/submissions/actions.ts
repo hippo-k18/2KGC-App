@@ -4,10 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireOrganizer } from '@/lib/auth';
 import { decideMany, decideSubmission, getSubmission, undoDecision } from '@/lib/submissions';
-import { acceptCfp, getCfpCall, rejectCfp, type AcceptE2, type AcceptResult } from '@/lib/cfp';
+import { acceptCfp, contactAuthor, contactDraft, getCfpCall, rejectCfp, type AcceptE2, type AcceptResult } from '@/lib/cfp';
 import { excludeReviewer, liftExclusion } from '@/lib/reviewers';
 import { recordError } from '@/lib/errors';
 import type { FormState } from '../../../form';
+import { editedEmailFrom } from '../edited-email';
 import { CFA_BASE } from '../routes';
 
 /**
@@ -54,7 +55,7 @@ export async function decideAction(_prev: FormState, formData: FormData): Promis
     if (rolling) {
       const r =
         verdict === 'accept'
-          ? await acceptCfp({ submissionId: id, actor })
+          ? await acceptCfp({ submissionId: id, actor, e2Edited: editedEmailFrom(formData) })
           : // Changing an acceptance needs the tick box on the page (T262).
             await rejectCfp({ submissionId: id, actor, withdrawAccepted: formData.get('withdraw') === 'on' });
       if (!r.ok) return { error: r.error };
@@ -246,4 +247,41 @@ async function onRollingReview(submissionId: string): Promise<boolean> {
   const sub = await getSubmission(submissionId);
   if (!sub) return false;
   return Boolean((await getCfpCall(sub.callId))?.enabled);
+}
+
+/** What the "Contact the author" dialog opens with (T378). Reads only. */
+export async function contactDraftAction(
+  submissionId: string,
+): Promise<{ ok: true; to: string; subject: string; text: string } | { ok: false; error: string }> {
+  await requireOrganizer();
+  try {
+    return await contactDraft(submissionId);
+  } catch (err) {
+    recordError('cfp.contactDraft', err);
+    return { ok: false, error: 'Could not load the author. Reload and try again.' };
+  }
+}
+
+/**
+ * Send the message (T378). Revalidates only the submission page, whose
+ * "Messages sent" list it adds to; the weekly review row it may be sent from
+ * keeps its place, because nothing about the talk's place changed.
+ */
+export async function contactAuthorAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireOrganizer();
+  const submissionId = String(formData.get('submissionId') ?? '');
+  if (!submissionId) return { error: 'No submission was named.' };
+  try {
+    const r = await contactAuthor({
+      submissionId,
+      subject: String(formData.get('subject') ?? ''),
+      text: String(formData.get('text') ?? ''),
+      actor,
+    });
+    revalidatePath(`${CFA_BASE}/submissions/${submissionId}`);
+    return r.ok ? { ok: true, message: r.message } : { error: r.error };
+  } catch (err) {
+    recordError('cfp.contact', err);
+    return { error: 'Could not send the message. Check the Email Log before sending again.' };
+  }
 }

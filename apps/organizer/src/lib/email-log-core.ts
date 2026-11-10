@@ -36,6 +36,7 @@ export const TEMPLATE_INFO: Record<EmailTemplate, { label: string; group: EmailG
   'cfp-still-open': { label: 'E6 Still open', group: 'cfp' },
   'cfp-accept-notice': { label: 'Acceptance notice to onboarding', group: 'cfp' },
   'cfp-weekly-reminder': { label: 'Thursday review reminder', group: 'cfp' },
+  'cfp-contact': { label: 'Message to an author', group: 'cfp' },
   'submission-receipt': { label: 'Submission received (other calls)', group: 'cfp' },
   'submission-decision': { label: 'Submission decision (other calls)', group: 'cfp' },
   'reviewer-invitation': { label: 'Reviewer invitation', group: 'cfp' },

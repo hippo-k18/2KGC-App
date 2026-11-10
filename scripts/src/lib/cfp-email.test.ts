@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   cfpAcceptNoticeMessage,
+  cfpAcceptedAsEdited,
+  cfpContactDraft,
+  cfpPlainMessage,
   cfpAcceptedMessage,
   cfpCloseAcceptedMessage,
   cfpCloseDeclinedMessage,
@@ -171,5 +174,76 @@ describe('the internal mail', () => {
     }
     clean(m);
     clean(cfpWeeklyReminderMessage({ name: 'François', fresh: 2, open: 5, link: 'https://dash/review' }));
+  });
+});
+
+describe('the Accept dialog (T378)', () => {
+  const standard = cfpAcceptedMessage({
+    ...ref,
+    typeLine: 'Workshops',
+    workshop: true,
+    link: 'https://www.knowledgegraph.tech/speaker/TOKEN',
+    dueDay: 'Tuesday 17 November 2026',
+  });
+
+  it('opens on the standard E2, the CEU line for a workshop included', () => {
+    expect(standard.text).toContain('Continuing Education Units');
+    expect(standard.text).toContain('https://www.knowledgegraph.tech/speaker/TOKEN');
+  });
+
+  it('sends the standard email, button and all, when nothing was changed', () => {
+    expect(cfpAcceptedAsEdited(standard, undefined)).toBe(standard);
+    expect(cfpAcceptedAsEdited(standard, { subject: standard.subject, text: `${standard.text}\r\n` })).toBe(standard);
+  });
+
+  it('keeps the standard body when only the subject changed', () => {
+    const m = cfpAcceptedAsEdited(standard, { subject: 'You are in', text: standard.text });
+    expect(m.subject).toBe('You are in');
+    expect(m.html).toBe(standard.html);
+  });
+
+  it('sends the edited words when the body changed', () => {
+    const text = standard.text.replace('Welcome aboard.', 'Welcome aboard, see you in May.');
+    const m = cfpAcceptedAsEdited(standard, { subject: standard.subject, text });
+    expect(m.text).toBe(text.trim());
+    expect(m.html).toContain('Welcome aboard, see you in May.');
+    // The details link still works as a link.
+    expect(m.html).toContain('href="https://www.knowledgegraph.tech/speaker/TOKEN"');
+    clean(m);
+  });
+});
+
+describe('plain text as an email (T378)', () => {
+  it('escapes what was typed, so nothing typed becomes markup', () => {
+    const m = cfpPlainMessage('Hi <b>there</b>', 'Hello <script>alert(1)</script>\n\n"quoted" & more');
+    expect(m.html).not.toContain('<script>');
+    expect(m.html).toContain('&lt;script&gt;');
+    expect(m.html).not.toContain('<b>there</b>');
+  });
+
+  it('keeps paragraphs, line breaks, lists and links', () => {
+    const m = cfpPlainMessage('Subject', 'One\ntwo\n\n  • a\n  • b\n\nSee https://example.com/x?a=1');
+    expect(m.html).toContain('One<br>two');
+    expect(m.html).toContain('<li>a</li><li>b</li>');
+    expect(m.html).toContain('<a href="https://example.com/x?a=1"');
+  });
+
+  it('puts a subject on one line', () => {
+    expect(cfpPlainMessage('Line one\nline two', 'x').subject).toBe('Line one line two');
+  });
+});
+
+describe('Contact the author (T378)', () => {
+  it('opens with a greeting, a sign-off and the talk in the subject', () => {
+    const d = cfpContactDraft({ name: 'Ada Lovelace', title: 'Lineage at scale' });
+    expect(d.subject).toBe('About your KGC 2027 submission: Lineage at scale');
+    expect(d.text.startsWith('Hi Ada,')).toBe(true);
+    expect(d.text.endsWith('Best,\nThe KGC team')).toBe(true);
+    clean(cfpPlainMessage(d.subject, d.text));
+  });
+
+  it('greets nobody by name when there is none', () => {
+    expect(cfpContactDraft({ title: '' }).text.startsWith('Hi,')).toBe(true);
+    expect(cfpContactDraft({ title: '' }).subject).toContain('Untitled');
   });
 });

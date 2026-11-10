@@ -401,6 +401,8 @@ export interface CfpRow {
   detailsReceivedAtMs?: number;
   closeDecisionSent?: boolean;
   stillOpenSentAtMs?: number;
+  /** The last Leave on the weekly review (T378). */
+  leftAtMs?: number;
 }
 
 /**
@@ -449,15 +451,26 @@ export function reviewCounts(rows: Pick<CfpRow, 'status'>[]): ReviewCounts {
 }
 
 /**
- * Every undecided submission, those that arrived since the last pass first
- * (newest first among them), then the ones left from earlier weeks, oldest
- * first, because the longest-waiting is the one most owed an answer.
+ * Left during this pass (T378): Leave was pressed after the last "Finish this
+ * pass", so the talk is off this week's list. The next pass is later than the
+ * press and brings it back.
+ */
+export function leftThisPass(row: Pick<CfpRow, 'leftAtMs'>, lastPassAtMs: number | undefined): boolean {
+  return row.leftAtMs !== undefined && row.leftAtMs > (lastPassAtMs ?? 0);
+}
+
+/**
+ * Every undecided submission not left this pass, those that arrived since the
+ * last pass first (newest first among them), then the ones carried from
+ * earlier weeks, oldest first, because the longest-waiting is the one most
+ * owed an answer. A talk that comes back after a Leave is carried, never New:
+ * it arrived before the pass that brought it back.
  */
 export function reviewQueue<R extends CfpRow>(
   rows: R[],
   lastPassAtMs: number | undefined,
 ): { row: R; isNew: boolean }[] {
-  const open = rows.filter(isOpen);
+  const open = rows.filter((r) => isOpen(r) && !leftThisPass(r, lastPassAtMs));
   const since = lastPassAtMs ?? 0;
   const fresh = open
     .filter((r) => (r.submittedAtMs ?? 0) > since)
@@ -622,3 +635,55 @@ export function missingSettings(cfp: CallCfpSettings | undefined): string[] {
  * used to stop the Thursday reminder. Now the "not accepted" emails have no
  * date anywhere: they go when someone presses Send, and never by themselves.
  */
+
+// ---------------------------------------------------------------------------
+// Which call the screens open on
+// ---------------------------------------------------------------------------
+
+/** What `pickCurrentCfpCall` reads from each call. */
+export interface CurrentCallCandidate {
+  id: string;
+  status?: string;
+  /** The rolling-review settings are present. */
+  hasCfp: boolean;
+  updatedAtMs: number;
+}
+
+/**
+ * The call the review screens open on when the URL names none (T378).
+ *
+ * The call the website shows comes first (`shownId`, from `pickShownCall`),
+ * so François opens on the call people are actually submitting to. Without
+ * one: a published call with rolling-review settings, then any published call,
+ * then any with settings. Within each, the call saved last wins, so the answer
+ * never depends on the order Firestore returned them in. A draft such as Min's
+ * test call, which closes later and so sorts first on Call setup, is chosen
+ * only when nothing else qualifies.
+ */
+export function pickCurrentCfpCall<C extends CurrentCallCandidate>(
+  calls: C[],
+  shownId: string | null | undefined,
+): C | null {
+  const shown = shownId ? calls.find((c) => c.id === shownId) : undefined;
+  if (shown) return shown;
+  const sorted = [...calls].sort((a, b) => b.updatedAtMs - a.updatedAtMs || a.id.localeCompare(b.id));
+  return (
+    sorted.find((c) => c.status === 'published' && c.hasCfp) ??
+    sorted.find((c) => c.status === 'published') ??
+    sorted.find((c) => c.hasCfp) ??
+    null
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The weekly review's one-line explanations (T378)
+// ---------------------------------------------------------------------------
+
+export const REVIEW_HELP = {
+  intro: 'This list only shows talks nobody has decided yet.',
+  accept: 'Takes it off the list and sends the acceptance email now.',
+  acceptHeld: 'Takes it off the list. The call has closed, so the acceptance email waits until you press Send.',
+  reject: 'Takes it off the list. No email until the call closes and you press Send.',
+  leave: "Takes it off this week's list. It comes back at the next pass. Status does not change.",
+  finish: "Ends this week's review. New submissions after this show as New; talks you left come back.",
+} as const;

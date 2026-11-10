@@ -112,7 +112,7 @@ export function BulkDecisionBar({
             <strong>
               {holdsE2
                 ? `${confirming} ${people(confirming)} will be accepted. Their emails wait for the decision send.`
-                : `${confirming} ${people(confirming)} will be emailed their acceptance now.`}
+                : `${confirming} ${people(confirming)} will be emailed the standard acceptance email now. To change the words, accept them one at a time.`}
             </strong>{' '}
             An email cannot be recalled once it is sent.
           </p>

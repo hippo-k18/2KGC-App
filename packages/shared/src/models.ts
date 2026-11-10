@@ -2039,6 +2039,12 @@ export interface EmailLogDoc {
     | "cfp-accept-notice"
     | "cfp-weekly-reminder"
     /**
+     * One message an organizer wrote to a submission's author from the
+     * weekly review or the submission page (T378). Also kept, with its body,
+     * in `submissions/{id}/contactMessages`.
+     */
+    | "cfp-contact"
+    /**
      * The one reminder to somebody who reached the payment page and left
      * without paying (T363). Carries an unsubscribe link, unlike the receipts.
      */
@@ -3527,6 +3533,12 @@ export interface SubmissionDoc extends BaseDoc {
   /** E6, the mid-point note. Set once, by the one manual send. */
   stillOpenSentAt?: Timestamp;
   /**
+   * Leave, on the weekly review (T378): the latest press. Status does not
+   * change. The talk is off the list until the next "Finish this pass" (a
+   * pass later than `at`), then back, without the New tag.
+   */
+  reviewLeft?: { at: Timestamp; by: string };
+  /**
    * E1, the acknowledgement. Claimed in a transaction before it is sent, so a
    * double press of Submit mails it once (T258 #17).
    */
@@ -3613,6 +3625,12 @@ export interface SubmissionAcceptance {
    */
   withdrawnAt?: Timestamp;
   withdrawnBy?: string;
+  /**
+   * The acceptance email as the organizer edited it in the Accept dialog
+   * (T378). Kept so an hourly retry of a refused E2 sends the words that were
+   * approved, not the standard ones.
+   */
+  e2Edited?: { subject: string; text: string };
 }
 
 /**
@@ -4025,4 +4043,20 @@ export interface BlogMemberDoc {
   /** As on `TeamMemberDoc`: opening the invitation link with it marks them active. */
   inviteToken?: string;
   sessionEpoch: string;
+}
+
+/**
+ * `submissions/{id}/contactMessages/{auto}`: one message an organizer wrote to
+ * the author (T378). A subcollection, not a field: the body names the author,
+ * and the submission document is what a blind reviewer is handed.
+ */
+export interface SubmissionContactMessageDoc {
+  eventId: string;
+  at: Timestamp;
+  /** The organizer who pressed Send. */
+  by: string;
+  to: string;
+  subject: string;
+  text: string;
+  outcome: "sent" | "skipped" | "failed";
 }

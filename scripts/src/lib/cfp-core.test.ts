@@ -28,6 +28,9 @@ import {
   nudgesDue,
   pageValues,
   reminderDue,
+  REVIEW_HELP,
+  leftThisPass,
+  pickCurrentCfpCall,
   reviewCounts,
   reviewQueue,
   sessionTypeLine,
@@ -159,6 +162,108 @@ describe('the weekly review', () => {
 
   it('counts open, accepted and rejected', () => {
     expect(reviewCounts(rows)).toEqual({ open: 4, accepted: 1, rejected: 1 });
+  });
+});
+
+describe('Leave on the weekly review (T378)', () => {
+  const lastPass = 200;
+  const rows = [
+    row({ id: 'left-now', submittedAtMs: 100, leftAtMs: 250 }),
+    row({ id: 'left-new', submittedAtMs: 300, leftAtMs: 310 }),
+    row({ id: 'left-last-week', submittedAtMs: 50, leftAtMs: 150 }),
+    row({ id: 'waiting', submittedAtMs: 60 }),
+    row({ id: 'fresh', submittedAtMs: 320 }),
+  ];
+
+  it('takes a talk left this pass off the list', () => {
+    const ids = reviewQueue(rows, lastPass).map((x) => x.row.id);
+    expect(ids).toEqual(['fresh', 'left-last-week', 'waiting']);
+  });
+
+  it('brings it back after the next pass, without the New tag', () => {
+    const q = reviewQueue(rows, 400);
+    expect(q.map((x) => x.row.id)).toEqual(['left-last-week', 'waiting', 'left-now', 'left-new', 'fresh']);
+    expect(q.every((x) => !x.isNew)).toBe(true);
+  });
+
+  it('counts a left talk as still open, because its status did not change', () => {
+    expect(reviewCounts(rows).open).toBe(5);
+  });
+
+  it('only counts a press after the last pass', () => {
+    expect(leftThisPass({ leftAtMs: 250 }, 200)).toBe(true);
+    expect(leftThisPass({ leftAtMs: 150 }, 200)).toBe(false);
+    expect(leftThisPass({}, 200)).toBe(false);
+    // Before any pass at all, a Leave still takes it off.
+    expect(leftThisPass({ leftAtMs: 5 }, undefined)).toBe(true);
+  });
+
+  it('never lists a decided talk, left or not', () => {
+    const decided = [
+      row({ id: 'yes', status: 'accepted', submittedAtMs: 10, leftAtMs: 20 }),
+      row({ id: 'no', status: 'rejected', submittedAtMs: 10 }),
+    ];
+    expect(reviewQueue(decided, 0)).toEqual([]);
+    expect(reviewQueue(decided, 1000)).toEqual([]);
+  });
+});
+
+describe('the call the review screens open on (T378)', () => {
+  const call = (id: string, over: Partial<Parameters<typeof pickCurrentCfpCall>[0][number]> = {}) => ({
+    id,
+    status: 'published',
+    hasCfp: true,
+    updatedAtMs: 0,
+    ...over,
+  });
+  // Live on 2026-11-10: the real call, and Min's test call, which closes later.
+  const real = call('call-for-speakers-kgc-2027', { updatedAtMs: 100 });
+  const minTest = call('test-draft-min-call-for-speakers-kgc-2027', { status: 'draft', updatedAtMs: 900 });
+
+  it('opens on the call the website shows', () => {
+    expect(pickCurrentCfpCall([minTest, real], 'call-for-speakers-kgc-2027')?.id).toBe('call-for-speakers-kgc-2027');
+  });
+
+  it('passes over a draft when nothing is shown', () => {
+    expect(pickCurrentCfpCall([minTest, real], null)?.id).toBe('call-for-speakers-kgc-2027');
+  });
+
+  it('prefers published with settings, then published, then settings, newest first', () => {
+    const plain = call('plain', { hasCfp: false, updatedAtMs: 999 });
+    const older = call('older', { updatedAtMs: 1 });
+    const newer = call('newer', { updatedAtMs: 2 });
+    expect(pickCurrentCfpCall([plain, older, newer], null)?.id).toBe('newer');
+    expect(pickCurrentCfpCall([plain, minTest], null)?.id).toBe('plain');
+    expect(pickCurrentCfpCall([minTest], null)?.id).toBe(minTest.id);
+    expect(pickCurrentCfpCall([], null)).toBeNull();
+  });
+
+  it('does not depend on the order the calls were read in', () => {
+    const a = call('a', { updatedAtMs: 5 });
+    const b = call('b', { updatedAtMs: 5 });
+    expect(pickCurrentCfpCall([a, b], null)?.id).toBe('a');
+    expect(pickCurrentCfpCall([b, a], null)?.id).toBe('a');
+  });
+
+  it('ignores a shown id that is not among the calls', () => {
+    expect(pickCurrentCfpCall([real], 'gone')?.id).toBe(real.id);
+  });
+});
+
+describe('the weekly review explanations (T378)', () => {
+  it('says each thing in one plain line, with no em dash', () => {
+    for (const line of Object.values(REVIEW_HELP)) {
+      expect(line).not.toContain('—');
+      expect(line).not.toContain('\n');
+      expect(line.length).toBeLessThan(120);
+    }
+  });
+
+  it('uses the words François was promised', () => {
+    expect(REVIEW_HELP.accept).toBe('Takes it off the list and sends the acceptance email now.');
+    expect(REVIEW_HELP.reject).toBe('Takes it off the list. No email until the call closes and you press Send.');
+    expect(REVIEW_HELP.leave).toBe("Takes it off this week's list. It comes back at the next pass. Status does not change.");
+    expect(REVIEW_HELP.finish).toBe("Ends this week's review. New submissions after this show as New; talks you left come back.");
   });
 });
 

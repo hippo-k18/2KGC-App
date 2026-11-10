@@ -23,7 +23,7 @@ import {
 import { rankByTrack, OVERALL_MAX } from '@kgc/scripts/src/lib/review-core';
 import { CFA_BASE } from '../routes';
 import { BulkDecisionBar, RowCheckbox, SelectAllCheckbox } from './bulk-decision';
-import { getCfpCall, listCfpSubmissions } from '@/lib/cfp';
+import { currentCfpCallId, getCfpCall, listCfpSubmissions } from '@/lib/cfp';
 import { OTHER_TRACK, cfpStatus, holdE2ForClose, trackLabel, typeLabel, type CfpStatus } from '@kgc/scripts/src/lib/cfp-core';
 import { CfpSettingsWarning, CfpStatusTag, TypeFilter } from '../cfp-ui';
 
@@ -99,7 +99,18 @@ export default async function SubmissionsPage({
     );
   }
 
-  const callId = one('call') && calls.some((c) => c.id === one('call')) ? one('call')! : calls[0].id;
+  /*
+   * With no `?call=`, the call people are submitting to (T378), not the one
+   * that closes last: Min's test call closes later and used to open here
+   * with nothing in it. The picker still lists every call.
+   */
+  const current = one('call') ? undefined : await currentCfpCallId();
+  const callId =
+    one('call') && calls.some((c) => c.id === one('call'))
+      ? one('call')!
+      : current && calls.some((c) => c.id === current)
+        ? current
+        : calls[0].id;
   const call = calls.find((c) => c.id === callId)!;
   const status = (one('status') ?? 'all') as 'all' | SubmissionStatus;
   const q = (one('q') ?? '').trim().toLowerCase();
