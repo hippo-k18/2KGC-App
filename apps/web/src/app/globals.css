@@ -4959,6 +4959,87 @@ section.tint {
   }
 }
 
+/* ------------------------------------------------------- HCLS organizers -- */
+
+/*
+ * The six HCLS organizers (T381): a round photo, the name, the affiliation and
+ * one link, in a row of three on a laptop and two on a phone. The portrait and
+ * fallback colours are the speaker cards', at a smaller size.
+ */
+.hcls-organizers {
+  padding-top: 0;
+}
+
+.organizer-list {
+  list-style: none;
+  margin: 34px auto 0;
+  padding: 0;
+  max-width: 960px;
+  display: grid;
+  gap: 36px 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (width >= 768px) {
+  .organizer-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.organizer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.organizer-photo {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgb(16 36 58 / 8%);
+}
+
+.organizer-photo.is-fallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--highlight) 100%);
+  color: var(--white);
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.band-centred .organizer-name {
+  margin: 16px 0 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--heading);
+}
+
+.band-centred .organizer-org {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.organizer-link {
+  margin-top: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+@media (width < 480px) {
+  .organizer-photo {
+    width: 96px;
+    height: 96px;
+  }
+
+  .organizer-photo.is-fallback {
+    font-size: 1.7rem;
+  }
+}
+
 /* ----------------------------------------------------------- stat cards -- */
 
 .stat-cards {
