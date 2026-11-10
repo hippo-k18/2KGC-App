@@ -10,7 +10,7 @@
  * the most sensitive asset here, and a prototype is exactly where it leaks.
  */
 import { createHash } from 'node:crypto';
-import { COLLECTIONS, EVENT_ID, SUBCOLLECTIONS, TIME_ZONE, threadIdFor } from '@kgc/shared';
+import { COLLECTIONS, EVENT_ID, MERCH_SEED, SUBCOLLECTIONS, TIME_ZONE, threadIdFor } from '@kgc/shared';
 import { Timestamp } from 'firebase-admin/firestore';
 
 import {
@@ -100,6 +100,9 @@ async function main() {
       quantitySold: soldByTier.get(id) ?? 0,
     });
   }
+
+  // --- merch (T380): socks and the T-shirt, switched off as on live ---------
+  for (const { id, doc } of MERCH_SEED) push(COLLECTIONS.merchItems, id, { ...base(), ...doc });
 
   // --- speakers -----------------------------------------------------------
   const speakers = makeSpeakers(SPEAKER_COUNT);

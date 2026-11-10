@@ -1882,6 +1882,22 @@ export interface OrderDoc extends BaseDoc {
    */
   markedPaidBy?: string;
   markedPaidAt?: Timestamp;
+
+  /**
+   * Merch bought on this order, picked up at the conference (T380). Priced on
+   * the server at checkout and carried to the webhook in session metadata.
+   * Already inside `totalCents`; never a seat, never in `items`.
+   */
+  merch?: import("./merch.js").MerchLine[];
+  /** The sum of `merch`, before tax. */
+  merchCents?: number;
+  /**
+   * `merch` on an order that bought merch only, from `/tickets/merch`. It has
+   * no seats and never creates or cancels a registration.
+   */
+  kind?: "merch";
+  /** On a merch-only order: the ticket holder it was bought against. */
+  holderRegistrationId?: string;
 }
 
 /**
@@ -1931,6 +1947,8 @@ export interface EmailLogDoc {
   template:
     | "purchase-confirmation"
     | "extra-added"
+    /** Merch bought on its own from `/tickets/merch` (T380). */
+    | "merch-confirmation"
     | "invoice-raised"
     | "refund-confirmation"
     /**

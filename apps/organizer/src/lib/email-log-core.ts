@@ -41,6 +41,7 @@ export const TEMPLATE_INFO: Record<EmailTemplate, { label: string; group: EmailG
   'reviewer-invitation': { label: 'Reviewer invitation', group: 'cfp' },
   'purchase-confirmation': { label: 'Ticket confirmation', group: 'tickets' },
   'extra-added': { label: 'Extra added to ticket', group: 'tickets' },
+  'merch-confirmation': { label: 'Merch order', group: 'tickets' },
   'invoice-raised': { label: 'Invoice raised', group: 'tickets' },
   'refund-confirmation': { label: 'Refund confirmation', group: 'tickets' },
   'ticket-cancelled': { label: 'Ticket cancelled', group: 'tickets' },

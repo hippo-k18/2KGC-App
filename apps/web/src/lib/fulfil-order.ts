@@ -9,6 +9,8 @@ import {
   type OrderDoc,
   type RegistrationDoc,
 } from '@kgc/shared';
+import { FieldValue } from 'firebase-admin/firestore';
+import { merchTotalCents, type MerchLine } from '@kgc/shared';
 import { attachSeatRegistrations, cartLines } from '@/app/tickets/cart-order';
 import { seatsToCount, splitAcrossSeats, splitByWeight } from '@/app/tickets/seats-core';
 import { provisionPurchaserAccount } from '@/lib/app-account';
@@ -94,6 +96,12 @@ export interface FulfilOrderInput {
   stripeCustomerId?: string;
   stripePaymentIntentId?: string;
   stripeChargeId?: string;
+  /**
+   * Merch on the same order (T380), from session metadata. Inside
+   * `amountCents`; written on the order as `merch` and listed on the buyer's
+   * confirmation. Never a seat.
+   */
+  merch?: MerchLine[];
 }
 
 export interface FulfilOrderResult {
@@ -522,13 +530,34 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
    * people each get a confirmation naming their own share, and the three add up
    * to the receipt — the property `splitAcrossSeats` exists to guarantee.
    */
+  /**
+   * Merch is the buyer's, not a seat's (T380): it comes off the figure split
+   * between seats and goes back onto the buyer's own share below. Written on
+   * the order here, after `fulfilPurchase` has made it, and the same lines are
+   * written again on a replay. A failed write is logged, not thrown: the
+   * tickets exist, and the lines are still in the session's metadata.
+   */
+  const merch = input.merch ?? [];
+  const merchCents = Math.min(merchTotalCents(merch), input.amountCents);
+  const ticketAmount = input.amountCents - merchCents;
+  if (merch.length > 0) {
+    try {
+      await db()
+        .collection(COLLECTIONS.orders)
+        .doc(oid)
+        .set({ merch, merchCents: merchTotalCents(merch), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    } catch (err) {
+      await recordError('order.merch', err, { path: 'orders', id: oid });
+    }
+  }
+
   // In proportion to what each seat was charged, so a group-rate seat, a
   // Virtual seat and a bundle each name their own share (T165). Even shares
   // when there is no cart, which is a single seat.
   const shares =
     cart.length > 0
-      ? splitByWeight(input.amountCents, cart.map((line) => line.unitPriceCents ?? 0))
-      : splitAcrossSeats(input.amountCents, 1);
+      ? splitByWeight(ticketAmount, cart.map((line) => line.unitPriceCents ?? 0))
+      : splitAcrossSeats(ticketAmount, 1);
   const buyerEmail = normaliseEmail(result.email);
 
   /**
@@ -564,7 +593,7 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
   let seatsRegistered = 0;
   let seatAccountsCreated = 0;
   let seatAccountsFailed = 0;
-  let buyerShare = input.amountCents;
+  let buyerShare = ticketAmount;
   await warnIfExtraRefused(oid, result);
 
   const tierOf = async (id: string) => {
@@ -773,7 +802,8 @@ export async function fulfilOrder(input: FulfilOrderInput): Promise<FulfilOrderR
         to: result.email,
         name: result.name ?? '',
         ticketType: label || (result.ticketType ?? ''),
-        amountCents: buyerShare,
+        amountCents: buyerShare + merchCents,
+        ...(merch.length > 0 ? { merch } : {}),
         currency: input.currency,
         orderUrl: `${origin}/order/${mintOrderToken({ rid: result.registrationId })}`,
         claimCode: result.claimCode,

@@ -7,6 +7,7 @@ import { tiersOrNull } from '@/lib/catalogue';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
 import { activeForm } from '@/lib/question-forms';
 import { stripeEnabled } from '@/lib/stripe';
+import { activeMerch } from '@/lib/merch';
 import type { TicketId } from '@/lib/tickets';
 import { CheckoutForm } from '../checkout-form';
 import { TicketSalesClosed } from '../sales-closed';
@@ -61,7 +62,7 @@ export default async function CheckoutPage({
   const ev = await siteEvent();
   const params = await searchParams;
 
-  const [catalogue, form] = await Promise.all([tiersOrNull(), activeForm('attendee')]);
+  const [catalogue, form, merch] = await Promise.all([tiersOrNull(), activeForm('attendee'), activeMerch()]);
   const tiers = catalogue ?? [];
   const byId = new Map(tiers.map((t) => [t.id, t]));
   const initialTier = (byId.has(params.tier ?? '') ? params.tier! : tiers[0]?.id) as TicketId;
@@ -90,6 +91,7 @@ export default async function CheckoutPage({
             questions={form.fields}
             titleAs="h1"
             buyerFeePercent={await buyerFeePercent()}
+            merch={merch}
           />
         ) : (
           <div className="checkout checkout-closed">

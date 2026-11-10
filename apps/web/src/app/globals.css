@@ -10502,3 +10502,116 @@ body:has([data-home-venue]) .venue-home {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/*
+ * Merch at checkout and on /tickets/merch (T380): one row per item, the image
+ * (or a lettered placeholder until the mock-ups arrive) beside its choices.
+ */
+.merch {
+  margin: 8px 0 20px;
+}
+
+.merch-title {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.merch-pickup {
+  margin: 0 0 12px;
+}
+
+.merch-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px 2px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.merch-image {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--wash);
+}
+
+.merch-image-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.merch-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.merch-name {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.merch-price {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.merch-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 10px;
+}
+
+.merch-field {
+  flex: 0 1 96px;
+  min-width: 80px;
+}
+
+.merch-field-wide {
+  flex: 1 1 200px;
+}
+
+.merch-add,
+.merch-remove {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--palette-2);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.merch-remove {
+  align-self: center;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 480px) {
+  .merch-image {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+.order-merch {
+  margin: 24px 0 8px;
+}
+
+.order-merch ul {
+  margin: 8px 0;
+  padding-left: 1.2rem;
+}

@@ -88,6 +88,8 @@ export interface AuditEntry {
     | 'speaker.portalSendGroup'
     /** Discount codes live in Stripe, so this records a write we made there. */
     | 'discountCode.create'
+    /** A merch item created, edited, switched on or off (T380). */
+    | 'merch.save'
     | 'discountCode.update'
     /**
      * Hiding or restoring community content and Q&A questions. Recorded because

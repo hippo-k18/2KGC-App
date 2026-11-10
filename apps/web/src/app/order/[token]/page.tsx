@@ -7,6 +7,7 @@ import { readOrderToken } from '@/lib/order-token';
 import { getRegistration } from '@/lib/registrations';
 import { siteEvent } from '@/lib/data';
 import { OrderView, OrderVoidView } from '../order-view';
+import { activeMerch, merchBoughtBy } from '@/lib/merch';
 
 export const metadata: Metadata = {
   title: 'Your ticket',
@@ -28,7 +29,13 @@ export const dynamic = 'force-dynamic';
  *
  * The screen itself is `OrderView`, shared with the `/ticket/bought` preview.
  */
-export default async function OrderPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function OrderPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ merch?: string }>;
+}) {
   const ev = await siteEvent();
   const { token } = await params;
   const payload = readOrderToken(decodeURIComponent(token));
@@ -40,11 +47,14 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
   if (reg.status && reg.status !== 'active') return <OrderVoidView reg={reg} />;
 
   // Set only by the checkout return redirect for this registration. See `purchase-event.tsx`.
+  const [merch, onSale] = await Promise.all([merchBoughtBy(reg.email, reg.registrationId), activeMerch()]);
+  const merchUrl = onSale.length > 0 ? `/tickets/merch?t=${encodeURIComponent(decodeURIComponent(token))}` : undefined;
+
   const purchase = analyticsConfig() ? decodePurchase((await cookies()).get(PURCHASE_COOKIE)?.value) : null;
 
   return (
     <>
-      <OrderView ev={ev} reg={reg} />
+      <OrderView ev={ev} reg={reg} merch={merch} merchUrl={merchUrl} merchJustBought={(await searchParams).merch === '1'} />
       {purchase && reg.orderId && purchase.transaction_id === reg.orderId && <PurchaseEvent purchase={purchase} cookie={PURCHASE_COOKIE} />}
     </>
   );

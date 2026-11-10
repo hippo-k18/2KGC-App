@@ -5,7 +5,8 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { demoCheckoutAllowed } from '@/lib/demo-checkout';
 import { brandingSettings, ticketSalesOpen } from '@/lib/data';
-import { buyerFeeCents } from '@kgc/shared';
+import { MERCH_PICKUP_NOTE, buyerFeeCents, merchTotalCents, type MerchLine } from '@kgc/shared';
+import { merchFromForm, merchLineItem, merchMetadata } from '@/lib/merch-checkout';
 import { fulfilOrder } from '@/lib/fulfil-order';
 import { mintOrderToken } from '@/lib/order-token';
 import { siteOrigin, stripe, stripeEnabled } from '@/lib/stripe';
@@ -134,6 +135,11 @@ type Prepared =
        * catalogue, never from anything the form posted.
        */
       pricing: ReturnType<typeof priceSeats>;
+      /**
+       * Merch on the same order (T380), priced here from `merchItems`. Not a
+       * seat: no group rate, no buyer fee, no capacity.
+       */
+      merch: MerchLine[];
     };
 
 async function prepareCheckout(form: FormData): Promise<Prepared> {
@@ -308,6 +314,10 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
   const extraProblem = await checkExtraSeats(seats, tiers);
   if (extraProblem) return { error: extraProblem };
 
+  // Merch, priced from the items on sale now; ids only come from the form.
+  const merch = await merchFromForm(form, primary.currency);
+  if (!Array.isArray(merch)) return merch;
+
   /**
    * The organizer's registration questions.
    *
@@ -383,8 +393,9 @@ async function prepareCheckout(form: FormData): Promise<Prepared> {
   const subtotalCents = pricing.seats.reduce((sum, seat) => sum + seat.chargedCents, 0);
   const feeCents = (await brandingSettings()).chargeBuyerFee ? buyerFeeCents(subtotalCents) : 0;
 
-  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing };
+  return { ok: true, name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing, merch };
 }
+
 
 /**
  * Stripe's refusal of `payment_method_types: ['link']`, which it gives when Link
@@ -468,7 +479,7 @@ export async function startCheckout(
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing, merch } = prepared;
 
   // ---------------------------------------------------------------------
   // Hosted Stripe Checkout. The buyer leaves this origin entirely, so no card
@@ -551,6 +562,7 @@ export async function startCheckout(
           };
         }),
         ...(feeCents > 0 ? [feeLine(feeCents, primary)] : []),
+        ...merch.map((line) => merchLineItem(line, primary.currency)),
       ],
 
       /**
@@ -582,13 +594,19 @@ export async function startCheckout(
 
       // Said on Stripe's own page, under the pay button, because a line
       // carrying its tier's product keeps the product's name.
-      ...(pricing.applies
+      ...(pricing.applies || merch.length > 0
         ? {
             custom_text: {
               submit: {
-                message:
-                  `Group rate: ${GROUP_RATE_PERCENT}% off each in-person ticket is already in these prices ` +
-                  `(${GROUP_RATE_MIN_SEATS} or more in-person tickets).`,
+                message: [
+                  pricing.applies
+                    ? `Group rate: ${GROUP_RATE_PERCENT}% off each in-person ticket is already in these prices ` +
+                      `(${GROUP_RATE_MIN_SEATS} or more in-person tickets).`
+                    : '',
+                  merch.length > 0 ? `Merch: ${MERCH_PICKUP_NOTE}` : '',
+                ]
+                  .filter(Boolean)
+                  .join(' '),
               },
             },
           }
@@ -631,6 +649,7 @@ export async function startCheckout(
         // A reference, not the answers themselves: metadata caps at 500
         // characters per value, and a long-text answer would silently truncate.
         ...(answersRef ? { answersRef } : {}),
+        ...merchMetadata(merch),
       },
       success_url: `${origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
       // Back to the checkout page with the tier intact, not to `/tickets`,
@@ -720,6 +739,7 @@ export async function startCheckout(
         currency: primary.currency,
         campaignCode,
         feeCents,
+        merch,
       });
     } catch (err) {
       console.error('[checkout] could not record the seat list for', sessionId, err);
@@ -791,7 +811,7 @@ export async function completeDemoCheckout(
 
   const prepared = await prepareCheckout(form);
   if (!('ok' in prepared)) return prepared;
-  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing } = prepared;
+  const { name, email, seats, tiers, primary, answersRef, campaignCode, referral, origin, feeCents, pricing, merch } = prepared;
 
   /**
    * A synthetic id where a Stripe Checkout Session id would be.
@@ -814,7 +834,8 @@ export async function completeDemoCheckout(
    * nothing could reconcile.
    */
   const subtotalCents = pricing.seats.reduce((sum, seat) => sum + seat.chargedCents, 0);
-  const amountCents = subtotalCents + feeCents;
+  const merchCents = merchTotalCents(merch);
+  const amountCents = subtotalCents + feeCents + merchCents;
 
   /**
    * The seat list, written before fulfilment for the same reason the Stripe
@@ -848,6 +869,7 @@ export async function completeDemoCheckout(
         campaignCode,
         channel: 'demo',
         feeCents,
+        merch,
       });
     } catch (err) {
       console.error('[demo-checkout] could not record the seat list for', externalId, err);
@@ -871,7 +893,7 @@ export async function completeDemoCheckout(
       tierId: primary.id,
       amountCents,
       currency: primary.currency,
-      subtotalCents,
+      subtotalCents: subtotalCents + merchCents,
       taxCents: 0,
       discountCents: 0,
       campaignCode,
@@ -880,6 +902,7 @@ export async function completeDemoCheckout(
       answersRef,
       channel: 'demo',
       origin,
+      merch,
     });
     registrationId = outcome.registrationId;
     console.info('[demo-checkout] fulfilled', externalId, outcome);

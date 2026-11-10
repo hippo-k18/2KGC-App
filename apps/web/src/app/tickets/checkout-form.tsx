@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { INVOICE_PUBLIC } from '@/lib/invoice-public';
 import { useActionState, useRef, useState, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
-import type { QuestionFieldDef } from '@kgc/shared';
+import type { MerchItem, QuestionFieldDef } from '@kgc/shared';
+import { MerchPicker } from '@/components/merch-picker';
 import { SITE } from '@/lib/site';
 import { bundleFor, formatPrice, type AddOn, type Tier, type TicketId } from '@/lib/tickets';
 import { completeDemoCheckout, startCheckout, type CheckoutState } from './actions';
@@ -80,7 +81,10 @@ export function CheckoutForm({
   titleAs = 'h2',
   buyerFeePercent,
   termsPublished = false,
+  merch = [],
 }: {
+  /** Merch items on sale, or none (T380). Empty hides the section. */
+  merch?: MerchItem[];
   /** Name the terms in the consent line. Off until they are approved; see `lib/terms-core.ts`. */
   termsPublished?: boolean;
   /**
@@ -244,7 +248,9 @@ export function CheckoutForm({
   const groupDiscountCents = seatPricing.discountCents;
   const ticketCents = seatPricing.seats.reduce((sum, seat) => sum + seat.chargedCents, 0);
   const feeCents = buyerFeePercent ? Math.round((ticketCents * buyerFeePercent) / 100) : 0;
-  const totalCents = ticketCents + feeCents;
+  // Merch is listed at its own price: no group rate, no buyer fee (T380).
+  const [merchCents, setMerchCents] = useState(0);
+  const totalCents = ticketCents + feeCents + merchCents;
 
   /**
    * Growing and shrinking the seat list from one number.
@@ -281,6 +287,7 @@ export function CheckoutForm({
         groupDiscountCents={groupDiscountCents}
         feeCents={feeCents}
         buyerFeePercent={buyerFeePercent}
+        merchCents={merchCents}
       />
 
       <form action={action} className="checkout">
@@ -540,6 +547,8 @@ export function CheckoutForm({
         */}
         <Questions fields={questions} ticketTypeId={tier} errors={shown.fieldErrors} />
 
+        <MerchPicker items={merch} onTotalChange={setMerchCents} />
+
         {groupDiscountCents > 0 && (
           <div className="summary summary-fee">
             <span>
@@ -552,6 +561,12 @@ export function CheckoutForm({
           <div className="summary summary-fee">
             <span>Buyer fee ({buyerFeePercent}%)</span>
             <span>{formatPrice(feeCents, selected.currency)}</span>
+          </div>
+        )}
+        {merchCents > 0 && (
+          <div className="summary summary-fee">
+            <span>Merch, picked up at the conference</span>
+            <span>{formatPrice(merchCents, selected.currency)}</span>
           </div>
         )}
         <div className="summary">
@@ -717,7 +732,10 @@ function OrderRail({
   groupDiscountCents,
   feeCents,
   buyerFeePercent,
+  merchCents = 0,
 }: {
+  /** Merch in the total, or 0. */
+  merchCents?: number;
   /** What the group rate took off, or 0. */
   groupDiscountCents: number;
   tier: Tier;
@@ -778,7 +796,8 @@ function OrderRail({
             : ''}
           {feeCents > 0
             ? ` Includes a ${buyerFeePercent}% buyer fee of ${formatPrice(feeCents, tier.currency)}.`
-            : ''}{' '}
+            : ''}
+          {merchCents > 0 ? ` Includes ${formatPrice(merchCents, tier.currency)} of merch, picked up at the conference.` : ''}{' '}
           Sales tax, where it applies, is added at payment.
         </p>
       </div>

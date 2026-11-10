@@ -91,7 +91,8 @@ export default async function AttendeeOrdersPage({
       (o.buyerName ?? '').toLowerCase().includes(q) ||
       (o.companyName ?? '').toLowerCase().includes(q) ||
       (o.poNumber ?? '').toLowerCase().includes(q) ||
-      o.ticketNames.join(' ').toLowerCase().includes(q)
+      o.ticketNames.join(' ').toLowerCase().includes(q) ||
+      o.merchLabel.toLowerCase().includes(q)
     );
   });
 
@@ -263,8 +264,22 @@ export default async function AttendeeOrdersPage({
 
             <div key="t">
               <div style={{ fontSize: 13 }}>
-                {o.ticketNames.length > 0 ? o.ticketNames.join(', ') : <span className="muted">—</span>}
+                {o.ticketNames.length > 0 ? (
+                  o.ticketNames.join(', ')
+                ) : o.merchOnly ? (
+                  <span className="muted">Merch only</span>
+                ) : (
+                  <span className="muted">—</span>
+                )}
               </div>
+              {o.merchLabel && (
+                <div style={{ fontSize: 12 }}>
+                  <Tag color="blue" small>
+                    merch
+                  </Tag>{' '}
+                  {o.merchLabel}
+                </div>
+              )}
               <div className="muted" style={{ fontSize: 11 }}>
                 {o.channel === 'demo' ? (
                   <Tag color="grey" small>
