@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { readConsentToken } from '@kgc/scripts/src/lib/consent-token';
 import { SITE } from '@/lib/site';
 import { loadSigningContext } from '../store';
+import { KeepTypedForm } from '@/components/keep-typed-form';
 import { signConsentAction } from './actions';
 
 export const metadata: Metadata = {
@@ -166,7 +167,7 @@ export default async function ConsentPage({
         </div>
 
         {!alreadySigned && (
-          <form action={signConsentAction}>
+          <KeepTypedForm action={signConsentAction} again="please press I agree again">
             <input type="hidden" name="token" value={token} />
             <div className="field">
               <label htmlFor="signedName">Type your full name to agree</label>
@@ -195,7 +196,7 @@ export default async function ConsentPage({
             <button type="submit" className="btn btn-primary">
               I agree
             </button>
-          </form>
+          </KeepTypedForm>
         )}
 
         {/*

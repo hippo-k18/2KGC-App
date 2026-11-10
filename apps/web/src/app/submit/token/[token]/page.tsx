@@ -6,6 +6,7 @@ import { fieldsForSessionType, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { formatDeadline, SITE } from '@/lib/site';
 import { loadOwnSubmission } from '@/lib/submissions';
 import { SubmissionForm } from '../../submission-form';
+import { KeepTypedForm } from '@/components/keep-typed-form';
 import { withdrawAction } from '../../actions';
 
 export const metadata: Metadata = {
@@ -169,7 +170,7 @@ export default async function SubmissionTokenPage({
         )}
 
         {own.withdrawable && own.status !== 'withdrawn' && (
-          <form action={withdrawAction} style={{ marginTop: 28 }}>
+          <KeepTypedForm action={withdrawAction} name="withdraw" again="please press the button again" style={{ marginTop: 28 }}>
             <input type="hidden" name="token" value={token} />
             <details>
               <summary style={{ cursor: 'pointer' }}>Withdraw this submission</summary>
@@ -183,7 +184,7 @@ export default async function SubmissionTokenPage({
                 Withdraw
               </button>
             </details>
-          </form>
+          </KeepTypedForm>
         )}
 
         <p className="muted" style={{ marginTop: 32 }}>

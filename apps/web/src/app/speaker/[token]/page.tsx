@@ -6,6 +6,16 @@ import { SITE } from '@/lib/site';
 import { loadPortal, markOpened } from '@/lib/speaker-portal';
 import { KeepTypedForm } from '@/components/keep-typed-form';
 import { saveSpeakerProfileAction } from './actions';
+import { PhotoField } from './photo-field';
+
+/**
+ * The dashboard's upload endpoint, which the speaker's browser posts the file
+ * to. `DASHBOARD_PUBLIC_ORIGIN` points a local check or staging elsewhere.
+ */
+function photoUploadUrl(): string {
+  const origin = (process.env.DASHBOARD_PUBLIC_ORIGIN ?? 'https://dashboard.knowledgegraph.tech').replace(/\/$/, '');
+  return `${origin}/api/speaker-photo`;
+}
 
 export const metadata: Metadata = {
   // Same treatment as `/order/{token}`, `/consent/{token}` and `/review/{token}`:
@@ -39,14 +49,23 @@ export const dynamic = 'force-dynamic';
  * writes differently, and because the first question after pressing the button
  * is "is it live yet".
  *
- * ── The photo is a link, not an upload ──────────────────────────────────────
+ * ── The photo is uploaded to the dashboard, not to this site ────────────────
  *
  * Files enter this project through one path, `apps/organizer/src/lib/uploads.ts`,
  * which holds the Admin SDK credential for the storage bucket and lives in the
  * dashboard. The public website has no writer for that bucket and should not
  * grow one for this form: it would be a second, weaker authority over the same
- * bytes, reachable by anybody holding a forwarded link. So a speaker sends a
- * link, and the page says what to do instead if all they have is a file.
+ * bytes. Until T379 that meant a link only, and a speaker with a file emailed
+ * it. Now the speaker's browser posts the file straight to the dashboard's
+ * `/api/speaker-photo` with this page's token, which checks the token the way
+ * `openPortal` does, and the URL it returns goes in the photo box. It is still
+ * a draft: it reaches the website when an organizer approves the profile.
+ *
+ * ── A deploy while the page is open ─────────────────────────────────────────
+ *
+ * Every build changes the server action's id, so a page opened before a deploy
+ * posts an id the new server does not know. `KeepTypedForm` catches that,
+ * keeps what was typed, reloads once and fills it back in (T379).
  */
 export default async function SpeakerProfilePage({
   params,
@@ -225,22 +244,12 @@ export default async function SpeakerProfilePage({
             </p>
           </div>
 
-          <div className="field">
-            <label htmlFor="photoURL">Photo</label>
-            <input
-              id="photoURL"
-              name="photoURL"
-              type="url"
-              maxLength={500}
-              placeholder="https://"
-              defaultValue={ctx.photoURL ?? ''}
-            />
-            <p className="hint">
-              A link to a headshot, square if you have one. If you only have a file, email it to{' '}
-              <a href={`mailto:${SITE.contactEmail}?subject=Speaker photo`}>{SITE.contactEmail}</a>{' '}
-              and we will add it for you.
-            </p>
-          </div>
+          <PhotoField
+            token={token}
+            uploadUrl={photoUploadUrl()}
+            initialUrl={ctx.photoURL ?? ''}
+            contactEmail={SITE.contactEmail}
+          />
 
           <div className="field">
             <label htmlFor="linkedin">LinkedIn</label>

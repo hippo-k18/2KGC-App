@@ -3,6 +3,7 @@ import { STATUS_LABEL } from '@kgc/scripts/src/lib/speaker-portal-core';
 import { requireOrganizer } from '@/lib/auth';
 import { getSpeaker, imageSrc, listSpeakers, type SpeakerRow } from '@/lib/data';
 import { speakerContact } from '@/lib/speaker-contacts';
+import { isPreviewablePhoto } from '@/lib/speaker-photo-core';
 import { ROUTES } from '@/lib/nav';
 import {
   listPortalRows,
@@ -445,6 +446,17 @@ export default async function SpeakerManagerPage({
                             >
                               {c.before}
                             </div>
+                          ) : null}
+                          {c.field === 'photoURL' && isPreviewablePhoto(c.after) ? (
+                            // The photo the speaker uploaded (T379), so the decision is made on the picture.
+                            // eslint-disable-next-line @next/next/no-img-element -- a Storage URL at its own size
+                            <img
+                              src={c.after}
+                              alt={`Photo sent by ${p.speakerName}`}
+                              width={120}
+                              height={120}
+                              style={{ display: 'block', objectFit: 'cover', borderRadius: 4, marginBottom: 6 }}
+                            />
                           ) : null}
                           {c.after ? (
                             <div style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>

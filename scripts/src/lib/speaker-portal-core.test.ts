@@ -302,3 +302,17 @@ describe('trackerCounts', () => {
     expect(counts.notSent).toBe(1);
   });
 });
+
+describe('a photo uploaded through the speaker link (T379)', () => {
+  it('is published on approval, unlike a pasted link', () => {
+    const uploaded =
+      'https://firebasestorage.googleapis.com/v0/b/kgc-conference-app-and-website.firebasestorage.app/o/' +
+      'speakers%2Fdave-duggal%2Fpending%2Fphoto-5de22b8ab473457f.jpg?alt=media&token=05f99fb2-dfcc-42ed-92d4-8d25575b9c16';
+    const plan = approvalPlan({}, { photoURL: uploaded }, []);
+    expect(plan.speaker.photoURL).toBe(uploaded);
+    expect(plan.heldPhotoURL).toBeUndefined();
+    const pasted = approvalPlan({}, { photoURL: 'https://example.com/me.jpg' }, []);
+    expect(pasted.speaker.photoURL).toBeUndefined();
+    expect(pasted.heldPhotoURL).toBe('https://example.com/me.jpg');
+  });
+});
