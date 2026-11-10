@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { programmeCounts, siteEvent, ticketSalesOpen } from '@/lib/data';
 import { ATTENDEES_EXPECTED, SITE } from '@/lib/site';
+import { HCLS_ORGANIZERS, initials, linkLabel } from '@/lib/hcls-organizers';
 
 export const metadata: Metadata = {
   title: 'Healthcare & Life Sciences Symposium',
@@ -193,6 +194,51 @@ export default async function HclsPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/*
+        The organizers (T381). Photos are the ones the site already had from
+        past speaker pages; anyone without one gets the initials avatar the
+        speaker cards use. The data, and the two links still to be checked,
+        are in `lib/hcls-organizers.ts`.
+      */}
+      <section className="band band-centred hcls-organizers" aria-labelledby="hcls-organizers">
+        <div className="wrap">
+          <h2 id="hcls-organizers">Organizers</h2>
+          <ul className="organizer-list">
+            {HCLS_ORGANIZERS.map((o) => (
+              <li key={o.name} className="organizer">
+                {o.photo ? (
+                  <Image
+                    src={o.photo}
+                    alt=""
+                    width={240}
+                    height={240}
+                    sizes="120px"
+                    className="organizer-photo"
+                  />
+                ) : (
+                  <span className="organizer-photo is-fallback" aria-hidden="true">
+                    {initials(o.name)}
+                  </span>
+                )}
+                <p className="organizer-name">{o.name}</p>
+                {o.affiliation && <p className="organizer-org">{o.affiliation}</p>}
+                {o.link && (
+                  <a
+                    className="organizer-link"
+                    href={o.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${o.name} on ${linkLabel(o.link)} (opens in a new tab)`}
+                  >
+                    {linkLabel(o.link)}
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

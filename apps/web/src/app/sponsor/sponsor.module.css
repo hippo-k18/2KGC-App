@@ -23,6 +23,8 @@
 
 .quote {
   margin: 0;
+  /* The quote's size is measured against this column (`cqi`), see below. */
+  container-type: inline-size;
 }
 
 .quote blockquote {
@@ -38,9 +40,24 @@
   letter-spacing: -0.015em;
   font-weight: 700;
   color: var(--navy);
-  /* Measured in the quote's own size, so about two or three lines on a laptop. */
-  max-width: 24ch;
+  /* The full column (T381), not a measure. A phone still wraps it. */
+  max-width: none;
   text-wrap: balance;
+  /* The opening quotation mark hangs, so the words line up with the h1. */
+  text-indent: -0.42em;
+}
+
+/*
+ * One line on a wide screen (T381: "text shouldn't wrap"). In the site font the
+ * line is 49.3 times its own font size wide, so 100cqi / 50.5 is the size that
+ * fills the column with a little to spare. Capped at the size it had before.
+ * From 1200px, where that is still about 23px; narrower screens wrap as before.
+ */
+@media (width >= 1200px) {
+  .quote blockquote p {
+    white-space: nowrap;
+    font-size: min(2.6rem, calc(100cqi / 50.5));
+  }
 }
 
 .quote figcaption {

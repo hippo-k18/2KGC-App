@@ -69,6 +69,12 @@ export const SITE = {
    */
   contactEmail: EVENT.contactEmail,
   /*
+   * Where sponsorship enquiries go (T381, Thomas, 2026-11-08): the "Email us"
+   * button on `/sponsor`. Everything else, talk proposals included, stays on
+   * `contactEmail`.
+   */
+  partnerEmail: 'partner@knowledgegraph.tech',
+  /*
    * The conference's real switchboard, read off the live /hcls "Find us" block.
    * Not invented — a wrong phone number on a conference site is worse than none,
    * which is why this had been left out entirely rather than guessed.

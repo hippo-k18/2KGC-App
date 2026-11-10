@@ -51,8 +51,8 @@ export const revalidate = 30;
 export default async function SponsorPage() {
   const bands = await listSponsorsByTier();
 
-  const mail = (subject: string) =>
-    `mailto:${SITE.contactEmail}?subject=${encodeURIComponent(subject)}`;
+  const mail = (subject: string, to: string = SITE.contactEmail) =>
+    `mailto:${to}?subject=${encodeURIComponent(subject)}`;
 
   return (
     <>
@@ -69,9 +69,14 @@ export default async function SponsorPage() {
           </h1>
           <figure className={s.quote}>
             <blockquote>
+              {/*
+                One line on a laptop and wider (T381): the size follows the
+                column's width there instead of wrapping. See `.quote` in the
+                stylesheet.
+              */}
               <p>
-                KGC is the only conference where I don&rsquo;t have to explain what semantics and
-                knowledge graphs are.
+                &ldquo;KGC is the only conference where I don&rsquo;t have to explain what semantics
+                and knowledge graphs are.&rdquo;
               </p>
             </blockquote>
             <figcaption>Long time sponsor</figcaption>
@@ -110,7 +115,7 @@ export default async function SponsorPage() {
               </p>
             </div>
             <div className={s.ctaActions}>
-              <a className={`btn btn-primary ${s.ctaButton}`} href={mail('KGC 2027 sponsorship')}>
+              <a className={`btn btn-primary ${s.ctaButton}`} href={mail('KGC 2027 sponsorship', SITE.partnerEmail)}>
                 Email us
               </a>
             </div>
