@@ -13,14 +13,14 @@ describe('HCLS organizers (T381)', () => {
     ]);
   });
 
-  it('uses exactly the verified links, and none for the two still unchecked', () => {
+  it('uses exactly the verified links', () => {
     expect(Object.fromEntries(HCLS_ORGANIZERS.map((o) => [o.name, o.link]))).toEqual({
-      'Helena Deus': null,
+      'Helena Deus': 'https://www.linkedin.com/in/helenadeus/',
       'Tom Plasterer': 'https://www.linkedin.com/in/tplasterer',
       'Deborah McGuinness': 'https://en.wikipedia.org/wiki/Deborah_McGuinness',
       'Jamie McCusker': 'https://www.linkedin.com/in/jpmccu',
       'Ted Slater': 'https://www.linkedin.com/in/tedslater',
-      'Analee Etheridge': null,
+      'Analee Etheridge': 'https://www.linkedin.com/in/aetheredge/',
     });
   });
 

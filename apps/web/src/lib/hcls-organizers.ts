@@ -2,19 +2,19 @@
  * The organizers of the HCLS symposium, as listed on `/hcls` (T381), in the
  * order Thomas gave them (Google Chat, 2026-11-08).
  *
- * Every link was checked by hand before it went in. Two people have no checked
- * link yet, so they render as a name only rather than with a guessed profile:
- * a wrong LinkedIn page under somebody's name is worse than none. Fill in the
- * constant below and the card picks the link up.
+ * Every link was checked by hand, or supplied by the owner, before it went in.
+ * A card with no confirmed link shows a name only rather than a guessed
+ * profile: a wrong LinkedIn page under somebody's name is worse than none. Each
+ * link is one constant or field below, and the card picks it up.
  *
  * `affiliation` is left out where we do not know the current one. Tom
  * Plasterer's past-speaker entry says AstraZeneca, which is out of date.
  */
 
-/** No checked link yet. Set to the profile URL once somebody has verified it. */
-export const HELENA_DEUS_LINK: string | null = null;
-/** No checked link or affiliation yet. Set both once they are verified. */
-export const ANALEE_ETHERIDGE_LINK: string | null = null;
+/** Supplied by the owner (T399, 2026-11-10). */
+export const HELENA_DEUS_LINK: string | null = 'https://www.linkedin.com/in/helenadeus/';
+/** Supplied by the owner (T399, 2026-11-10). No checked affiliation yet. */
+export const ANALEE_ETHERIDGE_LINK: string | null = 'https://www.linkedin.com/in/aetheredge/';
 export const ANALEE_ETHERIDGE_AFFILIATION: string | null = null;
 
 export interface HclsOrganizer {
