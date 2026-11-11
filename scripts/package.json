@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "seed": "tsx src/seed-demo.ts",
+    "seed:cfa": "tsx src/seed-cfa-demo.ts",
     "import:whova": "tsx src/import-whova.ts",
     "typecheck": "tsc --noEmit",
     "claims": "tsx src/set-claims.ts",

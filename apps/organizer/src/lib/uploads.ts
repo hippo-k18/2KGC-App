@@ -254,25 +254,43 @@ function downloadUrl(path: string, token: string): string {
  * few kilobytes, and failing the whole save because a *previous* file could not
  * be deleted would be the worse trade.
  */
-export async function uploadImage(file: File, target: UploadTarget): Promise<UploadedImage> {
+/**
+ * Limits other than the dashboard's own, for a caller with a different body
+ * cap: the speaker photo route (T379) is a route handler rather than a Server
+ * Action, so the 1 MB action cap does not apply to it.
+ */
+export interface UploadLimits {
+  maxBytes?: number;
+  types?: readonly AcceptedImageType[];
+  /** Said when the file is not one of `types`. */
+  typeMessage?: string;
+}
+
+export async function uploadImage(file: File, target: UploadTarget, limits: UploadLimits = {}): Promise<UploadedImage> {
   assertSafeTarget(target);
   assertStorageReachable();
 
+  const maxBytes = limits.maxBytes ?? MAX_UPLOAD_BYTES;
   if (file.size === 0) throw new UploadRejected('That file is empty.');
-  if (file.size > MAX_UPLOAD_BYTES) {
+  if (file.size > maxBytes) {
     throw new UploadRejected(
-      `That image is ${Math.round(file.size / 1024)} KB. The limit is ` +
-        `${Math.round(MAX_UPLOAD_BYTES / 1024)} KB. Pick a smaller one, or let the ` +
-        'picker resize it for you.',
+      maxBytes === MAX_UPLOAD_BYTES
+        ? `That image is ${Math.round(file.size / 1024)} KB. The limit is ` +
+            `${Math.round(MAX_UPLOAD_BYTES / 1024)} KB. Pick a smaller one, or let the ` +
+            'picker resize it for you.'
+        : `That image is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is ` +
+            `${Math.round(maxBytes / 1024 / 1024)} MB.`,
     );
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const contentType = sniffImageType(bytes);
+  const sniffed = sniffImageType(bytes);
+  const contentType = sniffed && (!limits.types || limits.types.includes(sniffed)) ? sniffed : undefined;
   if (!contentType) {
     throw new UploadRejected(
-      'That file is not a PNG, JPEG, WebP or GIF image. (SVG is not accepted: it can ' +
-        'carry scripts.)',
+      limits.typeMessage ??
+        'That file is not a PNG, JPEG, WebP or GIF image. (SVG is not accepted: it can ' +
+          'carry scripts.)',
     );
   }
 

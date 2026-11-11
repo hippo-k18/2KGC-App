@@ -43,12 +43,10 @@ export default async function EmergencyManagerPage() {
         title="Emergency Manager"
         info={
           <>
-            <strong>This card does not page anybody</strong>
+            <strong>This page stores the plan</strong>
             <p>
-              The dashboard can send push, but no device has ever registered a token. Nothing in
-              the app writes <code>fcmTokens</code>, and receiving one needs a development build
-              rather than Expo Go. A broadcast button here would reach zero people and report
-              success.
+              It does not alert anyone. Attendees see the plan in the app under Home, Logistics
+              once it is marked ready.
             </p>
           </>
         }
@@ -75,9 +73,8 @@ export default async function EmergencyManagerPage() {
       <Banner kind="warning">
         <strong>In an incident: emergency services, then venue security, then an announcement from
         the stage.</strong>{' '}
-        This card is a reference the organizing team fills in and reads aloud. It does not page,
-        call, text or push. Reaching attendees means{' '}
-        <Link href={ROUTES.announcements}>an announcement</Link>, which is real.
+        This page stores the plan. It does not alert anyone. To reach attendees, send{' '}
+        <Link href={ROUTES.announcements}>an announcement</Link>.
       </Banner>
 
       <Panel>

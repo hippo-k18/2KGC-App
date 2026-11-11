@@ -2,11 +2,15 @@
 
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
-import { emailEnabled, sendBulkMessage } from '@kgc/scripts/src/lib/email';
+import { COLLECTIONS } from '@kgc/shared';
+import { emailEnabled, sendBulkMessage, sendOutcomeMessage } from '@kgc/scripts/src/lib/email';
+import { appendAudit } from '@/lib/audit';
 import { reauthenticate, requireOrganizer } from '@/lib/auth';
 import { audienceFor, listContacts, recordSuppressedRecipients } from '@/lib/campaigns';
 import { recordError } from '@/lib/errors';
 import { db } from '@/lib/firestore';
+import { startBulkSend } from '@/lib/send-jobs';
+import { bulkCampaignId } from '@/lib/send-jobs-core';
 
 /**
  * Sending an email campaign to a contact list.
@@ -51,6 +55,8 @@ export interface CampaignState {
   error?: string;
   /** What was typed, so a failed send does not blank the draft. */
   keep?: { subject: string; body: string };
+  /** The background send this press started or found, for the progress line. */
+  campaignId?: string;
 }
 
 /**
@@ -87,8 +93,7 @@ export async function sendCampaignAction(
   if (!emailEnabled()) {
     return {
       error:
-        'No email provider is configured on this deployment (RESEND_API_KEY is unset), so ' +
-        'nothing can be sent. Every attempt would be logged as skipped.',
+        'Email sending is not set up yet, so nothing can be sent.',
       keep,
     };
   }
@@ -98,20 +103,22 @@ export async function sendCampaignAction(
     if (!EMAIL.test(testAddress)) {
       return { error: 'Enter a valid address to send the test to.', keep };
     }
-    try {
-      await sendBulkMessage(db(), {
-        to: testAddress,
-        name: 'there',
-        subject: `[TEST] ${subject}`,
-        body,
-        campaignId: `test_${randomUUID()}`,
-        actor,
-      });
-    } catch (err) {
-      recordError('campaign.test', err);
-      return { error: 'The test send failed. Check the transaction log.', keep };
-    }
-    return { ok: true, message: `Test sent to ${testAddress}. Nothing went to the list.`, keep };
+    // Never throws; the outcome is what the screen reports (T258 #4).
+    const outcome = await sendBulkMessage(db(), {
+      to: testAddress,
+      name: 'there',
+      subject: `[TEST] ${subject}`,
+      body,
+      campaignId: `test_${randomUUID()}`,
+      actor,
+    });
+    const message = sendOutcomeMessage({
+      outcome,
+      to: testAddress,
+      sent: `Test sent to ${testAddress}. Nothing went to the list.`,
+      fallback: 'Check the transaction log for the reason. Nothing went to the list.',
+    });
+    return outcome === 'sent' ? { ok: true, message, keep } : { error: message, keep };
   }
 
   // ── The real send ────────────────────────────────────────────────────────
@@ -134,8 +141,8 @@ export async function sendCampaignAction(
     };
   }
 
-  if (!reauthenticate(passphrase)) {
-    return { error: 'That passphrase is not correct. Nothing has been sent.', keep };
+  if (!(await reauthenticate(passphrase))) {
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has been sent.', keep };
   }
 
   if (Number(confirmCount) !== recipients.length) {
@@ -148,86 +155,116 @@ export async function sendCampaignAction(
   }
 
   /**
-   * One campaign id for the whole send, and one `emailLog` row per recipient.
+   * The send runs as a background job (T258 #1). A list of 2,000 takes longer
+   * than Apache's five-minute timeout, and when it ran inside this request the
+   * organizer saw an error, pressed again and mailed everybody twice.
    *
-   * The per-recipient row is what answers the question people actually ask —
-   * "did Ada get it?" — and the campaign summary is derived from those rows at
-   * read time, so it can never disagree with them.
+   * The campaign id comes from the list and the message, so pressing Send
+   * again with the same message resumes this campaign rather than starting a
+   * new one, and only people with no `sent` row are mailed. Each mail is also
+   * sent under an idempotency key built from the campaign and the address.
    */
-  const campaignId = `campaign_${randomUUID()}`;
-  let sent = 0;
-  let failed = 0;
+  const campaignId = bulkCampaignId({ kind: 'campaign', audience: list, subject, body });
 
-  /**
-   * The exclusions are recorded *before* the first mail goes out.
-   *
-   * Not cosmetic ordering. These rows are the evidence that the suppression
-   * list was honoured, and the send that follows takes minutes — a deploy that
-   * restarts, a request that times out or an organizer who closes the tab
-   * halfway through would otherwise leave a campaign whose `sent` rows exist
-   * and whose "and here is who we deliberately did not mail" rows never got
-   * written. That is precisely the state that cannot be reconstructed
-   * afterwards, because `unsubscribedAt` keeps moving as more people opt out.
-   *
-   * It also fixes the campaign's timestamp at the moment the send started,
-   * since `listCampaigns()` takes a campaign's time from its earliest row.
-   *
-   * Never throws — see `recordSuppressedRecipients`. A campaign is not stopped
-   * by a failure to write its own diagnostics.
-   */
-  const skipLog = await recordSuppressedRecipients({ campaignId, subject, actor, excluded });
-
-  /**
-   * Sequential, and each send swallows its own errors inside `sendBulkMessage`.
-   *
-   * One bad address must not stop the rest of a list being reached, and the
-   * failure is already recorded per recipient. Sequential rather than parallel
-   * because a thousand simultaneous requests is how a provider rate-limits a
-   * sending domain into a temporary block.
-   */
-  for (const r of recipients) {
-    try {
-      await sendBulkMessage(db(), {
-        to: r.email,
-        name: r.name,
-        subject,
-        body,
-        campaignId,
-        actor,
-      });
-      sent++;
-    } catch (err) {
-      recordError('campaign.send', err);
-      failed++;
-    }
+  let skipLog = { attempted: 0, written: 0 };
+  let started;
+  try {
+    started = await startBulkSend({
+      store: db(),
+      campaignId,
+      kind: 'campaign',
+      audience: list,
+      label: `the "${list}" list`,
+      subject,
+      actor,
+      recipients,
+      /*
+       * The exclusions are recorded on the first press only, before the first
+       * mail goes out. These rows are the evidence that the suppression list
+       * was honoured, and a send that is interrupted must not leave a campaign
+       * whose sent rows exist and whose "who we deliberately did not mail"
+       * rows were never written. A resumed press does not write them again.
+       */
+      onFirstRun: async () => {
+        skipLog = await recordSuppressedRecipients({ campaignId, subject, actor, excluded });
+      },
+      send: (r, ctx) =>
+        sendBulkMessage(db(), {
+          to: r.email,
+          name: r.name,
+          subject,
+          body,
+          campaignId: ctx.campaignId,
+          issuedAt: ctx.issuedAt,
+          actor,
+          // A campaign mail with no working unsubscribe link is not sent (T258 #11).
+          requireUnsubscribe: true,
+        }),
+      onError: (err) => recordError('campaign.send', err),
+    });
+  } catch (err) {
+    recordError('campaign.start', err);
+    return {
+      error: 'The send could not start: the list of people already mailed could not be read. Nothing was sent. Try again in a minute.',
+      keep,
+    };
   }
+
+  if (!started.started) {
+    return started.reason === 'busy'
+      ? {
+          ok: true,
+          message: 'This campaign is already sending. Its progress is below. Nobody gets it twice.',
+          campaignId,
+        }
+      : {
+          error: `Everybody on "${list}" already has this message (${started.alreadySent} sent). Nothing was sent again. Change the subject or the message to send a new campaign.`,
+          keep,
+        };
+  }
+
+  // Swallowed into the job document by the runner; never awaited here.
+  void started.done;
+
+  await appendAudit({
+    actor,
+    action: 'campaign.send',
+    targetPath: `${COLLECTIONS.sendJobs}/${campaignId}`,
+    targetId: campaignId,
+    before: {},
+    after: {
+      list,
+      subject,
+      recipients: started.total,
+      alreadySent: started.alreadySent,
+      sending: started.todo,
+      resumed: started.resumed,
+    },
+  });
 
   revalidatePath(PATH);
 
   /*
    * The exclusion sentence admits it when the log came out incomplete.
-   *
-   * `written < attempted` only ever means a Firestore write failed, and on
-   * every ordinary send they are equal. When they are not, the honest reading
-   * is that the suppression itself held — nobody excluded was emailed, because
-   * the audience was filtered long before any of this — but the *record* of it
-   * has a hole, and an organizer reading "62 excluded" off the log later would
-   * otherwise be reading a number that quietly means something else.
+   * `written < attempted` only ever means a Firestore write failed: the
+   * suppression itself held, but the record of it has a hole.
    */
   const excludedNote =
-    suppressed === 0
+    suppressed === 0 || started.resumed
       ? ''
       : skipLog.written === skipLog.attempted
-        ? ` ${suppressed} were excluded as unsubscribed or bounced, and each is logged as skipped.`
-        : ` ${suppressed} were excluded as unsubscribed or bounced, none of them was emailed, but only ` +
-          `${skipLog.written} of ${skipLog.attempted} could be written to the log. ` +
-          `See the transaction log for the write failure.`;
+        ? ` ${suppressed} were excluded as unsubscribed, bounced or marked as spam, and each is logged as skipped.`
+        : ` ${suppressed} were excluded and none of them was emailed, but only ` +
+          `${skipLog.written} of ${skipLog.attempted} could be written to the log.`;
 
   return {
     ok: true,
+    campaignId,
     message:
-      `Sent to ${sent} of ${recipients.length} on "${list}".` +
-      (failed > 0 ? ` ${failed} failed. See the log below.` : '') +
+      (started.resumed
+        ? `Resuming: ${started.alreadySent} already have it, sending to the other ${started.todo}.`
+        : `Sending to ${started.todo} on "${list}".`) +
+      (started.duplicates ? ` ${started.duplicates} duplicate addresses were left out.` : '') +
       excludedNote,
   };
 }

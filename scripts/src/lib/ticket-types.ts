@@ -1,4 +1,4 @@
-import type { TicketTypeDoc } from "@kgc/shared";
+import type { PricePhase, TicketTypeDoc } from "@kgc/shared";
 
 /**
  * The tiers KGC sells, as seed data — four for attendees, three exhibitor
@@ -10,7 +10,7 @@ import type { TicketTypeDoc } from "@kgc/shared";
  * array, with a comment arguing that a public price list which renders from a
  * database is a price list that shows "$0" when the database is unreachable.
  * That argument was sound while nothing could edit the prices. It stopped being
- * sound the moment the organizer dashboard grew a Create Tickets screen: two
+ * sound the moment the organizer dashboard grew a Create & Edit Tickets screen: two
  * places that both believe they own the price will eventually disagree, and the
  * failure mode of *that* is charging the wrong amount — considerably worse than
  * an outage, because it is silent and it is legally interesting.
@@ -44,11 +44,48 @@ export type TicketTypeSeed = Omit<
  *  the buyer lives — that part is configured in the Stripe dashboard, not here. */
 export const TICKET_TAX_CODE = "txcd_20030000";
 
+/**
+ * The 2027 price ladder, as the team set it in September 2026. Super Early Bird
+ * is over and shown struck through; each later phase starts on its day in New
+ * York and the website charges whichever is current.
+ */
+const EARLY_BIRD = "2026-09-15";
+const STANDARD = "2026-12-01";
+const EXTENDED = "2027-03-01";
+
+function ladder(seb: number, eb: number, std: number, ext: number): PricePhase[] {
+  return [
+    { name: "Super Early Bird", priceCents: seb, soldOut: true },
+    { name: "Early Bird", priceCents: eb, startsOn: EARLY_BIRD },
+    { name: "Standard", priceCents: std, startsOn: STANDARD },
+    { name: "Extended", priceCents: ext, startsOn: EXTENDED },
+  ];
+}
+
+/**
+ * Continuing education units. Not sold in Early Bird (no price was set for it),
+ * and every later phase is marked off sale too until the team confirms. To put
+ * it on sale, remove "off sale" from a phase under Tickets › Create & Edit Tickets.
+ */
+export const CEU_PHASES: PricePhase[] = [
+  { name: "Super Early Bird", priceCents: 4_500, soldOut: true },
+  { name: "Early Bird", startsOn: EARLY_BIRD, offSale: true },
+  { name: "Standard", priceCents: 32_900, startsOn: STANDARD, offSale: true },
+  { name: "Extended", priceCents: 39_900, startsOn: EXTENDED, offSale: true },
+];
+
+export const ALL_ACCESS_PHASES = ladder(59_900, 69_900, 89_900, 109_900);
+export const MAIN_CONFERENCE_PHASES = ladder(49_900, 59_900, 69_900, 79_900);
+export const VIRTUAL_PHASES = ladder(9_900, 12_900, 15_900, 35_000);
+
 export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
   {
     id: "all-access",
     name: "All Access (VIP)",
-    priceCents: 119_900,
+    // The Early Bird price, kept for display. `pricePhases` is what is charged.
+    priceCents: 69_900,
+    pricePhases: ALL_ACCESS_PHASES,
+    badge: "Best value",
     currency: "usd",
     tagline: "The whole week, in the room and on demand.",
     featured: true,
@@ -66,6 +103,7 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
       "All evening networking events, including the Friday watch party",
       "Live streams and recordings of every virtual session",
       "Three months of the KGC Video Library",
+      "Continuing education units",
     ],
     groups: [
       {
@@ -83,14 +121,17 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
         items: ["Live streams of every session", "Recordings of every session"],
       },
       { heading: "KGC Video Library Subscription (3 months)" },
+      { heading: "Continuing education units" },
     ],
   },
   {
     id: "main-conference",
     name: "Main Conference",
-    priceCents: 79_900,
+    // The Early Bird price, kept for display. `pricePhases` is what is charged.
+    priceCents: 59_900,
+    pricePhases: MAIN_CONFERENCE_PHASES,
     currency: "usd",
-    tagline: "Wednesday to Friday at Cornell Tech.",
+    tagline: "Wednesday to Friday at Jay Conference Bryant Park.",
     /**
      * The second headline panel on `/tickets`.
      *
@@ -132,12 +173,24 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
       { heading: "KGC Video Library Subscription (3 months)" },
     ],
   },
+  /**
+   * Workshops, a ticket of its own since 2026-10-06 (owner), and
+   * independent of the conference tickets since 2026-10-07. It is an extra:
+   * bought any time, with or without a conference ticket. It goes on the
+   * holder's conference badge when they have one, and is a Workshops-only
+   * badge when they do not; a conference ticket bought later joins that badge.
+   * `addOnFor` is kept for the record and no longer read. All Access holders
+   * are refused it (their ticket includes the workshops). It never counts
+   * toward the group rate.
+   */
   {
     id: "workshops",
     name: "Workshops",
-    priceCents: 69_900,
+    priceCents: 19_900,
     currency: "usd",
-    tagline: "Two days of hands-on practice.",
+    tagline: "Both workshop days, Monday and Tuesday. Buy it on its own or with a conference ticket.",
+    kind: "extra",
+    addOnFor: "main-conference",
     inPerson: true,
     visible: true,
     sortOrder: 30,
@@ -149,13 +202,69 @@ export const TICKET_TYPE_SEED: readonly TicketTypeSeed[] = [
       "Every in-person workshop, Monday and Tuesday",
       "Instructor-led labs at beginner, intermediate and advanced level",
       "Workshop materials and datasets to take home",
+      "Goes on the same badge as your conference ticket, if you have one",
+    ],
+  },
+  /*
+   * "Main Conference + Workshops" and "Main Conference + Workshops + Continuing
+   * education units" were retired 2026-10-06, when Workshops became its own
+   * ticket, and deleted from the live catalogue 2026-10-07 (T190): no order or
+   * badge ever used either. They are left out here so a seed cannot bring them
+   * back.
+   */
+  /**
+   * Continuing education units, the second add-on to Main Conference. Built
+   * the same way as Workshops: sold only inside a bundle, one bundle per
+   * combination, so ticking both boxes buys the three-part bundle.
+   */
+  {
+    id: "continuing-education",
+    name: "Continuing education units",
+    priceCents: 32_900,
+    pricePhases: CEU_PHASES,
+    currency: "usd",
+    tagline: "Continuing education units for the Main Conference sessions",
+    addOnFor: "main-conference",
+    inPerson: true,
+    visible: false,
+    sortOrder: 35,
+    audience: "attendee",
+    includesVideoLibrary: false,
+    includesWorkshops: false,
+    taxCode: TICKET_TAX_CODE,
+    includes: ["Continuing education units for the Main Conference sessions"],
+  },
+  {
+    id: "main-conference-continuing-education",
+    name: "Main Conference + Continuing education units",
+    // Ignored by the website, which adds up `bundleOf`.
+    priceCents: 92_800,
+    currency: "usd",
+    tagline: "Wednesday to Friday at Jay Conference Bryant Park, with continuing education units.",
+    bundleOf: ["main-conference", "continuing-education"],
+    featured: false,
+    inPerson: true,
+    visible: false,
+    sortOrder: 26,
+    audience: "attendee",
+    includesVideoLibrary: true,
+    includesWorkshops: false,
+    taxCode: TICKET_TAX_CODE,
+    includes: [
+      "Every main conference session, Wednesday to Friday",
+      "Continuing education units",
       "Community happy hour",
+      "All evening networking events, including the Friday watch party",
+      "Virtual conference sessions on demand",
+      "Three months of the KGC Video Library",
     ],
   },
   {
     id: "virtual",
     name: "Virtual",
-    priceCents: 34_900,
+    // The Early Bird price, kept for display. `pricePhases` is what is charged.
+    priceCents: 12_900,
+    pricePhases: VIRTUAL_PHASES,
     currency: "usd",
     tagline: "Every session, from wherever you are.",
     inPerson: false,

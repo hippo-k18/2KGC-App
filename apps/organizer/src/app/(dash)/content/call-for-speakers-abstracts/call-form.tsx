@@ -1,6 +1,5 @@
 'use client';
 
-import { useActionState } from 'react';
 import type { TrackOption } from '@/lib/data';
 import type { CallRow } from '@/lib/calls';
 import {
@@ -14,9 +13,13 @@ import {
   SubmitButton,
   Textarea,
   dateTimeValue,
-  type FormState,
+  ActionForm,
+  useFormAction,
 } from '../../form';
+import { AGENDA_SESSION_TYPES, CFP_SESSION_TYPES, typeLabel } from '@kgc/scripts/src/lib/cfp-core';
 import { saveCallAction } from './actions';
+import { InstructionsEditor } from './instructions-editor';
+import { callTextFromPlain } from '@kgc/shared';
 
 /**
  * Setting up a call for abstracts.
@@ -46,10 +49,12 @@ export function CallForm({
   existing?: CallRow;
   tracks: TrackOption[];
 }) {
-  const [state, action] = useActionState<FormState, FormData>(saveCallAction, {});
+  // Not `useActionState`: see `useFormAction` in `form.tsx` (T284). A new
+  // call clears the form after "Created", as the reset after a form action did.
+  const [state, run] = useFormAction(saveCallAction, {}, { resetOnSuccess: !existing });
 
   return (
-    <form action={action}>
+    <ActionForm run={run}>
       {existing && <input type="hidden" name="id" value={existing.id} />}
       <FormBanner state={state} />
 
@@ -59,20 +64,13 @@ export function CallForm({
         required
         maxLength={120}
         defaultValue={existing?.title}
-        placeholder="Call for talks and posters. KGC 2027"
         hint="What people read at the top of the public page, and what the acknowledgement email calls it."
         width="xl"
       />
 
-      <Textarea
-        label="Instructions"
-        name="instructions"
-        rows={8}
-        defaultValue={existing?.instructions}
-        placeholder={
-          'What are you asking for, and what will happen to it?\n\nBlank lines separate paragraphs. Plain text only. This is rendered into a public page, and markup pasted from a word processor into a page people are asked to trust is an injection into exactly the wrong page.'
-        }
-        hint="Plain text; blank lines separate paragraphs. Say how long an abstract should be and how many reviewers will read it."
+      <InstructionsEditor
+        initial={existing?.instructionsDoc ?? callTextFromPlain('')}
+        hint="What people read above the form. Use the toolbar for headings, bold, italics, lists and links. [CLOSE DATE] and [DECISION DATE] are filled in from the call's dates."
       />
 
       <FormGrid>
@@ -119,32 +117,54 @@ export function CallForm({
             { value: 'single-blind', label: 'Single-blind: reviewers see the author' },
             { value: 'double-blind', label: 'Double-blind: the author is hidden' },
           ]}
-          hint="Stored either way. This only decides what a screen loads, and can be changed later."
+          hint="Decides what reviewers see. It can be changed later."
         />
       </FormGrid>
 
+      <ShowOnWebsite existing={existing} />
+
+      {/*
+        A call for speakers offers the owner's six types (T276); any other call
+        offers the agenda's own formats, as before.
+      */}
       <FieldSet
         legend="Session types"
         hint="What a submitter can offer the work as. An accepted submission carries this onto the agenda."
         inline
       >
-        {(['keynote', 'talk', 'panel', 'workshop', 'poster', 'social'] as const).map((f) => (
+        {(existing?.isCfp
+          ? CFP_SESSION_TYPES.map((t) => ({ id: t.id, label: t.label }))
+          : AGENDA_SESSION_TYPES.map((f) => ({ id: f, label: typeLabel(f) }))
+        ).map((t) => (
           <CheckboxField
-            key={f}
+            key={t.id}
             name="sessionTypes"
-            value={f}
-            label={f}
-            defaultChecked={existing ? existing.sessionTypes.includes(f) : f === 'talk' || f === 'poster'}
+            value={t.id}
+            label={t.label}
+            defaultChecked={existing ? existing.sessionTypes.includes(t.id) : t.id === 'talk' || t.id === 'poster'}
           />
         ))}
       </FieldSet>
+
+      {existing?.isCfp && (
+        <FieldSet legend="Questions on the form" inline>
+          <input type="hidden" name="cfpSwitches" value="1" />
+          <CheckboxField name="askTrack" value="1" label="Ask for a track" defaultChecked={existing.askTrack} />
+          <CheckboxField
+            name="askTalkLength"
+            value="1"
+            label="Ask talk length"
+            defaultChecked={existing.askTalkLength}
+          />
+        </FieldSet>
+      )}
 
       <FieldSet
         legend="Tracks"
         hint={
           tracks.length === 0
-            ? 'No tracks have been entered for this event yet, so a submitter cannot be asked to choose one. Add them in Track Manager.'
-            : 'Offered to the submitter, and what reviewer assignment by topic matches on.'
+            ? 'No tracks have been entered for this event yet. Add them in Track Manager, or tick Other so submitters can type a topic.'
+            : 'Offered to the submitter, and what reviewer assignment by topic matches on. Other lets them type a topic of their own.'
         }
         inline
       >
@@ -157,6 +177,12 @@ export function CallForm({
             defaultChecked={existing?.trackIds.includes(t.id) ?? false}
           />
         ))}
+        <CheckboxField
+          name="allowOtherTrack"
+          value="1"
+          label="Other"
+          defaultChecked={existing?.allowOtherTrack ?? false}
+        />
       </FieldSet>
 
       <FormGrid>
@@ -175,7 +201,7 @@ export function CallForm({
           name="reminderDaysBefore"
           defaultValue={(existing?.reminderDaysBefore ?? [14, 7, 3]).join(', ')}
           placeholder="14, 7, 3"
-          hint="Days before the deadline. Nothing sends on a schedule; these are when the dashboard offers you the button."
+          hint="Days before the deadline. Reminders are not sent on their own. On these days the dashboard offers you a send button."
           width="lg"
         />
       </FormGrid>
@@ -185,13 +211,33 @@ export function CallForm({
         name="notifyEmails"
         rows={3}
         defaultValue={(existing?.notifyEmails ?? []).join('\n')}
-        placeholder={'programme@knowledgegraph.tech\nchair@knowledgegraph.tech'}
         hint="One per line, or separated by commas. Empty means nobody is told."
       />
 
       <FormActions>
         <SubmitButton>{existing ? 'Save call' : 'Create call'}</SubmitButton>
       </FormActions>
-    </form>
+    </ActionForm>
+  );
+}
+
+/**
+ * "Show on website" (T277): the Apply to speak button in the site header,
+ * beside Register now. Separate from Status so a call can be published and
+ * shared by link before it is promoted on every page.
+ */
+function ShowOnWebsite({ existing }: { existing?: CallRow }) {
+  return (
+    <FieldSet
+      legend="Website"
+      hint="Adds an Apply to speak button next to Register now in the website header, and points the footer's Speak at KGC link here. Shown only while the call is published and has not closed. One call at a time: turning this on turns it off for any other call."
+    >
+      <CheckboxField
+        name="showOnWebsite"
+        value="1"
+        label="Show on website"
+        defaultChecked={existing?.showOnWebsite ?? false}
+      />
+    </FieldSet>
   );
 }

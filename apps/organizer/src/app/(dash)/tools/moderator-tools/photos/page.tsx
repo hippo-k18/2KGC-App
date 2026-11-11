@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel } from '../../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,11 +37,7 @@ export default async function ModeratePhotosPage() {
         info={
           <>
             <strong>Attendees cannot post photos</strong>
-            <p>
-              The attendee app has no photo wall, no photo booth and no camera surface, so nothing
-              arrives here. A queue with rows in it would suggest somebody is watching a stream of
-              pictures that does not exist.
-            </p>
+            <p>The attendee app has no photo sharing yet, so there is nothing to moderate.</p>
           </>
         }
         links={[
@@ -55,14 +51,15 @@ export default async function ModeratePhotosPage() {
       />
 
       <Panel>
-        <NotInputted
-          what="attendee photos"
+        <EmptyState
           action={
-            <Link href={ROUTES.moderateBoard} className="whova-btn-main">
+            <Link href={ROUTES.moderateBoard} className="whova-btn-main secondary">
               Moderate the community board
             </Link>
           }
-        />
+        >
+          <p className="empty-title">Photo sharing is not available yet</p>
+        </EmptyState>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

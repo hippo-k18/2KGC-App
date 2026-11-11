@@ -41,6 +41,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           Task
         </label>
         <input
+          className="whova-text-input"
           id="title"
           name="title"
           required
@@ -55,6 +56,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           Project
         </label>
         <input
+          className="whova-text-input"
           id="project"
           name="project"
           required
@@ -80,6 +82,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           Owner
         </label>
         <input
+          className="whova-text-input"
           id="assignee"
           name="assignee"
           defaultValue={existing?.assignee}
@@ -88,8 +91,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           style={{ maxWidth: 320 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          A name, not an account. Suppliers and volunteers never sign in here and they own half the
-          list. Blank means nobody has picked it up.
+          A name, not an account. Leave blank if nobody owns it yet.
         </p>
       </div>
 
@@ -98,6 +100,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           Due
         </label>
         <input
+          className="whova-text-input"
           id="dueOn"
           name="dueOn"
           type="date"
@@ -105,8 +108,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           style={{ maxWidth: 200 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          A calendar day, stored as one, not a timestamp, so it does not shift for whoever opens
-          the screen. Blank for no deadline.
+          Leave blank for no deadline.
         </p>
       </div>
 
@@ -114,16 +116,14 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
         <label className="whova-form-label" htmlFor="status">
           Status
         </label>
-        <select id="status" name="status" defaultValue={existing?.status ?? 'todo'} style={{ maxWidth: 200 }}>
+        <select className="whova-text-input" id="status" name="status" defaultValue={existing?.status ?? 'todo'} style={{ maxWidth: 200 }}>
           <option value="todo">To do</option>
           <option value="doing">In progress</option>
           <option value="done">Done</option>
           <option value="blocked">Blocked</option>
         </select>
         <p className="muted" style={{ fontSize: 12 }}>
-          <strong>Blocked</strong> is not a slower <em>to do</em>. It means somebody outside this
-          list has to act first, and it is counted separately per project so those rows do not sit
-          in the queue looking like work nobody started.
+          <strong>Blocked</strong> means somebody outside this list has to act first.
         </p>
       </div>
 
@@ -132,6 +132,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           Notes
         </label>
         <textarea
+          className="whova-text-input"
           id="notes"
           name="notes"
           rows={4}
@@ -145,6 +146,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           Sort order
         </label>
         <input
+          className="whova-text-input"
           id="order"
           name="order"
           type="number"
@@ -152,7 +154,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
           style={{ maxWidth: 120 }}
         />
         <p className="muted" style={{ fontSize: 12 }}>
-          Lower sorts first within the project. There is no drag-and-drop here.
+          Lower sorts first within the project.
         </p>
       </div>
 
@@ -164,7 +166,7 @@ export function TaskForm({ existing, projects }: { existing?: TaskRow; projects:
 function SaveButton({ editing }: { editing: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="whova-btn-main" disabled={pending}>
+    <button type="submit" className="whova-btn-main primary" disabled={pending}>
       {pending ? 'Saving…' : editing ? 'Save changes' : 'Add task'}
     </button>
   );

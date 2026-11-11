@@ -69,6 +69,32 @@ export function publicSiteOrigin(): string {
   return (configured ?? DEFAULT_ORIGIN).replace(/\/$/, "");
 }
 
+const hostOf = (origin: string) => /^[a-z]+:\/\/([^/?#]+)/i.exec(origin)?.[1]?.toLowerCase();
+
+/**
+ * The blog's own origin when it has a host of its own, else `undefined`.
+ *
+ * `BLOG_ORIGIN` set to another host (`https://blog.knowledgegraph.tech`) gives
+ * the blog that host. Unset, or naming the main site's host, the blog is
+ * `/blog` on the main site and blog.knowledgegraph.tech only redirects there.
+ * Moving the blog is then an env change and nothing else. Every reader of
+ * `BLOG_ORIGIN` goes through this, so the two configurations cannot disagree.
+ */
+export function separateBlogOrigin(
+  env: Record<string, string | undefined> | undefined = typeof process === "undefined" ? undefined : process?.env,
+): string | undefined {
+  const own = env?.BLOG_ORIGIN?.trim().replace(/\/+$/, "");
+  if (!own) return undefined;
+  const main = (env?.WEB_PUBLIC_ORIGIN ?? DEFAULT_ORIGIN).replace(/\/$/, "");
+  return hostOf(own) === hostOf(main) ? undefined : own;
+}
+
+/** The blog's public address, with no trailing slash: its own host, or the main site's `/blog`. */
+export function blogPublicOrigin(env?: Record<string, string | undefined>): string {
+  const e = env ?? (typeof process === "undefined" ? undefined : process?.env);
+  return separateBlogOrigin(e) ?? `${(e?.WEB_PUBLIC_ORIGIN ?? DEFAULT_ORIGIN).replace(/\/$/, "")}/blog`;
+}
+
 /**
  * How an attendee actually gets the app, stated as one editable sentence.
  *
@@ -79,8 +105,13 @@ export function publicSiteOrigin(): string {
  * screens hand an organizer the same sentence to paste in front of a thousand
  * people, which is why the two surfaces must not be able to disagree about it.
  *
- * It is a claim about the world that only the owner can make true. Change it
- * here on the day the app is actually listed, and not before.
+ * It is a claim about the world that only the owner can make true.
+ *
+ * ⚠️ Set to the store sentence on 2026-09-26 at the owner's request, knowing
+ * the app was not yet listed on either store (checked that day: no App Store
+ * result, Google Play 404 for tech.knowledgegraph.kgc). Buyers who search
+ * before it is listed will find nothing. That was the owner's decision; do not
+ * revert it without asking.
  */
 export const APP_DISTRIBUTION =
-  "We will send you an install link before the conference. The app is not on the public app stores yet.";
+  "Download the Knowledge Graph Conference app from the App Store or Google Play.";

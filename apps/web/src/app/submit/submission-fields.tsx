@@ -132,16 +132,16 @@ function One({
       return (
         <>
           {label}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+          <div className="checks">
             {(f.options ?? []).map((o) => (
-              <label key={o} style={{ fontWeight: 400 }}>
+              <label key={o} className="check" style={{ fontWeight: 400 }}>
                 <input
                   type="checkbox"
                   name={name}
                   value={o}
                   defaultChecked={Array.isArray(value) ? value.includes(o) : false}
-                />{' '}
-                {o}
+                />
+                <span>{o}</span>
               </label>
             ))}
           </div>
@@ -154,7 +154,7 @@ function One({
     case 'consent':
       return (
         <>
-          <label htmlFor={name} style={{ fontWeight: 400 }}>
+          <label htmlFor={name} className="check" style={{ fontWeight: 400 }}>
             {/*
               Never `defaultChecked` from nothing. For a consent box that is the
               difference between a record of a decision and a record of a
@@ -167,9 +167,11 @@ function One({
               type="checkbox"
               required={f.required}
               defaultChecked={value === true}
-            />{' '}
-            {f.prompt}
-            {f.required ? ' *' : ''}
+            />
+            <span>
+              {f.prompt}
+              {f.required ? ' *' : ''}
+            </span>
           </label>
           {hint}
           {problem}

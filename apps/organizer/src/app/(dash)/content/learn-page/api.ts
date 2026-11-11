@@ -1,0 +1,38 @@
+/**
+ * The one file that names where the editor's server actions come from, so the
+ * client components import from one place.
+ */
+export {
+  loadLearnEditorAction,
+  saveLearnDraftAction,
+  publishLearnPageAction,
+  revertLearnDraftAction,
+  restoreLearnVersionAction,
+  uploadLearnImageAction,
+} from './actions';
+export type { LearnResult } from './actions';
+export { loadLearnVersionAction } from './version-actions';
+export {
+  listLearnMediaAction,
+  learnMediaUsesAction,
+  updateLearnMediaAction,
+  deleteLearnMediaAction,
+  backfillLearnMediaAction,
+  learnImageEditStartAction,
+  listLearnLibraryAction,
+  saveLearnLibraryItemAction,
+  renameLearnLibraryItemAction,
+  deleteLearnLibraryItemAction,
+} from './media-actions';
+export type { LearnLibraryRow, LearnMediaListing } from '@/lib/learn-media';
+export type { MediaRow, MediaSort } from '@/lib/learn-media-core';
+export {
+  scheduleLearnPublishAction,
+  cancelLearnScheduleAction,
+  createLearnPreviewLinkAction,
+  revokeLearnPreviewLinkAction,
+  editLearnImageAction,
+} from './ops-actions';
+export type { LearnImageEdit, LearnImageOp } from '@/lib/learn-image-edit-core';
+export type { LearnEditorState, LearnVersionSummary } from '@/lib/learn-page';
+

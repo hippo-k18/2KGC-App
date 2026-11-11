@@ -1,0 +1,18 @@
+# The KGC | Learn page's scheduled publish (T316): every minute, publish the
+# draft if its scheduled time has come. Reuses the call for papers timer's
+# secret file, so the only new thing on the droplet is this unit and its timer.
+#   cp kgc-learn-cron.service kgc-learn-cron.timer /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now kgc-learn-cron.timer
+# Needs /etc/kgc-cfp-cron.env (CRON_SECRET) and the same CRON_SECRET in
+# /opt/kgc/shared/organizer.env, both already there for kgc-cfp-cron.
+[Unit]
+Description=KGC Learn page scheduled publish
+After=network-online.target kgc-dashboard.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/kgc-cfp-cron.env
+TimeoutStartSec=2min
+# The live dashboard port, as in kgc-cfp-cron.service (`$$` is a literal `$`).
+# -o /dev/null: the JSON reply would otherwise fill the journal once a minute.
+ExecStart=/bin/sh -c 'curl -fsS -o /dev/null --max-time 60 -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:$$(cat /opt/kgc/live/organizer.port 2>/dev/null || echo 3100)/api/cron/learn-page'

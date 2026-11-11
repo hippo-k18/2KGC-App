@@ -9,7 +9,7 @@
  * sold-out check consults. This is the only thing that can put it back.
  *
  * The dashboard has a per-tier "correct the sold count" control for the
- * one-tier case (Tickets › 1.1 Create Tickets). Use this when the whole
+ * one-tier case (Tickets › 1.1 Create & Edit Tickets). Use this when the whole
  * catalogue needs auditing, or after a batch of refunds.
  *
  * ── It prints before it writes ──────────────────────────────────────────────

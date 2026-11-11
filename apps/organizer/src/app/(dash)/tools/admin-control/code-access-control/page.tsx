@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { SETTINGS_KEYS, readSettings } from '@/lib/settings';
+import { dayOfInstant } from '@/lib/time';
 import { SettingsReach } from '../../../settings-reach';
 import { PageHeader, Panel } from '../../../ui';
 import { CodeAccessForm } from '../access-form';
@@ -10,17 +11,19 @@ export const dynamic = 'force-dynamic';
 /**
  * Tools › Admin Control › Code Access Control.
  *
- * ── Why KGC does not actually need this ─────────────────────────────────────
+ * ── The app asks for the code. It is not what lets anybody in ───────────────
  *
  * Whova's event code is how an attendee proves they belong when the guest list
  * is loose. Ours is not loose: the gate is the `registered` custom claim, minted
  * only for people who hold a ticket, and `firestore.rules` reads it on every
- * request. A shared code would be *weaker* than what already runs — one string,
- * shared by a thousand people, that leaks the first time somebody photographs a
- * slide.
+ * request. A shared code is *weaker* than what already runs — one string, known
+ * to a thousand people, that leaks the first time somebody photographs a slide.
  *
- * So this screen stores the setting, explains that the real gate is elsewhere,
- * and does not pretend the code is doing security work.
+ * So the app prompts for it once, at first sign-in, and records the answer on
+ * the attendee's own profile; `firestore.rules` does not read the code and must
+ * not be made to. That split is the honest one: the prompt is a front door on a
+ * building whose locks are elsewhere, and it is worth having for the reason a
+ * front door is — it is the thing an organizer reads out from the stage.
  */
 export default async function CodeAccessControlPage() {
   await requireOrganizer();
@@ -32,11 +35,14 @@ export default async function CodeAccessControlPage() {
         title="Code Access Control"
         info={
           <>
-            <strong>The real gate is not this code</strong>
+            <strong>The event code is not what lets people in</strong>
             <p>
-              Access is decided by the <code>registered</code> custom claim, minted only for ticket
-              holders and checked by <code>firestore.rules</code> on every request. A shared code is
-              a convenience on a slide, and is not treated as security here.
+              Only ticket holders can open the app. The code is asked for once, the first time
+              somebody signs in, and it is a welcome step rather than a lock.
+            </p>
+            <p>
+              Only people who already hold a ticket can read it in the app, and nothing else
+              checks it. Treat it as something you announce, not as a password.
             </p>
           </>
         }
@@ -48,29 +54,33 @@ export default async function CodeAccessControlPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Event code</h2>
-        <CodeAccessForm eventCode={s.eventCode} codeRequired={s.codeRequired} />
+        {/*
+          No panel heading. It said "Event code" directly above a field
+          labelled "Event code", and the field label is the one that has to
+          stay: it names the input for anybody reading with a screen reader.
+        */}
+        <CodeAccessForm
+          eventCode={s.eventCode}
+          codeRequired={s.codeRequired}
+          version={s.updatedAt ? Date.parse(s.updatedAt) : 0}
+        />
         {s.updatedBy && (
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
             Last changed by {s.updatedBy}
-            {s.updatedAt ? ` on ${s.updatedAt.slice(0, 10)}` : ''}.
+            {s.updatedAt ? ` on ${dayOfInstant(s.updatedAt)}` : ''}.
           </p>
         )}
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>How somebody actually gets in</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>How an attendee gets in</h2>
         <ol className="muted" style={{ fontSize: 13, lineHeight: 1.8, paddingLeft: 18, marginBottom: 0 }}>
-          <li>They buy a ticket, which writes a registration keyed by their email address.</li>
+          <li>They buy a ticket with their email address.</li>
           <li>
             They sign in to the app with that same address and enter the <strong>claim code</strong>{' '}
-            from their confirmation, which is per-person, not shared, and is the thing this screen
-            is often confused with.
+            from their confirmation email. That code is personal. It is not the event code above.
           </li>
-          <li>
-            The <code>registered</code> claim is minted for them, and{' '}
-            <code>firestore.rules</code> starts allowing reads.
-          </li>
+          <li>Their account is given access to the app.</li>
         </ol>
         {/*
           Kept on the page rather than moved into the `info` tip, because it is
@@ -86,8 +96,8 @@ export default async function CodeAccessControlPage() {
           "Blaze" until it was corrected.
         */}
         <p className="muted" style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}>
-          ⚠️ Step 3 is a manual run of <code>scripts/set-claims.ts</code> today. Somebody has to do
-          it before a new attendee can read anything in the app.
+          ⚠️ Step 3 is done by hand today. Until someone on the team has done it, a new attendee
+          cannot read anything in the app.
         </p>
       </Panel>
 

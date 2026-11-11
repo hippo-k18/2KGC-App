@@ -1,0 +1,5 @@
+.firebase.json
+.tmp/
+.org*.log
+.fake*.log
+test-results/

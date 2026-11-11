@@ -14,7 +14,20 @@ import {
   type UserDoc,
   type WithId,
   publicSiteOrigin,
+  tierRank,
 } from '@kgc/shared';
+import { auditPlace, auditSubject, namesARecord } from './audit-subject';
+import {
+  cancelledOrTransferred,
+  countsAsAttendee,
+  emailKey,
+  mergeAttendees,
+  ticketRows,
+  type AttendeeRow,
+} from './attendees-core';
+import { recordError } from './errors';
+import { sponsorTiers } from './event';
+import { speakerContacts } from './speaker-contacts';
 import { db } from './firestore';
 
 /**
@@ -77,6 +90,18 @@ export interface SessionRow {
   skillLevel?: SessionDoc['skillLevel'];
   speakerIds: string[];
   timeZone: string;
+  /**
+   * That a stream or a recording is set up, and whether either names ticket
+   * types. Display only — the links themselves are in `sessions/{id}/watch`
+   * and are gated there, because rules filter documents and not fields.
+   *
+   * On the row so a list can draw a "live" pill without one extra read per
+   * session, which is the whole reason the flags are denormalised onto the
+   * session document in the first place.
+   */
+  streamState?: SessionDoc['streamState'];
+  hasRecording?: boolean;
+  watchRestricted?: boolean;
 }
 
 function toRow(id: string, s: SessionDoc): SessionRow {
@@ -97,6 +122,9 @@ function toRow(id: string, s: SessionDoc): SessionRow {
     skillLevel: s.skillLevel,
     speakerIds: s.speakerIds ?? [],
     timeZone: s.timeZone,
+    streamState: s.streamState,
+    hasRecording: s.hasRecording,
+    watchRestricted: s.watchRestricted,
   };
 }
 
@@ -391,6 +419,8 @@ export interface SpeakerRow {
   company?: string;
   hasBio: boolean;
   hasPhoto: boolean;
+  /** Kept off the website and the app until listed (T249). */
+  unlisted?: boolean;
   /**
    * The portrait itself, resolved by `imageSrc`, and the bio text — not just
    * whether each exists.
@@ -434,6 +464,7 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
     }),
   );
 
+  const contacts = await speakerContacts(snap.docs.map((d) => ({ id: d.id, data: d.data() as SpeakerDoc })));
   return snap.docs
     .map((d) => {
       const s = d.data() as SpeakerDoc;
@@ -444,6 +475,7 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
         title: s.title,
         company: s.company,
         hasBio: Boolean(s.bio && s.bio.trim()),
+        unlisted: s.unlisted === true,
         hasPhoto: Boolean(s.photoURL),
         photoURL: imageSrc(s.photoURL),
         bio: s.bio,
@@ -459,7 +491,8 @@ export async function listSpeakers(): Promise<SpeakerRow[]> {
           .map((id) => sessionById.get(id) ?? { id, title: id, day: '', startsAtLocal: '' })
           .sort((a, b) => a.startsAtLocal.localeCompare(b.startsAtLocal)),
         userId: s.userId,
-        contactEmail: s.contactEmail,
+        // Null once the speaker has been erased (the talk stays on the programme).
+        contactEmail: contacts.get(d.id),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -501,10 +534,13 @@ export interface SponsorRow {
   contactEmail?: string;
 }
 
-/** Whova orders tiers by value and that ordering drives three surfaces (§9.2). */
-export const TIER_ORDER: SponsorTier[] = ['platinum', 'gold', 'silver', 'bronze'];
-
+/**
+ * Whova orders tiers by value and that ordering drives three surfaces (§9.2).
+ * The order is the saved tier list from Sponsor Tiering: `sponsorTiers()` in
+ * `lib/event.ts`.
+ */
 export async function listSponsors(): Promise<SponsorRow[]> {
+  const tiers = await sponsorTiers();
   const snap = await db().collection(COLLECTIONS.sponsors).where('eventId', '==', EVENT_ID).get();
   return snap.docs
     .map((d) => {
@@ -526,7 +562,7 @@ export async function listSponsors(): Promise<SponsorRow[]> {
     })
     .sort(
       (a, b) =>
-        TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) || a.name.localeCompare(b.name),
+        tierRank(tiers, a.tier) - tierRank(tiers, b.tier) || a.name.localeCompare(b.name),
     );
 }
 
@@ -543,27 +579,7 @@ export async function getSponsor(id: string): Promise<WithId<SponsorDoc> | null>
   return { id: doc.id, ...(doc.data() as SponsorDoc) };
 }
 
-export interface AttendeeRow {
-  /** Absent until they sign in — a ticket holder who has not is still an attendee. */
-  uid?: string;
-  name: string;
-  email: string;
-  title?: string;
-  company?: string;
-  roles: string[];
-  onboarded: boolean;
-  visibleInDirectory: boolean;
-  messagingEnabled: boolean;
-  interests: string[];
-
-  /** True when a `users` profile exists — i.e. they have opened the app. */
-  signedIn: boolean;
-  /** Present for anyone holding a ticket. Absent for staff added by hand. */
-  registrationId?: string;
-  ticketType?: string;
-  /** `cancelled` after a refund. A cancelled ticket must stay visible. */
-  registrationStatus?: RegistrationDoc['status'];
-}
+export type { AttendeeRow };
 
 /**
  * Every attendee: ticket holders **and** signed-in users, merged.
@@ -596,82 +612,35 @@ export interface AttendeeRow {
  * account. Both are attendees and both appear; the `signedIn` and `ticketType`
  * columns say which is which rather than one of them being silently dropped.
  */
-const emailKey = (e: string | undefined) => (e ?? '').trim().toLowerCase();
-
 export async function listAttendees(): Promise<AttendeeRow[]> {
+  // Whole documents, not `select('email')`: the rows are built from every
+  // profile and ticket field. `adoptionCounts()` below is the one that only
+  // needs the address.
   const [userSnap, regSnap] = await Promise.all([
-    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).select('email').get(),
-    db()
-      .collection(COLLECTIONS.registrations)
-      .where('eventId', '==', EVENT_ID)
-      .select('email')
-      .get(),
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
   ]);
 
-  const rows = new Map<string, AttendeeRow>();
+  return mergeAttendees(
+    userSnap.docs.map((d) => ({ id: d.id, data: d.data() as UserDoc })),
+    regSnap.docs.map((d) => ({ id: d.id, data: d.data() as RegistrationDoc })),
+  );
+}
 
-  // Users first, so their profile fields are the richer starting point.
-  for (const d of userSnap.docs) {
-    const u = d.data() as UserDoc;
-    rows.set(emailKey(u.email) || d.id, {
-      uid: d.id,
-      /*
-       * `UserDoc.name` is typed as required and the live project holds profiles
-       * without one, which threw `Cannot read properties of undefined (reading
-       * 'localeCompare')` out of the sort below and took down every screen that
-       * lists attendees — Speed Networking, Profile Photo Frames, Gamification
-       * and the desk inbox among them. Falling back the way
-       * `listCommunityPosts` already does keeps the row addressable rather than
-       * dropping a real ticket holder off a list because a field is blank.
-       */
-      name: u.name || u.email || d.id,
-      email: u.email,
-      title: u.title,
-      company: u.company,
-      roles: u.roles ?? [],
-      onboarded: Boolean(u.onboarded),
-      visibleInDirectory: Boolean(u.visibleInDirectory),
-      messagingEnabled: Boolean(u.messagingEnabled),
-      interests: u.interests ?? [],
-      signedIn: true,
-    });
-  }
-
-  for (const d of regSnap.docs) {
-    const r = d.data() as RegistrationDoc;
-    const k = emailKey(r.email);
-    const existing = rows.get(k);
-
-    if (existing) {
-      // Attach the ticket to the profile that already exists.
-      existing.registrationId = d.id;
-      existing.ticketType = r.ticketType;
-      existing.registrationStatus = r.status;
-      continue;
-    }
-
-    /**
-     * A ticket holder with no profile yet. Everything a profile would supply is
-     * genuinely unknown rather than defaulted to something flattering —
-     * `visibleInDirectory: false` because there is no directory projection to
-     * be in, not because they opted out.
-     */
-    rows.set(k || d.id, {
-      name: r.name ?? '(no name yet)',
-      email: r.email,
-      roles: [],
-      onboarded: false,
-      visibleInDirectory: false,
-      messagingEnabled: false,
-      interests: [],
-      signedIn: false,
-      registrationId: d.id,
-      ticketType: r.ticketType,
-      registrationStatus: r.status,
-    });
-  }
-
-  return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
+/**
+ * The attendee list with one row per ticket (T262), for the list screen and
+ * the attendee and catering exports. `listAttendees()` stays one row per
+ * address for everything that mails people.
+ */
+export async function listAttendeeTickets(): Promise<AttendeeRow[]> {
+  const [userSnap, regSnap] = await Promise.all([
+    db().collection(COLLECTIONS.users).where('eventId', '==', EVENT_ID).get(),
+    db().collection(COLLECTIONS.registrations).where('eventId', '==', EVENT_ID).get(),
+  ]);
+  return ticketRows(
+    userSnap.docs.map((d) => ({ id: d.id, data: d.data() as UserDoc })),
+    regSnap.docs.map((d) => ({ id: d.id, data: d.data() as RegistrationDoc })),
+  );
 }
 
 /**
@@ -717,7 +686,10 @@ export async function listAttendees(): Promise<AttendeeRow[]> {
  * masthead that throws takes every screen with it. That store is gone.
  */
 export async function adoptionCounts(): Promise<{
+  /** Active tickets, not counting the demo login (T262): what catering and the venue read. */
   registrations: number;
+  /** Refunded, cancelled or transferred away, shown beside the total and never in it. */
+  cancelled: number;
   users: number;
   signedIn: number;
 }> {
@@ -726,25 +698,63 @@ export async function adoptionCounts(): Promise<{
     db()
       .collection(COLLECTIONS.registrations)
       .where('eventId', '==', EVENT_ID)
-      .select('email')
+      .select('email', 'status', 'demo')
       .get(),
   ]);
+  const regs = regSnap.docs.map((d) => d.data() as RegistrationDoc);
+  const active = regs.filter(countsAsAttendee);
 
   const profiles = new Set(
     userSnap.docs.map((d) => emailKey((d.data() as UserDoc).email)).filter(Boolean),
   );
 
   return {
-    registrations: regSnap.size,
+    registrations: active.length,
+    cancelled: cancelledOrTransferred(regs),
     users: userSnap.size,
-    signedIn: regSnap.docs.filter((d) => profiles.has(emailKey((d.data() as RegistrationDoc).email)))
-      .length,
+    signedIn: active.filter((r) => profiles.has(emailKey(r.email))).length,
   };
 }
 
+/**
+ * Active tickets, by the same rule as the header's Registrations (T262): not
+ * refunded, cancelled or transferred away, and not the demo login. Every
+ * screen that says how many registrations there are reads this, so no two of
+ * them disagree (T280, gate A#6).
+ */
+export async function countActiveRegistrations(): Promise<number> {
+  const snap = await db()
+    .collection(COLLECTIONS.registrations)
+    .where('eventId', '==', EVENT_ID)
+    .select('status', 'demo')
+    .get();
+  return snap.docs.filter((d) => countsAsAttendee(d.data() as RegistrationDoc)).length;
+}
+
+/**
+ * Signed-in attendees, by the header's rule: active tickets whose holder has a
+ * profile (T284). Counting `users` instead took in a cancelled ticket holder
+ * who had signed in, and organizers with no ticket, so Tools › Report read
+ * "Signed in 50 · 102% of tickets" beside 49 active registrations.
+ */
+export async function countSignedInAttendees(): Promise<number> {
+  return (await adoptionCounts()).signedIn;
+}
+
+/** The collections the shared demo login (T223) has a document in. */
+const HOLDS_DEMO: ReadonlySet<string> = new Set([COLLECTIONS.registrations, COLLECTIONS.users]);
+
+/**
+ * How many documents the event has in a collection, leaving out the shared
+ * demo login's, which carries `demo: true` on its profile and its registration.
+ * Only those two collections pay for the second count. Two equality filters
+ * need no composite index.
+ */
 export async function countWhereEvent(collection: string): Promise<number> {
-  const snap = await db().collection(collection).where('eventId', '==', EVENT_ID).count().get();
-  return snap.data().count;
+  const base = db().collection(collection).where('eventId', '==', EVENT_ID);
+  if (!HOLDS_DEMO.has(collection)) return (await base.count().get()).data().count;
+  const [all, demo] = await Promise.all([base.count().get(), base.where('demo', '==', true).count().get()]);
+  return all.data().count - demo.data().count;
 }
 
 export interface AuditRow {
@@ -752,6 +762,15 @@ export interface AuditRow {
   actor: string;
   action: string;
   targetPath: string;
+  /**
+   * What the row is about, in words: the person's name, the session's title.
+   *
+   * `targetPath` is a Firestore path and `targetId` is a hash, so the table
+   * used to say `registrations/reg_01e1621469460b03d253854f` and left the
+   * organizer to guess who that was. Never null: `audit-subject.ts` has the
+   * four places it comes from and the order they are tried in.
+   */
+  subject: string;
   at: string | null;
   changed: string[];
 }
@@ -760,21 +779,77 @@ export async function recentAudit(limit = 15): Promise<AuditRow[]> {
   // No `where(eventId)` here: ordering by `at` alongside it would need a
   // composite index this repo does not declare, and there is exactly one event.
   const snap = await db().collection(COLLECTIONS.auditLog).orderBy('at', 'desc').limit(limit).get();
-  return snap.docs.map((d) => {
+  const entries = snap.docs.map((d) => {
     const e = d.data() as {
       actor: string;
       action: string;
       targetPath: string;
       at?: { toDate(): Date };
+      subject?: string;
+      before?: Record<string, unknown>;
       after?: Record<string, unknown>;
     };
     return {
       id: d.id,
       actor: e.actor,
       action: e.action,
-      targetPath: e.targetPath,
+      targetPath: e.targetPath ?? '',
+      // The entry's own `subject` if it has one, then `after` before `before`:
+      // on a rename the new name is the one to show.
+      named: (e.subject ?? '').trim() || auditSubject(e.after, e.before) || '',
       at: e.at ? e.at.toDate().toISOString() : null,
       changed: Object.keys(e.after ?? {}),
     };
   });
+
+  const fromRecord = await namesOfChangedRecords(entries);
+
+  return entries.map((e) => ({
+    id: e.id,
+    actor: e.actor,
+    action: e.action,
+    targetPath: e.targetPath,
+    subject: e.named || fromRecord.get(e.targetPath) || auditPlace(e.targetPath),
+    at: e.at,
+    changed: e.changed,
+  }));
+}
+
+/**
+ * Reads back the records the entries without a name of their own point at.
+ *
+ * A cancel and a reinstate record `status` and nothing else, so there is no
+ * name anywhere in the entry — but the registration still exists and still
+ * knows whose it is. One `getAll` for the whole page, deduplicated, and at most
+ * fifteen rows to begin with, so this is one round trip on a screen that
+ * already makes nine.
+ *
+ * Failure is not surfaced. The names are the nicety here; the log is the point,
+ * and a report screen that will not open because one lookup timed out is worse
+ * than a row that says "A ticket holder".
+ */
+async function namesOfChangedRecords(
+  entries: { action: string; targetPath: string; named: string }[],
+): Promise<Map<string, string>> {
+  const paths = [
+    ...new Set(
+      entries
+        .filter((e) => !e.named && namesARecord(e.action, e.targetPath))
+        .map((e) => e.targetPath),
+    ),
+  ];
+  if (paths.length === 0) return new Map();
+
+  try {
+    const docs = await db().getAll(...paths.map((p) => db().doc(p)));
+    const names = new Map<string, string>();
+    for (const doc of docs) {
+      const name = doc.exists ? auditSubject(doc.data()) : null;
+      if (name) names.set(doc.ref.path, name);
+    }
+    return names;
+  } catch (err) {
+    recordError('audit subject lookup failed', err);
+    return new Map();
+  }
 }

@@ -3,7 +3,7 @@ import { EVENT } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { formatHours, sessionAttendance } from '@/lib/attendance';
 import { ROUTES } from '@/lib/nav';
-import { NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { NotInputted, PER_PAGE, PageHeader, Pagination, Panel, StatTiles, Table, Tag, listParams, paginate } from '../../../ui';
 import { RoomDoorForm } from './room-door-form';
 
 export const dynamic = 'force-dynamic';
@@ -33,8 +33,14 @@ export const dynamic = 'force-dynamic';
  * seat. That caveat travels with every hours figure in this dashboard and is
  * stated wherever one is printed.
  */
-export default async function SessionSelfCheckInPage() {
+export default async function SessionSelfCheckInPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireOrganizer();
+
+  const { page, baseParams } = listParams(await searchParams);
 
   const attendance = await sessionAttendance();
 
@@ -78,11 +84,10 @@ export default async function SessionSelfCheckInPage() {
         title="Session Self Check-in"
         info={
           <>
-            <strong>A room door is a station, not self-service</strong>
+            <strong>A room door is run by staff</strong>
             <p>
-              Attendees cannot check themselves in: the rules deny every client write under{' '}
-              <code>checkInLists</code>, so a room door records what the organizer&rsquo;s station
-              saw. It counts arrivals only. Nothing records a departure.
+              Attendees cannot check themselves in. A station at the room door scans badges and
+              counts arrivals only.
             </p>
           </>
         }
@@ -114,7 +119,7 @@ export default async function SessionSelfCheckInPage() {
           {
             label: 'Counted into a room',
             value: attendance.totalCountedIn,
-            sub: attendance.totalCountedIn ? 'arrivals, across every door' : 'not inputted yet',
+            sub: attendance.totalCountedIn ? 'arrivals, across every door' : 'none yet',
           },
           {
             label: 'Rooms never scanned',
@@ -127,9 +132,8 @@ export default async function SessionSelfCheckInPage() {
       <Panel>
         <h2 className="section-header">Open a room door</h2>
         <p className="body-2">
-          Opens the kiosk scanner pointed at one session&rsquo;s check-in list, on this device.
-          Same badge, same idempotent write, a different list, so the same person can be counted
-          at the front door and in the room, which is the point.
+          Opens the kiosk scanner for one session on this device. The same badge can be counted at
+          the front door and in the room.
         </p>
         <RoomDoorForm
           options={options}
@@ -158,8 +162,8 @@ export default async function SessionSelfCheckInPage() {
               { key: 'h', label: 'Scheduled', className: 'cell-sm' },
               { key: 'c', label: 'Counted in', className: 'cell-sm' },
             ]}
-            rows={rows.map((r) => [
-              <span key="t">
+            rows={paginate(rows, page, PER_PAGE).map((r) => [
+              <span key="t" style={{ display: 'inline-block', maxWidth: '60vw' }}>
                 <strong>{r.session.title}</strong>
                 {r.session.primaryTrackName ? (
                   <div className="muted" style={{ fontSize: 12 }}>
@@ -189,6 +193,7 @@ export default async function SessionSelfCheckInPage() {
             ])}
           />
         )}
+        <Pagination total={rows.length} page={page} perPage={PER_PAGE} baseParams={baseParams} />
       </Panel>
     </>
   );

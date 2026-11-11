@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
+import { isSitePath } from '@kgc/shared';
 import {
   ATTRIBUTION_COOKIE,
   ATTRIBUTION_MAX_AGE,
@@ -62,5 +63,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ code: stri
    * choice, and it is the conventional one — the touch closest to the purchase
    * is the one a referral contest is trying to reward.
    */
-  redirect(link.destination);
+  // Re-checked here as well as on save (T263): a protocol-relative `//x` or
+  // `/\x` (browsers read the backslash as a slash) would leave the site.
+  const d = String(link.destination ?? '');
+  redirect(isSitePath(d) ? d : '/');
 }

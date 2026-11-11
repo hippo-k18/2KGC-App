@@ -18,27 +18,25 @@
  * the Admin SDK from a laptop; the app is unchanged and still only ever calls
  * `signInWithEmailAndPassword`.
  *
- * ⚠️ **This is a shared password on a live project.** `kgc2027` is seven
- * characters and is written down in DEMO-SCRIPT.md. The account it opens is a
- * plain attendee — `roles: ['attendee']`, no organizer claim — so the blast
- * radius is one delegate's view of the event, not the dashboard. Delete it
- * before the event runs on real attendees:
+ * ⚠️ **This is a shared password on a live project**, handed out with the
+ * Expo Go QR code and used by App Store review. The current one is recorded in
+ * `orchestrator/reports/T223.md` and nowhere in this repo. The script takes it
+ * from the environment and has no default, because the old default was public
+ * and re-running the script to "fix" the login would have reset the account
+ * to it (T259 #9).
+ *
+ * The account is kept read-only and out of sight however often this runs: the
+ * `demo: true` claim that `firestore.rules` reads as "writes nothing anybody
+ * else can see", hidden from the directory, messaging off. Delete it before the
+ * event runs on real attendees:
  *
  *     …  npx tsx scripts/ops/create-demo-account.ts --delete --confirm-live
- *
- * ── Same address as the dashboard, different credential ─────────────────────
- *
- * `demo@knowledgegraph.tech` + `kgc2027` also signs into the **organizer
- * dashboard**, which has no Firebase Auth account at all — it is an allowlisted
- * address and a passphrase checked in `apps/organizer/src/lib/auth.ts`. The
- * address is shared deliberately, because one address is easier to recall than
- * two; the credentials are not. Changing the dashboard passphrase does not
- * change this password, and `--delete` here does not close the dashboard.
  *
  * ── What it writes ──────────────────────────────────────────────────────────
  *
  *   auth user          the credential itself, plus the `registered` claim that
- *                      `firestore.rules` gates every read on
+ *                      `firestore.rules` gates every read on and the `demo`
+ *                      claim that keeps it read-only
  *   users/{uid}        the profile, with `mustChangePassword: false` — the seed
  *                      default of `true` would bounce every sign-in straight to
  *                      /change-password, which is precisely what a demo cannot
@@ -46,19 +44,21 @@
  *   registrations/…    via `ensureRegistration`, so the Badge tab has a QR to
  *                      show; the badge reads `registrations` by email, not the
  *                      profile
- *   directory/{uid}    so the account is visible under People like any other
- *                      delegate who opted in
+ *   directory/{uid}    removed if present: the demo login is not listed
+ *                      under People
  *
- * Idempotent. Re-running resets the password and leaves `qrSecret` and
- * `claimCode` alone, so a badge already screenshotted keeps working.
+ * Idempotent. Re-running sets the password to DEMO_ACCOUNT_PASSWORD and leaves
+ * `qrSecret` and `claimCode` alone, so a badge already screenshotted keeps
+ * working.
  *
- *   GOOGLE_APPLICATION_CREDENTIALS=$PWD/.secrets/service-account.json \
+ *   DEMO_ACCOUNT_PASSWORD='…' GOOGLE_APPLICATION_CREDENTIALS=$PWD/.secrets/service-account.json \
  *     npx tsx scripts/ops/create-demo-account.ts --confirm-live
  *
- *   FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 \
+ *   DEMO_ACCOUNT_PASSWORD='…' FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 \
  *     npx tsx scripts/ops/create-demo-account.ts
  *
- * Flags: --email …  --password …  --name …  --ticket …  --delete
+ * Flags: --email …  --name …  --ticket …  --delete. No --password: a password
+ * on the command line ends up in shell history.
  */
 import { COLLECTIONS, EVENT_ID } from '@kgc/shared';
 import { getAuth } from 'firebase-admin/auth';
@@ -74,10 +74,12 @@ const DEFAULTS = {
   // one is already in muscle memory from `apps/organizer`. The two are still
   // unrelated credentials — see the docblock above.
   email: 'demo@knowledgegraph.tech',
-  password: 'kgc2027',
   name: 'Demo Attendee',
   ticket: 'All Access (VIP)',
 };
+
+/** The public QR code hands this password to strangers, so no short ones. */
+const MIN_PASSWORD = 12;
 
 /** `--email x` or `--email=x`; falls back to the default above. */
 function arg(flag: keyof typeof DEFAULTS): string {
@@ -113,7 +115,7 @@ async function main() {
   }
 
   const email = normaliseEmail(arg('email'));
-  const password = arg('password');
+  const password = process.env.DEMO_ACCOUNT_PASSWORD ?? '';
   const name = arg('name');
   const ticket = arg('ticket');
 
@@ -132,10 +134,13 @@ async function main() {
     return;
   }
 
-  if (password.length < 6) {
-    // Firebase's own floor. Caught here so the failure names the password
-    // rather than arriving as an opaque auth/weak-password four writes later.
-    console.error('Firebase requires at least 6 characters. Nothing was written.');
+  if (password.length < MIN_PASSWORD) {
+    // Anybody holding the Expo Go QR code has this password, so it has to be
+    // one nobody can guess. Caught before any write.
+    console.error(
+      `Set DEMO_ACCOUNT_PASSWORD to the demo password (at least ${MIN_PASSWORD} characters). ` +
+        'The current one is in orchestrator/reports/T223.md. Nothing was written.',
+    );
     process.exit(1);
   }
 
@@ -145,6 +150,11 @@ async function main() {
   // so this account's registration is shaped like a bought one rather than like
   // something a script invented.
   const registration = await ensureRegistration(store, { email, name, ticketType: ticket });
+  // Marked so the dashboard lists it but does not count it (T223).
+  await store
+    .collection(COLLECTIONS.registrations)
+    .doc(registration.registrationId)
+    .set({ demo: true, channel: 'manual', reason: 'Demo account for app previews' }, { merge: true });
   console.log(`  registration ${registration.registrationId} (${registration.created ? 'created' : 'updated'})`);
 
   const existing = await auth.getUserByEmail(email).catch((err: { code?: string }) => {
@@ -165,12 +175,17 @@ async function main() {
   // `registered` is the gate every rule in firestore.rules reads. Without it the
   // account signs in and then sees permission-denied on its own profile, which
   // renders as an empty app rather than as an error anyone can act on.
+  //
+  // `demo: true` is what keeps it read-only (`isDemo()` in firestore.rules).
+  // Setting claims replaces them all, so leaving it out here would quietly
+  // turn the shared login into an ordinary attendee who can post and message.
   await auth.setCustomUserClaims(uid, {
     registered: true,
     roles: ['attendee'],
     eventId: EVENT_ID,
+    demo: true,
   });
-  console.log('  claims registered=true roles=[attendee]');
+  console.log('  claims registered=true roles=[attendee] demo=true');
 
   // A plain Date, never FieldValue.serverTimestamp() — AGENTS.md gotcha 8: three
   // copies of firebase-admin exist in this tree and a sentinel built by the
@@ -189,8 +204,9 @@ async function main() {
         interests: [],
         bio: '',
         onboarded: true,
-        visibleInDirectory: true,
-        messagingEnabled: true,
+        // Hidden and unreachable: strangers hold this login (T223, T224).
+        visibleInDirectory: false,
+        messagingEnabled: false,
         notificationPrefs: { announcements: true, messages: true, sessionReminders: true },
         roles: ['attendee'],
         // Both false on purpose. The code flow sets them true because an account
@@ -208,22 +224,10 @@ async function main() {
     );
   console.log(`  users/${uid}`);
 
-  // The directory is a projection, normally written by the mirrorDirectory
-  // trigger (functions/SPEC.md #6) which is not deployed. The seed dual-writes
-  // it for the same reason; so does this.
-  await store.collection(COLLECTIONS.directory).doc(uid).set(
-    {
-      eventId: EVENT_ID,
-      uid,
-      name,
-      title: 'Head of Data',
-      company: 'Knowledge Graph Conference',
-      interests: [],
-      updatedAt: now,
-    },
-    { merge: true },
-  );
-  console.log(`  directory/${uid}`);
+  // Not listed under People. A directory entry left by an older run of this
+  // script is removed.
+  await store.collection(COLLECTIONS.directory).doc(uid).delete();
+  console.log(`  directory/${uid} (removed if present)`);
 
   // Ties the badge to the account, the way a first sign-in through the code flow
   // would. Nothing reads it yet on the client; it is what makes a hand-made
@@ -233,7 +237,7 @@ async function main() {
     .doc(registration.registrationId)
     .set({ claimedByUid: uid, updatedAt: now }, { merge: true });
 
-  console.log(`\n  Sign in at the app with:  ${email} / ${password}`);
+  console.log(`\n  Sign in at the app with ${email} and the password from DEMO_ACCOUNT_PASSWORD.`);
   console.log('  Claims land in the token at sign-in, so sign out and back in if this');
   console.log('  account was already signed in on a device.');
 }

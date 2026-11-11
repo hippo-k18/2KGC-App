@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { attendeeCategories } from '@/lib/attendee-categories';
+import { UNCATEGORISED } from '@/lib/attendee-categories-core';
 import { requireOrganizer } from '@/lib/auth';
 import { formatHours, sessionAttendance } from '@/lib/attendance';
 import { EXPORTS, eventAnalytics } from '@/lib/exports';
@@ -27,9 +29,24 @@ export const dynamic = 'force-dynamic';
  * so nobody sends the full attendee export — with every email address on it —
  * to a company that asked for a headcount.
  */
-export default async function AnalyticsAndExportsPage() {
+export default async function AnalyticsAndExportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireOrganizer();
-  const [a, attendance] = await Promise.all([eventAnalytics(), sessionAttendance()]);
+  const sp = await searchParams;
+  const category = typeof sp.category === 'string' ? sp.category : '';
+  const [a, attendance, { categories }] = await Promise.all([
+    eventAnalytics(),
+    sessionAttendance(),
+    attendeeCategories(),
+  ]);
+  // Only the two attendee files have a category to filter on.
+  const exportHref = (kind: string) =>
+    category && (kind === 'attendees' || kind === 'catering')
+      ? `/export/${kind}?category=${encodeURIComponent(category)}`
+      : `/export/${kind}`;
 
   // Sessions somebody actually counted, busiest first. Untracked rooms are a
   // separate figure rather than a run of zeroes at the bottom of the table:
@@ -82,9 +99,7 @@ export default async function AnalyticsAndExportsPage() {
         <ProgressBar pct={a.adoptionPct} />
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
           {a.ticketHolders - a.ticketHoldersSignedIn} ticket holders have not opened the app yet.
-          This is the
-          number worth moving before doors open. An attendee without the app has no agenda, no
-          badge QR, and has to be checked in by hand at the desk.
+          Without the app they have no badge code and are checked in by name.
         </p>
 
         <Table
@@ -93,6 +108,7 @@ export default async function AnalyticsAndExportsPage() {
             { key: 'n', label: 'People', className: 'cell-sm' },
           ]}
           rows={a.bySignup.map((r) => [r.label, r.count])}
+          stackSm={false}
         />
       </Panel>
 
@@ -108,6 +124,7 @@ export default async function AnalyticsAndExportsPage() {
               ]}
               rows={a.byTicket.map((r) => [r.label, r.count])}
               empty="No tickets issued yet."
+              stackSm={false}
             />
           </div>
           <div style={{ flex: '1 1 300px', minWidth: 0 }}>
@@ -119,6 +136,7 @@ export default async function AnalyticsAndExportsPage() {
               ]}
               rows={a.byCompanyTop.map((r) => [r.label, r.count])}
               empty="Nobody has filled in a company yet."
+              stackSm={false}
             />
           </div>
         </div>
@@ -128,18 +146,15 @@ export default async function AnalyticsAndExportsPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Session attendance</h2>
         <p className="body-2" style={{ marginTop: 0 }}>
           Counted at the door of each session. {attendance.tracked} of {attendance.live} sessions
-          in the programme have had a door opened for them.{' '}
+          have had check-in opened.{' '}
           {attendance.tracked === 0 ? (
             <>
-              None yet. Open one from{' '}
-              <Link href={ROUTES.checkIn}>Check-in</Link>. The Session card&apos;s Start button
-              creates the list and points the scanner at it.
+              Open one from <Link href={ROUTES.checkIn}>Check-in</Link> with Start under Check-in
+              for the session.
             </>
           ) : (
             <>
-              A session with no door is left out of the table below rather than shown as zero: the
-              two are the same number and opposite facts, and a programme committee cutting a track
-              on the strength of a zero it never measured is the mistake worth designing against.
+              Sessions with no door opened are left out of the table.
             </>
           )}
         </p>
@@ -179,43 +194,66 @@ export default async function AnalyticsAndExportsPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Exports</h2>
 
         <Banner kind="warning">
-          <strong>These files contain personal data and leave the building.</strong> Each one names
-          what it contains below. Send the narrowest that answers the question. Badge secrets and
-          claim codes are in <em>no</em> export: either one is a working credential, and a
-          spreadsheet forwarded to a supplier would become a set of usable tickets.
+          <strong>These files contain personal data.</strong> Share the smallest one that does the
+          job. No export includes badge codes.
         </Banner>
 
-        <Table
-          cols={[
-            { key: 'n', label: 'Export', className: 'cell-md' },
-            { key: 'p', label: 'What it is for', className: 'cell-fill' },
-            { key: 'c', label: 'Columns', className: 'cell-fill' },
-            { key: 'd', label: '', className: 'cell-sm' },
-          ]}
-          rows={EXPORTS.map((e) => [
-            <strong key="n">{e.title}</strong>,
-            <span key="p" style={{ fontSize: 13 }}>
-              {e.purpose}
-            </span>,
-            <span key="c" className="muted" style={{ fontSize: 12 }}>
-              {e.contains}
-            </span>,
-            /*
-              A plain link, not a form. A CSV download is a GET that changes
-              nothing, and `download` plus a real Content-Disposition is what
-              makes the browser save it rather than render it.
-            */
-            <a key="d" href={`/export/${e.kind}`} className="whova-btn-main" download>
-              Download
-            </a>,
-          ])}
-        />
+        <form id="exports" method="get" action="#exports" className="toolbar" style={{ alignItems: 'center', marginTop: 12 }}>
+          <label htmlFor="export-category" className="body-2">
+            Attendee files include
+          </label>
+          <select
+            id="export-category"
+            name="category"
+            className="whova-text-input"
+            defaultValue={category}
+            style={{ width: 200 }}
+          >
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value={UNCATEGORISED}>No category</option>
+          </select>
+          <button type="submit" className="btn btn-default">
+            Apply
+          </button>
+        </form>
+
+        {/* On a phone each export is a card, so what it is for stays beside the button. */}
+        <div className="exports-table">
+          <Table
+            stackSm
+            cols={[
+              { key: 'n', label: 'Export', className: 'cell-md' },
+              { key: 'p', label: 'What it is for', className: 'cell-fill' },
+              { key: 'c', label: 'Columns', className: 'cell-fill' },
+              { key: 'd', label: '', className: 'cell-sm' },
+            ]}
+            rows={EXPORTS.map((e) => [
+              <strong key="n">{e.title}</strong>,
+              <span key="p" style={{ fontSize: 13 }}>
+                {e.purpose}
+              </span>,
+              <span key="c" className="muted" style={{ fontSize: 12 }}>
+                {e.contains}
+              </span>,
+              /*
+                A plain link, not a form. A CSV download is a GET that changes
+                nothing, and `download` plus a real Content-Disposition is what
+                makes the browser save it rather than render it.
+              */
+              <a key="d" href={exportHref(e.kind)} className="whova-btn-main secondary small" download>
+                Download
+              </a>,
+            ])}
+          />
+        </div>
 
         <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-          Every field is escaped against spreadsheet formula injection. A cell beginning{' '}
-          <code>=</code> is neutralised, because an attendee can type one into a registration form
-          and Excel would otherwise run it. Files are UTF-8 with a byte-order mark so accented
-          names survive Excel on Windows.
+          Files are UTF-8 CSV and open in Excel and Google Sheets.
         </p>
       </Panel>
 

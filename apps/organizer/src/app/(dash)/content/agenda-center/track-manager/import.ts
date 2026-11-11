@@ -120,7 +120,7 @@ export async function commitTrackImport(input: {
     const docId = deriveTrackId(name);
 
     if (!docId) {
-      failed.push({ line, name, message: 'That name produces an empty id.' });
+      failed.push({ line, name, message: 'That name has no letters or numbers.' });
       continue;
     }
     if (seenInFile.has(docId)) {

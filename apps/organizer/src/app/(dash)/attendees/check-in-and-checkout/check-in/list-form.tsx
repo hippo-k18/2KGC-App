@@ -43,18 +43,17 @@ export function CreateListForm() {
             <label htmlFor="list-kind">Kind</label>
           </div>
           <select id="list-kind" name="kind" className="whova-text-input" defaultValue="event">
-            <option value="event">event. The door</option>
-            <option value="session">session</option>
-            <option value="workshop">workshop</option>
-            <option value="meal">meal</option>
+            <option value="event">Event door</option>
+            <option value="session">Session</option>
+            <option value="workshop">Workshop</option>
+            <option value="meal">Meal</option>
           </select>
         </div>
       </div>
 
       <p className="whova-form-description">
-        For a session, use <strong>Start</strong> on the session card at the top instead. That
-        derives the list id from the session, so the attendance report can join the two and two
-        organizers pressing it cannot open two doors into the same room.
+        For a session, use <strong>Start</strong> on the session card at the top instead, so the
+        count shows in the attendance report.
       </p>
 
       {state.error ? <p className="whova-form-error-message">{state.error}</p> : null}

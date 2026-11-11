@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { emailEnabled } from '@kgc/scripts/src/lib/email';
 import { requirePassphrase, requireOrganizer } from '@/lib/auth';
+import { db } from '@/lib/firestore';
 import { AUDIENCES, listCampaigns, resolveAudience, type AudienceId } from '@/lib/messaging';
-import { Banner, NotInputted, PageHeader, Panel, Table, Tabs, Tag } from '../ui';
+import { recentSendJobs } from '@/lib/send-jobs';
+import { Banner, Email, NotInputted, PageHeader, Panel, Table, Tabs, Tag } from '../ui';
 import { MessageForm } from './message-form';
 
 /**
@@ -31,9 +33,10 @@ export async function MessageScreen({
   const { segment: raw } = await searchParams;
 
   const segment = audience.segments.some((s) => s.id === raw) ? raw! : 'all';
-  const [{ recipients, withoutEmail }, campaigns] = await Promise.all([
+  const [{ recipients, withoutEmail }, campaigns, jobs] = await Promise.all([
     resolveAudience(audienceId, segment),
     listCampaigns(10),
+    recentSendJobs(db(), 'message', 1, audienceId).catch(() => []),
   ]);
 
   const active = audience.segments.find((s) => s.id === segment)!;
@@ -110,6 +113,7 @@ export async function MessageScreen({
           withoutEmail={withoutEmail}
           needsPassphrase={requirePassphrase()}
           emailReady={emailEnabled()}
+          lastJob={jobs[0] ?? null}
         />
       </Panel>
 
@@ -126,7 +130,7 @@ export async function MessageScreen({
           rows={recipients.map((r) => [
             r.name,
             <span key="e" style={{ fontSize: 13 }}>
-              {r.email}
+              <Email address={r.email} />
             </span>,
             <span key="d" className="muted" style={{ fontSize: 12 }}>
               {r.detail ?? ''}
@@ -139,7 +143,7 @@ export async function MessageScreen({
             <strong>{withoutEmail}</strong> {withoutEmail === 1 ? 'record has' : 'records have'} no
             email address and are not in the list above.
             {audienceId === 'speakers' &&
-              ' A speaker only has one once they hold a ticket. Contact details live on the user record, not the speaker record.'}
+              ' A speaker only has one once they hold a ticket.'}
             {audienceId === 'sponsors' && ' Add a main contact in Sponsor Manager.'}
           </p>
         )}
@@ -164,7 +168,7 @@ export async function MessageScreen({
               {c.subject}
             </span>,
             <span key="b" className="muted" style={{ fontSize: 12 }}>
-              {c.actor ?? '—'}
+              {c.actor ? <Email address={c.actor} /> : '—'}
             </span>,
             <span key="r" style={{ fontSize: 12 }}>
               {c.sent > 0 && (

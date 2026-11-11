@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listSessions, type SessionRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { clockOf } from '@/lib/time';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../ui';
+import { clockOf, dayLabel } from '@/lib/time';
+import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tabs, Tag } from '../../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,8 +42,13 @@ function minutesOf(wall: string): number {
   return h * 60 + m;
 }
 
-export default async function RehearsalSessionsPage() {
+export default async function RehearsalSessionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireOrganizer();
+  const sp = await searchParams;
   const sessions = await listSessions();
 
   /**
@@ -89,18 +94,21 @@ export default async function RehearsalSessionsPage() {
   const blocked = rows.filter((r) => r.blockedBy);
   const speakers = new Set(needsCheck.flatMap((s) => s.speakerNames));
 
+  const days = [...new Set(rows.map((r) => r.session.day))].sort();
+  const day = typeof sp.day === 'string' && days.includes(sp.day) ? sp.day : 'all';
+  const shown = day === 'all' ? rows : rows.filter((r) => r.session.day === day);
+
   return (
     <>
       <PageHeader
         title="Rehearsal Sessions"
         info={
           <>
-            <strong>The in-person version</strong>
+            <strong>AV check schedule</strong>
             <p>
-              There is no virtual stage to book a slot on, so this is the AV check in the real room:
-              the {AV_WINDOW_MINUTES} minutes before each talk, and whether the previous session is
-              still in there. Nothing here records that a check happened. Projects &amp; Checklists
-              does that.
+              Each talk gets the {AV_WINDOW_MINUTES} minutes before it starts for an AV check in its
+              room. A talk is flagged when the room is still busy then. To record that a check
+              happened, use a task in Projects &amp; Checklists.
             </p>
           </>
         }
@@ -112,7 +120,7 @@ export default async function RehearsalSessionsPage() {
           ) : undefined
         }
         actions={
-          <Link href={ROUTES.messageSpeakers} className="whova-btn-main">
+          <Link href={ROUTES.messageSpeakers} className="whova-btn-main secondary">
             Message Speakers
           </Link>
         }
@@ -129,7 +137,7 @@ export default async function RehearsalSessionsPage() {
       <StatTiles
         tiles={[
           { label: 'Talks needing a check', value: rows.length, sub: 'has a room and a speaker' },
-          { label: 'Speakers', value: speakers.size, sub: 'people to get into a room' },
+          { label: 'Speakers', value: speakers.size, sub: 'across these talks' },
           {
             label: 'No window',
             value: blocked.length,
@@ -141,11 +149,19 @@ export default async function RehearsalSessionsPage() {
 
       <Panel>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>AV check schedule</h2>
+        {days.length > 1 && (
+          <Tabs
+            tabs={[
+              { label: `All days (${rows.length})`, href: '?', active: day === 'all' },
+              ...days.map((d) => ({ label: dayLabel(d), href: `?day=${d}`, active: day === d })),
+            ]}
+          />
+        )}
         {rows.length === 0 ? (
           <NotInputted
             what="sessions with a room and a speaker"
             action={
-              <Link href={ROUTES.sessionManager} className="whova-btn-main">
+              <Link href={ROUTES.sessionManager} className="whova-btn-main primary">
                 Open Session Manager
               </Link>
             }
@@ -153,23 +169,30 @@ export default async function RehearsalSessionsPage() {
         ) : (
           <Table
             cols={[
-              { key: 'd', label: 'Day', className: 'cell-sm' },
+              // The day tab already says which day, so the column only shows on All days.
+              ...(day === 'all' ? [{ key: 'd', label: 'Day', className: 'cell-sm' }] : []),
               { key: 'w', label: 'Check at', className: 'cell-sm' },
-              { key: 'r', label: 'Room', className: 'cell-mdsm' },
               { key: 't', label: 'Talk', className: 'cell-fill' },
+              { key: 'r', label: 'Room', className: 'cell-mdsm' },
               { key: 'p', label: 'Speaker', className: 'cell-md' },
             ]}
-            rows={rows.map((r) => {
+            rows={shown.map((r) => {
               const opens = minutesOf(r.session.startsAtLocal) - AV_WINDOW_MINUTES;
               const at = `${String(Math.floor(opens / 60)).padStart(2, '0')}:${String(opens % 60).padStart(2, '0')}`;
               return [
-                r.session.day,
+                ...(day === 'all'
+                  ? [
+                      <span key="d" style={{ whiteSpace: 'nowrap' }}>
+                        {dayLabel(r.session.day)}
+                      </span>,
+                    ]
+                  : []),
                 r.blockedBy ? (
-                  <span key="w" style={{ whiteSpace: 'nowrap' }}>
+                  <span key="w">
                     <Tag color="orange" small>
                       busy
                     </Tag>{' '}
-                    <span className="muted">
+                    <span className="muted" style={{ whiteSpace: 'nowrap' }}>
                       until {clockOf(r.blockedBy.endsAtLocal)}
                     </span>
                   </span>
@@ -178,11 +201,11 @@ export default async function RehearsalSessionsPage() {
                     {at}
                   </strong>
                 ),
-                r.session.roomName,
-                <span key="t">
+                <span key="t" style={{ display: 'inline-block', maxWidth: '42vw' }}>
                   <Link href={`${ROUTES.sessionManager}/${r.session.id}`}>{r.session.title}</Link>{' '}
                   <span className="muted">{clockOf(r.session.startsAtLocal)}</span>
                 </span>,
+                r.session.roomName,
                 r.session.speakerNames.join(', '),
               ];
             })}
@@ -192,12 +215,11 @@ export default async function RehearsalSessionsPage() {
 
       {blocked.length > 0 && (
         <Panel style={{ marginTop: 16 }}>
-          <h2 style={{ fontSize: 15, marginTop: 0 }}>The ones with nowhere to rehearse</h2>
+          <h2 style={{ fontSize: 15, marginTop: 0 }}>No free slot</h2>
           <p className="body-2">
-            Another session is still running in the room when the {AV_WINDOW_MINUTES}-minute window
-            opens, so these speakers cannot check their slides beforehand on the day. The usual fix
-            is the evening before, or the first free slot in the same room.{' '}
-            <Link href={ROUTES.conflictCheck}>Conflict Check</Link> shows what else is in it.
+            The room is still in use {AV_WINDOW_MINUTES} minutes before these talks. Check them the
+            evening before, or in the first free slot in the same room.{' '}
+            <Link href={ROUTES.conflictCheck}>Conflict Check</Link> shows what else is in the room.
           </p>
           <Table
             cols={[
@@ -205,10 +227,14 @@ export default async function RehearsalSessionsPage() {
               { key: 'b', label: 'Room is busy with', className: 'cell-fill' },
             ]}
             rows={blocked.map((r) => [
-              <span key="t">
-                {r.session.day} {clockOf(r.session.startsAtLocal)} · {r.session.title}
+              <span key="t" style={{ display: 'inline-block', maxWidth: '64vw' }}>
+                {dayLabel(r.session.day)} {clockOf(r.session.startsAtLocal)} · {r.session.title}
               </span>,
-              <Link key="b" href={`${ROUTES.sessionManager}/${r.blockedBy!.id}`}>
+              <Link
+                key="b"
+                href={`${ROUTES.sessionManager}/${r.blockedBy!.id}`}
+                style={{ display: 'inline-block', maxWidth: '64vw' }}
+              >
                 {r.blockedBy!.title}
               </Link>,
             ])}

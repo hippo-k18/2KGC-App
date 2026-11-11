@@ -26,6 +26,7 @@ import {
   qaDefaultsFor,
   speakerIndexDelta,
   speakerNamesFor,
+  outsideEventDays,
 } from '../../apps/organizer/src/app/(dash)/content/agenda-center/session-manager/session-core';
 import type { Conflict } from '../../apps/organizer/src/lib/conflicts-core';
 
@@ -254,5 +255,19 @@ describe('conflictsForSession', () => {
 
   it('is empty for a session in no conflict at all', () => {
     expect(conflictsForSession([clash(['s1', 's2'], 'first')], 's9')).toEqual([]);
+  });
+});
+
+describe('sessions stay inside the event days (T262)', () => {
+  const days = { startDate: '2027-05-03', endDate: '2027-05-07' };
+  it('accepts 3 to 7 May and refuses either side', () => {
+    expect(outsideEventDays('2027-05-03T09:00', '2027-05-03T10:00', days)).toBeNull();
+    expect(outsideEventDays('2027-05-07T16:00', '2027-05-07T17:00', days)).toBeNull();
+    expect(outsideEventDays('2027-05-02T09:00', '2027-05-02T10:00', days)).toMatch(/2027-05-03 and 2027-05-07/);
+    expect(outsideEventDays('2027-05-07T23:00', '2027-05-08T01:00', days)).not.toBeNull();
+    expect(outsideEventDays('2026-05-05T09:00', '2026-05-05T10:00', days)).not.toBeNull();
+  });
+  it('checks nothing while the event has no dates', () => {
+    expect(outsideEventDays('2030-01-01T09:00', '2030-01-01T10:00', undefined)).toBeNull();
   });
 });

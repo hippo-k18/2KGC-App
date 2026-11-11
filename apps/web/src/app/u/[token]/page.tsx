@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, noarchive: true },
 };
 
+/** Per-request, and it has to be. Reads a capability token identifying one address on the mailing list. */
 export const dynamic = 'force-dynamic';
 
 /**
@@ -59,10 +60,10 @@ export default async function UnsubscribePage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ done?: string }>;
+  searchParams: Promise<{ done?: string; error?: string }>;
 }) {
   const { token } = await params;
-  const { done } = await searchParams;
+  const { done, error } = await searchParams;
 
   const payload = readUnsubscribeToken(decodeURIComponent(token));
   if (!payload) notFound();
@@ -84,6 +85,14 @@ export default async function UnsubscribePage({
     <section>
       <div className="wrap narrow">
         <p className="eyebrow">Email preferences</p>
+
+        {state === 'on' && error === '1' && (
+          <p className="notice bad" role="alert">
+            Your unsubscribe could not be saved, so you are still on the list. Try again in a
+            minute, or email{' '}
+            <a href={`mailto:${SITE.contactEmail}?subject=Unsubscribe`}>{SITE.contactEmail}</a>.
+          </p>
+        )}
 
         {state === 'on' && (
           <>
@@ -117,9 +126,6 @@ export default async function UnsubscribePage({
               </button>
             </form>
 
-            <p className="muted" style={{ marginTop: 20 }}>
-              Nothing has changed yet. This takes effect when you press the button.
-            </p>
           </>
         )}
 
@@ -143,10 +149,9 @@ export default async function UnsubscribePage({
               speaking at) is not marketing and still reaches you.
             </p>
             <p className="muted">
-              Changed your mind? We deliberately have no one-click way back on, because a link that
-              could re-subscribe you is a link somebody else could use to do it. Email{' '}
+              Changed your mind? Email{' '}
               <a href={`mailto:${SITE.contactEmail}?subject=Re-subscribe`}>{SITE.contactEmail}</a>{' '}
-              and we will add you back by hand.
+              and we will add you back.
             </p>
           </>
         )}

@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { SITE } from '@/lib/site';
+import { siteEvent, ticketSalesOpen } from '@/lib/data';
+import { YOUTUBE_CHANNEL } from '@/lib/site';
 
 export const metadata: Metadata = {
-  title: 'About KGC',
+  title: 'About the Knowledge Graph Conference',
   description:
     'How the Knowledge Graph Conference started at Columbia University in 2019, what it connects, and what it is for.',
 };
@@ -26,24 +27,30 @@ export const metadata: Metadata = {
  * The copy is the live site's own, with two typos it carries left corrected
  * ("and and", "suchs as") and the year re-pointed at this event.
  */
-export default function AboutPage() {
+/** Re-read every 30 seconds, so the ticket-sales switch reaches this page. */
+export const revalidate = 30;
+
+export default async function AboutPage() {
+  const [ev, salesOpen] = await Promise.all([siteEvent(), ticketSalesOpen()]);
   return (
     <>
       <section className="about-hero">
         <div className="wrap-kgc">
-          <h1>{SITE.name}</h1>
+          <h1>{ev.name}</h1>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
             <a
               className="btn btn-accent btn-kgc"
-              href="https://www.youtube.com/@knowledgegraphconference"
+              href={YOUTUBE_CHANNEL}
               target="_blank"
               rel="noreferrer"
             >
               KGC YouTube Channel
             </a>
-            <Link className="btn btn-accent btn-kgc" href="/tickets">
-              Register for KGC {SITE.year}
-            </Link>
+            {salesOpen && (
+              <Link className="btn btn-accent btn-kgc" href="/tickets">
+                Register for KGC {ev.year}
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -169,9 +176,11 @@ export default function AboutPage() {
             the awareness and use of knowledge technologies as a force for social good, through its
             ability to democratize access to knowledge and opportunity.
           </p>
-          <Link className="btn btn-accent btn-kgc" href="/tickets">
-            Register for KGC {SITE.year}
-          </Link>
+          {salesOpen && (
+            <Link className="btn btn-accent btn-kgc" href="/tickets">
+              Register for KGC {ev.year}
+            </Link>
+          )}
         </div>
       </section>
     </>

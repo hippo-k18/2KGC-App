@@ -85,7 +85,7 @@ export default async function TrackManagerPage({
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add track
             </Link>
           )
@@ -110,24 +110,23 @@ export default async function TrackManagerPage({
       ) : (
         <Panel>
           <p className="body-2" style={{ marginTop: 0 }}>
-            {all.length} tracks. Sessions can be cross-listed into several, so the counts below
-            add up to more than the number of sessions, and only the primary track, the first one
-            on the session, is the one an attendee sees on the agenda card.
+            {all.length} tracks. A session can be in several tracks, so the counts below add up to
+            more than the number of sessions. Attendees see only the first track on the agenda
+            card.
           </p>
 
           {orphans.length > 0 ? (
             <Banner kind="warning">
               {orphans.length} track{orphans.length === 1 ? ' has' : 's have'} no sessions:{' '}
-              {orphans.map((t) => t.name).join(', ')}. A track with nothing in it still renders as an
-              empty filter chip in the attendee app.
+              {orphans.map((t) => t.name).join(', ')}. An empty track still shows as a filter in the
+              attendee app.
             </Banner>
           ) : null}
 
           {colourless.length > 0 ? (
             <Banner kind="info">
               {colourless.length} track{colourless.length === 1 ? ' has' : 's have'} no colour, so
-              their agenda cards fall back to the app&rsquo;s default stripe and stop being
-              distinguishable at a glance. Set one below.
+              their agenda cards use the default colour. Set one below.
             </Banner>
           ) : null}
 
@@ -135,7 +134,7 @@ export default async function TrackManagerPage({
             <NotInputted
               what="tracks"
               action={
-                <Link className="whova-btn-main" href="?new=1">
+                <Link className="whova-btn-main secondary" href="?new=1">
                   Add the first one
                 </Link>
               }
@@ -145,8 +144,7 @@ export default async function TrackManagerPage({
           <Table
             cols={[
               { key: 'c', label: '', className: 'cell-xs' },
-              { key: 'n', label: 'Track', className: 'cell-lg', sortKey: 'track' },
-              { key: 'i', label: 'Id', className: 'cell-fill' },
+              { key: 'n', label: 'Track', className: 'cell-fill', sortKey: 'track' },
               { key: 's', label: 'Sessions', className: 'cell-xs cell-end-align', sortKey: 'sessions' },
               { key: 'p', label: 'Published', className: 'cell-xs cell-end-align', sortKey: 'published' },
               { key: 'pr', label: 'Primary', className: 'cell-xs cell-end-align', sortKey: 'primary' },
@@ -173,9 +171,6 @@ export default async function TrackManagerPage({
                   </div>
                 ) : null}
               </span>,
-              <code key="i" style={{ fontSize: 12 }}>
-                {t.id}
-              </code>,
               t.sessionCount,
               t.publishedCount,
               t.primaryCount,
@@ -189,11 +184,8 @@ export default async function TrackManagerPage({
           )}
 
           <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 12 }}>
-            <strong>There is no delete.</strong> Sessions carry track ids, and Firestore has no
-            cascade. A deleted track leaves them pointing at nothing, with the name needed to
-            repair them gone too. A track that is finished with is taken off its sessions in{' '}
-            <Link href={ROUTES.sessionManager}>Session Manager</Link>; it then appears in the
-            warning above, which is the honest place for it.
+            <strong>Tracks cannot be deleted.</strong> Remove the track from its sessions in{' '}
+            <Link href={ROUTES.sessionManager}>Session Manager</Link> instead.
           </p>
         </Panel>
       )}
@@ -203,14 +195,13 @@ export default async function TrackManagerPage({
           Import a track list
         </h2>
         <p className="body-2">
-          A track is keyed by its name, so re-importing the same sheet updates the colours and
-          descriptions in place. ⚠️ Changing a <em>name</em> in the file does not rename anything
-          &mdash; it adds a second track and leaves the first on every session referencing it, and
-          there is no delete to clean that up. Rename above instead.
+          Tracks are matched by name, so importing the same sheet again updates colours and
+          descriptions. Changing a <em>name</em> in the file adds a second track. To rename a
+          track, edit it above.
         </p>
         <p className="muted" style={{ fontSize: 12 }}>
-          A changed colour is rewritten onto every session whose primary track this is, in the same
-          run. One cell can restyle sixty agenda cards, and the result below says how many.
+          A changed colour is applied to every session that has the track first. The result below
+          says how many.
         </p>
         <CsvImportPanel
           previewAction={previewTrackImportAction}
@@ -236,18 +227,14 @@ export default async function TrackManagerPage({
 
       <Panel>
         <h2 className="section-header" style={{ marginTop: 0 }}>
-          Agenda cache check
+          Agenda check
         </h2>
         <p className="body-2">
-          Every session stores a copy of its speakers&rsquo; names, its primary track&rsquo;s name
-          and colour, and its room&rsquo;s name, so the agenda renders without four extra reads per
-          row. Saving a speaker, a track or a room rewrites those copies as part of the save. This
-          rebuilds all of them from source, which is what to run after a bulk import, or if a save
-          reported that some sessions failed.
+          Checks that every session shows the current speaker names, track name and colour, and
+          room name. Run it after a bulk import, or if a save reported that some sessions failed.
         </p>
         <p className="muted" style={{ fontSize: 12 }}>
-          On healthy data it writes nothing at all. It reproduces exactly what the importer and
-          the seed produce. Check first; repair only if the check finds drift.
+          Check first. Repair only if the check finds a difference.
         </p>
         <CacheTools />
       </Panel>

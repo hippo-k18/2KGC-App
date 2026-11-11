@@ -8,7 +8,6 @@ import { readPageContentMeta } from '@/lib/page-content';
 import { findConflicts } from '@/lib/conflicts';
 import { ROUTES } from '@/lib/nav';
 import { PageHeader, Panel, StatTiles, Table, Tag } from '../ui';
-import { stripeEnabled, stripeIsLive } from '@/lib/stripe';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,16 +56,44 @@ const COPY_PAGES: { key: PageContentKey; title: string }[] = [
 
 const WEBSITE_COPY = '/content/basics/website-copy';
 
+/*
+ * Stripe is asked about on the website, not here. This dashboard deliberately
+ * holds no Stripe key (refunds are done in Stripe itself), so reading its own
+ * environment reported "not connected" while the website was taking payments.
+ * An unsigned POST to the website's webhook answers 400 when both Stripe
+ * secrets are set, 503 with no key and 500 with no webhook secret, and it
+ * stops before touching Stripe or the database. The pre-publish gate uses the
+ * same probe.
+ */
+async function websitePayments(): Promise<'ok' | 'no-stripe' | 'no-webhook-secret' | 'unknown'> {
+  try {
+    const res = await fetch(publicUrl('/api/stripe/webhook'), {
+      method: 'POST',
+      body: '{}',
+      headers: { 'content-type': 'application/json' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.status === 400) return 'ok';
+    if (res.status === 503) return 'no-stripe';
+    if (res.status === 500) return 'no-webhook-secret';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 export default async function PublishPage() {
   await requireOrganizer();
 
-  const [pages, tickets, conflicts, speakers, sales, copyMeta] = await Promise.all([
+  const [pages, tickets, conflicts, speakers, sales, copyMeta, payments] = await Promise.all([
     pageReadiness(),
     listTicketTypes(),
     findConflicts(),
     listSpeakers(),
     salesSummary(),
     Promise.all(COPY_PAGES.map((p) => readPageContentMeta(p.key))),
+    websitePayments(),
   ]);
 
   const sellable = tickets.filter((t) => t.visible);
@@ -93,21 +120,15 @@ export default async function PublishPage() {
     },
     {
       label: 'Payments are configured',
-      ok: stripeEnabled(),
-      detail: stripeEnabled()
-        ? stripeIsLive()
-          ? 'Stripe is in live mode. Real cards will be charged.'
-          : 'Stripe is in TEST mode, no real money will move. Switch keys before doors open.'
-        : /*
-           * ⚠️ This used to read "the website completes purchases as
-           * clearly-labelled tests and takes no money", which described the
-           * demo-mode branch deleted in August 2026. The purchase path fails
-           * closed now: /tickets disables the button and the server action
-           * refuses before it reads a tier. Saying otherwise on the one screen
-           * an organizer opens to check readiness is the exact defect this
-           * dashboard keeps having.
-           */
-          'No Stripe key is set, so the website refuses every purchase. Nothing can be bought until one is supplied.',
+      ok: payments === 'ok',
+      detail:
+        payments === 'ok'
+          ? 'Stripe is connected on the website and its webhook is checking signatures.'
+          : payments === 'no-stripe'
+            ? 'Stripe is not connected, so the website refuses every purchase.'
+            : payments === 'no-webhook-secret'
+              ? 'Stripe is connected but the webhook secret is missing, so paid orders are never fulfilled.'
+              : 'The website did not answer, so payments could not be checked.',
       href: ROUTES.ordersSummary,
       blocking: true,
     },
@@ -116,8 +137,8 @@ export default async function PublishPage() {
       ok: sales.paidOrders > 0,
       detail:
         sales.paidOrders > 0
-          ? `${sales.paidOrders} paid ${sales.paidOrders === 1 ? 'order has' : 'orders have'} been fulfilled, so checkout and the webhook both work.`
-          : 'No order has ever been fulfilled. Until one has, nothing has proved that the Stripe webhook reaches this project.',
+          ? `${sales.paidOrders} paid ${sales.paidOrders === 1 ? 'order has' : 'orders have'} been fulfilled, excluding test orders. Checkout works.`
+          : 'No paid order yet, excluding test orders. Buy one ticket to prove checkout works.',
       href: ROUTES.ordersSummary,
       blocking: false,
     },
@@ -136,7 +157,7 @@ export default async function PublishPage() {
       ok: pages.agenda.published > 0 && pages.agenda.problems.length === 0,
       detail:
         pages.agenda.published === 0
-          ? 'Nothing is published, so /agenda is empty.'
+          ? 'Nothing is published, so the agenda page is empty.'
           : pages.agenda.problems.length === 0
             ? `${pages.agenda.published} sessions live.`
             : `${pages.agenda.published} live, but ${pages.agenda.problems.map((p) => `${p.count} ${p.label}`).join(', ')}.`,
@@ -186,7 +207,7 @@ export default async function PublishPage() {
       detail:
         unconfirmedCopy.length === 0
           ? 'The reporting address, the submission links and the deadlines have all been saved for 2027.'
-          : `${unconfirmedCopy.map((p) => p.title).join(', ')} still ${unconfirmedCopy.length === 1 ? 'renders' : 'render'} last edition’s built-in text, including its deadlines and submission links.`,
+          : `${unconfirmedCopy.map((p) => p.title).join(', ')} still ${unconfirmedCopy.length === 1 ? 'shows' : 'show'} last year’s text, including its deadlines and submission links.`,
       href: WEBSITE_COPY,
       blocking: false,
     },
@@ -203,9 +224,8 @@ export default async function PublishPage() {
           <>
             <strong>Nothing here to switch on</strong>
             <p>
-              The website is deployed and the app reads the same database, so a session goes public
-              the moment its status is <code>published</code>. This is the check that a publish
-              button would have implied.
+              The website and the app show a session as soon as it is published. This checklist
+              shows what still needs attention before the event.
             </p>
           </>
         }
@@ -221,7 +241,7 @@ export default async function PublishPage() {
           )
         }
         actions={
-          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main">
+          <a href={publicUrl('/')} target="_blank" rel="noreferrer" className="whova-btn-main secondary">
             View the live site ↗
           </a>
         }
@@ -244,39 +264,67 @@ export default async function PublishPage() {
       />
 
       <Panel>
-        <Table
-          cols={[
-            { key: 's', label: '', className: 'cell-xs' },
-            { key: 'l', label: 'Check', className: 'cell-md' },
-            { key: 'd', label: 'Detail', className: 'cell-fill' },
-            { key: 'a', label: '', className: 'cell-sm' },
-          ]}
-          rows={checks.map((c) => [
-            <Tag
-              key="s"
-              color={c.ok ? 'green' : c.blocking ? 'red' : 'orange'}
-              fill="outline"
-              small
+        {/* Under 768px the table hides its Fix column off screen, so the phone gets cards. */}
+        <style>{`@media (min-width: 768px) { .publish-checks-sm { display: none; } }`}</style>
+        <div className="publish-checks-sm">
+          {checks.map((c) => (
+            <div
+              key={c.label}
+              style={{ borderBottom: '1px solid var(--hairline)', padding: '12px 0' }}
             >
-              {c.ok ? 'ok' : c.blocking ? 'fix' : 'check'}
-            </Tag>,
-            <strong key="l" style={{ fontSize: 13 }}>
-              {c.label}
-            </strong>,
-            <span key="d" style={{ fontSize: 13 }}>
-              {c.detail}
-            </span>,
-            c.ok ? (
-              <span key="a" className="muted">
-                —
-              </span>
-            ) : (
-              <Link key="a" href={c.href} style={{ fontSize: 12 }}>
-                Fix
-              </Link>
-            ),
-          ])}
-        />
+              <div style={{ alignItems: 'center', display: 'flex', gap: 8 }}>
+                <Tag color={c.ok ? 'green' : c.blocking ? 'red' : 'orange'} fill="outline" small>
+                  {c.ok ? 'ok' : c.blocking ? 'fix' : 'check'}
+                </Tag>
+                <strong style={{ fontSize: 13 }}>{c.label}</strong>
+              </div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>{c.detail}</div>
+              {c.ok ? null : (
+                <Link
+                  href={c.href}
+                  style={{ display: 'inline-block', fontSize: 13, padding: '10px 0 2px' }}
+                >
+                  Fix
+                </Link>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="hide-sm">
+          <Table
+            cols={[
+              { key: 's', label: '', className: 'cell-xs' },
+              { key: 'l', label: 'Check', className: 'cell-md' },
+              { key: 'd', label: 'Detail', className: 'cell-fill' },
+              { key: 'a', label: '', className: 'cell-sm' },
+            ]}
+            rows={checks.map((c) => [
+              <Tag
+                key="s"
+                color={c.ok ? 'green' : c.blocking ? 'red' : 'orange'}
+                fill="outline"
+                small
+              >
+                {c.ok ? 'ok' : c.blocking ? 'fix' : 'check'}
+              </Tag>,
+              <strong key="l" style={{ fontSize: 13 }}>
+                {c.label}
+              </strong>,
+              <span key="d" style={{ fontSize: 13 }}>
+                {c.detail}
+              </span>,
+              c.ok ? (
+                <span key="a" className="muted">
+                  —
+                </span>
+              ) : (
+                <Link key="a" href={c.href} style={{ fontSize: 12 }}>
+                  Fix
+                </Link>
+              ),
+            ])}
+          />
+        </div>
       </Panel>
     </>
   );

@@ -70,6 +70,7 @@ async function wipe() {
     COLLECTIONS.calls,
     COLLECTIONS.sessions,
     COLLECTIONS.speakers,
+    COLLECTIONS.speakerContacts,
     COLLECTIONS.tracks,
     COLLECTIONS.rooms,
     COLLECTIONS.auditLog,
@@ -583,7 +584,10 @@ describe('promotion onto the agenda', () => {
     expect(all[0].id).toBe(speakerId('Ada Okonkwo', 'Acme Graphs'));
     expect(all[0].name).toBe('Ada Okonkwo');
     expect(all[0].company).toBe('Acme Graphs');
-    expect(all[0].contactEmail).toBe('ada@acme.test');
+    // Server-only since T252: the address is in `speakerContacts`, not on the readable record.
+    expect(all[0]).not.toHaveProperty('contactEmail');
+    const contacts = await db().collection(COLLECTIONS.speakerContacts).get();
+    expect(contacts.docs.map((d) => d.data().email)).toEqual(['ada@acme.test']);
     expect(all[0].sessionIds).toEqual([
       deriveSessionId('Provenance in enterprise knowledge graphs', '2027-05-04T10:00'),
     ]);

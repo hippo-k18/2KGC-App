@@ -1,52 +1,37 @@
 import Link from 'next/link';
-import type { SponsorTier } from '@kgc/shared';
+import { groupSponsorsByTier } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { listSponsors, TIER_ORDER } from '@/lib/data';
+import { listSponsors } from '@/lib/data';
+import { sponsorTiers } from '@/lib/event';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table } from '../../../ui';
+import { TierEditor } from './tier-editor';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Content › Sponsor Center › Sponsor Tiering.
  *
- * ── The trade this screen is honest about ───────────────────────────────────
+ * The tier list is `settings/sponsorTiers`: an ordered array of
+ * `{ id, name, size }`, edited here. `SponsorDoc.tier` stores an id from it.
+ * Until somebody saves, the list is the four tiers the live site sells —
+ * Platinum 3, Gold 2, Silver 1, Bronze 1 — which used to be a union in
+ * `models.ts` and made "Diamond" a code change and an app release.
  *
- * `SponsorTier` in `packages/shared/src/models.ts` is a four-value union —
- * platinum, gold, silver, bronze — taken from the live site's own sponsor design
- * payload, not invented. That union is also the sort order, which is why nothing
- * needs a ranking table beyond `TIER_ORDER`.
+ * Three surfaces follow this list and all three group with
+ * `groupSponsorsByTier` from `@kgc/shared`: Sponsor Manager, the website's
+ * sponsor bands, and the app's sponsor list. Order is rank, and `size` is the
+ * logo size step on the public page.
  *
- * The consequence is direct and worth stating rather than burying: **adding a
- * tier is a code change and a deploy.** Not a row somebody types on a Tuesday —
- * an edit to a shared package, a typecheck across three consumers, and a release
- * of the mobile app if the new tier is to render on a phone.
- *
- * For one conference a year that is the cheaper trade. A tiers collection is a
- * document shape, an editor, an ordering field, a migration for existing
- * sponsors and a fallback for a tier deleted while sponsors still point at it —
- * several days of work to save an afternoon that happens once. But it *is* a
- * trade, and it is the wrong one the moment this dashboard runs a second event
- * with a different sponsorship deck. Sales invents a "Diamond" tier far more
- * often than engineering expects.
+ * Moving a sponsor between tiers stays on the sponsor, in Sponsor Manager.
  */
 export default async function SponsorTieringPage() {
   await requireOrganizer();
 
-  const sponsors = await listSponsors();
-
-  const byTier = TIER_ORDER.map((tier: SponsorTier) => ({
-    tier,
-    rows: sponsors.filter((s) => s.tier === tier),
-  }));
-
-  /**
-   * The size weight per tier — Platinum 3, Gold 2, Silver 1, Bronze 1 — which is
-   * how a sponsor widget decides logo sizes. Recorded here because it is the
-   * actual placement rule, and it is the piece that has no surface to apply to
-   * yet.
-   */
-  const WEIGHT: Record<SponsorTier, number> = { platinum: 3, gold: 2, silver: 1, bronze: 1 };
+  const [sponsors, tiers] = await Promise.all([listSponsors(), sponsorTiers()]);
+  const groups = groupSponsorsByTier(tiers, sponsors, { keepEmpty: true });
+  const counts = Object.fromEntries(groups.map((g) => [g.tier.id, g.sponsors.length]));
+  const strays = groups.filter((g) => !tiers.some((t) => t.id === g.tier.id));
 
   return (
     <>
@@ -54,11 +39,10 @@ export default async function SponsorTieringPage() {
         title="Sponsor Tiering"
         info={
           <>
-            <strong>Tiers are a type, not a table</strong>
+            <strong>Tiers</strong>
             <p>
-              <code>SponsorTier</code> is a four-value union in <code>@kgc/shared</code>, so
-              renaming one or adding a fifth is a code change in three consumers rather than an
-              edit here. A sponsor moves between tiers on its own record.
+              Add, rename and reorder tiers. The website and the app group sponsors in this order.
+              To move a sponsor between tiers, edit the sponsor.
             </p>
           </>
         }
@@ -74,8 +58,8 @@ export default async function SponsorTieringPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Sponsors', value: sponsors.length, sub: 'across four tiers' },
-          { label: 'Tiers', value: TIER_ORDER.length, sub: 'fixed in models.ts' },
+          { label: 'Sponsors', value: sponsors.length, sub: `across ${tiers.length} tiers` },
+          { label: 'Tiers', value: tiers.length, sub: `${tiers[0].name} to ${tiers[tiers.length - 1].name}` },
           {
             label: 'Missing a logo',
             value: sponsors.filter((s) => !s.hasLogo).length,
@@ -85,79 +69,63 @@ export default async function SponsorTieringPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Tiers as they stand</h2>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Tiers</h2>
+        <TierEditor tiers={tiers} counts={counts} />
+        <p className="muted" style={{ fontSize: 12, marginTop: 14, marginBottom: 0 }}>
+          Logo size sets how large the logos in a tier are on the public sponsor page. A tier with
+          sponsors in it cannot be removed.
+        </p>
+      </Panel>
+
+      <Panel style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Who is in each tier</h2>
         {sponsors.length === 0 ? (
           <NotInputted
             what="sponsors"
             action={
-              <Link className="whova-btn-main" href={`${ROUTES.sponsorManager}?new=1`}>
+              <Link className="whova-btn-main primary" href={`${ROUTES.sponsorManager}?new=1`}>
                 Add the first one
               </Link>
             }
           />
         ) : null}
-        {/*
-          Read-only here by design rather than by necessity: a tier is a property
-          of a sponsor, not a record of its own, so it is assigned on the sponsor
-          — the select on Sponsor Manager's form — and this screen shows the
-          shape that produces. There is nothing on this page a form could edit.
-        */}
         <Table
           cols={[
             { key: 't', label: 'Tier', className: 'cell-sm' },
-            { key: 'n', label: 'Sponsors', className: 'cell-xs' },
-            { key: 'w', label: 'Logo weight', className: 'cell-sm' },
+            { key: 'n', label: 'Sponsors', className: 'cell-xsm' },
             { key: 'l', label: 'Who', className: 'cell-fill' },
           ]}
-          rows={byTier.map((g) => [
-            <strong key="t" style={{ textTransform: 'capitalize' }}>
-              {g.tier}
-            </strong>,
-            <span key="n">{g.rows.length}</span>,
-            <span key="w" className="muted">
-              ×{WEIGHT[g.tier]}
-            </span>,
+          rows={groups.map((g) => [
+            <strong key="t">{g.tier.name}</strong>,
+            <span key="n">{g.sponsors.length}</span>,
             <span key="l" style={{ fontSize: 12 }}>
-              {g.rows.length === 0 ? (
+              {g.sponsors.length === 0 ? (
                 <span className="muted">nobody at this tier yet</span>
               ) : (
-                g.rows.map((s) => s.name).join(', ')
+                g.sponsors.map((s) => s.name).join(', ')
               )}
             </span>,
           ])}
         />
-        <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Logo weight is the sizing ratio the public sponsor page applies; nothing in the app does,
-          because the app has no sponsor banner surface. To move a sponsor between tiers, edit them
-          in <Link href={ROUTES.sponsorManager}>Sponsor Manager</Link>.
-        </p>
-      </Panel>
-
-      <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where a tier decides placement</h2>
-        <p className="body-2">
-          A tier is only worth anything if it decides placement, and placement needs a surface. The{' '}
-          <Link href="/content/sponsor-center/advanced-banners">public sponsor page</Link> renders
-          sponsors grouped by tier and applies the weights above. Three other surfaces have no
-          sponsor slot at all: there is no banner component on any app screen,{' '}
-          <code>SessionDoc</code> has no sponsor field so a talk cannot be attributed to one, and
-          announcements have nowhere to carry a name.
-        </p>
+        {strays.length > 0 ? (
+          <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
+            {strays.map((g) => g.tier.name).join(', ')}: not in the tier list. These sponsors show
+            last. Edit them in <Link href={ROUTES.sponsorManager}>Sponsor Manager</Link> to pick a
+            tier.
+          </p>
+        ) : null}
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginTop: 0 }}>Not built here</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Editing tiers.</strong> Add, rename, reorder or delete — all four are edits to{' '}
-            <code>packages/shared/src/models.ts</code>.
-          </li>
-          <li>
             <strong>Benefits per tier.</strong> Nothing models what a tier includes, so nothing can
             be checked off against a contract.
           </li>
           <li>
-            <strong>Placement rules.</strong> The weights above are printed, not applied.
+            <strong>Sponsor banners in the app,</strong> sponsored sessions and sponsored
+            announcements.
           </li>
         </ul>
       </GapPanel>

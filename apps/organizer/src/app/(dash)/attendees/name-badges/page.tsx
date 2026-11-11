@@ -1,6 +1,10 @@
 import Link from 'next/link';
+import { CATEGORY_COLOR_HEX } from '@kgc/shared';
+import { attendeeCategories } from '@/lib/attendee-categories';
+import { UNCATEGORISED, categoryLabel, inCategory } from '@/lib/attendee-categories-core';
 import { requireOrganizer } from '@/lib/auth';
 import { QR_QUIET_ZONE, badgeQr, listBadgeRows } from '@/lib/badges';
+import { requiredConsentGaps } from '@/lib/consents';
 import { ROUTES } from '@/lib/nav';
 import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, StatTiles, Tag, listParams, paginate } from '../../ui';
 import { PrintButton } from './print-button';
@@ -54,9 +58,14 @@ export default async function NameBadgesPage({
   const sp = await searchParams;
   const q = typeof sp.q === 'string' ? sp.q : undefined;
   const ticket = typeof sp.ticket === 'string' ? sp.ticket : undefined;
+  const category = typeof sp.category === 'string' ? sp.category : undefined;
   const { page, baseParams } = listParams(sp);
 
-  const all = await listBadgeRows();
+  const [all, { categories }, consents] = await Promise.all([
+    listBadgeRows(),
+    attendeeCategories(),
+    requiredConsentGaps(),
+  ]);
 
   /**
    * Cancelled and transferred registrations are excluded outright rather than
@@ -69,8 +78,9 @@ export default async function NameBadgesPage({
   const needle = (q ?? '').trim().toLowerCase();
   const matched = printable.filter((r) => {
     if (ticket && (r.ticketType ?? '') !== ticket) return false;
+    if (!inCategory(r, category)) return false;
     if (!needle) return true;
-    return [r.name, r.company, r.title, r.ticketType]
+    return [r.name, r.company, r.title, r.ticketType, categoryLabel(categories, r)]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(needle));
   });
@@ -78,11 +88,24 @@ export default async function NameBadgesPage({
   const pageRows = paginate(matched, page, PER_PAGE);
   const tickets = [...new Set(printable.map((r) => r.ticketType).filter(Boolean))].sort() as string[];
   const withoutCompany = printable.filter((r) => !r.company).length;
+  /*
+    A required release nobody has signed, said on the row it belongs to.
 
-  const href = (next: { q?: string; ticket?: string }) => {
+    Printed badges are handed over at a desk, and the desk is where somebody can
+    still ask. The note is screen-only — `@media print` hides it — because a
+    badge worn all day must not announce what its wearer has not signed.
+  */
+  const unsignedNote = (registrationId: string): string | undefined => {
+    const owed = consents.outstanding.get(registrationId);
+    return owed?.length ? owed.join(', ') : undefined;
+  };
+  const unsigned = printable.filter((r) => unsignedNote(r.registrationId)).length;
+
+  const href = (next: { q?: string; ticket?: string; category?: string }) => {
     const p = new URLSearchParams();
     if (next.q) p.set('q', next.q);
     if (next.ticket) p.set('ticket', next.ticket);
+    if (next.category) p.set('category', next.category);
     const s = p.toString();
     return s ? `?${s}` : '/attendees/name-badges';
   };
@@ -104,7 +127,27 @@ export default async function NameBadgesPage({
           height: 2.25in;
           overflow: hidden;
           padding: 0.18in;
+          position: relative;
           width: 3.5in;
+        }
+        /* The category, as a band a door volunteer can read from two metres. */
+        .badge.has-band { padding-bottom: 0.46in; }
+        .badge-band {
+          bottom: 0;
+          font-size: 13px;
+          font-weight: 700;
+          left: 0;
+          letter-spacing: 1.5px;
+          line-height: 0.32in;
+          overflow: hidden;
+          position: absolute;
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+          right: 0;
+          text-align: center;
+          text-overflow: ellipsis;
+          text-transform: uppercase;
+          white-space: nowrap;
         }
         .badge-fields { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
         .badge-name {
@@ -123,8 +166,23 @@ export default async function NameBadgesPage({
           text-transform: uppercase;
         }
         .badge-qr { flex: 0 0 1.1in; margin-left: 0.12in; }
+        .badge-unsigned {
+          color: var(--kgc-orange, #f68621);
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: .5px;
+          margin-top: 3px;
+          text-transform: uppercase;
+        }
+        @media screen and (max-width: 767px) {
+          .badge-sheet { grid-template-columns: minmax(0, 3.5in); }
+          .badge { max-width: 100%; }
+        }
         @media print {
           @page { margin: 0.4in; }
+          /* Screen-only: a badge worn all day must not say what its wearer has
+             not signed. The desk has the same note on the sheet it prints from. */
+          .badge-unsigned { display: none; }
           body * { visibility: hidden; }
           .badge-sheet, .badge-sheet * { visibility: visible; }
           .badge-sheet { left: 0; position: absolute; top: 0; }
@@ -136,11 +194,10 @@ export default async function NameBadgesPage({
         title="Name Badges"
         info={
           <>
-            <strong>The QR is the attendee&rsquo;s <code>qrSecret</code>, alone</strong>
+            <strong>What the QR code holds</strong>
             <p>
-              It is a bearer credential for <em>attendance</em>: photographed, it can be checked in
-              as that person, and the duplicate shows in the scan log. No email, attendee id or
-              sign-in code is printed, or even loaded onto this page.
+              Only the check-in code. No email or sign-in code is printed. A photographed badge can
+              be checked in as that person, and the duplicate shows in the scan log.
             </p>
           </>
         }
@@ -169,18 +226,28 @@ export default async function NameBadgesPage({
             value: withoutCompany,
             sub: withoutCompany > 0 ? 'badge prints name only' : 'every badge has one',
           },
+          ...(consents.forms.length > 0
+            ? [
+                {
+                  label: 'Form not signed',
+                  value: unsigned,
+                  sub: unsigned > 0 ? 'marked on the badge below' : 'everybody has signed',
+                },
+              ]
+            : []),
         ]}
       />
 
       <Panel>
         <form method="get" className="toolbar">
           {ticket ? <input type="hidden" name="ticket" value={ticket} /> : null}
-          <SearchInput defaultValue={q} placeholder="Enter name, company or job title" />
+          {category ? <input type="hidden" name="category" value={category} /> : null}
+          <SearchInput defaultValue={q} placeholder="Name, company, job title, ticket or category" />
           <button type="submit" className="btn btn-default">
             Search
           </button>
           {q ? (
-            <Link className="btn btn-default" href={href({ ticket })}>
+            <Link className="btn btn-default" href={href({ ticket, category })}>
               Clear
             </Link>
           ) : null}
@@ -189,7 +256,7 @@ export default async function NameBadgesPage({
         <div className="toolbar">
           <Link
             className={`whova-tag-main ${!ticket ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
-            href={href({ q })}
+            href={href({ q, category })}
             style={{ textDecoration: 'none' }}
           >
             All tickets ({printable.length})
@@ -198,7 +265,7 @@ export default async function NameBadgesPage({
             <Link
               key={t}
               className={`whova-tag-main ${t === ticket ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
-              href={href({ q, ticket: t })}
+              href={href({ q, ticket: t, category })}
               style={{ textDecoration: 'none' }}
             >
               {t} ({printable.filter((r) => r.ticketType === t).length})
@@ -206,24 +273,52 @@ export default async function NameBadgesPage({
           ))}
         </div>
 
+        <div className="toolbar">
+          <Link
+            className={`whova-tag-main ${!category ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+            href={href({ q, ticket })}
+            style={{ textDecoration: 'none' }}
+          >
+            All categories
+          </Link>
+          {[...categories.map((c) => ({ id: c.id, name: c.name })), { id: UNCATEGORISED, name: 'No category' }].map(
+            (c) => (
+              <Link
+                key={c.id}
+                className={`whova-tag-main ${c.id === category ? 'blue-tag solid-tag' : 'grey-tag outline-tag'}`}
+                href={href({ q, ticket, category: c.id })}
+                style={{ textDecoration: 'none' }}
+              >
+                {c.name} ({printable.filter((r) => inCategory(r, c.id)).length})
+              </Link>
+            ),
+          )}
+        </div>
+
         <p className="body-2">
-          Badges are 3.5 × 2.25 inches, two across, {PER_PAGE} to a sheet. The size that fits a
-          standard clip holder without folding. Printing takes whichever sheet is on screen, so
-          page through and print each one; the pager is a query parameter, so the sheet is also a
-          link you can send to whoever is standing at the printer.
+          Badges are 3.5 × 2.25 inches, two across, {PER_PAGE} to a sheet. Print prints the sheet
+          on screen, so page through and print each one. The category prints as a coloured band.
+          Turn on background graphics in the print dialog to print the colour.
         </p>
 
         <div className="badge-sheet">
           {pageRows.map((r) => {
             const qr = badgeQr(r.qrSecret);
             const span = qr.size + QR_QUIET_ZONE * 2;
+            const cat = categories.find((c) => c.id === r.categoryId);
+            const band = cat ? CATEGORY_COLOR_HEX[cat.color] : undefined;
             return (
-              <div className="badge" key={r.registrationId}>
+              <div className={`badge${cat ? ' has-band' : ''}`} key={r.registrationId}>
                 <div className="badge-fields">
                   <div className="badge-name">{r.name}</div>
                   {r.company ? <div className="badge-company">{r.company}</div> : null}
                   {r.title ? <div className="badge-title">{r.title}</div> : null}
                   <div className="badge-ticket">{r.ticketType ?? 'Attendee'}</div>
+                  {unsignedNote(r.registrationId) ? (
+                    <div className="badge-unsigned" title={unsignedNote(r.registrationId)}>
+                      Form not signed
+                    </div>
+                  ) : null}
                 </div>
                 {/*
                   `shape-rendering: crispEdges` matters on screen, where a
@@ -245,6 +340,11 @@ export default async function NameBadgesPage({
                     transform={`translate(${QR_QUIET_ZONE} ${QR_QUIET_ZONE})`}
                   />
                 </svg>
+                {cat && band ? (
+                  <div className="badge-band" style={{ background: band.band, color: band.text }}>
+                    {cat.name}
+                  </div>
+                ) : null}
               </div>
             );
           })}

@@ -71,24 +71,23 @@ describe('generateTemporaryPassword', () => {
 });
 
 describe('temporaryPasswordsEnabled', () => {
-  it('is on when the variable is unset', () => {
-    expect(temporaryPasswordsEnabled(env())).toBe(true);
+  it('is off when the variable is unset', () => {
+    // Off by default since 2026-09-26: nothing shows the buyer the password,
+    // so issuing one would strand them on the app's change-password screen.
+    expect(temporaryPasswordsEnabled(env())).toBe(false);
   });
 
-  it('is off only for an explicit 0 or false', () => {
-    expect(temporaryPasswordsEnabled(env('0'))).toBe(false);
-    expect(temporaryPasswordsEnabled(env('false'))).toBe(false);
-    expect(temporaryPasswordsEnabled(env('FALSE'))).toBe(false);
-    expect(temporaryPasswordsEnabled(env(' 0 '))).toBe(false);
-  });
-
-  it('stays on for anything else, including a typo', () => {
-    // The off position means buyers cannot sign in without the OTP callables,
-    // and those are not deployed. Failing on towards a working sign-in is the
-    // safe direction for a switch with that consequence.
+  it('is on only for an explicit 1 or true', () => {
     expect(temporaryPasswordsEnabled(env('1'))).toBe(true);
     expect(temporaryPasswordsEnabled(env('true'))).toBe(true);
-    expect(temporaryPasswordsEnabled(env(''))).toBe(true);
-    expect(temporaryPasswordsEnabled(env('no'))).toBe(true);
+    expect(temporaryPasswordsEnabled(env('TRUE'))).toBe(true);
+    expect(temporaryPasswordsEnabled(env(' 1 '))).toBe(true);
+  });
+
+  it('stays off for anything else, including a typo', () => {
+    expect(temporaryPasswordsEnabled(env('0'))).toBe(false);
+    expect(temporaryPasswordsEnabled(env('false'))).toBe(false);
+    expect(temporaryPasswordsEnabled(env(''))).toBe(false);
+    expect(temporaryPasswordsEnabled(env('yes please'))).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireOrganizer } from '@/lib/auth';
 import { allocationFor } from '@/lib/comp-passes';
 import { ROUTES } from '@/lib/nav';
-import { Banner, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
+import { Banner, Email, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../../../ui';
 import { IssuePassForm, RenamePassForm } from '../pass-forms';
 
 export const dynamic = 'force-dynamic';
@@ -47,9 +47,8 @@ export default async function SponsorPassSeatsPage({
           <>
             <strong>Each pass is a real registration</strong>
             <p>
-              Naming a seat mints the same ticket a purchase does (badge QR, claim code and all)
-              through the one function that issues them. The address cannot be changed afterwards,
-              because the ticket is keyed to it.
+              Naming a seat issues the same ticket a purchase does, with a badge QR and a claim
+              code. The email address cannot be changed afterwards.
             </p>
           </>
         }
@@ -98,7 +97,7 @@ export default async function SponsorPassSeatsPage({
             value: allocation.total,
             sub: allocation.sources.map((s) => `${s.ticketTypeName} × ${s.quantity}`).join(', '),
           },
-          { label: 'Named', value: allocation.issued.length, sub: 'registrations minted' },
+          { label: 'Named', value: allocation.issued.length, sub: 'tickets issued' },
           {
             label: 'Remaining',
             value: allocation.remaining,
@@ -134,7 +133,7 @@ export default async function SponsorPassSeatsPage({
             <div key="w">
               <RenamePassForm orderId={allocation.orderId} seat={p.seat} name={p.name} />
               <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                {p.email}
+                <Email address={p.email} />
                 {p.issuedAt ? ` · named ${p.issuedAt.slice(0, 10)} by ${p.issuedBy}` : null}
               </div>
             </div>,

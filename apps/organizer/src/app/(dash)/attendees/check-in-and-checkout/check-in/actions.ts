@@ -13,17 +13,23 @@ import {
 } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { appendAudit } from '@/lib/audit';
+import { requiredConsentGaps } from '@/lib/consents';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
+import { kickHubspot } from '@/lib/hubspot-trigger';
 import { ROUTES } from '@/lib/nav';
 import {
+  DEFAULT_LIST_ID,
+  badgeIncludesWorkshops,
+  cachedForScan,
   ensureDayList,
   ensureSessionList,
-  listRegistrations,
-  matchCode,
+  findRegistrationByCode,
+  ticketFacts,
   touchStation,
   type ScanOutcome,
 } from '@/lib/checkin';
+import { isDayListId } from '@/lib/checkin-core';
 
 /**
  * Firestore's `ALREADY_EXISTS`. gRPC status 6.
@@ -65,6 +71,28 @@ export interface ScanResult {
   ticketType?: string;
   /** Present when `outcome === 'cancelled'` — the registration's actual status. */
   registrationStatus?: string;
+  /**
+   * Required releases this person has not signed at the published wording.
+   *
+   * Reported, never enforced: the scan still checks them in. A door volunteer
+   * holding a queue cannot adjudicate a release, and turning somebody away from
+   * a conference they paid for over an outstanding photo waiver would be a
+   * larger mistake than the one it avoided. This is what tells the desk there is
+   * something to raise.
+   */
+  consentOutstanding?: string[];
+  /**
+   * Set on a Workshops-only badge scanned anywhere but a workshop list: the
+   * extra it holds, e.g. "Workshops". A notice, not a refusal: the person is
+   * checked in as arrived, and the desk sends them to the workshops rather
+   * than the main conference (2026-10-07).
+   */
+  onlyExtra?: string;
+  /**
+   * Set at a workshop door on a badge that does not include Workshops
+   * (T259 #10). A notice, like `onlyExtra`: the scan still records them.
+   */
+  noWorkshops?: boolean;
   /** ISO. For `ok` this is now; for `duplicate` it is the *first* check-in. */
   checkedInAt?: string;
   stationLabel?: string;
@@ -77,7 +105,51 @@ export interface ScanResult {
    */
   scanEventReplayed: boolean;
   error?: string;
+  /**
+   * The server failed part way (Firestore unreachable, a timeout). The
+   * scanner keeps the scan and sends it again with the same `clientScanId`.
+   * Not set for a mistake that resending cannot fix, like an empty code.
+   */
+  retryable?: boolean;
   at: string;
+}
+
+/** What a list is, held for a minute: whether it is a workshop door. */
+async function listFacts(listId: string): Promise<{ workshopDoor: boolean }> {
+  const list = (await db().collection(COLLECTIONS.checkInLists).doc(listId).get()).data() as
+    | CheckInListDoc
+    | undefined;
+  let workshopDoor = list?.kind === 'workshop';
+  if (!workshopDoor && list?.sessionId) {
+    const session = (await db().collection(COLLECTIONS.sessions).doc(list.sessionId).get()).data() as
+      | { format?: string }
+      | undefined;
+    workshopDoor = session?.format === 'workshop';
+  }
+  return { workshopDoor };
+}
+
+/**
+ * A check-in on a Day list also counts as arriving at the Main Door.
+ *
+ * The door list is what the attendee app's badge, the war room and the
+ * checked-in export read. Day lists exist so that day two starts from zero,
+ * not to hide people from those (T259 #12). `create()` again, so the first
+ * day's arrival keeps its time, and `mirroredFrom` lets an undo on the day
+ * list take back only what it added.
+ */
+async function mirrorToDoor(listId: string, doc: Record<string, unknown>): Promise<void> {
+  if (!isDayListId(listId) || listId === DEFAULT_LIST_ID) return;
+  try {
+    await db()
+      .collection(COLLECTIONS.checkInLists)
+      .doc(DEFAULT_LIST_ID)
+      .collection(SUBCOLLECTIONS.checkIns)
+      .doc(String(doc.registrationId))
+      .create({ ...doc, mirroredFrom: listId });
+  } catch (err) {
+    if (!isAlreadyExists(err)) recordError('checkin.mirror', err);
+  }
 }
 
 /**
@@ -113,12 +185,29 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
   if (!input.listId) return { ...base, error: 'Pick a check-in list first.' };
 
   try {
-    const [registrations] = await Promise.all([
-      listRegistrations(),
+    const [match, consents, facts, door] = await Promise.all([
+      findRegistrationByCode(code),
+      cachedForScan('consents', requiredConsentGaps),
+      cachedForScan('ticketFacts', ticketFacts),
+      cachedForScan(`list:${input.listId}`, () => listFacts(input.listId)),
       touchStation(input.deviceId, input.stationLabel),
     ]);
 
-    const match = matchCode(registrations, code);
+    // Looked up by registration id and by address, because a signature made in
+    // the app carries a uid and one made through a link carries neither.
+    const outstanding = match
+      ? consents.outstanding.get(match.row.id) ??
+        consents.outstanding.get(match.row.email.trim().toLowerCase())
+      : undefined;
+
+    // A Workshops-only badge at any door but a workshop's gets the notice, and
+    // at a workshop door, a badge without Workshops gets the opposite one.
+    const workshopDoor = door.workshopDoor;
+    const onlyExtra =
+      match && match.doc.ticketType && facts.extras.has(match.doc.ticketType) && !workshopDoor
+        ? match.row.ticketType
+        : undefined;
+    const noWorkshops = Boolean(match && workshopDoor && !badgeIncludesWorkshops(match.doc, facts.workshops));
 
     let outcome: ScanOutcome;
     let result: ScanResult;
@@ -141,6 +230,7 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
         email: match.row.email,
         ticketType: match.row.ticketType,
         registrationStatus: match.row.status,
+        consentOutstanding: outstanding,
       };
     } else {
       const ref = db()
@@ -149,24 +239,26 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
         .collection(SUBCOLLECTIONS.checkIns)
         .doc(match.row.id);
 
+      const checkIn = {
+        registrationId: match.row.id,
+        checkedInAt: FieldValue.serverTimestamp(),
+        stationId: input.deviceId,
+        // The allowlisted organizer email stands in for a uid until console
+        // SSO lands and there is a real Firebase Auth subject to record —
+        // the same stand-in `announcement.create` makes.
+        operatorUid: actor,
+      };
+      let existing: CheckInDoc | undefined;
       try {
-        await ref.create({
-          registrationId: match.row.id,
-          checkedInAt: FieldValue.serverTimestamp(),
-          stationId: input.deviceId,
-          // The allowlisted organizer email stands in for a uid until console
-          // SSO lands and there is a real Firebase Auth subject to record —
-          // the same stand-in `announcement.create` makes.
-          operatorUid: actor,
-        });
+        await ref.create(checkIn);
         outcome = 'ok';
+        await mirrorToDoor(input.listId, checkIn);
       } catch (err) {
         if (!isAlreadyExists(err)) throw err;
         outcome = 'duplicate';
+        // Only a duplicate needs the first check-in's time and station.
+        existing = (await ref.get()).data() as CheckInDoc | undefined;
       }
-
-      const snap = await ref.get();
-      const existing = snap.data() as CheckInDoc | undefined;
       const stationId = existing?.stationId ?? input.deviceId;
       const stationLabel =
         stationId === input.deviceId
@@ -187,6 +279,9 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
           ? (existing.checkedInAt as unknown as { toDate(): Date }).toDate().toISOString()
           : at,
         stationLabel,
+        consentOutstanding: outstanding,
+        ...(onlyExtra ? { onlyExtra } : {}),
+        ...(noWorkshops ? { noWorkshops } : {}),
         checkInPath: `${COLLECTIONS.checkInLists}/${input.listId}/${SUBCOLLECTIONS.checkIns}/${match.row.id}`,
       };
 
@@ -199,6 +294,8 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
           before: {},
           after: { registrationId: match.row.id, listId: input.listId, stationId: input.deviceId },
         });
+        // Not awaited, so the door verdict never waits on it; kickHubspot never rejects.
+        void kickHubspot([match.row.id], 'checkin');
       }
     }
 
@@ -227,14 +324,17 @@ export async function submitScanAction(input: ScanInput): Promise<ScanResult> {
       result.scanEventReplayed = true;
     }
 
-    revalidatePath(ROUTES.checkIn);
-    revalidatePath(ROUTES.warRoom);
+    // No `revalidatePath` here. Revalidating the whole check-in page on every
+    // scan, plus the scanner's refresh, sent two copies of a 650 KB page per
+    // scan (T259 #5). The scanner refreshes the page itself, at most once a
+    // minute, and the verdict is all a scan returns.
     return result;
   } catch (err) {
     recordError('checkin.scan', err);
     return {
       ...base,
       error: err instanceof Error ? err.message : 'Scan failed.',
+      retryable: true,
     };
   }
 }
@@ -414,12 +514,14 @@ export async function checkInByIdAction(
 
     let created = true;
     try {
-      await ref.create({
+      const checkIn = {
         registrationId,
         checkedInAt: FieldValue.serverTimestamp(),
         stationId: 'dashboard',
         operatorUid: actor,
-      });
+      };
+      await ref.create(checkIn);
+      await mirrorToDoor(listId, checkIn);
     } catch (err) {
       if (!isAlreadyExists(err)) throw err;
       created = false;
@@ -434,6 +536,7 @@ export async function checkInByIdAction(
         before: {},
         after: { stationId: 'dashboard' },
       });
+      void kickHubspot([registrationId], 'checkin');
     }
 
     revalidatePath(ROUTES.checkIn);
@@ -478,6 +581,16 @@ export async function undoCheckInAction(
     if (!snap.exists) return { ok: true, message: 'Not checked in.' };
 
     await ref.delete();
+    // Take back the Main Door entry this Day list added, and only that one.
+    if (isDayListId(listId)) {
+      const doorRef = db()
+        .collection(COLLECTIONS.checkInLists)
+        .doc(DEFAULT_LIST_ID)
+        .collection(SUBCOLLECTIONS.checkIns)
+        .doc(registrationId);
+      const doorSnap = await doorRef.get();
+      if (doorSnap.data()?.mirroredFrom === listId) await doorRef.delete();
+    }
     await appendAudit({
       actor,
       action: 'checkin.undo',
@@ -486,6 +599,7 @@ export async function undoCheckInAction(
       before: { checkedIn: true },
       after: {},
     });
+    void kickHubspot([registrationId], 'checkin');
 
     revalidatePath(ROUTES.checkIn);
     revalidatePath(ROUTES.warRoom);

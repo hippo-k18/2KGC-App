@@ -1,5 +1,5 @@
 import { icsFilename, sessionIcs } from '@kgc/shared';
-import { listAgenda } from '@/lib/data';
+import { listAgenda, siteVisibility } from '@/lib/data';
 import { recordError } from '@/lib/errors';
 
 /**
@@ -29,6 +29,7 @@ export async function GET(
   _request: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  if (!(await siteVisibility()).agenda) return new Response('Not found', { status: 404 });
   const { id } = await ctx.params;
   const sessionId = decodeURIComponent(id);
 

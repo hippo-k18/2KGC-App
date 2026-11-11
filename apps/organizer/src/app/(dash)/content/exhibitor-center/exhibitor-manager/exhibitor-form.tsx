@@ -37,10 +37,10 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
         <label className="whova-form-label" htmlFor="name">
           Company
         </label>
-        <input id="name" name="name" required defaultValue={existing?.name} maxLength={80} />
+        <input className="whova-text-input" id="name" name="name" required defaultValue={existing?.name} maxLength={80} />
         {existing && (
           <p className="muted" style={{ fontSize: 12 }}>
-            Id <code>{existing.id}</code> stays the same. Passes and lead scans point at it.
+            Renaming keeps their passes and lead scans.
           </p>
         )}
       </div>
@@ -56,7 +56,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
         <label className="whova-form-label" htmlFor="status">
           Status
         </label>
-        <select id="status" name="status" defaultValue={existing?.status ?? 'provisional'} style={{ maxWidth: 200 }}>
+        <select className="whova-text-input" id="status" name="status" defaultValue={existing?.status ?? 'provisional'} style={{ maxWidth: 200 }}>
           <option value="provisional">Provisional, not paid yet</option>
           <option value="confirmed">Confirmed</option>
           <option value="cancelled">Cancelled</option>
@@ -71,6 +71,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
           Booth
         </label>
         <input
+          className="whova-text-input"
           id="boothNumber"
           name="boothNumber"
           defaultValue={existing?.boothNumber}
@@ -84,6 +85,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
           Staff passes
         </label>
         <input
+          className="whova-text-input"
           id="passesAllocated"
           name="passesAllocated"
           type="number"
@@ -99,7 +101,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
         */}
         <p className="muted" style={{ fontSize: 12 }}>
           What the package includes. {existing ? `${existing.passesUsed} claimed so far. ` : ''}
-          Blank means the contract does not say, which is worth chasing before doors open.
+          Leave blank if the contract does not say.
         </p>
       </div>
 
@@ -107,7 +109,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
         <label className="whova-form-label" htmlFor="contactName">
           Main contact
         </label>
-        <input id="contactName" name="contactName" defaultValue={existing?.contactName} />
+        <input className="whova-text-input" id="contactName" name="contactName" defaultValue={existing?.contactName} />
       </div>
 
       <div className="whova-form-row">
@@ -115,6 +117,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
           Contact email
         </label>
         <input
+          className="whova-text-input"
           id="contactEmail"
           name="contactEmail"
           type="email"
@@ -130,16 +133,16 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
         <label className="whova-form-label" htmlFor="website">
           Website
         </label>
-        <input id="website" name="website" defaultValue={existing?.website} placeholder="https://" />
+        <input className="whova-text-input" id="website" name="website" defaultValue={existing?.website} placeholder="https://" />
       </div>
 
       <div className="whova-form-row">
         <label className="whova-form-label" htmlFor="description">
           Description
         </label>
-        <textarea id="description" name="description" rows={4} defaultValue={existing?.description} />
+        <textarea className="whova-text-input" id="description" name="description" rows={4} defaultValue={existing?.description} />
         <p className="muted" style={{ fontSize: 12 }}>
-          Shown in the app&rsquo;s exhibitor list, once that list exists.
+          Shown in the exhibitor list in the app and on the website.
         </p>
       </div>
 
@@ -151,7 +154,7 @@ export function ExhibitorForm({ existing }: { existing?: ExhibitorRow }) {
 function SaveButton({ editing }: { editing: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="whova-btn-main" disabled={pending}>
+    <button type="submit" className="whova-btn-main primary" disabled={pending}>
       {pending ? 'Saving…' : editing ? 'Save changes' : 'Add exhibitor'}
     </button>
   );

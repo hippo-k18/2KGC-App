@@ -5,7 +5,7 @@ import { attendeeAttendance, formatHours } from '@/lib/attendance';
 import { lastWording, listCertificates } from '@/lib/certificates';
 import { DEFAULT_LIST_ID, listRegistrations, listStations, recentCheckIns } from '@/lib/checkin';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
+import { Email, GapPanel, NotInputted, PageHeader, Panel, StatTiles, Table, Tag } from '../../ui';
 import { PrintButton } from '../name-badges/print-button';
 import { IssueForm } from './issue-form';
 
@@ -100,12 +100,11 @@ export default async function CertificatesPage() {
           <>
             <strong>Printed here, not emailed</strong>
             <p>
-              There is no per-recipient send queue in this dashboard, so certificates are printed
-              or saved as PDF by the browser.
+              Certificates are printed or saved as PDF from your browser. They are not emailed.
             </p>
             <p>
-              Hours are each session&rsquo;s <em>scheduled</em> length (nothing records a
-              departure) and only sessions whose door was opened count at all.
+              Hours are each session&rsquo;s scheduled length. Only sessions with check-in opened
+              count.
             </p>
           </>
         }
@@ -139,7 +138,7 @@ export default async function CertificatesPage() {
           {
             label: 'Hours certified',
             value: totalMinutes > 0 ? formatHours(totalMinutes) : '—',
-            sub: totalMinutes > 0 ? 'scheduled, across every attendee' : 'not inputted yet',
+            sub: totalMinutes > 0 ? 'scheduled, across every attendee' : 'none yet',
           },
           {
             label: 'At the door only',
@@ -152,11 +151,8 @@ export default async function CertificatesPage() {
       <Panel>
         <h2 className="section-header">Issue</h2>
         <p className="body-2">
-          Writes one certificate per attendee who has been counted into at least one session,
-          copying in the hours and the session titles as they stand right now. Running it again
-          re-issues everybody at the current attendance, which is what you want after a late
-          room door is scanned, and is why the wording is stored on each certificate rather than
-          read live.
+          Issues one certificate to each attendee counted into at least one session, with their
+          hours and session titles as of now. Issue again after more scans to update everyone.
         </p>
         <IssueForm
           statement={wording.statement}
@@ -200,7 +196,7 @@ export default async function CertificatesPage() {
                 <span key="n">
                   <strong>{r.registration.name}</strong>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    {r.registration.email}
+                    <Email address={r.registration.email} />
                   </div>
                 </span>,
                 r.registration.ticketType ?? <span className="muted">—</span>,

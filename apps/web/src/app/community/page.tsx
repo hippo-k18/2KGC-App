@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { SLACK_WORKSPACE } from '@/lib/site';
+import { NEWSLETTER_SIGNUP, RESOURCE_HUB, SLACK_WORKSPACE, YOUTUBE_CHANNEL } from '@/lib/site';
+import { ticketSalesOpen } from '@/lib/data';
 
 export const metadata: Metadata = {
-  title: 'Community',
+  title: 'The Knowledge Graph Community',
   description:
     'The KGC community: around ten thousand knowledge graph professionals on Slack, LinkedIn and the newsletter.',
 };
@@ -38,9 +39,11 @@ const CHANNELS = [
   },
   {
     name: 'Newsletter',
-    body: 'A monthly note on what the community is building, and what is coming at the next conference.',
+    // Wording from the team, 2026-09-28. The form is the conference's HubSpot
+    // sign-up, the same one the blog links to.
+    body: 'A biweekly newsletter with the latest KGC news, community events, and industry trends.',
     cta: 'Subscribe',
-    href: 'mailto:contact@knowledgegraph.tech?subject=Newsletter',
+    href: NEWSLETTER_SIGNUP,
   },
 ];
 
@@ -48,16 +51,25 @@ const LIBRARIES = [
   {
     name: 'YouTube channel',
     body: 'Keynotes, panel discussions, workshops and tutorials from the conference, across every track.',
-    href: 'https://www.youtube.com/@knowledgegraphconference',
+    href: YOUTUBE_CHANNEL,
   },
   {
-    name: 'Vimeo library',
+    /*
+     * Was the Vimeo library. The team pointed it at the conference's own video
+     * site on 2026-09-28, the same address the Resource Hub menu entry now uses.
+     */
+    name: 'Video library',
     body: 'An on-demand library of talks, workshops and tutorials recorded at previous KGC events.',
-    href: 'https://vimeo.com/knowledgegraphconference',
+    href: RESOURCE_HUB,
+    cta: 'Open the video library',
   },
 ];
 
-export default function CommunityPage() {
+/** Re-read every 30 seconds, so the ticket-sales switch reaches this page. */
+export const revalidate = 30;
+
+export default async function CommunityPage() {
+  const salesOpen = await ticketSalesOpen();
   return (
     <>
       <section className="band band-centred" style={{ padding: '84px 0 70px' }}>
@@ -110,7 +122,7 @@ export default function CommunityPage() {
                 <h2>{l.name}</h2>
                 <p>{l.body}</p>
                 <a className="btn btn-outline" href={l.href} target="_blank" rel="noreferrer">
-                  Open {l.name.split(' ')[0]}
+                  {'cta' in l ? l.cta : `Open ${l.name.split(' ')[0]}`}
                 </a>
               </div>
             ))}
@@ -118,19 +130,21 @@ export default function CommunityPage() {
         </div>
       </section>
 
-      <section className="band band-pale band-centred">
-        <div className="wrap-kgc">
-          <h2 className="kgc-h2-md" style={{ marginBottom: 18 }}>
-            Meet them in person
-          </h2>
-          <p className="learn-intro" style={{ marginBottom: 30 }}>
-            The community spends one week a year in the same building.
-          </p>
-          <Link className="btn btn-accent btn-kgc" href="/tickets">
-            Register now
-          </Link>
-        </div>
-      </section>
+      {salesOpen && (
+        <section className="band band-pale band-centred">
+          <div className="wrap-kgc">
+            <h2 className="kgc-h2-md" style={{ marginBottom: 18 }}>
+              Meet them in person
+            </h2>
+            <p className="learn-intro" style={{ marginBottom: 30 }}>
+              The community spends one week a year in the same building.
+            </p>
+            <Link className="btn btn-accent btn-kgc" href="/tickets">
+              Register now
+            </Link>
+          </div>
+        </section>
+      )}
     </>
   );
 }

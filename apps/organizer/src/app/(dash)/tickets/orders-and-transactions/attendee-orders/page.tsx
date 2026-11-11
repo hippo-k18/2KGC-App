@@ -1,21 +1,10 @@
 import Link from 'next/link';
 import { requirePassphrase, requireOrganizer } from '@/lib/auth';
-import { listOrders, money, type OrderRow } from '@/lib/commerce';
+import { listOrders, money, purchaseDay, type OrderRow } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
+import { matchesOrderFilter, orderFilterOf, orderStatusLabel } from '@/lib/order-status-core';
 import { stripeEnabled, stripeIsLive, stripeInvoiceUrl, stripePaymentUrl } from '@/lib/stripe';
-import {
-  listParams,
-  PageHeader,
-  paginate,
-  Pagination,
-  NotInputted,
-  Panel,
-  PER_PAGE,
-  SearchInput,
-  sortRows,
-  Table,
-  Tag,
-} from '../../../ui';
+import { Email, NotInputted, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../../ui';
 import { MarkPaidButton, RefundButton } from './order-actions';
 
 export const dynamic = 'force-dynamic';
@@ -54,18 +43,23 @@ function statusTag(o: OrderRow) {
       </Tag>
     );
   }
-  const color =
-    o.status === 'paid'
-      ? 'green'
-      : o.status === 'refunded' || o.status === 'cancelled'
-        ? 'red'
-        : o.status === 'partially_refunded'
-          ? 'orange'
-          : 'grey';
+  // `cancelled` reads as "Not completed" or "Chargeback" (T357, `orderStatusLabel`).
+  const { label, tone, hint } = orderStatusLabel(o);
   return (
-    <Tag color={color} fill="outline">
-      {o.status.replace('_', ' ')}
-    </Tag>
+    <>
+      <Tag color={tone} fill="outline">
+        {label}
+      </Tag>
+      {/*
+        A line of text, not an InfoTip: the table wrapper scrolls sideways, which
+        clips a bubble opened from the last rows (T359), and a phone has no hover.
+      */}
+      {hint ? (
+        <div className="order-status-hint">
+          {hint}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -88,14 +82,17 @@ export default async function AttendeeOrdersPage({
   const all = await listOrders();
 
   const filtered = all.filter((o) => {
-    if (status && o.status !== status) return false;
+    if (!matchesOrderFilter(o, status)) return false;
     if (!q) return true;
     return (
+      // The Email Log links here with `?q=<order id>` (T274).
+      o.id.toLowerCase() === q ||
       o.email.toLowerCase().includes(q) ||
       (o.buyerName ?? '').toLowerCase().includes(q) ||
       (o.companyName ?? '').toLowerCase().includes(q) ||
       (o.poNumber ?? '').toLowerCase().includes(q) ||
-      o.ticketNames.join(' ').toLowerCase().includes(q)
+      o.ticketNames.join(' ').toLowerCase().includes(q) ||
+      o.merchLabel.toLowerCase().includes(q)
     );
   });
 
@@ -118,6 +115,9 @@ export default async function AttendeeOrdersPage({
    * orders are neither "paid" nor "refunded" and were reachable only by paging
    * through All. The two states an organizer most needs to isolate — money
    * partly returned, and a checkout that expired — were the two with no filter.
+   *
+   * `cancelled` is counted as two tabs (T357): "Not completed" for checkouts
+   * that expired unpaid, and "Chargeback", shown only when there is one.
    */
   const counts = {
     all: all.length,
@@ -125,7 +125,8 @@ export default async function AttendeeOrdersPage({
     pending: all.filter((o) => o.status === 'pending').length,
     partially_refunded: all.filter((o) => o.status === 'partially_refunded').length,
     refunded: all.filter((o) => o.status === 'refunded').length,
-    cancelled: all.filter((o) => o.status === 'cancelled').length,
+    not_completed: all.filter((o) => orderFilterOf(o) === 'not_completed').length,
+    chargeback: all.filter((o) => orderFilterOf(o) === 'chargeback').length,
   };
 
   return (
@@ -136,11 +137,11 @@ export default async function AttendeeOrdersPage({
           <>
             <strong>This screen shows buyer personal data</strong>
             <p>
-              Names, addresses and company names, plus a button that moves money. The CSV carries
-              the same and leaves the building, no badge secret or claim code is ever in it.
+              Names, email addresses and company names. The CSV export has the same data, without
+              badge or claim codes.
               {stripeEnabled()
-                ? ' A partial refund leaves the ticket valid; a full one cancels it.'
-                : ' Refunds need STRIPE_SECRET_KEY on this deployment and are issued from the Stripe dashboard until it is set.'}
+                ? ' A partial refund leaves the ticket valid. A full refund cancels it.'
+                : ' Stripe is not connected, so refunds are issued from the Stripe dashboard.'}
             </p>
           </>
         }
@@ -161,7 +162,7 @@ export default async function AttendeeOrdersPage({
               {stripeIsLive() ? 'Stripe live' : 'Stripe test mode'}
             </Tag>
           ) : (
-            <Tag color="grey">No Stripe key: refunds disabled</Tag>
+            <Tag color="grey">Refunds disabled</Tag>
           )
         }
         links={[
@@ -209,7 +210,10 @@ export default async function AttendeeOrdersPage({
               ['pending', `Unpaid ${counts.pending}`],
               ['partially_refunded', `Part refunded ${counts.partially_refunded}`],
               ['refunded', `Refunded ${counts.refunded}`],
-              ['cancelled', `Cancelled ${counts.cancelled}`],
+              ['not_completed', `Not completed ${counts.not_completed}`],
+              ...(counts.chargeback > 0 || status === 'chargeback'
+                ? ([['chargeback', `Chargeback ${counts.chargeback}`]] as const)
+                : []),
             ] as const
           ).map(([value, label]) => {
             const p = new URLSearchParams(baseParams);
@@ -219,6 +223,7 @@ export default async function AttendeeOrdersPage({
             return (
               <Link
                 key={value || 'all'}
+                className="row-link"
                 href={`?${p.toString()}`}
                 style={{
                   fontSize: 12,
@@ -247,7 +252,7 @@ export default async function AttendeeOrdersPage({
             <div key="b">
               <div>{o.buyerName || <span className="muted">(no name)</span>}</div>
               <div className="muted" style={{ fontSize: 11 }}>
-                {o.email}
+                <Email address={o.email} />
               </div>
               {o.companyName && (
                 <div className="muted" style={{ fontSize: 11 }}>
@@ -259,8 +264,22 @@ export default async function AttendeeOrdersPage({
 
             <div key="t">
               <div style={{ fontSize: 13 }}>
-                {o.ticketNames.length > 0 ? o.ticketNames.join(', ') : <span className="muted">—</span>}
+                {o.ticketNames.length > 0 ? (
+                  o.ticketNames.join(', ')
+                ) : o.merchOnly ? (
+                  <span className="muted">Merch only</span>
+                ) : (
+                  <span className="muted">—</span>
+                )}
               </div>
+              {o.merchLabel && (
+                <div style={{ fontSize: 12 }}>
+                  <Tag color="blue" small>
+                    merch
+                  </Tag>{' '}
+                  {o.merchLabel}
+                </div>
+              )}
               <div className="muted" style={{ fontSize: 11 }}>
                 {o.channel === 'demo' ? (
                   <Tag color="grey" small>
@@ -270,6 +289,7 @@ export default async function AttendeeOrdersPage({
                   <>
                     {o.channel}
                     {o.seatCount > 1 ? ` · ${o.seatCount} seats` : ''}
+                    {o.groupDiscountCents > 0 ? ' · group rate' : ''}
                     {o.promotionCode ? ` · ${o.promotionCode}` : ''}
                   </>
                 )}
@@ -281,6 +301,11 @@ export default async function AttendeeOrdersPage({
               {o.taxCents > 0 && (
                 <div className="muted" style={{ fontSize: 11 }}>
                   incl. {money(o.taxCents, o.currency)} tax
+                </div>
+              )}
+              {o.groupDiscountCents > 0 && (
+                <div className="muted" style={{ fontSize: 11 }}>
+                  after {money(o.groupDiscountCents, o.currency)} group discount
                 </div>
               )}
             </div>,
@@ -302,13 +327,13 @@ export default async function AttendeeOrdersPage({
               {statusTag(o)}
               {o.markedPaidBy && (
                 <div className="muted" style={{ fontSize: 11 }}>
-                  by {o.markedPaidBy}
+                  by <Email address={o.markedPaidBy} />
                 </div>
               )}
             </div>,
 
             <span key="w" className="muted" style={{ fontSize: 12 }}>
-              {o.purchasedAt.slice(0, 10)}
+              {purchaseDay(o.purchasedAt)}
             </span>,
 
             <div key="a" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

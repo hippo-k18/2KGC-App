@@ -71,13 +71,12 @@ export async function refundOrderAction(
   if (!stripeEnabled()) {
     return {
       error:
-        'No Stripe key is configured on this deployment, so no refund can be issued from here. ' +
-        'Use the Stripe dashboard.',
+        'Stripe is not connected, so no refund can be issued from here. Use the Stripe dashboard.',
     };
   }
 
-  if (!reauthenticate(passphrase)) {
-    return { error: 'That passphrase is not correct. Nothing has been refunded.' };
+  if (!(await reauthenticate(passphrase))) {
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has been refunded.' };
   }
 
   const order = await getOrder(orderId);
@@ -204,8 +203,8 @@ export async function markInvoicePaidAction(
   const note = String(formData.get('note') ?? '').trim();
 
   if (!orderId) return { error: 'No order specified.' };
-  if (!reauthenticate(passphrase)) {
-    return { error: 'That passphrase is not correct. Nothing has changed.' };
+  if (!(await reauthenticate(passphrase))) {
+    return { error: 'That confirmation code is not right, or it has expired. Nothing has changed.' };
   }
   if (note.length < 3) {
     // Required, because "why is this marked paid?" asked six months later has

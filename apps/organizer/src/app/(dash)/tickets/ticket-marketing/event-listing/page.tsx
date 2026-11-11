@@ -5,6 +5,7 @@ import { listTicketTypes } from '@/lib/commerce';
 import { listSessions } from '@/lib/data';
 import { publicUrl } from '@/lib/webpages';
 import { GapPanel, PageHeader, Panel, Table, Tag } from '../../../ui';
+import { wrapCol } from '../../wrap-col';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,11 +68,10 @@ export default async function EventListingPage() {
         title="Event Listing"
         info={
           <>
-            <strong>There is no marketplace to list in</strong>
+            <strong>Event listing is not available yet</strong>
             <p>
-              The channels below are the ones that work for a conference on its own domain, and none
-              of them is a button here, each is a form somebody fills in once. The second table is
-              the copy those forms ask for, read from the programme and the catalogue.
+              There is no event directory to list in. Use the channels below, and copy the event
+              details from the second table into any calendar form.
             </p>
           </>
         }
@@ -90,35 +90,27 @@ export default async function EventListingPage() {
       />
 
       <Panel>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What an event listing is actually for</h2>
-        <p className="body-2" style={{ marginTop: 0 }}>
-          Being findable by people who are <em>not already looking for you</em>. For a conference on
-          its own domain that is search, the field&rsquo;s own calendars, and other people&rsquo;s
-          newsletters.
-        </p>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Where people can find the event</h2>
         <Table
           cols={[
             { key: 'c', label: 'Channel', className: 'cell-md' },
             { key: 'w', label: 'What it needs', className: 'cell-fill' },
             { key: 's', label: 'State', className: 'cell-sm' },
           ]}
-          rows={[
+          rows={wrapCol([
             [
               'Search',
               <span key="w">
-                Structured data on the public pages so a search engine renders KGC as an event with
-                dates and a venue rather than a page of text. <code>schema.org/Event</code> JSON-LD
-                is on{' '}
+                The{' '}
                 <a href={publicUrl('/')} target="_blank" rel="noreferrer">
-                  /
+                  home page
                 </a>{' '}
-                and{' '}
+                and the{' '}
                 <a href={publicUrl('/agenda')} target="_blank" rel="noreferrer">
-                  /agenda
+                  agenda
                 </a>{' '}
-                now, generated from the programme and the ticket catalogue rather than typed. The
-                dates come from the published sessions, the price range from{' '}
-                <code>ticketTypes</code>, so it cannot drift from what the pages say.
+                tell search engines the event dates, venue and price range. They update when the
+                agenda or tickets change.
               </span>,
               <Tag key="s" color="green" small>
                 done
@@ -126,7 +118,7 @@ export default async function EventListingPage() {
             ],
             [
               'Community calendars',
-              'The knowledge-graph field has a handful. Mailing lists, a few aggregators, the semantic-web community calendar. Each is a form somebody fills in once. There is no API to integrate with and no screen would help.',
+              'Mailing lists, aggregators and the semantic web community calendar. Each is a form you fill in once.',
               <Tag key="s" color="grey" small>
                 by hand
               </Tag>,
@@ -134,10 +126,9 @@ export default async function EventListingPage() {
             [
               'Other people’s newsletters',
               <span key="w">
-                The highest-yield channel a research conference has, and it is a relationship rather
-                than a feature. Give each one a{' '}
-                <Link href="/tickets/ticket-marketing/campaign-link-tracking">tracked link</Link> so
-                you learn which ones are worth asking again.
+                Give each newsletter a{' '}
+                <Link href="/tickets/ticket-marketing/campaign-link-tracking">tracked link</Link> to
+                see which ones bring orders.
               </span>,
               <Tag key="s" color="green" small>
                 measurable
@@ -146,36 +137,31 @@ export default async function EventListingPage() {
             [
               'Speakers’ own audiences',
               <span key="w">
-                Bigger than any directory. Give each speaker a{' '}
-                <Link href="/tickets/ticket-marketing/referral-contest">referral link</Link>. Built,
-                and the closest thing here to what a listing promises.
+                Give each speaker a{' '}
+                <Link href="/tickets/ticket-marketing/referral-contest">referral link</Link>.
               </span>,
               <Tag key="s" color="green" small>
-                built
+                measurable
               </Tag>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 
       <Panel style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 15, marginTop: 0 }}>What a listing would say, if there were one</h2>
-        <p className="body-2" style={{ marginTop: 0 }}>
-          Kept here because it is the copy every calendar submission asks for, and having it in one
-          place beats retyping it into six forms.
-        </p>
+        <h2 style={{ fontSize: 15, marginTop: 0 }}>Event details for calendar forms</h2>
         <Table
           cols={[
             { key: 'f', label: 'Field', className: 'cell-sm' },
             { key: 'v', label: 'Value', className: 'cell-fill' },
           ]}
-          rows={[
+          rows={wrapCol([
             ['Name', EVENT.name],
             [
               'Dates',
               dateRange ?? (
                 <span key="v" className="muted">
-                  Not inputted yet, no session is published
+                  No session is published yet
                 </span>
               ),
             ],
@@ -201,7 +187,7 @@ export default async function EventListingPage() {
                 {publicUrl('/agenda')}
               </a>,
             ],
-          ]}
+          ], 1)}
         />
       </Panel>
 

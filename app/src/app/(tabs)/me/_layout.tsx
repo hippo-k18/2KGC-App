@@ -10,6 +10,7 @@ export default function MeLayout() {
       <Stack.Screen name="schedule" options={{ title: 'My schedule' }} />
       <Stack.Screen name="profile" options={{ title: 'Edit profile' }} />
       <Stack.Screen name="badge" options={{ title: 'My badge' }} />
+      <Stack.Screen name="delete-account" options={{ title: 'Delete account' }} />
     </Stack>
   );
 }

@@ -90,7 +90,9 @@ export function useMessages(threadId: string | undefined) {
   );
   // An object, not a bare array. "Say hello to Priya" over a conversation the
   // server refused to send is the same lie an empty agenda was telling.
-  return { messages: data ?? [], error, retry };
+  // A message an organizer hid after a report is left out. The query cannot
+  // filter it, because older messages have no `hidden` field at all.
+  return { messages: (data ?? []).filter((m) => m.hidden !== true), error, retry };
 }
 
 /**
@@ -190,7 +192,20 @@ export function otherParticipant(thread: Thread, uid: string): string {
   return correspondentIn(thread.participantIds, uid) ?? uid;
 }
 
-export function totalUnread(threads: Thread[] | null, uid: string | undefined): number {
+/**
+ * The badge on Home, Me and the Messages button: unread messages across my
+ * threads, leaving out people I blocked. `blocked` is required so no caller
+ * can forget it: the inbox hides those threads, and a badge counting them
+ * pointed at messages nobody could find (T230).
+ */
+export function totalUnread(
+  threads: Thread[] | null,
+  uid: string | undefined,
+  blocked: ReadonlySet<string>,
+): number {
   if (!threads || !uid) return 0;
-  return threads.reduce((sum, t) => sum + (t.unread?.[uid] ?? 0), 0);
+  return threads.reduce(
+    (sum, t) => (blocked.has(otherParticipant(t, uid)) ? sum : sum + (t.unread?.[uid] ?? 0)),
+    0,
+  );
 }

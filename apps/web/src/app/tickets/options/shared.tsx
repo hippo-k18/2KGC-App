@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { termsPublished } from '@/lib/terms-core';
 import type { ReactNode } from 'react';
 import chrome from './options.module.css';
 import { SITE } from '@/lib/site';
@@ -65,6 +66,7 @@ export function BuyBand({ data }: { data: OptionData }) {
       <div className="wrap">
         {data.tiers.length > 0 ? (
           <CheckoutForm
+            termsPublished={termsPublished()}
             tiers={data.tiers}
             initialTier={data.preselected}
             stripeReady={data.stripeReady}
@@ -98,8 +100,9 @@ export function AfterBands() {
               Pick a ticket, and give us the attendee’s name and email address.
             </li>
             <li>
-              <strong>Keep the claim code</strong>
-              Six characters, shown the moment you pay. It is the fallback door into your ticket.
+              <strong>Check your email</strong>
+              Your ticket arrives the moment you pay. The registration desk finds you by that
+              address.
             </li>
             <li>
               <strong>Open the KGC app</strong>
@@ -121,7 +124,7 @@ export function AfterBands() {
             <summary>Can I transfer my ticket to someone else?</summary>
             <div className="answer">
               <p>
-                Yes, up to a week before the conference. Mail{' '}
+                Yes, until April 26, 2027, a week before the conference. Mail{' '}
                 <a className={chrome.wrapAnywhere} href={`mailto:${SITE.contactEmail}`}>
                   {SITE.contactEmail}
                 </a> with the new

@@ -109,7 +109,7 @@ export function SessionForm({
             Open “{values.title || 'the new session'}” →
           </Link>{' '}
           <span className="muted">
-            Anything else it needs. Q&amp;A and polls, a longer description. Is on that page.
+            Q&amp;A, polls and the longer description are on that page.
           </span>
         </p>
       ) : null}
@@ -125,7 +125,7 @@ export function SessionForm({
         maxLength={200}
         hint={
           creating
-            ? 'The id is derived from the title and the start time, so a re-import of the same programme updates this session rather than duplicating it.'
+            ? 'A later import with the same title and start time updates this session.'
             : undefined
         }
       />
@@ -167,9 +167,8 @@ export function SessionForm({
         options={rooms.map((r) => ({ value: r.id, label: r.name }))}
         hint={
           <>
-            ⚠️ The attendee app cannot read the <code>rooms</code> collection (there is no rules
-            block for it) so the room <em>name</em> copied onto this session is the only thing
-            telling somebody which door to walk to. Leaving this blank leaves them with nothing.
+            The room name is what attendees see on the agenda. Leave it blank and they see no
+            location.
           </>
         }
       />
@@ -185,8 +184,8 @@ export function SessionForm({
         emptyNote="Not in any track. It will still appear on the agenda, without a coloured tag."
         hint={
           <>
-            A talk can be cross-listed, but only the <strong>first</strong> track is shown on the
-            agenda card. Its name and colour are copied onto this session when you save.
+            A session can be in several tracks. Only the <strong>first</strong> is shown on the
+            agenda card.
           </>
         }
       />
@@ -202,7 +201,7 @@ export function SessionForm({
         defaultValue={values.speakerIds}
         addLabel="Add a speaker"
         emptyNote="Nobody assigned yet."
-        hint="In billing order, first author first. Not sorted for you."
+        hint="Shown in this order."
       />
 
       <FormGrid>
@@ -240,10 +239,9 @@ export function SessionForm({
           width="sm"
           hint={
             <>
-              ⚠️ A <strong>stated intent, not a limit</strong>. Nothing counts attendees into a
-              session and nothing turns anyone away. Saving one to your schedule is a private
-              bookmark. It feeds the over-capacity warning on Conflict Check and the comparison on
-              Attendees › Session Cap, and that is all it does.
+              A planning number, <strong>not an enforced limit</strong>. Nobody is turned away. It
+              is used by the over-capacity warning on Conflict Check and on Attendees › Session
+              Cap.
             </>
           }
         />
@@ -266,7 +264,7 @@ export function SessionForm({
                 ? 'cancelled, still visible, marked cancelled'
                 : 'published',
         }))}
-        hint="There is no delete. Removing a session from the programme is a status change."
+        hint="Sessions cannot be deleted. Set the status to cancelled to take one off the programme."
       />
 
       <Textarea
@@ -277,6 +275,8 @@ export function SessionForm({
         defaultValue={values.description}
       />
 
+      {/* Who was told, then what the push layer did. Two different things. */}
+      {state.noticeNote ? <p className="whova-form-description">{state.noticeNote}</p> : null}
       {state.pushNote ? <p className="whova-form-description">{state.pushNote}</p> : null}
 
       <FormActions>

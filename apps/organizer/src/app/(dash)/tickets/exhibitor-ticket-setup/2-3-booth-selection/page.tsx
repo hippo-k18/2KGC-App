@@ -9,12 +9,14 @@ import {
   NotInputted,
   PageHeader,
   Panel,
+  ROW_ACTION,
   StatTiles,
   Table,
   Tag,
 } from '../../../ui';
 import { releaseBoothAction, toggleBoothBlockedAction } from './actions';
 import { AddBoothForm, AssignBoothForm } from './booth-forms';
+import { ConfirmButton } from '../../../form';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,9 +95,8 @@ export default async function BoothSelectionPage() {
           <>
             <strong>A package sells a booth size, not a space</strong>
             <p>
-              Which particular booth somebody gets is decided here, after the sale, because a floor
-              plan is agreed with the venue later than the catalogue is priced. Allocation is
-              transactional. A booth already held or assigned is refused rather than overwritten.
+              Choose which booth each exhibitor gets here, after the sale. A booth that is already
+              held or assigned cannot be given to someone else until it is released.
             </p>
           </>
         }
@@ -123,8 +124,7 @@ export default async function BoothSelectionPage() {
             {stats.unallocatedSales} paid{' '}
             {stats.unallocatedSales === 1 ? 'package has' : 'packages have'} no space allocated.
           </strong>{' '}
-          Somebody has bought a booth and does not yet know where it is. That is the number this
-          screen exists to drive to zero.
+          Allocate a space to each one below.
         </Banner>
       )}
 
@@ -157,7 +157,7 @@ export default async function BoothSelectionPage() {
             </div>,
 
             <span key="z" className="muted" style={{ fontSize: 12 }}>
-              {b.zone || '—'}
+              {b.zone || ''}
             </span>,
 
             <span key="p" style={{ fontSize: 12 }}>
@@ -168,13 +168,9 @@ export default async function BoothSelectionPage() {
                     a booth pointing at a deleted package is a real thing to fix,
                     and an empty cell says nothing about it.
                   */
-                  <span className="muted">
-                    unknown tier <code>{b.ticketTypeId}</code>
-                  </span>
+                  <span className="muted">a package that no longer exists</span>
                 ))
-              ) : (
-                <span className="muted">—</span>
-              )}
+              ) : null}
             </span>,
 
             <div key="o">
@@ -191,9 +187,7 @@ export default async function BoothSelectionPage() {
                 </>
               ) : b.note ? (
                 <span className="muted">{b.note}</span>
-              ) : (
-                <span className="muted">—</span>
-              )}
+              ) : null}
             </div>,
 
             <Tag key="s" small color={label(b.status)}>
@@ -202,12 +196,11 @@ export default async function BoothSelectionPage() {
 
             <div key="a" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {b.exhibitorId ? (
-                <form action={releaseBoothAction}>
-                  <input type="hidden" name="boothId" value={b.id} />
-                  <button type="submit" className="linkish">
-                    Release
-                  </button>
-                </form>
+                /* A paying exhibitor loses the booth on this press, so it asks first (T262). */
+                <ConfirmButton action={releaseBoothAction} label="Release" hidden={{ boothId: b.id }}>
+                  Booth {b.id} goes back on sale and its exhibitor no longer has it. Assigning it
+                  again is the only way back.
+                </ConfirmButton>
               ) : (
                 <form action={toggleBoothBlockedAction}>
                   <input type="hidden" name="boothId" value={b.id} />
@@ -217,7 +210,7 @@ export default async function BoothSelectionPage() {
                     name="note"
                     value={b.status === 'blocked' ? '' : 'Blocked from the dashboard'}
                   />
-                  <button type="submit" className="linkish">
+                  <button type="submit" className="linkish" style={ROW_ACTION}>
                     {b.status === 'blocked' ? 'Unblock' : 'Block'}
                   </button>
                 </form>
@@ -232,7 +225,7 @@ export default async function BoothSelectionPage() {
         style={{
           display: 'grid',
           gap: 16,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
           marginTop: 16,
         }}
       >

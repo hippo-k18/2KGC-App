@@ -83,11 +83,21 @@ curl -sf "http://localhost:$PORT/login" >/dev/null 2>&1 || {
   exit 1
 }
 
+# Owners carry a session epoch (T263), stored server-side in ownerSessions
+# under sha256 of the address. Seed one on the emulator for the smoke owner.
+OWNER_DOC=$(printf smoke | shasum -a 256 | cut -d' ' -f1)
+curl -sf -X PATCH -H "Authorization: Bearer owner" -H "Content-Type: application/json" \
+  -d '{"fields":{"epoch":{"stringValue":"smoke-epoch"}}}' \
+  "http://localhost:$EMULATOR_PORT/v1/projects/kgc-conference-app-and-website/databases/(default)/documents/ownerSessions/$OWNER_DOC" >/dev/null || {
+  echo "✗ could not seed the owner session epoch"
+  exit 1
+}
+
 # Mint the session cookie directly rather than driving the login form. The
 # cookie format is an HMAC over a base64url payload; `auth.ts` is the spec.
 COOKIE=$(CONSOLE_SESSION_SECRET="$SECRET" node -e '
   const { createHmac } = require("node:crypto");
-  const s = { email: "smoke", expiresAt: Date.now() + 3600000 };
+  const s = { email: "smoke", expiresAt: Date.now() + 3600000, epoch: "smoke-epoch" };
   const p = Buffer.from(JSON.stringify(s)).toString("base64url");
   process.stdout.write(p + "." + createHmac("sha256", process.env.CONSOLE_SESSION_SECRET).update(p).digest("base64url"));
 ')

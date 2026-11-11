@@ -41,12 +41,10 @@ export function CacheTools() {
         <div className="whova-banner warning" role="status">
           <div>
             <strong>
-              {state.dangling.length} reference{state.dangling.length === 1 ? '' : 's'} point at a
-              document that no longer exists.
+              {state.dangling.length} session{state.dangling.length === 1 ? '' : 's'} name a
+              speaker, track or room that no longer exists.
             </strong>{' '}
-            The cached name is kept rather than blanked. A stale room name still gets somebody to
-            roughly the right place, and an empty one gets them nowhere. Each is{' '}
-            <code>session → collection/id</code>:
+            The old name is kept on the agenda. Edit each session to fix it:
             <ul style={{ fontSize: 12, marginBottom: 0, paddingLeft: 18 }}>
               {state.dangling.slice(0, 12).map((d) => (
                 <li key={d}>

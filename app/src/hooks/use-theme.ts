@@ -1,6 +1,9 @@
+import { useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { Colors, type ThemeColors } from '@/constants/theme';
+import { useEventSettings } from '@/lib/data/event-settings';
+import { themeWithBrand } from '@/lib/data/event-settings-core';
 
 /**
  * Whova has no dark mode. Neither do we.
@@ -24,11 +27,16 @@ import { Colors, type ThemeColors } from '@/constants/theme';
  */
 export const FORCE_LIGHT = true;
 
-/** Resolved palette for the active colour scheme. */
+/**
+ * Resolved palette for the active colour scheme, with the brand colour saved on
+ * the dashboard's App Branding laid over it. With none saved this is
+ * `constants/theme.ts` unchanged.
+ */
 export function useTheme(): ThemeColors {
   const scheme = useColorScheme();
-  if (FORCE_LIGHT) return Colors.light;
-  return scheme === 'dark' ? Colors.dark : Colors.light;
+  const { brand } = useEventSettings();
+  const base: ThemeColors = FORCE_LIGHT || scheme !== 'dark' ? Colors.light : Colors.dark;
+  return useMemo(() => themeWithBrand(base, brand), [base, brand]);
 }
 
 /** `'light' | 'dark'`, with the platform's `null`/unspecified treated as light. */

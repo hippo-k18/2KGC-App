@@ -81,5 +81,15 @@ service firebase.storage {
       allow read: if signedIn();
       allow write: if false;
     }
+
+    // Images on website pages laid out in the dashboard:
+    // `pageLayouts/learn/{random}.{ext}`, the KGC | Learn page editor (T309).
+    // Same posture as the folders above. www renders them through their
+    // download-token URLs, which do not read this file, so the block is for
+    // consistency with by-path reads rather than something the page needs.
+    match /pageLayouts/{page}/{fileName} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
   }
 }

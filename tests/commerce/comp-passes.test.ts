@@ -78,7 +78,7 @@ const GOLD = 'sponsor-gold';
 const ORDER = 'manual_sponsor-gold_procurement@bloomberg.example.invalid';
 
 /** A sponsor package that includes `passes` per unit, and one order for it. */
-async function sellSponsorship(passes: number, quantity = 1, orderId = ORDER) {
+async function sellSponsorship(passes: number, quantity = 1, orderId = ORDER, status = 'paid') {
   await db
     .collection(COLLECTIONS.ticketTypes)
     .doc(GOLD)
@@ -111,7 +111,7 @@ async function sellSponsorship(passes: number, quantity = 1, orderId = ORDER) {
       email: 'procurement@bloomberg.example.invalid',
       buyerName: 'Dana Okonkwo',
       companyName: 'Bloomberg',
-      status: 'paid',
+      status,
       items: [
         {
           ticketTypeId: GOLD,
@@ -412,5 +412,91 @@ describe('correcting a pass', () => {
     await sellSponsorship(2);
     const result = await renameCompPass(db, { orderId: ORDER, seat: 2, name: 'Nobody Here' });
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('T259 #8 and #15: what a pass must never do', () => {
+  it('does not bring a cancelled ticket back when its pass is renamed', async () => {
+    await sellSponsorship(2);
+    const issued = await redeemCompPass(db, { orderId: ORDER, ...named(1), actor: 'a@kgc.test' });
+    expect(issued.ok).toBe(true);
+    if (!issued.ok) return;
+    await db.collection(COLLECTIONS.registrations).doc(issued.registrationId).update({ status: 'cancelled' });
+
+    const renamed = await renameCompPass(db, { orderId: ORDER, seat: 1, name: 'Ada Nakamura' });
+    expect(renamed.ok).toBe(true);
+
+    const after = (
+      await db.collection(COLLECTIONS.registrations).doc(issued.registrationId).get()
+    ).data() as RegistrationDoc;
+    expect(after.name).toBe('Ada Nakamura');
+    expect(after.status).toBe('cancelled');
+  });
+
+  it('refuses a pass for an address that already holds a paid ticket, and leaves that ticket alone', async () => {
+    await sellSponsorship(2);
+    const email = 'di@bloomberg.example.invalid';
+    const paidId = registrationId(email);
+    await db.collection(COLLECTIONS.registrations).doc(paidId).set({
+      eventId: EVENT_ID,
+      email,
+      name: 'Di Paid',
+      ticketType: 'Main Conference',
+      status: 'active',
+      orderId: 'cs_paid',
+      qrSecret: 'q'.repeat(32),
+    });
+
+    const result = await redeemCompPass(db, { orderId: ORDER, name: 'Di Comp', email, actor: 'a@kgc.test' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/already holds an active ticket/);
+
+    const after = (await db.collection(COLLECTIONS.registrations).doc(paidId).get()).data() as RegistrationDoc;
+    expect(after.ticketType).toBe('Main Conference');
+    expect(after.name).toBe('Di Paid');
+    expect((await readCompPassAllocation(db, ORDER))?.issued).toHaveLength(0);
+  });
+
+  it('refuses a pass for an address whose active ticket sits under a per-order id', async () => {
+    await sellSponsorship(2);
+    const email = 'ed@bloomberg.example.invalid';
+    await db.collection(COLLECTIONS.registrations).doc('reg_second_order').set({
+      eventId: EVENT_ID,
+      email,
+      name: 'Ed',
+      ticketType: 'Main Conference',
+      status: 'active',
+      orderId: 'cs_b',
+    });
+    const result = await redeemCompPass(db, { orderId: ORDER, name: 'Ed', email, actor: 'a@kgc.test' });
+    expect(result.ok).toBe(false);
+  });
+
+  it('refuses a pass that would revive a transferred badge', async () => {
+    await sellSponsorship(2);
+    const email = 'fy@bloomberg.example.invalid';
+    await db.collection(COLLECTIONS.registrations).doc(registrationId(email)).set({
+      eventId: EVENT_ID,
+      email,
+      name: 'Fy',
+      status: 'transferred',
+    });
+    const result = await redeemCompPass(db, { orderId: ORDER, name: 'Fy', email, actor: 'a@kgc.test' });
+    expect(result.ok).toBe(false);
+  });
+
+  for (const status of ['refunded', 'cancelled', 'pending']) {
+    it(`refuses passes on a ${status} sponsorship order`, async () => {
+      await sellSponsorship(2, 1, ORDER, status);
+      const result = await redeemCompPass(db, { orderId: ORDER, ...named(1), actor: 'a@kgc.test' });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toMatch(status);
+    });
+  }
+
+  it('still issues passes on a partially refunded order', async () => {
+    await sellSponsorship(2, 1, ORDER, 'partially_refunded');
+    const result = await redeemCompPass(db, { orderId: ORDER, ...named(1), actor: 'a@kgc.test' });
+    expect(result.ok).toBe(true);
   });
 });

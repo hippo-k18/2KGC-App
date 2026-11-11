@@ -13,15 +13,11 @@
  *
  * ── The one fact that shapes everything below ───────────────────────────────
  *
- * **A registration is keyed by email address.** `registrationId(email)` is a
- * hash of the address, so N seats sharing one address are one registration and
- * one badge no matter what was charged. That is why multi-quantity checkout
- * cannot be a number on its own: three seats need three addresses, or the buyer
- * pays three times for one ticket and finds out at the door.
- *
- * It is also why a duplicate address is refused rather than merged. Merging
- * quietly takes money for a seat that will never exist, and the person who
- * discovers it is a colleague standing at registration without a badge.
+ * **Each seat is its own ticket.** Since 2026-09-26 seats may share an
+ * address: every paid seat becomes a separate registration with its own badge
+ * (`purchaseRegistrationId`), and the dashboard flags an address holding more
+ * than one. Before that a shared address was refused, because it merged into
+ * one badge while charging for several.
  *
  * ── Seats and line items are different shapes, deliberately ─────────────────
  *
@@ -54,6 +50,28 @@ export const MAX_SEATS = 10;
  */
 export const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/**
+ * The longest name and address a seat may carry.
+ *
+ * A name goes into Stripe metadata, which refuses any value over 500
+ * characters; a 600-character name used to reach Stripe and come back as "We
+ * could not reach the payment processor", which was the wrong reason (T135,
+ * S6/TK-031). 120 is far beyond any real name. 254 is the longest address
+ * SMTP allows. The inputs carry the same `maxLength`.
+ */
+export const MAX_NAME = 120;
+export const MAX_EMAIL = 254;
+
+/**
+ * A name as typed, made safe to print anywhere: control characters (a pasted
+ * line break above all) become spaces, runs of spaces collapse, and the ends
+ * are trimmed. "  Ada" greeted its owner as "Hi ," (T135B, TK-228), and a line
+ * break in a name or company reached an email subject and Stripe (TK-227).
+ */
+export function cleanText(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 /** One person on one purchase. */
 export interface SeatInput {
   name: string;
@@ -75,8 +93,8 @@ export interface SeatInput {
 export interface SeatProblem {
   /** Zero-based. Seat 0 is the buyer on the Checkout form. */
   index: number;
-  kind: 'empty' | 'too-many' | 'name' | 'email' | 'duplicate';
-  /** The offending address, for the duplicate message. */
+  kind: 'empty' | 'too-many' | 'name' | 'name-long' | 'email';
+  /** The offending address, where there is one. */
   email?: string;
 }
 
@@ -92,7 +110,7 @@ export interface SeatProblem {
  */
 export function collectSeats(rows: SeatInput[]): SeatInput[] {
   return rows
-    .map((r) => ({ name: r.name.trim(), email: r.email.trim(), tierId: r.tierId.trim() }))
+    .map((r) => ({ name: cleanText(r.name), email: r.email.trim(), tierId: r.tierId.trim() }))
     .filter((r) => r.name || r.email);
 }
 
@@ -109,21 +127,12 @@ export function validateSeats(seats: SeatInput[]): SeatProblem | null {
 
   for (const [i, seat] of seats.entries()) {
     if (seat.name.length < 2) return { index: i, kind: 'name' };
-    if (!EMAIL.test(seat.email)) return { index: i, kind: 'email' };
+    if (seat.name.length > MAX_NAME) return { index: i, kind: 'name-long' };
+    if (seat.email.length > MAX_EMAIL || !EMAIL.test(seat.email)) return { index: i, kind: 'email' };
   }
 
-  /**
-   * Duplicates, folded to lower case because `registrationId` folds too.
-   * `Ada@Example.com` and `ada@example.com` are one registration, so a form
-   * that accepted both would sell two seats and issue one badge.
-   */
-  const seen = new Set<string>();
-  for (const [i, seat] of seats.entries()) {
-    const key = seat.email.toLowerCase();
-    if (seen.has(key)) return { index: i, kind: 'duplicate', email: seat.email };
-    seen.add(key);
-  }
-
+  // A repeated address is allowed since 2026-09-26: each seat becomes its own
+  // ticket (see `purchaseRegistrationId`), and the dashboard flags the address.
   return null;
 }
 
@@ -198,6 +207,86 @@ export function splitAcrossSeats(totalCents: number, seats: number): number[] {
   const per = Math.floor(totalCents / seats);
   const remainder = totalCents - per * seats;
   return Array.from({ length: seats }, (_, i) => per + (i === 0 ? remainder : 0));
+}
+
+/**
+ * Split a total in proportion to what each seat was charged, with the
+ * rounding remainder on the first seat so the shares add up exactly.
+ *
+ * Even shares were fine while every seat on a purchase cost the same. A group
+ * rate, a Virtual seat beside four in-person ones, or a bundle with add-ons
+ * makes them differ, and each attendee's confirmation should name what their
+ * own seat cost, with any promotion code spread the same way. Falls back to
+ * even shares when there are no weights to go on.
+ */
+export function splitByWeight(totalCents: number, weights: number[]): number[] {
+  const sum = weights.reduce((a, b) => a + Math.max(0, b), 0);
+  if (weights.length === 0) return [];
+  if (sum <= 0) return splitAcrossSeats(totalCents, weights.length);
+  const shares = weights.map((w) => Math.floor((totalCents * Math.max(0, w)) / sum));
+  shares[0] += totalCents - shares.reduce((a, b) => a + b, 0);
+  return shares;
+}
+
+// ---------------------------------------------------------------------------
+// The group rate
+// ---------------------------------------------------------------------------
+
+/**
+ * Five or more in-person tickets in one checkout take 10% off each of them
+ * (owner, 2026-10-04). The two numbers live here and nowhere else.
+ */
+export const GROUP_RATE_MIN_SEATS = 5;
+export const GROUP_RATE_PERCENT = 10;
+
+/** What the group rate reads from a tier. */
+export type GroupRateTier = { inPerson?: boolean; audience?: string; kind?: string };
+
+/**
+ * Whether a seat's ticket counts towards the group rate and gets it: an
+ * attendee ticket for the room, so All Access, Main Conference and the Main
+ * Conference bundle with CEUs. Virtual does not, and nor do exhibitor and
+ * sponsor packages, which are priced by contract. Nor does an extra such as
+ * Workshops (owner, 2026-10-06): five Workshops do not earn 10%, and a
+ * Workshops seat beside four Main Conference seats does not make five.
+ *
+ * Read from the catalogue's own `inPerson`, `audience` and `kind`, never from
+ * the form, so a tampered post cannot buy itself the rate.
+ */
+export function countsForGroupRate(tier: GroupRateTier | undefined): boolean {
+  return Boolean(tier?.inPerson) && (tier?.audience ?? 'attendee') === 'attendee' && tier?.kind !== 'extra';
+}
+
+/** Whether a set of seats earns the group rate. */
+export function groupRateApplies(tiers: (GroupRateTier | undefined)[]): boolean {
+  return tiers.filter(countsForGroupRate).length >= GROUP_RATE_MIN_SEATS;
+}
+
+/**
+ * One seat's price at the group rate: the discount is worked out on the seat's
+ * own price, add-ons included, and rounded to the cent. Every seat on the same
+ * ticket therefore costs the same, which is what lets a Stripe line keep one
+ * unit price.
+ */
+export function groupRatePrice(priceCents: number): { priceCents: number; discountCents: number } {
+  const discountCents = Math.round((priceCents * GROUP_RATE_PERCENT) / 100);
+  return { priceCents: priceCents - discountCents, discountCents };
+}
+
+/**
+ * What each seat costs, list price and charged price, with the rate applied
+ * where it is due. One function for the form's total, the Stripe lines and the
+ * order record, so the three cannot disagree.
+ */
+export function priceSeats<T extends GroupRateTier & { priceCents: number }>(
+  seatTiers: T[],
+): { applies: boolean; seats: { listCents: number; discountCents: number; chargedCents: number }[]; discountCents: number } {
+  const applies = groupRateApplies(seatTiers);
+  const seats = seatTiers.map((t) => {
+    const rated = applies && countsForGroupRate(t) ? groupRatePrice(t.priceCents) : { priceCents: t.priceCents, discountCents: 0 };
+    return { listCents: t.priceCents, discountCents: rated.discountCents, chargedCents: rated.priceCents };
+  });
+  return { applies, seats, discountCents: seats.reduce((n, s) => n + s.discountCents, 0) };
 }
 
 /**

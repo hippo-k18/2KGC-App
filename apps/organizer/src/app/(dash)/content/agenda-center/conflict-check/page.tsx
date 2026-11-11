@@ -108,7 +108,7 @@ export default async function ConflictCheckPage() {
         tiles={[
           { label: 'Sessions checked', value: report.sessionsChecked, sub: 'excludes cancelled' },
           { label: 'Must fix', value: report.errors, sub: 'clashes and missing rooms' },
-          { label: 'Worth a look', value: report.warnings, sub: 'judgement calls' },
+          { label: 'Worth a look', value: report.warnings, sub: 'may be deliberate' },
         ]}
       />
 
@@ -129,9 +129,7 @@ export default async function ConflictCheckPage() {
             <Panel>
               <h2 style={{ fontSize: 15, marginTop: 0 }}>Must fix ({errors.length})</h2>
               <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-                Each of these is a fact about the programme rather than a judgement. Two things
-                cannot happen in one room, and a published session with no room has nowhere to
-                print on the agenda.
+                Clashes and published sessions with no room.
               </p>
               <ConflictTable rows={errors} />
             </Panel>
@@ -141,8 +139,7 @@ export default async function ConflictCheckPage() {
             <Panel style={{ marginTop: 16 }}>
               <h2 style={{ fontSize: 15, marginTop: 0 }}>Worth a look ({warnings.length})</h2>
               <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-                These may well be deliberate. A panel whose speakers are still being confirmed, or
-                a room you intend to oversell because half the audience never turns up.
+                These may be deliberate, such as a panel whose speakers are not confirmed yet.
               </p>
               <ConflictTable rows={warnings} />
             </Panel>
@@ -154,8 +151,7 @@ export default async function ConflictCheckPage() {
         <h2 style={{ fontSize: 15, marginTop: 0 }}>What this checks</h2>
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
-            <strong>Speaker clash</strong>. One person on two overlapping sessions. Matched on
-            speaker id, not name, so two people called the same thing are not confused.
+            <strong>Speaker clash</strong>. One person on two overlapping sessions.
           </li>
           <li>
             <strong>Room clash</strong>. One room hosting two overlapping sessions. A session
@@ -165,8 +161,8 @@ export default async function ConflictCheckPage() {
             <strong>Over capacity</strong>. A session cap larger than the room holds.
           </li>
           <li>
-            <strong>No room</strong>. A <em>published</em> session with nowhere to be. Drafts are
-            exempt, so this stays usable while the programme is being built.
+            <strong>No room</strong>. A <em>published</em> session with no room. Drafts are not
+            checked for this.
           </li>
           <li>
             <strong>No speaker</strong>. A published session with nobody assigned. Social formats

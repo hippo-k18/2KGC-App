@@ -1,0 +1,7 @@
+.firebase*.json
+.tmp*/
+.org*.log
+.web*.log
+test-results/
+.scratch/
+.fixtures.json

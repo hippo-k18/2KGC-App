@@ -1,24 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  collection,
-  doc,
-  limit,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-} from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 import {
   COLLECTIONS,
   DOOR_CHECK_IN_LIST_ID,
   SUBCOLLECTIONS,
+  ticketLabel,
   type CheckInDoc,
   type RegistrationDoc,
 } from '@kgc/shared';
 
 import { useAuth } from '@/lib/auth/auth-provider';
+import { type Badge, orderBadges, stripLegacy } from '@/lib/data/badge-core';
+import {
+  activeRegistrationsByEmail,
+  myAddress,
+  registrationsByAltEmail,
+} from '@/lib/data/registrations';
 import { useCollection } from '@/lib/data/use-collection';
 import { useDocument } from '@/lib/data/use-document';
 import { detachWrite } from '@/lib/data/write';
@@ -78,9 +77,9 @@ import { getDb } from '@/lib/firebase/client';
  *
  *   1. **It grants attendance and nothing else.** It is not a sign-in
  *      credential. Holding a `qrSecret` gives no read of the profile, the
- *      directory, the messages or the ticket. The sign-in fallback printed on a
- *      badge is `claimCode`, a deliberately separate and lower-stakes value, and
- *      it is never in the QR.
+ *      directory, the messages or the ticket. Signing in is an emailed code,
+ *      and the claim code no longer appears on any badge or ticket (owner,
+ *      2026-09-26), so nothing on this screen signs anybody in.
  *   2. **The theft is detected, not silent.** `checkIns` is keyed by
  *      registration, so when the real attendee arrives their scan is a duplicate
  *      and the desk reads "already checked in at 09:12 at Front desk 1". The
@@ -117,22 +116,18 @@ import { getDb } from '@/lib/firebase/client';
  * know. When the status cannot be read, the screen says so.
  */
 
-/** What the badge screen needs, and the exact set that is cached. */
-export interface Badge {
-  registrationId: string;
-  /** The QR payload. See the note above — this is the whole payload. */
-  qrSecret: string;
-  name: string;
-  ticketType: string | null;
-  /** Printed on the badge as the human fallback when a screen or reader fails. */
-  claimCode: string | null;
-  status: RegistrationDoc['status'];
-}
+
+export { type Badge, orderBadges } from '@/lib/data/badge-core';
 
 /** Where the badge on screen came from, so the UI never has to guess. */
 export type BadgeSource = 'live' | 'cache' | 'none';
 
-const CACHE_VERSION = 'v1';
+/**
+ * v2 holds every badge as a list (T212). A v1 entry, one badge with its claim
+ * code, is still read once so an attendee who opened the app before this change
+ * is not left with nothing offline; it is rewritten as v2 on the next live read.
+ */
+const CACHE_VERSION = 'v2';
 
 /**
  * Keyed by uid, not by a single global key. Two attendees sharing a device —
@@ -141,6 +136,7 @@ const CACHE_VERSION = 'v1';
  * person to sign in.
  */
 const cacheKey = (uid: string) => `kgc.badge.${CACHE_VERSION}.${uid}`;
+const legacyCacheKey = (uid: string) => `kgc.badge.v1.${uid}`;
 
 function isBadge(value: unknown): value is Badge {
   const b = value as Badge | null;
@@ -153,7 +149,14 @@ function isBadge(value: unknown): value is Badge {
   );
 }
 
+
 export interface BadgeResult {
+  /**
+   * Every ticket this account's address holds: the registration bought under
+   * it first, then any that list it as an alternate, active before cancelled.
+   */
+  badges: Badge[];
+  /** The first of `badges`, for screens that only show one fact from it. */
   badge: Badge | null;
   source: BadgeSource;
   /** True until either the cache or the first live answer has settled. */
@@ -207,25 +210,45 @@ export interface BadgeResult {
  *
  * ## Why `email` and not `emailHash`
  *
- * `apps/web/src/lib/registrations.ts` and the declared composite index both key
- * on `emailHash`, and two lookup keys for one identity is how they drift. This
- * path uses the raw address for two reasons: the app cannot compute `emailHash`
- * either, for the same missing-hash reason above; and more importantly the
- * *authorization rule* compares `data.email.lower()`, so `email` is the key the
- * security boundary already uses. Filtering on `emailHash` while the rule checks
- * `email` would be the real drift — a query and a rule keyed on different fields.
+ * `emailHash` is written on every registration and there is a composite index
+ * declared for it, so it reads like the intended lookup key. It is not one:
+ * nothing in this repo queries it. This path uses the raw address for two
+ * reasons — the app cannot compute `emailHash` either, for the same
+ * missing-hash reason above; and more importantly the *authorization rule*
+ * compares `data.email.lower()`, so `email` is the key the security boundary
+ * already uses. Filtering on `emailHash` while the rule checks `email` would be
+ * a query and a rule keyed on different fields.
  *
  * Single-field equality, so it is served by Firestore's automatic index — there
  * is no composite index to add, and no `fieldOverrides` entry disables indexing
  * on `registrations.email`. Both matter, because the emulator enforces neither
  * and a missing index fails only in production.
+ *
+ * ## Why both addresses, and why folded
+ *
+ * A registration holds the address it was bought under plus any number of
+ * alternates, and an attendee signing in on a personal address against a ticket
+ * bought on a work one is the ordinary case — `verifySignInCode` signs exactly
+ * those people in. The primary lookup finds nothing for them, so the alternates
+ * lookup runs after it comes back empty. The address itself is folded first,
+ * because an ID token carries whatever the account was created with while every
+ * stored address is lower case.
+ *
+ * Both halves of that are the same failure: a query that matches nothing looks
+ * identical to an account that holds no ticket, and the screen says "No ticket
+ * on this account" to somebody standing at the desk with a paid ticket. The
+ * queries themselves live in `lib/data/registrations.ts` so the badge, the seat
+ * button and the seat transaction cannot reach different answers about one
+ * person's ticket.
  */
 export function useBadge(): BadgeResult {
   const { user, loading: authLoading } = useAuth();
   const uid = user?.uid;
-  const email = user?.email?.trim().toLowerCase() ?? null;
+  // Folded by the shared helper rather than by hand here, so there is one
+  // answer in this app to "what address is this reader's".
+  const email = myAddress(user?.email);
 
-  const [cached, setCached] = useState<Badge | null>(null);
+  const [cached, setCached] = useState<Badge[]>([]);
   const [cacheChecked, setCacheChecked] = useState(false);
   // Bumped by `retry`, and a dependency of the listener below, so retrying is an
   // ordinary resubscribe rather than a second code path that can drift.
@@ -236,18 +259,21 @@ export function useBadge(): BadgeResult {
   // network shows a scannable badge rather than a spinner.
   useEffect(() => {
     let alive = true;
-    setCached(null);
+    setCached([]);
     setCacheChecked(false);
     if (!uid) {
       setCacheChecked(true);
       return;
     }
-    void AsyncStorage.getItem(cacheKey(uid))
-      .then((raw) => {
+    void Promise.all([AsyncStorage.getItem(cacheKey(uid)), AsyncStorage.getItem(legacyCacheKey(uid))])
+      .then(([raw, legacy]) => {
         if (!alive) return;
         if (raw) {
           const parsed: unknown = JSON.parse(raw);
-          if (isBadge(parsed)) setCached(parsed);
+          if (Array.isArray(parsed)) setCached(parsed.filter(isBadge).map(stripLegacy));
+        } else if (legacy) {
+          const parsed: unknown = JSON.parse(legacy);
+          if (isBadge(parsed)) setCached([stripLegacy(parsed)]);
         }
       })
       .catch((e: unknown) => {
@@ -263,57 +289,89 @@ export function useBadge(): BadgeResult {
     };
   }, [uid]);
 
-  const live = useCollection<Badge>(
-    () =>
-      query(
-        collection(getDb(), COLLECTIONS.registrations),
-        where('email', '==', email),
-        // One ticket per address by construction — `registrationId(email)` is
-        // the document id, so a second document for the same address cannot
-        // exist. The limit is belt-and-braces against a hand-edited database.
-        limit(1),
-      ),
+  const toBadge = (id: string, d: RegistrationDoc): Badge => ({
+    registrationId: id,
+    qrSecret: d.qrSecret,
+    name: d.name ?? d.email,
+    // The whole badge, "Main Conference + Workshops".
+    ticketType: ticketLabel(d) || null,
+    category: d.category ?? null,
+    status: d.status,
+  });
+
+  const primary = useCollection<Badge>(
+    // `null` rather than a query built around an empty address: an account with
+    // no address at all cannot be looked up, and `where('email', '==', '')` is
+    // a real query that really returns nothing.
+    // Every active ticket on the address, not just one (T259 #7).
+    () => (email ? activeRegistrationsByEmail(getDb(), email) : null),
     // `attempt` is here so `retry()` resubscribes. See the note above on why
     // this module leans on the deps array rather than a hook-provided retry.
     [email, attempt],
-    (id, d: RegistrationDoc) => ({
-      registrationId: id,
-      qrSecret: d.qrSecret,
-      name: d.name ?? d.email,
-      ticketType: d.ticketType ?? null,
-      claimCode: d.claimCode ?? null,
-      status: d.status,
-    }),
+    toBadge,
   );
 
-  const liveBadge = live.data?.[0] ?? null;
+  // Tickets held under other addresses that list this one as an alternate.
+  // Asked alongside the primary rather than only when it is empty (T212): an
+  // address can hold its own ticket and be listed on a colleague's purchase
+  // too, and each of those is an admission with its own QR.
+  const alternate = useCollection<Badge>(
+    () => (email ? registrationsByAltEmail(getDb(), email) : null),
+    [email, attempt],
+    toBadge,
+  );
+
+  // Cancelled and transferred tickets are not badges. The alternate query
+  // cannot filter on status as well as `array-contains` without a composite
+  // index, so it is filtered here.
+  const liveBadges = orderBadges(
+    primary.data ?? [],
+    (alternate.data ?? []).filter((b) => b.status === 'active'),
+  );
+  const liveBadge = liveBadges[0] ?? null;
+  const liveError = primary.error ?? alternate.error;
+  /**
+   * A lookup that really opened has yet to come back.
+   *
+   * False for an account carrying no address, which is answered here rather
+   * than by a listener that never opens: `useCollection` holds `loading` until
+   * it gets a snapshot, so gating the query on the address without gating this
+   * too would leave the badge spinning forever with nothing to explain it.
+   */
+  const livePending = Boolean(email) && (primary.loading || alternate.loading);
 
   // Persist whatever last loaded. Written on every successful read rather than
   // only the first, so a rotated `qrSecret` or a changed ticket type reaches the
   // cache too — a stale badge secret is a badge that fails at the door.
+  // Keyed on the serialised list, so a new array with the same badges does not
+  // write again on every render.
+  const liveKey = JSON.stringify(liveBadges);
   useEffect(() => {
-    if (!uid || !liveBadge) return;
-    void AsyncStorage.setItem(cacheKey(uid), JSON.stringify(liveBadge)).catch((e: unknown) => {
+    if (!uid || liveBadges.length === 0) return;
+    void AsyncStorage.setItem(cacheKey(uid), liveKey).catch((e: unknown) => {
       console.warn('[badge] could not cache the badge:', (e as Error).message);
     });
-  }, [uid, liveBadge]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, liveKey]);
 
-  // `!loading && !error` is "the listener answered", which is the only signal
-  // needed and the only one guaranteed to survive the shared hooks changing shape.
-  const liveSettled = !live.loading && !live.error;
+  // "The lookup answered", which is the only signal needed and the only one
+  // guaranteed to survive the shared hooks changing shape.
+  const liveSettled = !livePending && !liveError;
 
   useClaimRegistration(uid, liveBadge?.registrationId, liveSettled);
 
-  const badge = liveBadge ?? cached;
-  const source: BadgeSource = liveBadge ? 'live' : badge ? 'cache' : 'none';
+  const badges = liveBadges.length > 0 ? liveBadges : cached;
+  const badge = badges[0] ?? null;
+  const source: BadgeSource = liveBadges.length > 0 ? 'live' : badge ? 'cache' : 'none';
 
   return {
+    badges,
     badge,
     source,
-    // Settled once the cache has been consulted AND the listener has either
+    // Settled once the cache has been consulted AND the lookup has either
     // answered or failed. A cached badge is shown immediately regardless.
-    loading: (authLoading || !cacheChecked || live.loading) && !badge,
-    error: live.error,
+    loading: (authLoading || !cacheChecked || livePending) && !badge,
+    error: liveError,
     retry,
   };
 }
@@ -326,6 +384,15 @@ export function useBadge(): BadgeResult {
  * else sets it: there is no Cloud Function to do it, because the project is on
  * Spark. The rules permit exactly this one field and require the uid to be the
  * caller's own.
+ *
+ * ── The pointer is not written here any more ────────────────────────────────
+ *
+ * `users/{uid}.registrationId` used to be written beside this, and that was the
+ * bug: this hook runs from `useBadge`, which runs on the Me and Badge screens
+ * and nowhere else, so an attendee who never opened either had no pointer and
+ * was refused every restricted video with a sentence saying their ticket
+ * covered it. It is acquired by `useRegistrationPointer` from `AuthProvider`
+ * now, above every screen and with a retry. See `registrations.ts`.
  *
  * Detached rather than awaited. It is bookkeeping — the badge is already on
  * screen and does not depend on it — and awaiting a Firestore write on
@@ -342,7 +409,7 @@ function useClaimRegistration(
     if (!uid || !registrationId || !settled) return;
     // One attempt per pair. A refused write must not become a retry loop against
     // the rules, which is the shape `AuthProvider` already uses for the same
-    // reason.
+    // reason. Nothing an attendee sees depends on this one landing.
     const key = `${uid}:${registrationId}`;
     if (attempted.current === key) return;
     attempted.current = key;
@@ -427,6 +494,7 @@ export async function forgetCachedBadge(uid: string): Promise<void> {
 }
 
 /** Re-exported so the badge screen does not spell the payload rule twice. */
+
 export const badgePayload = (badge: Badge) => badge.qrSecret;
 
 /** True when the QR is worth showing at all — a cancelled ticket is not. */

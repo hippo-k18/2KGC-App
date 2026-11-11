@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
 import { listRooms, listSpeakerOptions, listTrackOptions } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
+import { eventTimeZone } from '@/lib/event';
 import { todayInEventZone } from '@/lib/time';
-import { TIME_ZONE } from '@kgc/shared';
 import { PageHeader, Panel } from '../../../../ui';
 import { SessionForm } from '../session-form';
 
@@ -40,12 +40,15 @@ export default async function NewSessionPage({
     listSpeakerOptions(),
   ]);
 
+  /** The zone saved on Content > Basics, so a new session is authored where the event is. */
+  const TIME_ZONE = await eventTimeZone();
+
   /**
    * The default day is today *in the event's zone*, never the server's. A
    * dashboard rendered on a machine in UTC would otherwise offer tomorrow's date
    * to an organizer sitting in New York at 8pm.
    */
-  const startDay = /^\d{4}-\d{2}-\d{2}$/.test(day ?? '') ? day! : todayInEventZone();
+  const startDay = /^\d{4}-\d{2}-\d{2}$/.test(day ?? '') ? day! : todayInEventZone(new Date(), TIME_ZONE);
   const parsedHour = Number(hour);
   const startHour = Number.isInteger(parsedHour) && parsedHour >= 0 && parsedHour <= 23 ? parsedHour : 9;
   const hh = (h: number) => String(h).padStart(2, '0');
@@ -78,7 +81,7 @@ export default async function NewSessionPage({
             Conflict Check
           </Link>,
           <span key="tz" className="muted">
-            times are wall clock in {TIME_ZONE}
+            times are in {TIME_ZONE}
           </span>,
         ]}
       />
@@ -109,17 +112,12 @@ export default async function NewSessionPage({
       <Panel>
         <h2 className="section-header">What happens when you press Create</h2>
         <p className="body-2">
-          One document is written, in one transaction. <code>startsAt</code>, <code>endsAt</code> and{' '}
-          <code>day</code> are derived from the wall clock above in <code>{TIME_ZONE}</code> by the
-          same <code>deriveTimes()</code> the seed and the CSV importer use. A 21:00 reception is
-          01:00 UTC the next day, and deriving <code>day</code> anywhere else puts it on the wrong tab
-          on every phone. The id is derived from the title and the start time, so a later import of
-          the same programme updates this session instead of duplicating it, and pressing Create
-          twice is refused rather than saved twice.
+          Times are in <code>{TIME_ZONE}</code>. A later import of the same programme updates this
+          session instead of adding a copy.
         </p>
         <p className="body-2">
-          A new session starts as a <strong>draft</strong>, which is invisible to attendees. Conflict
-          Check still looks at drafts, so a room clash shows up before you publish rather than after.
+          A new session starts as a <strong>draft</strong>, which attendees cannot see. Conflict
+          Check includes drafts, so a room clash shows up before you publish.
         </p>
       </Panel>
     </>

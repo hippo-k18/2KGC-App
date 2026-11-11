@@ -61,13 +61,11 @@ export default async function ReleaseAndConsentFormsPage({
         title="Release & Consent Forms"
         info={
           <>
-            <strong>Recorded, and these are its limits</strong>
+            <strong>Signatures cannot be edited</strong>
             <p>
-              A signature is pinned to the version and the hash of the wording, and is append-only. Nothing here can edit or delete one.
-            </p>
-            <p>
-              Nothing blocks on an unsigned form, nothing mails the signing links, and a withdrawal
-              is handled by a person.
+              Each signature is kept against the version of the wording that was signed. Publishing
+              a form does not email anybody. Open the form to see who is outstanding and send them
+              their links. Withdrawals are handled by your team.
             </p>
           </>
         }
@@ -78,7 +76,7 @@ export default async function ReleaseAndConsentFormsPage({
               Back to forms
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + New form
             </Link>
           )
@@ -112,7 +110,7 @@ export default async function ReleaseAndConsentFormsPage({
                   year: 'numeric',
                 })}`
               : ', never published'}
-            . Every signature below is against the wording as it stood at that version.
+            . Signatures below are for this version of the wording.
           </Banner>
           <ConsentRegisterView register={reg} />
         </>
@@ -123,14 +121,14 @@ export default async function ReleaseAndConsentFormsPage({
               <EmptyState icon="◌">
                 <strong>No consent form has been written yet.</strong>
                 <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-                  Nothing is being collected until one is published, and until then, nothing on
-                  this screen should be read as evidence that anybody agreed to anything.{' '}
+                  No consent is collected until a form is published.{' '}
                   <Link href="?new=1">Write one</Link>.
                 </div>
               </EmptyState>
             </Panel>
           ) : (
             <Table
+              stackSm
               cols={[
                 { key: 'title', label: 'Form', className: 'cell-fill' },
                 { key: 'audience', label: 'Audience', className: 'cell-sm' },
@@ -172,40 +170,27 @@ export default async function ReleaseAndConsentFormsPage({
           )}
 
           <Panel>
-            <h2 className="section-header">What a consent record has to be, and what this one is</h2>
-            <ul className="body-2" style={{ paddingLeft: 18 }}>
+            <h2 className="section-header">How signing works</h2>
+            <ul className="body-2" style={{ marginBottom: 0, paddingLeft: 18 }}>
+              <li>Changing the wording publishes a new version, and earlier signatures count as outstanding.</li>
+              <li>People without an account, such as speakers, sign through a personal link.</li>
               <li>
-                <strong>Immutable, and versioned against the text that was agreed.</strong>{' '}
-                &ldquo;Jane consented&rdquo; is worthless without the wording she saw. So a form
-                carries a version and the sha256 of its body; a signature carries both, pinned to
-                what the form actually said at that moment rather than to what the browser claimed;
-                and <code>update</code> and <code>delete</code> are closed to every client in{' '}
-                <code>firestore.rules</code>. Rewording a form publishes a new version and makes
-                the old signatures outstanding, which is the uncomfortable answer and the correct
-                one.
+                Publishing saves the wording and emails nobody. Open a form to see how many people
+                are waiting, then send them their links from there.
               </li>
               <li>
-                <strong>Reachable by people who have no account.</strong> Most speakers never buy a
-                ticket, so there is nothing for the rules to authenticate. They sign through a
-                capability link. The same HMAC pattern <code>/order/&#123;token&#125;</code> uses, and the record says <code>channel: link</code> rather than pretending that
-                possession of a mailed URL is authentication.
+                A send tells you how many it reached and how many are left, and skips anybody it
+                has already written to. Pressing Send twice does not send twice.
               </li>
               <li>
-                <strong>Withdrawable by a person, deliberately.</strong> Withdrawing consent means
-                somebody&rsquo;s photograph has to be pulled from a gallery, a slide deck and a
-                press release, which is a conversation with whoever holds those files rather than a
-                column in this table. The signing page therefore gives an address to write to, and
-                the register is not the system of record for a withdrawal. Making it one would need
-                a decision first: a signature here is append-only on purpose, so a withdrawal has
-                to be a second record that supersedes the first, never an edit to it.
+                Anyone added to the attendee list afterwards is sent a link as they are added.
               </li>
               <li>
-                <strong>Directory opt-out is not consent.</strong>{' '}
-                <code>UserDoc.visibleInDirectory</code> deletes a profile projection and is about
-                being findable by other attendees. It is not a photography release, it is not
-                versioned, and it must not be reported as one. It never was, and building this
-                store did not change it.
+                A required form shows as <strong>Form not signed</strong> on the badge sheet and at
+                check-in until it is signed. Nobody is turned away.
               </li>
+              <li>To withdraw consent, a person writes to the address on the signing page.</li>
+              <li>Hiding a profile from the directory is not a consent record.</li>
             </ul>
           </Panel>
         </>
@@ -215,11 +200,9 @@ export default async function ReleaseAndConsentFormsPage({
         <h2 className="section-header">Not built here</h2>
         <ul className="body-2" style={{ paddingLeft: 18 }}>
           <li>
-            <strong>Sending the links.</strong> The register mints a per-person signing link and
-            nothing mails it. <code>scripts/src/lib/email.ts</code> composes every transactional
-            mail this project sends and has no consent template, so today an organizer copies a
-            link into a message they write themselves. Chasing the unsigned is then manual, and for
-            a thousand attendees that is not a workaround, it is a wall.
+            <strong>Chasing the unsigned.</strong> A send reaches everybody who has not been
+            written to about this wording, and nothing sends a reminder to somebody who has. A
+            second round is the register, the per-row link, and a message somebody writes.
           </li>
           <li>
             <strong>Withdrawal.</strong> No revocation record, no way to mark a signature
@@ -228,19 +211,11 @@ export default async function ReleaseAndConsentFormsPage({
             system cannot see.
           </li>
           <li>
-            <strong>Signature notifications, not the audit trail.</strong> Publishing or revising a
-            release now writes <code>consentForm.publish</code> or{' '}
-            <code>consentForm.update</code> to the audit log, recording the actor, the version and
-            the body hash before and after — so &ldquo;who published the wording this signature
-            names&rdquo; survives the next edit, which <code>updatedBy</code> alone did not. What is
-            still absent is anything that <em>tells</em> somebody: nothing emails a signing link and
-            nothing chases an outstanding one. The links are minted here and copied by hand.
-          </li>
-          <li>
-            <strong>Anything gated on a signature.</strong> Check-in does not look at it, the app
-            does not look at it, and no session is marked recordable or not. A release recorded
-            here changes nothing that happens at the door — see{' '}
-            <code>SessionDoc</code>, which still has no &ldquo;may be recorded&rdquo; field.
+            <strong>Blocking on a signature.</strong> A required form is reported at the badge sheet
+            and at the scan desk and stops nothing. That is deliberate: a door volunteer holding a
+            queue cannot adjudicate a release. The app does not look at it either, and no session
+            is marked recordable or not — see <code>SessionDoc</code>, which still has no
+            &ldquo;may be recorded&rdquo; field.
           </li>
           <li>
             <strong>A signed PDF, or anything a signing service would give you.</strong> There is

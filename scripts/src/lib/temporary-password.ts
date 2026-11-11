@@ -43,12 +43,13 @@ import { randomInt } from 'node:crypto';
  * rather than deriving it. `app-account-core.ts` carries the argument for
  * storing it and for clearing it again.
  *
- * ── Turning it off ──────────────────────────────────────────────────────────
+ * ── Off by default, since 2026-09-26 ────────────────────────────────────────
  *
- * `ISSUE_TEMPORARY_PASSWORDS=0` provisions accounts with no password at all,
- * prints nothing on the confirmation page and mails no credential — the
- * pre-2026-09-02 behaviour, reachable without a code change. Any other value,
- * or an unset variable, leaves it on.
+ * The owner removed the password from the confirmation page and the receipt.
+ * Issuing one nobody is shown would strand the buyer on the app's
+ * change-password screen, which asks for it. So a purchase issues none unless
+ * `ISSUE_TEMPORARY_PASSWORDS=1` (or `true`). Accounts that already hold one
+ * keep it until it is changed.
  */
 
 /** Firebase's own floor, and the length that was asked for. They coincide. */
@@ -72,13 +73,10 @@ export function generateTemporaryPassword(): string {
 /**
  * Whether a purchase should issue a password at all.
  *
- * Only the exact string `'0'` switches it off, and `'false'` alongside it
- * because somebody will write that. Anything else — including an unset
- * variable, an empty one, or a typo — leaves the feature on, which is the safe
- * direction for a switch whose off position means "buyers cannot sign in
- * without the OTP callables", and those are not deployed.
+ * Only `1` or `true` switches it on. Anything else, including an unset
+ * variable, leaves it off.
  */
 export function temporaryPasswordsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const raw = env.ISSUE_TEMPORARY_PASSWORDS?.trim().toLowerCase();
-  return raw !== '0' && raw !== 'false';
+  return raw === '1' || raw === 'true';
 }

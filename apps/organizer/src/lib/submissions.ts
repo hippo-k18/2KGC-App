@@ -10,15 +10,16 @@ import {
   publicSiteOrigin,
   type ReviewDoc,
   type SessionDoc,
-  type SessionFormat,
+  type CallSessionType,
   type SpeakerDoc,
   type SubmissionCoAuthor,
   type SubmissionDoc,
   type SubmissionIdentityDoc,
   type SubmissionStatus,
 } from '@kgc/shared';
+import { agendaFormat } from '@kgc/scripts/src/lib/cfp-core';
 import { mintSubmissionToken } from '@kgc/scripts/src/lib/submission-token';
-import { sendSubmissionDecision } from '@kgc/scripts/src/lib/email';
+import { emailEnabled, sendSubmissionDecision } from '@kgc/scripts/src/lib/email';
 import { sessionId as deriveSessionId, speakerId, stableGuid } from '@kgc/scripts/src/lib/ids';
 /*
  * Imported from the session editor rather than re-derived, because these two
@@ -28,12 +29,14 @@ import { sessionId as deriveSessionId, speakerId, stableGuid } from '@kgc/script
  * from a route directory; the alternative was a second copy of two booleans
  * that have to agree with `seed-demo.ts` as well.
  */
-import { qaDefaultsFor } from '@/app/(dash)/content/agenda-center/session-manager/session-core';
+import { outsideEventDays, qaDefaultsFor } from '@/app/(dash)/content/agenda-center/session-manager/session-core';
+import { eventBasics } from './event';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
 import { db } from './firestore';
+import { ensureSpeakerContact } from './speaker-contacts';
 import { deriveTimes } from './time';
-import { getCall } from './calls';
+import { getCall, getCallDoc } from './calls';
 
 /**
  * Submissions, from the organizer's side: reading them, deciding on them, and
@@ -68,7 +71,13 @@ export interface SubmissionRow {
   title: string;
   abstract: string;
   trackId?: string;
-  sessionType?: SessionFormat;
+  /** The topic typed under "Other" (T271). */
+  trackOther?: string;
+  sessionType?: CallSessionType;
+  /** A talk's length, when the call asked for one. */
+  durationMinutes?: number;
+  /** "Link to Additional Resources or Supporting Materials" (T276). */
+  resourceLink?: string;
   answers: Record<string, string | string[] | boolean>;
   formVersion: number;
   status: SubmissionStatus;
@@ -84,6 +93,8 @@ export interface SubmissionRow {
     name: string;
     email: string;
     affiliation?: string;
+    /** Organizers only: never shown to reviewers or on the website (T276). */
+    phone?: string;
     bio?: string;
     coAuthors: SubmissionCoAuthor[];
     speakerId?: string;
@@ -105,7 +116,10 @@ function toRow(id: string, s: SubmissionDoc, identity?: SubmissionIdentityDoc): 
     title: s.title ?? '',
     abstract: s.abstract ?? '',
     trackId: s.trackId,
+    trackOther: s.trackOther,
     sessionType: s.sessionType,
+    durationMinutes: s.durationMinutes,
+    resourceLink: s.resourceLink,
     answers: s.answers ?? {},
     formVersion: s.formVersion ?? 1,
     status: s.status,
@@ -123,6 +137,7 @@ function toRow(id: string, s: SubmissionDoc, identity?: SubmissionIdentityDoc): 
           name: identity.name,
           email: identity.email,
           affiliation: identity.affiliation,
+          phone: identity.phone,
           bio: identity.bio,
           coAuthors: identity.coAuthors ?? [],
           speakerId: identity.speakerId,
@@ -161,7 +176,15 @@ function toRow(id: string, s: SubmissionDoc, identity?: SubmissionIdentityDoc): 
  * directly — the identity document sits at a fixed id under a known parent — so
  * there is no query, no index and one round trip.
  */
-export async function listSubmissions(callId: string): Promise<SubmissionRow[]> {
+export async function listSubmissions(
+  callId: string,
+  /**
+   * `strict` rethrows instead of answering []. For senders (the CFP
+   * scheduler, E4), where "could not read" and "nobody there" must differ:
+   * an empty list read as real tells the reviewer "0 open" (T258 #17).
+   */
+  opts: { strict?: boolean } = {},
+): Promise<SubmissionRow[]> {
   try {
     const snap = await db()
       .collection(COLLECTIONS.submissions)
@@ -177,6 +200,7 @@ export async function listSubmissions(callId: string): Promise<SubmissionRow[]> 
       .sort((a, b) => b.updatedAtMs - a.updatedAtMs || a.title.localeCompare(b.title));
   } catch (err) {
     recordError(`submissions.list:${callId}`, err);
+    if (opts.strict) throw err;
     return [];
   }
 }
@@ -232,12 +256,17 @@ export interface ReviewRow {
   reviewerId: string;
   status: ReviewDoc['status'];
   scores: Record<string, number>;
+  criterionComments: Record<string, string>;
   overall?: number;
   confidence?: number;
   commentsToCommittee?: string;
   commentsToAuthors?: string;
   conflict: boolean;
   conflictNote?: string;
+  /** Set when an organizer made the exclusion rather than the reviewer. */
+  excludedBy?: string;
+  /** An organizer's exclusion with no scores on it, which can be taken back. */
+  liftable: boolean;
   assignedBy?: ReviewDoc['assignedBy'];
   submittedAtMs?: number;
 }
@@ -258,12 +287,15 @@ export async function listReviews(submissionId: string): Promise<ReviewRow[]> {
           reviewerId: r.reviewerId ?? d.id,
           status: r.status,
           scores: r.scores ?? {},
+          criterionComments: r.criterionComments ?? {},
           overall: r.overall,
           confidence: r.confidence,
           commentsToCommittee: r.commentsToCommittee,
           commentsToAuthors: r.commentsToAuthors,
           conflict: r.conflict === true,
           conflictNote: r.conflictNote,
+          excludedBy: r.excludedBy,
+          liftable: Boolean(r.excludedBy) && Object.keys(r.scores ?? {}).length === 0,
           assignedBy: r.assignedBy,
           submittedAtMs: r.submittedAt ? ms(r.submittedAt) : undefined,
         };
@@ -283,6 +315,7 @@ export interface SubmissionCounts {
   underReview: number;
   accepted: number;
   rejected: number;
+  waitlisted: number;
   withdrawn: number;
   /** Accepted and not yet on the agenda — what the promotion step has to do. */
   awaitingPromotion: number;
@@ -296,6 +329,7 @@ export function countSubmissions(rows: SubmissionRow[]): SubmissionCounts {
     underReview: 0,
     accepted: 0,
     rejected: 0,
+    waitlisted: 0,
     withdrawn: 0,
     awaitingPromotion: 0,
   };
@@ -305,6 +339,7 @@ export function countSubmissions(rows: SubmissionRow[]): SubmissionCounts {
     else if (r.status === 'under-review') c.underReview++;
     else if (r.status === 'accepted') c.accepted++;
     else if (r.status === 'rejected') c.rejected++;
+    else if (r.status === 'waitlisted') c.waitlisted++;
     else if (r.status === 'withdrawn') c.withdrawn++;
     if (r.status === 'accepted' && !r.sessionId) c.awaitingPromotion++;
   }
@@ -347,6 +382,12 @@ export type SubmissionResult = { ok: true; message: string } | { ok: false; erro
 export async function decideSubmission(input: {
   id: string;
   accept: boolean;
+  /**
+   * The waiting list, which is neither. `accept` is ignored when this is set.
+   * A flag beside the boolean so every caller that predates it means what it
+   * meant.
+   */
+  waitlist?: boolean;
   /** Forwarded to the author with the decision. Never reviewer committee notes. */
   note?: string;
   notify: boolean;
@@ -378,12 +419,40 @@ export async function decideSubmission(input: {
     }
 
     /*
+     * ── Never mail from here on the rolling review (T275) ─────────────────
+     *
+     * On a call run with the rolling-review settings the author hears only
+     * from that flow: E2 on accept, and the "not accepted" E4 when an
+     * organizer presses Send on Dates and emails, all at once. The screens
+     * hide the notify box on those calls, and this holds even when a request
+     * says otherwise (the bulk bar checks only the first ticked row's call).
+     * Read before anything is written, and not through `getCall`, which
+     * answers null on a failed read: a failure here must stop the decision,
+     * not let a mail through.
+     */
+    const rolling = Boolean((await getCallDoc(sub.callId))?.cfp);
+    const notify = input.notify && !rolling;
+
+    /*
      * The round increments only when a decision is *replacing* one. A first
      * decision is round 1; changing an acceptance to a rejection is round 2,
      * because the committee met again.
      */
     const round = (sub.decision?.round ?? 0) + 1;
-    const status: SubmissionStatus = input.accept ? 'accepted' : 'rejected';
+    const status: SubmissionStatus = input.waitlist
+      ? 'waitlisted'
+      : input.accept
+        ? 'accepted'
+        : 'rejected';
+
+    if (sub.sessionId && status !== 'accepted') {
+      return {
+        ok: false,
+        error:
+          'This submission is already on the agenda as a session. Remove or cancel the session ' +
+          'before changing the decision.',
+      };
+    }
 
     await ref.update({
       status,
@@ -397,10 +466,16 @@ export async function decideSubmission(input: {
       targetPath: `${COLLECTIONS.submissions}/${input.id}`,
       targetId: input.id,
       before: { status: sub.status, round: sub.decision?.round ?? null },
-      after: { status, round, notified: input.notify },
+      after: { status, round, notified: notify },
     });
 
-    if (!input.notify) {
+    if (rolling) {
+      return {
+        ok: true,
+        message: `Recorded as ${status}. Nothing was sent: on this call authors hear from the decision emails on Dates and emails.`,
+      };
+    }
+    if (!notify) {
       return {
         ok: true,
         message: `Recorded as ${status}. The author has not been told. Use “Notify the author” when the committee is ready.`,
@@ -423,6 +498,7 @@ export async function decideSubmission(input: {
       callTitle: (await getCall(sub.callId))?.title ?? 'the call for abstracts',
       title: sub.title,
       accepted: input.accept,
+      waitlisted: input.waitlist === true,
       link: submissionLink(input.id),
       note: input.note,
       actor: input.actor,
@@ -430,11 +506,14 @@ export async function decideSubmission(input: {
 
     return {
       ok: true,
-      message: `Recorded as ${status}, and ${identity.email} has been told. That email cannot be recalled.`,
+      message: emailEnabled()
+        ? `Recorded as ${status}, and ${identity.email} has been told. That email cannot be recalled.`
+        : `Recorded as ${status}. Email is not switched on yet, so ${identity.email} has not been told.`,
     };
   } catch (err) {
     recordError('submissions.decide', err);
-    return { ok: false, error: err instanceof Error ? err.message : 'Could not record the decision.' };
+    // Never the raw Firestore message (T252): it says nothing an organizer can act on.
+    return { ok: false, error: 'Could not record the decision. Reload the page to see what was saved.' };
   }
 }
 
@@ -502,6 +581,58 @@ export async function undoDecision(input: {
   }
 }
 
+/**
+ * One decision for many submissions.
+ *
+ * A loop over `decideSubmission` and deliberately nothing cleverer: every rule
+ * that guards one decision (no drafts, no withdrawals, the round, the audit
+ * entry, the mail) then guards each of these, and a batch write would need its
+ * own copy of all of them. The ones that were refused are named, so "12 of 14"
+ * is never the whole message.
+ */
+export async function decideMany(input: {
+  ids: string[];
+  accept: boolean;
+  waitlist?: boolean;
+  note?: string;
+  notify: boolean;
+  actor: string;
+}): Promise<SubmissionResult> {
+  const ids = [...new Set(input.ids)].slice(0, 200);
+  if (ids.length === 0) return { ok: false, error: 'Tick at least one submission.' };
+
+  const word = input.waitlist ? 'waitlisted' : input.accept ? 'accepted' : 'rejected';
+  let done = 0;
+  const refused: string[] = [];
+
+  for (const id of ids) {
+    const result = await decideSubmission({
+      id,
+      accept: input.accept,
+      waitlist: input.waitlist,
+      note: input.note,
+      notify: input.notify,
+      actor: input.actor,
+    });
+    if (result.ok) done++;
+    else refused.push(result.error);
+  }
+
+  if (done === 0) return { ok: false, error: `Nothing was changed. ${refused[0]}` };
+
+  return {
+    ok: true,
+    message:
+      `${done} submission${done === 1 ? '' : 's'} recorded as ${word}.` +
+      (!input.notify
+        ? ' No author has been told.'
+        : emailEnabled()
+          ? ' Each author with an address on file has been emailed.'
+          : ' Email is not switched on yet, so no author has been told.') +
+      (refused.length ? ` ${refused.length} left unchanged: ${refused[0]}` : ''),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Promotion into the agenda
 // ---------------------------------------------------------------------------
@@ -567,9 +698,16 @@ export async function promoteSubmission(input: {
       };
     }
 
+    const outside = outsideEventDays(input.startsAtLocal, input.endsAtLocal, await eventBasics());
+    if (outside) return { ok: false, error: outside };
     const times = deriveTimes(input.startsAtLocal, input.endsAtLocal, TIME_ZONE);
     const sessionDocId = deriveSessionId(sub.title, times.startsAtLocal);
-    const speakerDocId = speakerId(identity.name, identity.affiliation);
+    /*
+     * The speaker the call-for-papers Accept already created, when there is
+     * one (T249). Re-deriving would mint a second speaker the moment the
+     * author's company was corrected on their profile.
+     */
+    const speakerDocId = identity.speakerId ?? speakerId(identity.name, identity.affiliation);
 
     const sessionRef = db().collection(COLLECTIONS.sessions).doc(sessionDocId);
     const speakerRef = db().collection(COLLECTIONS.speakers).doc(speakerDocId);
@@ -590,10 +728,24 @@ export async function promoteSubmission(input: {
     let speakerExisted = false;
 
     await db().runTransaction(async (tx) => {
-      const [existingSession, existingSpeaker] = await Promise.all([
+      const [existingSession, existingSpeaker, current] = await Promise.all([
         tx.get(sessionRef),
         tx.get(speakerRef),
+        tx.get(subRef),
       ]);
+
+      /*
+       * Re-checked here, inside the transaction (T262). The checks above ran
+       * on a plain read, so two tabs pressing "Schedule it" with different
+       * times (two different session ids) both passed them and both created
+       * a session. The transaction reads the submission, so the second one
+       * retries, sees the first one's `sessionId` and stops.
+       */
+      const now = current.data() as SubmissionDoc | undefined;
+      if (now?.sessionId) {
+        throw new Error(`This is already on the agenda as “${now.sessionId}”. Edit that session instead.`);
+      }
+      if (now?.status !== 'accepted') throw new Error('Only an accepted submission can go onto the agenda.');
 
       if (existingSession.exists) {
         throw new Error(
@@ -610,7 +762,8 @@ export async function promoteSubmission(input: {
         roomId: input.roomId,
         roomName,
         trackIds: sub.trackId ? [sub.trackId] : [],
-        format: sub.sessionType ?? 'talk',
+        // The symposium and the demos go on as talks (`agendaFormat`, T276).
+        format: agendaFormat(sub.sessionType),
         speakerIds: [speakerDocId],
         speakerNames: [identity.name],
         tags: [],
@@ -624,7 +777,7 @@ export async function promoteSubmission(input: {
         status: 'draft',
         sequence: 0,
         stableGuid: stableGuid(sessionDocId),
-        ...qaDefaultsFor(sub.sessionType ?? 'talk'),
+        ...qaDefaultsFor(agendaFormat(sub.sessionType)),
       };
 
       tx.create(sessionRef, {
@@ -652,8 +805,8 @@ export async function promoteSubmission(input: {
           name: identity.name,
           company: identity.affiliation,
           bio: identity.bio,
-          contactEmail: identity.email,
           sessionIds: [sessionDocId],
+          unlisted: false,
         };
         tx.create(speakerRef, {
           ...speaker,
@@ -665,6 +818,9 @@ export async function promoteSubmission(input: {
       tx.update(subRef, { sessionId: sessionDocId, updatedAt: FieldValue.serverTimestamp() });
       tx.set(identityRef, { speakerId: speakerDocId, updatedAt: Timestamp.now() }, { merge: true });
     });
+
+    // Server-only (T252): never on the speaker record attendees can read.
+    if (!speakerExisted) await ensureSpeakerContact(speakerDocId, identity.email);
 
     await appendAudit({
       actor: input.actor,

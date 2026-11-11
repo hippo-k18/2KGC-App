@@ -83,7 +83,9 @@ async function wipe() {
   // plain delete of the parent would leave the author behind — which is
   // precisely the orphan `withdrawSubmission` exists to avoid creating.
   await db().recursiveDelete(db().collection(COLLECTIONS.submissions));
-  for (const name of [COLLECTIONS.calls, COLLECTIONS.tracks, COLLECTIONS.emailLog]) {
+  // `rateLimits` too: every case posts as the same author, and the save cap
+  // (T264) would otherwise carry over from one case into the next.
+  for (const name of [COLLECTIONS.calls, COLLECTIONS.tracks, COLLECTIONS.emailLog, COLLECTIONS.rateLimits]) {
     const snap = await db().collection(name).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -269,19 +271,40 @@ describe('the abstract an author writes is the abstract that comes back', () => 
     expect(await count()).toBe(0);
   });
 
-  it('does not restamp submittedAt when the author fixes a typo afterwards', async () => {
+  it('refuses any edit once submitted, and leaves submittedAt where it was (T276)', async () => {
     await seedCall();
     const first = await existing();
     if (!first.ok) return;
     const before = (await raw(first.submissionId)).submittedAt;
 
-    await saveSubmission(CALL_ID, good({ title: 'A better title' }), first.submissionId);
+    for (const finish of [true, false]) {
+      const out = await saveSubmission(CALL_ID, good({ title: 'A better title', finish }), first.submissionId);
+      expect(out.ok).toBe(false);
+    }
     const after = await raw(first.submissionId);
 
-    expect(after.title).toBe('A better title');
+    expect(after.title).toBe(good().title);
+    expect(after.status).toBe('submitted');
     expect((after.submittedAt as { toMillis(): number }).toMillis()).toBe(
       (before as unknown as { toMillis(): number }).toMillis(),
     );
+  });
+
+  it('closes the author’s own page once submitted: read-only, still withdrawable (T276)', async () => {
+    await seedCall();
+    const draft = await existing({ finish: false });
+    if (!draft.ok) return;
+    const asDraft = await loadOwnSubmission(draft.submissionId);
+    expect(asDraft?.editable).toBe(true);
+    expect(asDraft?.submittedOn).toBeUndefined();
+
+    const done = await saveSubmission(CALL_ID, good(), draft.submissionId);
+    expect(done.ok && done.status).toBe('submitted');
+    const asSubmitted = await loadOwnSubmission(draft.submissionId);
+    expect(asSubmitted?.status).toBe('submitted');
+    expect(asSubmitted?.editable).toBe(false);
+    expect(asSubmitted?.withdrawable).toBe(true);
+    expect(asSubmitted?.submittedOn).toMatch(/^\w+day \d{1,2} \w+ \d{4}$/);
   });
 
   it('refuses an edit once a decision has been made', async () => {
@@ -429,8 +452,9 @@ describe('a submission token reaches one submission and nothing else', () => {
 
   it('edits the submission named by the token and not one named by a form field', async () => {
     await seedCall();
-    const mine = await existing({ title: 'Mine' });
-    const theirs = await existing({ title: 'Theirs', authorEmail: 'other@acme.test' });
+    // A draft: only a draft can be edited (T276).
+    const mine = await existing({ title: 'Mine', finish: false });
+    const theirs = await existing({ title: 'Theirs', authorEmail: 'other@acme.test', finish: false });
     if (!mine.ok || !theirs.ok) return;
 
     await redirectOf(() =>
@@ -615,7 +639,7 @@ describe('the form version on a submission is the one the call was at', () => {
 describe('a field an author clears is actually cleared', () => {
   it('does not silently keep an affiliation the author deleted', async () => {
     await seedCall();
-    const first = await existing({ affiliation: 'Acme Graphs' });
+    const first = await existing({ affiliation: 'Acme Graphs', finish: false });
     if (!first.ok) return;
     expect((await identityOf(first.submissionId))?.affiliation).toBe('Acme Graphs');
 
@@ -629,7 +653,7 @@ describe('a field an author clears is actually cleared', () => {
 
   it('does not silently keep a bio the author deleted', async () => {
     await seedCall();
-    const first = await existing({ bio: 'Principal engineer.' });
+    const first = await existing({ bio: 'Principal engineer.', finish: false });
     if (!first.ok) return;
 
     await redirectOf(() => submitAction({}, formOf({ token: first.token, bio: '' })));
@@ -639,7 +663,8 @@ describe('a field an author clears is actually cleared', () => {
 
   it('does not leave an author in a track they removed', async () => {
     await seedCall();
-    const first = await existing({ trackId: 'graph-ml' });
+    // Drafts on both sides: a submitted abstract cannot be edited at all (T276).
+    const first = await existing({ trackId: 'graph-ml', finish: false });
     if (!first.ok) return;
 
     // A draft, because a finished submission to a call that offers tracks has
@@ -657,7 +682,7 @@ describe('a field an author clears is actually cleared', () => {
 
   it('does not leave an author offering a session type they removed', async () => {
     await seedCall();
-    const first = await existing({ sessionType: 'talk' });
+    const first = await existing({ sessionType: 'talk', finish: false });
     if (!first.ok) return;
 
     const out = await saveSubmission(
@@ -670,6 +695,17 @@ describe('a field an author clears is actually cleared', () => {
     expect('sessionType' in (await raw(first.submissionId))).toBe(false);
   });
 
+  it('keeps a submitted abstract submitted when a draft save is posted to it (T258 #7, T276)', async () => {
+    await seedCall();
+    const first = await existing();
+    expect(first.status).toBe('submitted');
+
+    const draft = await saveSubmission(CALL_ID, good({ title: 'A better title', finish: false }), first.submissionId);
+    expect(draft.ok).toBe(false);
+    expect((await raw(first.submissionId)).status).toBe('submitted');
+    expect((await raw(first.submissionId)).title).toBe(good().title);
+  });
+
   it('does not keep an answer the author emptied', async () => {
     await seedCall({
       form: [
@@ -680,7 +716,7 @@ describe('a field an author clears is actually cleared', () => {
 
     const first = await saveSubmission(
       CALL_ID,
-      good({ answers: { why: ['Because'], needs: ['A whiteboard'] } }),
+      good({ answers: { why: ['Because'], needs: ['A whiteboard'] }, finish: false }),
     );
     expect(first.ok).toBe(true);
     if (!first.ok) return;
@@ -713,7 +749,7 @@ describe('a field an author clears is actually cleared', () => {
     });
     const first = await saveSubmission(
       CALL_ID,
-      good({ answers: { why: 'Because'.split('|'), needs: ['A whiteboard'] } }),
+      good({ answers: { why: 'Because'.split('|'), needs: ['A whiteboard'] }, finish: false }),
     );
     if (!first.ok) return;
 

@@ -52,7 +52,7 @@ export function LinkTable({
             )}
           </div>
           <div className="muted" style={{ fontSize: 11 }}>
-            {l.label} → {l.destination}
+            {l.label.replace(' — ', ': ')} → {l.destination}
             {l.channel ? ` · ${l.channel}` : ''}
           </div>
         </div>,

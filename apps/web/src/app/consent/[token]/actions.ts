@@ -3,6 +3,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { readConsentToken } from '@kgc/scripts/src/lib/consent-token';
+import { callerIpFromHeaders } from '@kgc/scripts/src/lib/rate-limit';
 import { recordSignature } from '../store';
 
 /**
@@ -55,13 +56,11 @@ export async function signConsentAction(formData: FormData): Promise<void> {
    * stronger evidence than either and a client cannot be asked to report its
    * own IP address without being able to report any address it likes.
    *
-   * `x-forwarded-for` is a list; the first hop is the client as the nearest
-   * proxy saw it. Netlify sets it, and `x-nf-client-connection-ip` beside it.
+   * The address Apache saw (the last `x-forwarded-for` hop). The first hop and
+   * the old Netlify header are whatever the client chose to send (T263).
    */
   const h = await headers();
-  const forwarded = h.get('x-forwarded-for') ?? '';
-  const ip =
-    forwarded.split(',')[0]?.trim() || h.get('x-nf-client-connection-ip')?.trim() || undefined;
+  const ip = callerIpFromHeaders(h);
   const userAgent = h.get('user-agent') ?? undefined;
 
   let outcome: string;

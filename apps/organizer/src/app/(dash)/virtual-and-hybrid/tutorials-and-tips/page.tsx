@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { requireOrganizer } from '@/lib/auth';
-import { ROUTES } from '@/lib/nav';
-import { GapPanel, NotInputted, PageHeader, Panel } from '../../ui';
+import { EmptyState, GapPanel, PageHeader, Panel } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,15 +25,6 @@ export default async function TutorialsAndTipsPage() {
     <>
       <PageHeader
         title="Tutorials and Tips"
-        info={
-          <>
-            <strong>No help content has been written</strong>
-            <p>
-              There is no article store and no editor behind this screen. Whoever writes organizer
-              guidance would need somewhere to publish it that is not a code deploy.
-            </p>
-          </>
-        }
         links={[
           <Link key="s" href="/virtual-and-hybrid/virtual-and-hybrid-setup">
             Virtual &amp; Hybrid Setup
@@ -46,14 +36,12 @@ export default async function TutorialsAndTipsPage() {
       />
 
       <Panel>
-        <NotInputted
-          what="tutorials"
-          action={
-            <Link href={ROUTES.report} className="whova-btn-main">
-              Go to Report
-            </Link>
-          }
-        />
+        <EmptyState>
+          <p className="empty-title">Not available yet</p>
+          <p className="empty-sub">
+            Tutorials and tips are not available yet.
+          </p>
+        </EmptyState>
       </Panel>
 
       <GapPanel style={{ marginTop: 16 }}>

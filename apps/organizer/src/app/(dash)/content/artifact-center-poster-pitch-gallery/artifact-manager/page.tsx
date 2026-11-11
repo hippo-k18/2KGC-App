@@ -41,11 +41,10 @@ export default async function ArtifactManagerPage() {
         title="Artifact Manager"
         info={
           <>
-            <strong>No artifact collection exists</strong>
+            <strong>Not available yet</strong>
             <p>
-              A poster is not a session with a flag. It has a board number, a presenter and a file
-              rather than a start time and a room. Its own document type, and a screen in the app
-              to read it, come before anything on this page.
+              Posters, demos and pitches cannot be added here yet. Poster sessions can go on the
+              agenda in Session Manager.
             </p>
           </>
         }
@@ -61,11 +60,11 @@ export default async function ArtifactManagerPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Artifacts', value: '—', sub: 'not inputted yet' },
+          { label: 'Artifacts', value: 0, sub: 'none yet' },
           {
             label: 'Sessions marked poster',
             value: posterish.length,
-            sub: 'on the agenda, not here',
+            sub: 'on the agenda',
           },
         ]}
       />
@@ -74,7 +73,7 @@ export default async function ArtifactManagerPage() {
         <NotInputted
           what="posters, demos or pitches"
           action={
-            <Link className="whova-btn-main" href={ROUTES.sessionManager}>
+            <Link className="whova-btn-main primary" href={ROUTES.sessionManager}>
               Poster sessions are on the agenda
             </Link>
           }

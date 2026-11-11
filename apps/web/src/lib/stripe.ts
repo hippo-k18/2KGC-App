@@ -36,9 +36,27 @@ export function stripe(): Stripe {
       // silently-changing webhook payload.
       apiVersion: '2025-10-29.clover',
       typescript: true,
+      ...fakeStripeHost(key),
     });
   }
   return cached;
+}
+
+/**
+ * `STRIPE_API_BASE` points the client at a stand-in server, for the invoice
+ * end-to-end test (`tests/prepublish/invoice-e2e`). Honoured only with a test
+ * key, so a stray variable on a live deployment cannot send live calls anywhere
+ * else.
+ */
+function fakeStripeHost(key: string): Pick<Stripe.StripeConfig, 'host' | 'port' | 'protocol'> {
+  const base = process.env.STRIPE_API_BASE;
+  if (!base || !key.startsWith('sk_test_')) return {};
+  const url = new URL(base);
+  return {
+    host: url.hostname,
+    port: url.port || (url.protocol === 'https:' ? 443 : 80),
+    protocol: url.protocol.replace(':', '') as 'http' | 'https',
+  };
 }
 
 /**

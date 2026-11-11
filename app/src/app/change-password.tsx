@@ -261,7 +261,7 @@ export default function ChangePasswordScreen() {
         */}
         {tooShort ? (
           <Text variant="subhead" tone="secondary" accessibilityLiveRegion="polite">
-            At least {MIN_LENGTH} characters — that is Firebase&rsquo;s minimum, not ours.
+            At least {MIN_LENGTH} characters.
           </Text>
         ) : unchanged ? (
           <Text variant="subhead" tone="secondary" accessibilityLiveRegion="polite">

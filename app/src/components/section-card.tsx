@@ -1,12 +1,20 @@
 import type { ReactNode } from 'react';
 import { Pressable, View, type ViewStyle } from 'react-native';
 
+import { webSlop } from '@/components/a11y';
 import { Text } from '@/components/text';
 import { HIT_TARGET, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Drawn height of the "See more" link at 1×: a 20pt subhead plus 4pt each side. */
 const LINK_HEIGHT = 28;
+/** The invisible part of that link's target, restated for the browser by `webSlop`. */
+const ACTION_SLOP = {
+  top: (HIT_TARGET - LINK_HEIGHT) / 2,
+  bottom: (HIT_TARGET - LINK_HEIGHT) / 2,
+  left: Spacing.sm,
+  right: Spacing.sm,
+};
 
 interface SectionCardProps {
   /** Omit for an untitled block — a card that is only content. */
@@ -97,17 +105,13 @@ export function SectionCard({
               onPress={onActionPress}
               accessibilityRole="link"
               accessibilityLabel={title ? `${actionLabel}, ${title}` : actionLabel}
-              hitSlop={{
-                top: (HIT_TARGET - LINK_HEIGHT) / 2,
-                bottom: (HIT_TARGET - LINK_HEIGHT) / 2,
-                left: Spacing.sm,
-                right: Spacing.sm,
-              }}
+              hitSlop={ACTION_SLOP}
               style={({ pressed }) => ({
                 justifyContent: 'center',
                 paddingVertical: Spacing.xs,
                 minHeight: LINK_HEIGHT,
                 opacity: pressed ? 0.4 : 1,
+                ...webSlop({ top: Spacing.xs, bottom: Spacing.xs }, ACTION_SLOP),
               })}>
               <Text
                 variant="subhead"

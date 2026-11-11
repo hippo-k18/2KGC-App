@@ -1,7 +1,11 @@
 import type { Metadata } from 'next';
 import s from './options.module.css';
 
-export const metadata: Metadata = { title: 'Ticketing options' };
+// An internal design review, so it is kept out of search results.
+export const metadata: Metadata = {
+  title: 'Ticketing options',
+  robots: { index: false, follow: false },
+};
 
 /**
  * Ten designs for one decision.

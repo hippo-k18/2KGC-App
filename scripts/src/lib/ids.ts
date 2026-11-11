@@ -49,6 +49,20 @@ export function registrationId(email: string): string {
 }
 
 /**
+ * The id of a second (or later) ticket bought with the same address.
+ *
+ * One address may hold several tickets since 2026-09-26 (owner's decision; the
+ * dashboard flags it). The first ticket keeps `registrationId(email)`, so
+ * everything already keyed that way still finds it. Each further paid seat is
+ * keyed by the order and the seat's position on it, which is what makes a
+ * webhook replay land on the same document instead of minting another ticket.
+ */
+export function purchaseRegistrationId(email: string, orderId: string, seat: number): string {
+  const key = `${normaliseEmail(email)}\u0000${orderId}\u0000${seat}`;
+  return `reg_${createHash('sha256').update(key).digest('hex').slice(0, 24)}`;
+}
+
+/**
  * `contacts/{id}` — a marketing contact, keyed the same way a registration is,
  * so re-importing a CSV converges on one document per person.
  *
@@ -63,6 +77,19 @@ export function registrationId(email: string): string {
  */
 export function contactId(email: string): string {
   return `contact_${createHash('sha256').update(normaliseEmail(email)).digest('hex').slice(0, 32)}`;
+}
+
+/**
+ * `reviewers/{id}` — derived from the address, so inviting the same person twice
+ * converges on one document rather than two people with one inbox. Never the
+ * address itself, for the reasons `registrationId` gives.
+ *
+ * Here rather than in `apps/organizer` since the day a second writer appeared
+ * (`seed-cfa-demo.ts`): two spellings of one id is a duplicated committee,
+ * discovered when half the assignments are on the wrong document.
+ */
+export function reviewerId(email: string): string {
+  return `rev_${createHash('sha256').update(normaliseEmail(email)).digest('hex').slice(0, 24)}`;
 }
 
 /** Lookup key. Never the document id, so the plaintext address is not a path. */

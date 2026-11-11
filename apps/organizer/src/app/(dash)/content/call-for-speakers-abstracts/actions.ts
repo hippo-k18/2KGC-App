@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import type { BlindReviewMode, PublishStatus, SessionFormat } from '@kgc/shared';
+import type { BlindReviewMode, CallSessionType, PublishStatus } from '@kgc/shared';
+import { CALL_SESSION_TYPES } from '@kgc/scripts/src/lib/cfp-core';
 import { requireOrganizer } from '@/lib/auth';
 import { saveCall } from '@/lib/calls';
 import { recordError } from '@/lib/errors';
@@ -18,7 +19,6 @@ import { CFA_BASE } from './routes';
  * therefore a security-relevant act, and it is audited as one.
  */
 
-const FORMATS: SessionFormat[] = ['keynote', 'talk', 'panel', 'workshop', 'poster', 'social'];
 const BLIND: BlindReviewMode[] = ['open', 'single-blind', 'double-blind'];
 const STATUSES: PublishStatus[] = ['draft', 'published', 'cancelled'];
 
@@ -36,9 +36,11 @@ export async function saveCallAction(_prev: FormState, formData: FormData): Prom
   if (!STATUSES.includes(status)) return { error: 'Choose a status.' };
   if (!BLIND.includes(blindReview)) return { error: 'Choose how much reviewers see.' };
 
-  const sessionTypes = many(formData, 'sessionTypes').filter((t): t is SessionFormat =>
-    FORMATS.includes(t as SessionFormat),
+  const sessionTypes = many(formData, 'sessionTypes').filter((t): t is CallSessionType =>
+    CALL_SESSION_TYPES.includes(t as CallSessionType),
   );
+  // The two question switches are on the form only for a CFP call (T276).
+  const cfpSwitches = formData.get('cfpSwitches') === '1';
 
   /*
    * Split on commas *and* newlines, because an organizer pasting a list of
@@ -62,11 +64,21 @@ export async function saveCallAction(_prev: FormState, formData: FormData): Prom
       id: id || undefined,
       title: String(formData.get('title') ?? ''),
       instructions: String(formData.get('instructions') ?? ''),
+      // Present only when the editor's text was changed (`instructions-editor.tsx`).
+      instructionsDoc: formData.has('instructionsDoc') ? String(formData.get('instructionsDoc')) : undefined,
+      showOnWebsite: formData.get('showOnWebsite') === '1',
       status,
       opensAtLocal: String(formData.get('opensAtLocal') ?? ''),
       closesAtLocal: String(formData.get('closesAtLocal') ?? ''),
       sessionTypes,
       trackIds: many(formData, 'trackIds'),
+      allowOtherTrack: formData.get('allowOtherTrack') === '1',
+      ...(cfpSwitches
+        ? {
+            askTrack: formData.get('askTrack') === '1',
+            askTalkLength: formData.get('askTalkLength') === '1',
+          }
+        : {}),
       blindReview,
       reviewsPerSubmission: Number(formData.get('reviewsPerSubmission') ?? 3),
       reminderDaysBefore,

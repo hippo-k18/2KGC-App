@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { collection, getCountFromServer } from 'firebase/firestore';
+import {
+  collection,
+  getCountFromServer,
+  type CollectionReference,
+  type Query,
+} from 'firebase/firestore';
 
 import { getDb } from '@/lib/firebase/client';
 
@@ -58,6 +63,16 @@ export function useSubcollectionCounts(
   /** Absolute path segments to one parent's subcollection. */
   pathFor: (id: string) => string[],
   deps: unknown[] = [],
+  /**
+   * Narrows what is counted, when the rules will not allow the whole
+   * subcollection to be read.
+   *
+   * A `count()` is a `list`, and `firestore.rules` judges it exactly like any
+   * other query: replies are refused unless the query filters on `status`, so
+   * counting them without this returns nothing at all. It also makes the
+   * number the right one — a hidden reply should not be in "3 replies".
+   */
+  constrain?: (c: CollectionReference) => Query,
 ): CountsResult {
   const [counts, setCounts] = useState<Counts>(null);
   const [nonce, setNonce] = useState(0);
@@ -74,6 +89,8 @@ export function useSubcollectionCounts(
   const key = ids?.join(',') ?? '';
   const pathRef = useRef(pathFor);
   pathRef.current = pathFor;
+  const constrainRef = useRef(constrain);
+  constrainRef.current = constrain;
 
   useEffect(() => {
     if (!key) {
@@ -87,8 +104,9 @@ export function useSubcollectionCounts(
       const settled = await Promise.all(
         list.map(async (id) => {
           try {
+            const coll = collection(getDb(), pathRef.current(id).join('/'));
             const snap = await getCountFromServer(
-              collection(getDb(), pathRef.current(id).join('/')),
+              constrainRef.current ? constrainRef.current(coll) : coll,
             );
             return [id, snap.data().count] as const;
           } catch {

@@ -349,23 +349,42 @@ export function entitlementKinds(tier: {
  * Grant what a purchase unlocks. Best-effort: a lost entitlement is a support
  * ticket, a failed webhook is a retry storm that eventually disables the
  * endpoint for everyone.
+ *
+ * Each grant lists the orders that pay for it (`orders`), so a refund of one
+ * order takes back only what no other order still pays for: refunding
+ * Workshops bought in December leaves the video library Main Conference paid
+ * for in October. A grant from somewhere other than an order (a comp, a
+ * speaker) is left as it is.
  */
 export async function grantOrderEntitlements(
   db: Firestore,
   uid: string,
   kinds: EntitlementDoc['kind'][],
+  orderId?: string,
 ): Promise<number> {
   if (kinds.length === 0) return 0;
   const now = new Date();
   let written = 0;
   for (const kind of kinds) {
-    await db
+    const ref = db
       .collection(COLLECTIONS.users)
       .doc(uid)
       .collection(SUBCOLLECTIONS.entitlements)
-      .doc(kind)
-      .set({ eventId: EVENT_ID, kind, source: 'order', grantedAt: now });
-    written += 1;
+      .doc(kind);
+    const wrote = await db.runTransaction(async (tx) => {
+      const prev = (await tx.get(ref)).data() as (EntitlementDoc & { orders?: string[] }) | undefined;
+      if (prev && prev.source !== 'order') return false;
+      const orders = [...new Set([...(prev?.orders ?? []), ...(orderId ? [orderId] : [])])];
+      tx.set(ref, {
+        eventId: EVENT_ID,
+        kind,
+        source: 'order',
+        grantedAt: prev?.grantedAt ?? now,
+        ...(orders.length ? { orders } : {}),
+      });
+      return true;
+    });
+    if (wrote) written += 1;
   }
   return written;
 }
@@ -377,11 +396,21 @@ export async function grantOrderEntitlements(
  * never bought and must survive a refund — deleting the subcollection wholesale
  * would revoke a speaker's video access because they refunded a workshop.
  *
+ * With `orderId`, only that order's share: a grant another order also pays
+ * for stays. `kinds` limits it further, for a refund that took off one extra
+ * rather than the whole badge. A grant written before grants listed their
+ * orders is withdrawn as before.
+ *
  * The caller decides *whether* to withdraw: this runs only when the refund
- * actually cancelled the registration, so somebody with a second, still-paid
- * order keeps everything.
+ * actually cancelled the registration or took an extra off it, so somebody
+ * with a second, still-paid order keeps everything.
  */
-export async function withdrawOrderEntitlements(db: Firestore, uid: string): Promise<number> {
+export async function withdrawOrderEntitlements(
+  db: Firestore,
+  uid: string,
+  orderId?: string,
+  kinds?: EntitlementDoc['kind'][],
+): Promise<number> {
   const snap = await db
     .collection(COLLECTIONS.users)
     .doc(uid)
@@ -389,6 +418,63 @@ export async function withdrawOrderEntitlements(db: Firestore, uid: string): Pro
     .where('source', '==', 'order')
     .get();
 
-  await Promise.all(snap.docs.map((d) => d.ref.delete()));
-  return snap.size;
+  let withdrawn = 0;
+  for (const d of snap.docs) {
+    const grant = d.data() as EntitlementDoc & { orders?: string[] };
+    if (kinds && !kinds.includes(grant.kind)) continue;
+    const others = orderId && grant.orders ? grant.orders.filter((o) => o !== orderId) : [];
+    if (others.length > 0) {
+      await d.ref.update({ orders: others });
+      continue;
+    }
+    await d.ref.delete();
+    withdrawn += 1;
+  }
+  return withdrawn;
+}
+
+/**
+ * End the app access a ticket gave, once the address holds no active ticket
+ * (T259 #6).
+ *
+ * A Stripe refund or dispute cancelled the registration and left the Auth
+ * claim alone, so an attendee already signed in kept the directory and
+ * messaging, and one who had set a password could sign in again. This is the
+ * dashboard's `setAppAccess(email, false)` for the webhook: clear `registered`
+ * and revoke refresh tokens, which shuts the app at the next token refresh.
+ *
+ * Only when nothing else stands behind the claim. Any other active ticket on
+ * the address (its own, or one listing it in `altEmails`) keeps it, as does
+ * any role beyond `attendee`: a speaker or staff member who refunded a ticket
+ * they also bought is still a speaker.
+ *
+ * Read in memory rather than with a two-field query, so it needs no composite
+ * index. One address holds a handful of registrations at most.
+ */
+export async function endAppAccessIfNoTicket(
+  auth: Auth,
+  db: Firestore,
+  email: string,
+): Promise<'revoked' | 'kept' | 'none'> {
+  const address = normaliseEmail(email);
+  if (!address) return 'none';
+  const regs = db.collection(COLLECTIONS.registrations);
+  const [own, alt] = await Promise.all([
+    regs.where('email', '==', address).get(),
+    regs.where('altEmails', 'array-contains', address).get(),
+  ]);
+  const active = [...own.docs, ...alt.docs].some((d) => {
+    const r = d.data() as { status?: string; eventId?: string };
+    return r.status === 'active' && (r.eventId === undefined || r.eventId === EVENT_ID);
+  });
+  if (active) return 'kept';
+
+  const user = await auth.getUserByEmail(address).catch(() => null);
+  if (!user) return 'none';
+  const claims = (user.customClaims ?? {}) as { registered?: boolean; roles?: string[] };
+  if (!claims.registered) return 'none';
+  if (!(claims.roles ?? []).every((r) => r === 'attendee')) return 'kept';
+  await auth.setCustomUserClaims(user.uid, { ...claims, registered: false });
+  await auth.revokeRefreshTokens(user.uid);
+  return 'revoked';
 }

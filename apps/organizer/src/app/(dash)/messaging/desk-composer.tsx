@@ -104,7 +104,7 @@ export function DeskComposer({
           maxLength={2000}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Your session has moved to Bloomberg 165. The AV team will meet you at the door at 14:30."
+          placeholder="Your session has moved to Room 2. The AV team will meet you at the door at 14:30."
         />
         {/*
           Said here because it is the difference between this and every other

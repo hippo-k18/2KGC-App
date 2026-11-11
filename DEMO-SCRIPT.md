@@ -62,7 +62,7 @@ price edit in Act 4 during a rehearsal, set it back by hand first.
 | --- | --- |
 | URL | <http://localhost:3100/login> |
 | Email | `demo@knowledgegraph.tech` |
-| Passphrase | `kgc2027` |
+| Sign-in | see orchestrator/reports/T223.md |
 
 Nothing prints these on screen any more. ⚠️ It is a seven-character shared
 secret in front of the Admin SDK — rotate it before the event runs on real
@@ -74,7 +74,7 @@ attendees.
 | --- | --- |
 | Where | the app, **Sign in** (not Create account) |
 | Email | `demo@knowledgegraph.tech` |
-| Password | `kgc2027` (no space) |
+| Password | see orchestrator/reports/T223.md |
 
 The same address as the dashboard, on purpose: it is the one already in muscle
 memory. ⚠️ They are still **two unrelated credentials** — the dashboard checks an

@@ -51,6 +51,15 @@ const useEmulator = process.env.EXPO_PUBLIC_USE_EMULATOR === '1';
 const emulatorHost = process.env.EXPO_PUBLIC_EMULATOR_HOST || 'localhost';
 
 /**
+ * The emulator ports, 8080 and 9099 unless set. Several agents share this Mac,
+ * and a test run against the shared 8080/9099 emulator clobbers whatever the
+ * others seeded, so a simulator build that needs its own data runs its own
+ * emulator on other ports (`app/scripts/ios-shots.sh`).
+ */
+const firestorePort = Number(process.env.EXPO_PUBLIC_EMULATOR_FIRESTORE_PORT) || 8080;
+const authPort = Number(process.env.EXPO_PUBLIC_EMULATOR_AUTH_PORT) || 9099;
+
+/**
  * Optional full `https://` origins for the emulators, used instead of
  * `EXPO_PUBLIC_EMULATOR_HOST` when set.
  *
@@ -118,7 +127,7 @@ export function getFirebaseAuth(): Auth {
   // Same Fast Refresh hazard as Firestore below — see `emulatorState`.
   if (useEmulator && !emulatorState.__kgcAuthEmulator) {
     try {
-      connectAuthEmulator(auth, authEmulatorUrl || `http://${emulatorHost}:9099`, {
+      connectAuthEmulator(auth, authEmulatorUrl || `http://${emulatorHost}:${authPort}`, {
         disableWarnings: true,
       });
       emulatorState.__kgcAuthEmulator = true;
@@ -223,9 +232,9 @@ export function getDb(): Firestore {
   const store = getFirestore(app);
   if (useEmulator && !firestoreEmulatorUrl && !emulatorState.__kgcFirestoreEmulator) {
     try {
-      connectFirestoreEmulator(store, emulatorHost, 8080);
+      connectFirestoreEmulator(store, emulatorHost, firestorePort);
       emulatorState.__kgcFirestoreEmulator = true;
-      console.log(`[firebase] Firestore emulator at ${emulatorHost}:8080`);
+      console.log(`[firebase] Firestore emulator at ${emulatorHost}:${firestorePort}`);
     } catch (e) {
       console.warn('[firebase] Firestore emulator connect failed:', (e as Error).message);
     }

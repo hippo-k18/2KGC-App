@@ -85,6 +85,8 @@ function main() {
       data: {
         eventId: EVENT_ID,
         name: s.name,
+        // Explicit: the app lists speakers by `unlisted == false` (T252).
+        unlisted: false,
         // The roster's `role` is the person's job title; `SpeakerDoc` calls it
         // `title`, and the card calls that slot `role` again. Same string.
         ...(s.role ? { title: s.role } : {}),

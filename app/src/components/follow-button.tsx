@@ -1,5 +1,6 @@
 import { Pressable } from 'react-native';
 
+import { webSlop } from '@/components/a11y';
 import { Icon } from '@/components/icon';
 import { Text } from '@/components/text';
 import { HIT_TARGET, Spacing } from '@/constants/theme';
@@ -13,6 +14,13 @@ const GAP = 6;
 const PADDING_Y = 4;
 /** Drawn height at 1× Dynamic Type. `hitSlop` covers the gap to HIT_TARGET. */
 const DRAWN_HEIGHT = 20 + PADDING_Y * 2;
+/** The invisible part of the target. `webSlop` repeats it for the browser. */
+const SLOP = {
+  top: (HIT_TARGET - DRAWN_HEIGHT) / 2,
+  bottom: (HIT_TARGET - DRAWN_HEIGHT) / 2,
+  left: Spacing.sm,
+  right: Spacing.sm + Spacing.xs,
+};
 
 interface FollowButtonProps {
   following: boolean;
@@ -59,12 +67,7 @@ export function FollowButton({ following, onPress, name }: FollowButtonProps) {
       accessibilityState={{ selected: following }}
       accessibilityLabel={following ? `Following${subject}` : `Follow${subject}`}
       accessibilityHint={following ? 'Double tap to stop following' : undefined}
-      hitSlop={{
-        top: (HIT_TARGET - DRAWN_HEIGHT) / 2,
-        bottom: (HIT_TARGET - DRAWN_HEIGHT) / 2,
-        left: Spacing.sm,
-        right: Spacing.sm + Spacing.xs,
-      }}
+      hitSlop={SLOP}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
@@ -72,6 +75,7 @@ export function FollowButton({ following, onPress, name }: FollowButtonProps) {
         paddingVertical: PADDING_Y,
         minHeight: DRAWN_HEIGHT,
         opacity: pressed ? 0.4 : 1,
+        ...webSlop({ top: PADDING_Y, bottom: PADDING_Y }, SLOP),
       })}>
       <Icon
         name={following ? 'checkmark.circle.fill' : 'plus.circle.fill'}

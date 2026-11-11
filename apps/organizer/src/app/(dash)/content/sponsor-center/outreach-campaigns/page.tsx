@@ -38,11 +38,10 @@ export default async function SponsorOutreachPage() {
         title="Outreach Campaigns"
         info={
           <>
-            <strong>Prospects are not modelled</strong>
+            <strong>Not available yet</strong>
             <p>
-              <code>SponsorDoc</code> describes a company that has already signed. Mailing the ones
-              that have not is cold mail from the domain that carries the ticket receipts, which
-              needs a suppression list before it needs a screen.
+              Prospect lists and outreach emails are not available yet. You can message the
+              sponsors who have already signed.
             </p>
           </>
         }
@@ -63,7 +62,7 @@ export default async function SponsorOutreachPage() {
             value: sponsors.length,
             sub: 'reachable via Message Sponsors',
           },
-          { label: 'Prospects', value: '—', sub: 'not inputted yet' },
+          { label: 'Prospects', value: 0, sub: 'none yet' },
         ]}
       />
 
@@ -71,7 +70,7 @@ export default async function SponsorOutreachPage() {
         <NotInputted
           what="prospects"
           action={
-            <Link className="whova-btn-main" href={ROUTES.messageSponsors}>
+            <Link className="whova-btn-main primary" href={ROUTES.messageSponsors}>
               Message the sponsors you have
             </Link>
           }

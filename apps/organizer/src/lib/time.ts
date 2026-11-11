@@ -58,6 +58,15 @@ export function deriveTimes(
 export { isWallClock, toWallClockInZone };
 
 /**
+ * Reading a stored instant back in the event's zone.
+ *
+ * The arithmetic is in `time-core.ts` because this file is `server-only` and
+ * the check-in desk table, which has to agree with the panel above it, is a
+ * client component. Re-exported here so a server screen has one place to look.
+ */
+export { clockOfInstant, dayOfInstant, stampOfInstant, stampOfMillis } from './time-core';
+
+/**
  * One wall clock → the instant it names, for the single-ended cases.
  *
  * A ticket's sales window is two independent moments, either of which may be
@@ -71,9 +80,9 @@ export function fromWallClock(local: string, timeZone: string = TIME_ZONE): Time
 }
 
 /** `YYYY-MM-DD` for "today" in the event's zone — not the server's. */
-export function todayInEventZone(now: Date = new Date()): string {
+export function todayInEventZone(now: Date = new Date(), timeZone: string = TIME_ZONE): string {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: TIME_ZONE,
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -83,4 +92,20 @@ export function todayInEventZone(now: Date = new Date()): string {
 /** `HH:mm` off the stored wall clock. Display only; never parsed back. */
 export function clockOf(wall: string): string {
   return wall.slice(11, 16);
+}
+
+/**
+ * `2027-05-03` as "Mon, May 3", or "Mon, May 3, 2027" with the year. Built from
+ * the parts so no time zone can move the day.
+ */
+export function dayLabel(day: string, withYear = false): string {
+  const [y, m, d] = day.split('-').map(Number);
+  if (!y || !m || !d) return day;
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: withYear ? 'numeric' : undefined,
+    timeZone: 'UTC',
+  });
 }

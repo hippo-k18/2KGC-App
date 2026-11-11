@@ -50,13 +50,8 @@ export default async function FloormapPage() {
           <>
             <strong>No floorplan image yet</strong>
             <p>
-              Rooms carry pin coordinates as 0–1 fractions of each axis, so they survive any image
-              size, but there is nothing behind them, and booths carry a number rather than a
-              position.
-            </p>
-            <p>
-              Uploads work; no document in the model has a field to hang a floorplan on, and the
-              app has no map screen.
+              Uploading a floorplan and pinning rooms and booths on it is not available yet. This
+              screen shows which sessions have no room and which exhibitors have no booth number.
             </p>
           </>
         }
@@ -92,10 +87,10 @@ export default async function FloormapPage() {
             value: `${booked}/${standing}`,
             sub:
               exhibitors.withoutBooth > 0
-                ? `${exhibitors.withoutBooth} exhibitors without one`
-                : 'the whole hall',
+                ? `${exhibitors.withoutBooth} ${exhibitors.withoutBooth === 1 ? 'exhibitor' : 'exhibitors'} without one`
+                : 'all numbered',
           },
-          { label: 'Map images', value: 0, sub: 'not inputted yet' },
+          { label: 'Map images', value: 0 },
         ]}
       />
 
@@ -135,7 +130,7 @@ export default async function FloormapPage() {
               // The one actionable thing on this page, and it is actionable
               // whether or not a floorplan is ever drawn.
               <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>
-                Fixable today:{' '}
+                Still to place:{' '}
                 {unroomed > 0 ? (
                   <>
                     {unroomed} session{unroomed === 1 ? '' : 's'} with no room (

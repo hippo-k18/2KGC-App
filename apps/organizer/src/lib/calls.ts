@@ -2,16 +2,23 @@ import 'server-only';
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
+  CALL_TEXT_MAX_JSON,
   COLLECTIONS,
   EVENT_ID,
   TIME_ZONE,
+  callTextFromPlain,
+  callTextToPlain,
+  parseCallText,
   publicSiteOrigin,
+  sanitizeCallText,
   type BlindReviewMode,
   type CallDoc,
   type CallFormFieldDef,
+  type CallTextDoc,
   type CallFormVersion,
   type PublishStatus,
-  type SessionFormat,
+  type RubricCriterionDef,
+  type CallSessionType,
   type WithId,
 } from '@kgc/shared';
 import {
@@ -27,6 +34,7 @@ import {
   validateForm,
   type FormVersionChange,
 } from '@kgc/scripts/src/lib/question-forms';
+import { asksTalkLength, asksTrack } from '@kgc/scripts/src/lib/cfp-core';
 import { appendAudit } from './audit';
 import { recordError } from './errors';
 import { db } from './firestore';
@@ -76,18 +84,35 @@ export interface CallRow {
   id: string;
   title: string;
   instructions: string;
+  /**
+   * What the editor opens with: the saved formatted text, or the plain
+   * `instructions` turned into paragraphs when nobody has formatted it yet.
+   */
+  instructionsDoc: CallTextDoc;
+  /** "Show on website": the header's Apply to speak button (T277). */
+  showOnWebsite: boolean;
   status: PublishStatus;
   timeZone: string;
   opensAtLocal: string;
   closesAtLocal: string;
   opensAtMs: number;
   closesAtMs: number;
-  sessionTypes: SessionFormat[];
+  sessionTypes: CallSessionType[];
   trackIds: string[];
+  /** "Other" ends the public Track list (T271). */
+  allowOtherTrack: boolean;
+  /** Run with the call-for-speakers settings (T249): the six CFP session types apply. */
+  isCfp: boolean;
+  /** Whether the form asks for a track, after the CFP default (T276). */
+  askTrack: boolean;
+  /** Whether a talk is asked its length (T276). */
+  askTalkLength: boolean;
   form: CallFormFieldDef[];
   formVersion: number;
   priorVersions: { version: number; fields: CallFormFieldDef[] }[];
   blindReview: BlindReviewMode;
+  /** The scoring criteria, in the order reviewers are asked them. */
+  rubric: RubricCriterionDef[];
   reviewsPerSubmission: number;
   reminderDaysBefore: number[];
   notifyEmails: string[];
@@ -114,6 +139,8 @@ function toRow(id: string, c: CallDoc): CallRow {
     id,
     title: c.title,
     instructions: c.instructions ?? '',
+    instructionsDoc: parseCallText(c.instructionsDoc) ?? callTextFromPlain(c.instructions ?? ''),
+    showOnWebsite: c.showOnWebsite === true,
     status: c.status,
     timeZone: c.timeZone ?? TIME_ZONE,
     opensAtLocal: c.opensAtLocal ?? '',
@@ -128,10 +155,15 @@ function toRow(id: string, c: CallDoc): CallRow {
     closesAtMs: millis(c.closesAt),
     sessionTypes: c.sessionTypes ?? [],
     trackIds: c.trackIds ?? [],
+    allowOtherTrack: c.allowOtherTrack === true,
+    isCfp: Boolean(c.cfp),
+    askTrack: asksTrack(c),
+    askTalkLength: asksTalkLength(c),
     form: [...(c.form ?? [])].sort((a, b) => a.order - b.order),
     formVersion: c.formVersion ?? 1,
     priorVersions: (c.priorVersions ?? []).map((v) => ({ version: v.version, fields: v.fields })),
     blindReview: c.blindReview ?? 'single-blind',
+    rubric: [...(c.rubric ?? [])].sort((a, b) => a.order - b.order),
     reviewsPerSubmission: c.reviewsPerSubmission ?? 3,
     reminderDaysBefore: c.reminderDaysBefore ?? [],
     notifyEmails: c.notifyEmails ?? [],
@@ -228,12 +260,27 @@ export interface SaveCallInput {
   id?: string;
   title: string;
   instructions: string;
+  /**
+   * The editor's document as JSON, sent only when the text was edited. Absent
+   * leaves the saved text exactly as it is, so saving a date on Min's call
+   * never rewrites her words (T277).
+   */
+  instructionsDoc?: string;
+  /**
+   * "Show on website". Turning it on here turns it off on every other call.
+   * Absent leaves the saved value alone.
+   */
+  showOnWebsite?: boolean;
   status: PublishStatus;
   /** `YYYY-MM-DDTHH:mm` wall clock in the event's zone. */
   opensAtLocal: string;
   closesAtLocal: string;
-  sessionTypes: SessionFormat[];
+  sessionTypes: CallSessionType[];
   trackIds: string[];
+  allowOtherTrack: boolean;
+  /** Absent leaves the stored setting alone (T276). */
+  askTrack?: boolean;
+  askTalkLength?: boolean;
   blindReview: BlindReviewMode;
   reviewsPerSubmission: number;
   reminderDaysBefore: number[];
@@ -289,6 +336,26 @@ export async function saveCall(input: SaveCallInput): Promise<CallResult> {
   const bad = input.notifyEmails.find((e) => !e.includes('@'));
   if (bad) return { ok: false, error: `“${bad}” is not an email address.` };
 
+  /*
+   * The formatted text is sanitised here, whatever the browser sent, and saved
+   * with its plain-text copy in `instructions` (`call-text-core.ts`). The
+   * website sanitises it again before rendering.
+   */
+  let text: { instructions: string; instructionsDoc?: string } | null = null;
+  if (input.instructionsDoc !== undefined) {
+    if (input.instructionsDoc.length > CALL_TEXT_MAX_JSON) {
+      return { ok: false, error: 'The instructions are too long to save.' };
+    }
+    let raw: unknown;
+    try {
+      raw = JSON.parse(input.instructionsDoc);
+    } catch {
+      return { ok: false, error: 'The instructions could not be read. Reload the page and try again.' };
+    }
+    const doc = sanitizeCallText(raw);
+    text = { instructions: callTextToPlain(doc), instructionsDoc: JSON.stringify(doc) };
+  }
+
   try {
     const id = input.id ?? callSlug(title);
     if (RESERVED_CALL_IDS.has(id)) {
@@ -319,7 +386,9 @@ export async function saveCall(input: SaveCallInput): Promise<CallResult> {
       {
         eventId: EVENT_ID,
         title,
-        instructions: input.instructions.trim(),
+        // Untouched text is not written at all on an update.
+        ...(text ?? (existing ? {} : { instructions: input.instructions.trim() })),
+        ...(input.showOnWebsite !== undefined ? { showOnWebsite: input.showOnWebsite } : {}),
         status: input.status,
         timeZone: TIME_ZONE,
         opensAtLocal: input.opensAtLocal,
@@ -328,6 +397,9 @@ export async function saveCall(input: SaveCallInput): Promise<CallResult> {
         closesAt,
         sessionTypes: input.sessionTypes,
         trackIds: input.trackIds,
+        allowOtherTrack: input.allowOtherTrack === true,
+        ...(input.askTrack === undefined ? {} : { askTrack: input.askTrack }),
+        ...(input.askTalkLength === undefined ? {} : { askTalkLength: input.askTalkLength }),
         blindReview: input.blindReview,
         reviewsPerSubmission: input.reviewsPerSubmission,
         reminderDaysBefore: input.reminderDaysBefore,
@@ -349,6 +421,8 @@ export async function saveCall(input: SaveCallInput): Promise<CallResult> {
       { merge: true },
     );
 
+    const unshown = input.showOnWebsite ? await hideOtherCalls(id, input.actor) : [];
+
     await appendAudit({
       actor: input.actor,
       action: existing ? 'call.update' : 'call.create',
@@ -360,6 +434,8 @@ export async function saveCall(input: SaveCallInput): Promise<CallResult> {
             opensAtLocal: existing.opensAtLocal,
             closesAtLocal: existing.closesAtLocal,
             blindReview: existing.blindReview,
+            showOnWebsite: existing.showOnWebsite === true,
+            ...(text ? { instructionsEdited: true } : {}),
           }
         : {},
       after: {
@@ -367,27 +443,68 @@ export async function saveCall(input: SaveCallInput): Promise<CallResult> {
         opensAtLocal: input.opensAtLocal,
         closesAtLocal: input.closesAtLocal,
         blindReview: input.blindReview,
+        showOnWebsite: input.showOnWebsite ?? existing?.showOnWebsite === true,
+        ...(unshown.length ? { hiddenFromWebsite: unshown.map((c) => c.id) } : {}),
       },
     });
 
+    const website = websiteNote(input, unshown, closesAt.toMillis() <= Date.now());
+
     if (!existing) {
-      return { ok: true, id, message: `Created “${title}”. Its public address is /submit/${id}.` };
+      return {
+        ok: true,
+        id,
+        message: `Created “${title}”. Its public address is /submit/${id}.${website}`,
+      };
     }
 
     const moved = existing.closesAtLocal !== input.closesAtLocal;
     return {
       ok: true,
       id,
-      message: moved
-        ? `Saved. The deadline is now ${input.closesAtLocal.replace('T', ' ')}. It was ${String(
-            existing.closesAtLocal,
-          ).replace('T', ' ')}. Nobody is told automatically.`
-        : 'Saved.',
+      message:
+        (moved
+          ? `Saved. The deadline is now ${input.closesAtLocal.replace('T', ' ')}. It was ${String(
+              existing.closesAtLocal,
+            ).replace('T', ' ')}. Nobody is told automatically.`
+          : 'Saved.') + website,
     };
   } catch (err) {
     recordError('calls.save', err);
     return { ok: false, error: err instanceof Error ? err.message : 'Could not save the call.' };
   }
+}
+
+/**
+ * Only one call has the website's Apply to speak button: turning "Show on
+ * website" on for one call turns it off for every other call of this event.
+ * Returns the calls it turned off, so the save can say so.
+ */
+async function hideOtherCalls(keepId: string, actor: string): Promise<{ id: string; title: string }[]> {
+  const shown = await db().collection(COLLECTIONS.calls).where('showOnWebsite', '==', true).get();
+  const others = shown.docs.filter((d) => d.id !== keepId && (d.data() as CallDoc).eventId === EVENT_ID);
+  if (others.length === 0) return [];
+  const batch = db().batch();
+  for (const d of others) {
+    batch.update(d.ref, { showOnWebsite: false, updatedBy: actor, updatedAt: FieldValue.serverTimestamp() });
+  }
+  await batch.commit();
+  return others.map((d) => ({ id: d.id, title: (d.data() as CallDoc).title }));
+}
+
+/** The sentence a save adds about the website button, or nothing. */
+function websiteNote(input: SaveCallInput, unshown: { title: string }[], closed: boolean): string {
+  if (!input.showOnWebsite) return '';
+  const parts: string[] = [];
+  if (input.status !== 'published') {
+    parts.push('The Apply to speak button appears on the website once the call is published.');
+  } else if (closed) {
+    parts.push('The call has closed, so the website does not show the Apply to speak button.');
+  } else {
+    parts.push('The Apply to speak button will be on the website within a minute.');
+  }
+  for (const c of unshown) parts.push(`“${c.title}” is no longer shown on the website.`);
+  return ` ${parts.join(' ')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -427,6 +544,8 @@ export async function saveCallField(input: {
   required: boolean;
   helpText?: string;
   maxLength?: number;
+  /** Ask only of these session types (T249). Empty asks everyone. */
+  sessionTypes?: string[];
   actor: string;
 }): Promise<FieldResult> {
   try {
@@ -461,6 +580,15 @@ export async function saveCallField(input: {
       ...(input.helpText?.trim() ? { helpText: input.helpText.trim() } : {}),
       ...(input.maxLength ? { maxLength: input.maxLength } : {}),
     };
+    /*
+     * Only the call's own types, and none at all when that is everyone. The
+     * key is left off rather than stored empty, so a question written before
+     * this existed and one that asks everyone are the same document.
+     */
+    const only = (input.sessionTypes ?? []).filter((t): t is CallSessionType =>
+      (call.sessionTypes ?? []).includes(t as CallSessionType),
+    );
+    if (only.length > 0 && only.length < (call.sessionTypes ?? []).length) field.sessionTypes = only;
 
     const problem = validateField(field, before);
     if (problem) return { ok: false, error: problem };

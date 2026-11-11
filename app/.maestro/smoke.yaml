@@ -1,0 +1,19 @@
+# Smoke test on the real native UI: sign in, then open each tab.
+# Run: maestro test -e EMAIL=preview@kgc.test -e PASSWORD=preview-2027 app/.maestro/smoke.yaml
+# (app/scripts/ios-shots.sh runs it with the right values against the preview emulator.)
+appId: tech.knowledgegraph.kgc
+---
+- runFlow: sign-in.yaml
+- tapOn: "Agenda"
+- extendedWaitUntil:
+    visible: "Agenda"
+    timeout: 15000
+- takeScreenshot: maestro-agenda
+- tapOn: "People"
+- takeScreenshot: maestro-people
+- tapOn: "Community"
+- takeScreenshot: maestro-community
+- tapOn: "Me"
+- takeScreenshot: maestro-me
+- tapOn: "Home"
+- takeScreenshot: maestro-home

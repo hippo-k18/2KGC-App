@@ -8,12 +8,15 @@ import { Avatar } from '@/components/avatar';
 import { DataError } from '@/components/data-error';
 import { EmptyState } from '@/components/empty-state';
 import { PushedHeader } from '@/components/pushed-header';
+import { SafetyMenu } from '@/components/safety-sheet';
 import { Screen } from '@/components/screen';
 import { SkeletonBlock, SkeletonScreen } from '@/components/skeleton';
 import { Text } from '@/components/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useAppAccess } from '@/lib/data/app-access';
+import { useBlocked } from '@/lib/data/safety';
 import { useDocument } from '@/lib/data/use-document';
 import { getDb } from '@/lib/firebase/client';
 
@@ -42,6 +45,7 @@ export default function PersonScreen() {
   const colors = useTheme();
   const router = useRouter();
   const { user } = useAuth();
+  const { messagingEnabled } = useAppAccess();
 
   // `useDocument`, not a bare `onSnapshot`. The listener this replaces had no
   // error callback — the omission that unmounts the entire app rather than one
@@ -64,7 +68,26 @@ export default function PersonScreen() {
 
   // Above the early returns — see the note in `agenda/[id].tsx`. Both states
   // below are reachable from a cold link, and neither had a way out.
-  const header = <PushedHeader backTitle="People" backHref="/people" />;
+  const { blocked } = useBlocked();
+  const isBlocked = Boolean(uid && blocked.has(uid));
+  // Report and Block live here even when the profile is gone or hidden, so
+  // someone who was blocked can always be unblocked from the same place.
+  const header = (
+    <PushedHeader
+      backTitle="People"
+      backHref="/people"
+      headerRight={() =>
+        uid ? (
+          <SafetyMenu
+            target={{ type: 'user', uid }}
+            authorId={uid}
+            authorName={person?.name}
+            subject="this profile"
+          />
+        ) : null
+      }
+    />
+  );
 
   if (error) {
     return (
@@ -100,7 +123,7 @@ export default function PersonScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="this profile"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <View style={{ alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.sm }}>
               <SkeletonBlock width={AVATAR_PLACEHOLDER} height={AVATAR_PLACEHOLDER} radius={Radius.pill} />
               <SkeletonBlock width="45%" height={22} />
@@ -133,7 +156,13 @@ export default function PersonScreen() {
           ) : null}
         </View>
 
-        {!isMe && user ? (
+        {isBlocked ? (
+          <Text tone="secondary" style={{ textAlign: 'center' }}>
+            You blocked {person.name}. Their posts and messages are hidden from you.
+          </Text>
+        ) : null}
+
+        {!isMe && user && messagingEnabled && !isBlocked ? (
           <Pressable
             onPress={() =>
               router.push({

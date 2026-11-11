@@ -3,7 +3,7 @@ import { requireOrganizer } from '@/lib/auth';
 import { directoryUids } from '@/lib/cohorts';
 import { listAttendees, type AttendeeRow } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
-import { GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../ui';
+import { Email, GapPanel, PER_PAGE, PageHeader, Pagination, Panel, SearchInput, Table, Tag, listParams, paginate, sortRows } from '../../ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,13 +84,13 @@ export default async function SegmentsPage({
     ...tierNames.map((t) => ({
       key: `ticket:${t}`,
       label: t,
-      note: 'Matched on the tier name stored on the registration.',
+      note: 'Holds this ticket type.',
       members: all.filter((a) => a.ticketType === t),
     })),
     {
       key: 'ticket:none',
       label: 'No ticket',
-      note: 'A profile with no registration: staff, a comp, or a seeded demo account.',
+      note: 'Signed in but holds no ticket, such as staff.',
       members: all.filter((a) => !a.registrationId),
     },
   ];
@@ -100,25 +100,25 @@ export default async function SegmentsPage({
     {
       key: 'app:none',
       label: 'Ticket held, app not opened',
-      note: 'No users document exists, so there is nothing to notify and no profile to show.',
+      note: 'Has not signed in, so has no profile and gets no notifications.',
       members: all.filter((a) => !a.signedIn),
     },
     {
       key: 'app:partial',
       label: 'Signed in, onboarding unfinished',
-      note: 'A users document exists with onboarded false. A half-filled profile.',
+      note: 'Signed in but has not finished their profile.',
       members: all.filter((a) => a.signedIn && !a.onboarded),
     },
     {
       key: 'app:full',
       label: 'Signed in and onboarded',
-      note: 'The only cohort with a complete profile behind it.',
+      note: 'Has a complete profile.',
       members: all.filter((a) => a.signedIn && a.onboarded),
     },
     {
       key: 'app:messaging',
       label: 'Reachable by direct message',
-      note: 'messagingEnabled on their own profile. Being in the directory is a separate switch.',
+      note: 'Allows direct messages. This is separate from being in the directory.',
       members: all.filter((a) => a.signedIn && a.messagingEnabled),
     },
   ];
@@ -134,26 +134,26 @@ export default async function SegmentsPage({
   const byDirectory: Segment[] = [
     {
       key: 'dir:listed',
-      label: 'Listed, and the projection exists',
-      note: 'Opted in, and a directory document is really there for other devices to read.',
+      label: 'Listed in the directory',
+      note: 'Other attendees can see them.',
       members: wants.filter((a) => a.uid && listed.has(a.uid)),
     },
     {
       key: 'dir:pending',
-      label: 'Opted in, but not projected',
-      note: 'Wants to be listed and has no directory document. The mirroring trigger is unbuilt.',
+      label: 'Opted in, not listed yet',
+      note: 'Chose to be listed but does not appear in the directory yet.',
       members: wants.filter((a) => !a.uid || !listed.has(a.uid)),
     },
     {
       key: 'dir:out',
       label: 'Opted out',
-      note: 'Opting out deletes the projection outright, so the record never leaves the server.',
+      note: 'Hidden from other attendees.',
       members: all.filter((a) => a.signedIn && !a.visibleInDirectory),
     },
     {
       key: 'dir:noprofile',
       label: 'Nothing to list yet',
-      note: 'No profile, so no preference and no projection either way.',
+      note: 'Has not signed in, so has made no choice.',
       members: all.filter((a) => !a.signedIn),
     },
   ];
@@ -175,25 +175,25 @@ export default async function SegmentsPage({
     {
       key: 'co:group',
       label: 'From a company sending 5 or more',
-      note: 'A delegation. The cohort a group rate or a reserved table would be aimed at.',
+      note: 'A large group from one company.',
       members: all.filter((a) => sending(a) >= 5),
     },
     {
       key: 'co:small',
-      label: 'From a company sending 2–4',
-      note: 'Colleagues, but not a delegation.',
+      label: 'From a company sending 2 to 4',
+      note: 'A small group from one company.',
       members: all.filter((a) => sending(a) >= 2 && sending(a) < 5),
     },
     {
       key: 'co:solo',
       label: 'The only one from their company',
-      note: 'Came alone. The cohort a first-timers meet-up is for.',
+      note: 'Came alone.',
       members: all.filter((a) => sending(a) === 1),
     },
     {
       key: 'co:unknown',
       label: 'No company recorded',
-      note: 'Blank on both the profile and the registration, so unclassifiable rather than solo.',
+      note: 'No company on the profile or the ticket.',
       members: all.filter((a) => !norm(a.company)),
     },
   ];
@@ -204,7 +204,7 @@ export default async function SegmentsPage({
       title: 'By ticket type',
       derivedFrom: 'RegistrationDoc.ticketType',
       caveat:
-        'A tier name, not a tier id. Rename a tier and this splits into the old name and the new one.',
+        'Grouped by ticket name. Renaming a ticket type splits its group in two.',
       segments: byTicket,
     },
     {
@@ -212,7 +212,7 @@ export default async function SegmentsPage({
       title: 'By app adoption',
       derivedFrom: 'whether a users document exists, and its onboarded flag',
       caveat:
-        'Whether they have ever opened the app, not whether they opened it today. Nothing records a last-seen time.',
+        'Whether they have ever signed in, not whether they are active today.',
       segments: byApp,
     },
     {
@@ -220,7 +220,7 @@ export default async function SegmentsPage({
       title: 'By directory presence',
       derivedFrom: 'UserDoc.visibleInDirectory compared against directory/{uid}',
       caveat:
-        'Two sources, because the trigger that keeps them in step is unbuilt. The gap between them is the second row.',
+        'Who other attendees can find in the app.',
       segments: byDirectory,
     },
     {
@@ -228,7 +228,7 @@ export default async function SegmentsPage({
       title: 'By company size',
       derivedFrom: 'how many attendees share a company name',
       caveat:
-        'Free text an attendee typed. Two spellings are two companies, and nothing normalises them.',
+        'Company names are typed by attendees, so two spellings count as two companies.',
       segments: byCompany,
     },
   ];
@@ -266,12 +266,8 @@ export default async function SegmentsPage({
         title="Segments"
         info={
           <>
-            <strong>Derived, not authored</strong>
-            <p>
-              These cohorts are computed on every load from fields that exist for other reasons.
-              Nothing here can be created, named, saved or used as a send target, and neither the
-              app nor the badge reads any of it.
-            </p>
+            <strong>Built-in segments</strong>
+            <p>These groups are worked out from your attendee list. Custom segments are not available yet.</p>
           </>
         }
         links={[
@@ -289,9 +285,7 @@ export default async function SegmentsPage({
 
       <Panel>
         <p className="body-2">
-          {all.length} attendees, grouped four ways. The families overlap by design (one person is
-          in one row of each) so the counts within a family sum to the total and the counts across
-          families do not.
+          {all.length} attendees, grouped four ways. Each person appears once in every group.
         </p>
       </Panel>
 
@@ -299,24 +293,26 @@ export default async function SegmentsPage({
         <Panel key={f.id}>
           <h2 className="section-header">{f.title}</h2>
           <p className="muted" style={{ fontSize: 12, marginTop: -6 }}>
-            Derived from <code>{f.derivedFrom}</code>. {f.caveat}
+            {f.caveat}
           </p>
           <Table
             cols={[
               { key: 's', label: 'Segment', className: 'cell-mdsm' },
-              { key: 'n', label: 'Attendees', className: 'cell-xs' },
+              // `cell-xs` is 68px and "Attendees" needs 86, so the header ran
+              // straight into the one beside it and the two read as one word.
+              { key: 'n', label: 'Attendees', className: 'cell-xsm' },
               { key: 'p', label: 'Share', className: 'cell-xs' },
-              { key: 'w', label: 'What the number means', className: 'cell-fill' },
+              { key: 'w', label: 'What it means', className: 'cell-fill' },
               { key: 'v', label: '', className: 'cell-xs cell-end-align' },
             ]}
-            empty="Nothing to group: the attendee list is empty"
+            empty="No attendees yet"
             rows={f.segments.map((s) => [
               <span key="s">
                 <strong>{s.label}</strong>
                 {s.key === 'dir:pending' && s.members.length > 0 && (
                   <div>
                     <Tag color="orange" small>
-                      drift
+                      not listed yet
                     </Tag>
                   </div>
                 )}
@@ -348,13 +344,13 @@ export default async function SegmentsPage({
         </h2>
         {selected ? (
           <p className="muted" style={{ fontSize: 12, marginTop: -6 }}>
-            {selected.note} This list is recomputed on every load; it is not a saved segment.
+            {selected.note}
           </p>
         ) : null}
 
         <form method="get" className="toolbar">
           {seg ? <input type="hidden" name="seg" value={seg} /> : null}
-          <SearchInput defaultValue={q} width={420} placeholder="Enter name, email or company" />
+          <SearchInput defaultValue={q} width={420} placeholder="Name, email or company" />
           <button type="submit" className="btn btn-default">
             Search
           </button>
@@ -379,7 +375,7 @@ export default async function SegmentsPage({
             <span key="n">
               <strong>{a.name}</strong>
               <div className="muted" style={{ fontSize: 12 }}>
-                {a.email}
+                <Email address={a.email} />
               </div>
             </span>,
             a.company ?? <span className="muted">—</span>,
@@ -395,7 +391,7 @@ export default async function SegmentsPage({
             ),
             !a.signedIn ? (
               <span key="d" className="muted">
-                no profile
+                not signed in
               </span>
             ) : !a.visibleInDirectory ? (
               <Tag key="d" color="red" small>
@@ -405,7 +401,7 @@ export default async function SegmentsPage({
               'listed'
             ) : (
               <Tag key="d" color="orange" small>
-                not projected
+                not listed yet
               </Tag>
             ),
           ])}

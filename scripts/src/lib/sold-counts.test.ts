@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   outstandingSeatsByTier,
+  seatsHeldByOrder,
   soldByTier,
   soldCountDrift,
   type SoldCountOrder,
@@ -92,6 +93,27 @@ describe('soldByTier', () => {
     // This function knows the orders and not the catalogue. A zero here would
     // be indistinguishable from a tier that no longer exists.
     expect(soldByTier([]).has('main-conference')).toBe(false);
+  });
+
+  it('does not count a seat an organizer gave back by cancelling the attendee', () => {
+    // The order is still paid, so nothing else on the ledger says the seat is
+    // free. Without this the reconcile would take the seat away again.
+    const counts = soldByTier([
+      order({
+        items: [{ ticketTypeId: 'main-conference', quantity: 3 }],
+        releasedSeats: { reg_a: 'main-conference' },
+      }),
+    ]);
+    expect(counts.get('main-conference')).toBe(2);
+  });
+
+  it('never lets released seats take a tier below zero or touch another tier', () => {
+    const held = seatsHeldByOrder({
+      items: [{ ticketTypeId: 'main-conference', quantity: 1 }],
+      releasedSeats: { reg_a: 'main-conference', reg_b: 'main-conference', reg_c: 'workshop' },
+    });
+    expect(held.get('main-conference')).toBe(0);
+    expect(held.has('workshop')).toBe(false);
   });
 });
 

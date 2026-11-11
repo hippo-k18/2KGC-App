@@ -162,6 +162,8 @@ async function main() {
           bio: map.bio ? row[map.bio] || undefined : undefined,
           photoURL: map.photo ? row[map.photo] || undefined : undefined,
           sessionIds: [],
+          // Explicit: the app lists speakers by `unlisted == false` (T252).
+          unlisted: false,
         },
       });
     }
@@ -237,7 +239,7 @@ async function main() {
         // unlinked speaker name is a worse outcome than a thin speaker record.
         const id = speakerId(n);
         speakerIdByName.set(norm(n), id);
-        writes.push({ collection: COLLECTIONS.speakers, id: id, data: { ...base(), name: n, sessionIds: [] },
+        writes.push({ collection: COLLECTIONS.speakers, id: id, data: { ...base(), name: n, sessionIds: [], unlisted: false },
         });
         problems.push(`speaker "${n}" appears on the agenda but not in the speaker export — stub created`);
         return id;

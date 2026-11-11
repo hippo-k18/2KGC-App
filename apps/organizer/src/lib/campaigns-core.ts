@@ -33,6 +33,8 @@
  * question.
  */
 
+import { REMINDER_CONTACT_SOURCE } from '@kgc/shared';
+
 /**
  * The minimum shape suppression needs.
  *
@@ -46,9 +48,11 @@ export interface Suppressible {
   unsubscribedAt?: string;
   /** ISO timestamp. Present means the mailbox is dead. */
   bouncedAt?: string;
+  /** ISO timestamp. Present means the reader marked our mail as spam. */
+  complainedAt?: string;
 }
 
-export type SuppressionReason = 'unsubscribed' | 'bounced' | 'unsubscribed and bounced';
+export type SuppressionReason = 'unsubscribed' | 'bounced' | 'unsubscribed and bounced' | 'marked as spam';
 
 /**
  * Why this contact may not be emailed, or null if they may be.
@@ -59,10 +63,27 @@ export type SuppressionReason = 'unsubscribed' | 'bounced' | 'unsubscribed and b
  * was the failure the original comment on that function warned about.
  */
 export function suppressionReasonFor(c: Suppressible): SuppressionReason | null {
+  // A spam complaint outranks the rest: it is the one that costs the domain.
+  if (c.complainedAt) return 'marked as spam';
   if (c.unsubscribedAt && c.bouncedAt) return 'unsubscribed and bounced';
   if (c.unsubscribedAt) return 'unsubscribed';
   if (c.bouncedAt) return 'bounced';
   return null;
+}
+
+/**
+ * A contact that exists only because the checkout reminder needed somewhere
+ * for its unsubscribe link to land (T363): that source, on no list. Never
+ * part of a campaign audience, "All contacts" included (T364). Adding them to
+ * a list is an organizer's explicit choice and makes them an ordinary contact.
+ */
+export function isReminderOnly(c: { source?: string; lists: readonly string[] }): boolean {
+  return c.source === REMINDER_CONTACT_SOURCE && c.lists.length === 0;
+}
+
+/** Who a campaign to `list` is addressed to, before suppression. `*` is everybody but reminder-only contacts. */
+export function onListOf<T extends { source?: string; lists: readonly string[] }>(contacts: readonly T[], list: string): T[] {
+  return list === '*' ? contacts.filter((c) => !isReminderOnly(c)) : contacts.filter((c) => c.lists.includes(list));
 }
 
 /** One contact who will not be mailed, and why. */
@@ -119,6 +140,8 @@ export function skipReasonText(reason: SuppressionReason): string {
       return 'Excluded: this address hard-bounced. Campaign mail to it is suppressed.';
     case 'unsubscribed and bounced':
       return 'Excluded: this address unsubscribed and has also hard-bounced. Campaign mail to it is suppressed.';
+    case 'marked as spam':
+      return 'Excluded: this reader marked our mail as spam. Campaign mail to it is suppressed.';
   }
 }
 

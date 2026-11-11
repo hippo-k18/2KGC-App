@@ -1,0 +1,61 @@
+import { describe, expect, it } from 'vitest';
+
+import { describeAction } from './audit-action';
+
+describe('describeAction', () => {
+  it('reads the website’s warnings as whole phrases, not "Undeliveredd" (T135B, TK-300)', () => {
+    expect(describeAction('confirmation.undelivered')).toBe('Confirmation email could not be delivered');
+    expect(describeAction('invoice.oversold')).toBe('Invoice paid for more seats than were left');
+    expect(describeAction('checkout.notFromWebsite')).toBe('Stripe payment not from ticketing (ignored)');
+  });
+
+  it('never invents a past tense for a verb that does not end in "e"', () => {
+    expect(describeAction('order.seats')).toBe('Order: seats');
+    expect(describeAction('checkout.return')).toBe('Checkout: return');
+    expect(describeAction('referral.record')).toBe('Referral: record');
+    expect(describeAction('attendee.leadLinkSend')).toBe('Sent the lead link for attendee');
+  });
+
+  it('still conjugates the regular verbs it always did', () => {
+    expect(describeAction('attendee.reinstate')).toBe('Reinstated attendee');
+    expect(describeAction('questionForm.update')).toBe('Updated question form');
+    expect(describeAction('order.refund')).toBe('Refunded order');
+  });
+
+  it('reads the Learn page editor’s actions (T309)', () => {
+    expect(describeAction('learnPage.saveDraft')).toBe('Saved a draft of learn page');
+    expect(describeAction('learnPage.publish')).toBe('Published learn page');
+    expect(describeAction('learnPage.revert')).toBe('Discarded the draft of learn page');
+    expect(describeAction('learnPage.restore')).toBe('Restored learn page');
+    expect(describeAction('learnPage.uploadImage')).toBe('Uploaded an image for learn page');
+    expect(describeAction('learnPage.schedule')).toBe('Scheduled a publish of learn page');
+    expect(describeAction('learnPage.cancelSchedule')).toBe('Cancelled the scheduled publish of learn page');
+    expect(describeAction('learnPage.scheduledPublish')).toBe('Auto-published learn page');
+    expect(describeAction('learnPage.scheduledPublishFailed')).toBe('Could not auto-publish learn page');
+    expect(describeAction('learnPage.previewLink')).toBe('Changed the preview link for learn page');
+    expect(describeAction('learnPage.editImage')).toBe('Edited an image for learn page');
+  });
+
+  it('reads Sign out on all devices as a sentence, not "SignOutEverywhered team" (T314)', () => {
+    expect(describeAction('team.signOutEverywhere')).toBe('Signed out on all devices');
+  });
+
+  it('reads the Learn page media library and saved sections (T315)', () => {
+    expect(describeAction('learnMedia.update')).toBe('Updated learn media');
+    expect(describeAction('learnMedia.remove')).toBe('Removed learn media');
+    expect(describeAction('learnMedia.backfill')).toBe('Indexed the older files of learn media');
+    expect(describeAction('learnSection.save')).toBe('Saved learn section');
+    expect(describeAction('learnSection.update')).toBe('Updated learn section');
+    expect(describeAction('learnSection.rename')).toBe('Renamed learn section');
+    expect(describeAction('learnSection.remove')).toBe('Removed learn section');
+  });
+
+  it('reads the HubSpot sync actions as sentences (T333)', () => {
+    expect(describeAction('hubspot.connect')).toBe('Connected HubSpot');
+    expect(describeAction('hubspot.disconnect')).toBe('Disconnected HubSpot');
+    expect(describeAction('hubspot.test')).toBe('Tested the HubSpot connection');
+    expect(describeAction('hubspot.settings')).toBe('Changed the HubSpot sync settings');
+    expect(describeAction('hubspot.createProperties')).toBe('Created the KGC properties in HubSpot');
+    expect(describeAction('hubspot.syncAll')).toBe('Sent all attendees to HubSpot');
+  });
+});

@@ -5,6 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { COLLECTIONS, EVENT_ID, type DocumentDoc } from '@kgc/shared';
 import { appendAudit, diff } from '@/lib/audit';
 import { requireOrganizer } from '@/lib/auth';
+import { getSession } from '@/lib/data';
 import { db } from '@/lib/firestore';
 import { recordError } from '@/lib/errors';
 import { getDocument } from '@/lib/planning';
@@ -76,6 +77,17 @@ export async function saveDocumentAction(
   const statusRaw = String(formData.get('status') ?? 'draft').trim();
   const orderRaw = String(formData.get('order') ?? '').trim();
   /**
+   * Which session's page this handout belongs on, or nothing.
+   *
+   * Checked against the programme rather than trusted, because the value ends
+   * up on a session page in two apps: a document pointing at a session that no
+   * longer exists would be a row nothing renders and nothing explains. An empty
+   * value clears the attachment, and clearing is a `FieldValue.delete()` below
+   * for the reason the description is — under `merge`, an `undefined` writes no
+   * key and "I detached it" would report success and change nothing.
+   */
+  const sessionId = String(formData.get('sessionId') ?? '').trim();
+  /**
    * `getAll`, because the restriction is a set of checkboxes. An unticked box
    * submits nothing, so "restricted to nobody in particular" arrives here as an
    * empty list — which is the value that means everybody, and is written as
@@ -97,6 +109,10 @@ export async function saveDocumentAction(
 
   const order = orderRaw === '' ? 0 : Number(orderRaw);
   if (!Number.isFinite(order)) fieldErrors.order = 'Order must be a number.';
+
+  if (sessionId && !(await getSession(sessionId))) {
+    fieldErrors.sessionId = 'That session is no longer on the agenda. Pick another one.';
+  }
 
   if (Object.keys(fieldErrors).length > 0) {
     return { error: 'Some fields need attention.', fieldErrors };
@@ -125,6 +141,7 @@ export async function saveDocumentAction(
         kind,
         status,
         order,
+        sessionId: sessionId || FieldValue.delete(),
         visibleToTicketTypes,
         ...(existing ? {} : { createdAt: FieldValue.serverTimestamp() }),
         updatedAt: FieldValue.serverTimestamp(),
@@ -139,6 +156,7 @@ export async function saveDocumentAction(
             url: existing.url,
             kind: existing.kind,
             status: existing.status,
+            sessionId: existing.sessionId ?? '',
             visibleToTicketTypes: (existing.visibleToTicketTypes ?? []).join(', '),
           }
         : {},
@@ -147,6 +165,7 @@ export async function saveDocumentAction(
         url,
         kind,
         status,
+        sessionId,
         visibleToTicketTypes: visibleToTicketTypes.join(', '),
       },
     );

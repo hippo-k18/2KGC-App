@@ -1,5 +1,4 @@
-import { HeaderBackContext } from '@react-navigation/elements';
-import { useNavigationState } from '@react-navigation/native';
+import { HeaderBackContext, useNavigationState } from 'expo-router/react-navigation';
 import { Link, Stack, router, type Href } from 'expo-router';
 import { useContext, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -9,20 +8,16 @@ import { Text } from '@/components/text';
 import { HIT_TARGET, Spacing } from '@/constants/theme';
 
 /**
- * Height of the bar `NativeTabs` pins to the top of the window on web.
+ * Top inset the web tab bar needs from every header. It is zero.
  *
- * `NativeTabs` renders a real bottom tab bar on iOS and Android. On web it
- * renders a Radix tab list with `position: fixed; top: 24px; height: 40px;
- * z-index: 10` — a pill floating over the top of the *whole viewport*, above
- * every screen in the app. Nothing measures it, so this is a constant; on
- * device the value is unused.
- *
- * `WhovaHeader` and `ScreenHeader` already paid this inset, which is why the
- * five tab roots looked right. Nothing paid it for the React Navigation header
- * that the pushed screens turn on, so their whole header — chevron included —
- * was drawn underneath the pill, where clicks land on the tab bar instead.
+ * expo-router's web stylesheet floats the tab list as a pill over the top of
+ * the viewport, and this used to be the 68px every header paid to stay clear
+ * of it. `(tabs)/_layout.tsx` now moves the bar to the bottom of the window and
+ * reserves its space there, so paying it at the top as well left an empty band
+ * above every title. The constant stays so the headers keep one place to look
+ * if the bar ever moves again.
  */
-export const WEB_TAB_BAR = 68;
+export const WEB_TAB_BAR = 0;
 
 /**
  * Top inset for a native-stack header, on web only.
@@ -145,7 +140,9 @@ export function PushedHeader({
                   label={canPopHere || !canPop || popsToBackTitle ? backTitle : 'Back'}
                   href={backHref}
                   pop={canPop}
-                  tintColor={tintColor}
+                  // expo-router 57 types this as a ColorValue; ours are
+                  // always plain strings, and `Icon` only takes one.
+                  tintColor={typeof tintColor === 'string' ? tintColor : undefined}
                 />
               )
             : undefined,

@@ -231,15 +231,22 @@ export async function roomChangePush(args: {
   }
 
   const { tokens, uids, optedOut } = audience;
+
+  /*
+   * Plain, and it no longer names the function that owns the send. An organizer
+   * reading this line needs to know two things: they have been told in the app,
+   * and their phone did not buzz. The ownership argument above is for whoever
+   * is building this.
+   */
   const who =
-    `${uids.length} attendee${uids.length === 1 ? '' : 's'} saved it` +
-    (optedOut ? `, ${optedOut} opted out of session reminders` : '') +
-    `, ${tokens.length} device${tokens.length === 1 ? '' : 's'}`;
+    optedOut > 0
+      ? `${optedOut} of them turned session reminders off.`
+      : `${tokens.length} phone${tokens.length === 1 ? '' : 's'} could get an alert.`;
 
   return {
     wired: false,
     recipients: tokens.length,
-    detail: `${who}. Sent by the onSessionAgendaChange Cloud Function, not from here. See the note on roomChangePush().`,
+    detail: `They see it in the app. Push alerts are not switched on yet. ${who}`,
   };
 }
 

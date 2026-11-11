@@ -1,0 +1,64 @@
+.card {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  width: min(526px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 20px 20px 16px;
+  background: #fff;
+  color: #222;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.text {
+  margin: 0;
+  justify-self: stretch;
+}
+
+.close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: 0;
+  background: none;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: #222;
+  padding: 4px;
+}
+
+.accept {
+  justify-self: stretch;
+  min-height: 45px;
+  border: 1px solid #1e73be;
+  border-radius: 5px;
+  background: #1e73be;
+  color: #fff;
+  font-size: 15px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.accept:hover {
+  filter: brightness(1.08);
+}
+
+.link {
+  color: #191e23;
+  font-size: 12px;
+  text-decoration: underline;
+}

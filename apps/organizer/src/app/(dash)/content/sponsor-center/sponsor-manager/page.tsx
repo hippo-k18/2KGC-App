@@ -1,13 +1,16 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from 'next/link';
-import type { SponsorTier } from '@kgc/shared';
+import { groupSponsorsByTier } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { getSponsor, listSponsors, TIER_ORDER, type SponsorRow } from '@/lib/data';
+import { getSponsor, listSponsors, type SponsorRow } from '@/lib/data';
+import { sponsorTiers } from '@/lib/event';
 import { isUploadedImageUrl } from '@/lib/uploads';
 import { ROUTES } from '@/lib/nav';
-import { Banner, GapPanel, NotInputted, PageHeader, Panel, Tabs, Tag } from '../../../ui';
+import { linksWithoutASponsor, sponsorReport } from '@/lib/sponsor-report';
+import { Banner, Email, GapPanel, NotInputted, PageHeader, Panel, Tabs, Tag } from '../../../ui';
 import { SponsorForm } from './sponsor-form';
 import { SponsorImportForm } from './import-form';
+import { SponsorReportView } from './report-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +44,8 @@ function TierGroup({
   rows,
   editing,
 }: {
-  tier: SponsorTier;
+  /** The tier's display name. */
+  tier: string;
   rows: SponsorRow[];
   editing?: string;
 }) {
@@ -64,20 +68,17 @@ function TierGroup({
           padding: '8px 12px',
         }}
       >
-        <strong style={{ textTransform: 'capitalize' }}>{tier}</strong>
+        <strong>{tier}</strong>
         <Tag color="blue">{rows.length}</Tag>
         <span style={{ flex: 1 }} />
-        {/*
-          No Edit / Delete tier links on this bar, and no greyed-out pair either:
-          `SponsorTier` is a four-value union in `@kgc/shared`, so a fifth tier
-          is a code change in three consumers rather than a row somebody types. A
-          disabled button would imply the opposite. Moving a sponsor *between*
-          tiers is the edit people actually want, and that is the select on the
-          form.
-        */}
-        <span className="muted" style={{ fontSize: 11 }}>
-          set on each sponsor
-        </span>
+        {/* Tiers are added, renamed and reordered on Sponsor Tiering. */}
+        <Link
+          className="row-link"
+          href="/content/sponsor-center/sponsor-tiering"
+          style={{ fontSize: 11 }}
+        >
+          Edit tiers
+        </Link>
       </div>
 
       {rows.map((s) => (
@@ -120,7 +121,8 @@ function TierGroup({
             )}
           </div>
 
-          <div style={{ flex: 1, minWidth: 0 }}>
+          {/* A 180px basis so the contact, booth and offers wrap under the name on a phone. */}
+          <div style={{ flex: '1 1 180px', minWidth: 0 }}>
             <div className="muted" style={{ fontSize: 11 }}>
               Sponsor
             </div>
@@ -154,9 +156,9 @@ function TierGroup({
             <div style={{ fontSize: 13 }}>
               {s.contactEmail ? (
                 <>
-                  {s.contactName || s.contactEmail}
+                  {s.contactName || <Email address={s.contactEmail} />}
                   <div className="muted" style={{ fontSize: 11 }}>
-                    {s.contactEmail}
+                    <Email address={s.contactEmail} />
                   </div>
                 </>
               ) : (
@@ -183,9 +185,15 @@ function TierGroup({
             <div style={{ fontSize: 14 }}>{s.offerCount}</div>
           </div>
 
-          <div style={{ width: 44 }}>
+          <div
+            className="row-actions-col"
+            style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 60 }}
+          >
             <Link href={`?edit=${s.id}`} style={{ fontSize: 12 }}>
               Edit
+            </Link>
+            <Link href={`?report=${s.id}`} style={{ fontSize: 12 }}>
+              Report
             </Link>
           </div>
         </div>
@@ -222,22 +230,39 @@ function isSelfHosted(url: string): boolean {
 export default async function SponsorManagerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; edit?: string; new?: string }>;
+  searchParams: Promise<{ tab?: string; edit?: string; new?: string; report?: string }>;
 }) {
   await requireOrganizer();
   const sp = await searchParams;
   const editId = typeof sp.edit === 'string' ? sp.edit : undefined;
+  const reportId = typeof sp.report === 'string' ? sp.report : undefined;
   const creating = typeof sp.new === 'string';
   const importing = sp.tab === 'import';
+
+  const report = reportId ? await sponsorReport(reportId) : null;
+  const strayLinks = report ? await linksWithoutASponsor() : [];
 
   const sponsors = await listSponsors();
   const editing = editId ? await getSponsor(editId) : null;
   const showForm = creating || Boolean(editing);
+  /*
+   * The form is a client component and `createdAt` / `updatedAt` are Firestore
+   * `Timestamp` instances, which React refuses to serialise. The form reads
+   * neither, so they are left behind here.
+   */
+  let formValues: Omit<NonNullable<typeof editing>, 'createdAt' | 'updatedAt'> | undefined;
+  if (editing) {
+    formValues = { ...editing };
+    delete (formValues as { createdAt?: unknown }).createdAt;
+    delete (formValues as { updatedAt?: unknown }).updatedAt;
+  }
 
-  const byTier = TIER_ORDER.map((tier) => ({
-    tier,
-    rows: sponsors.filter((s) => s.tier === tier),
-  })).filter((g) => g.rows.length > 0);
+  const tiers = await sponsorTiers();
+  const byTier = groupSponsorsByTier(tiers, sponsors).map((g) => ({
+    id: g.tier.id,
+    tier: g.tier.name,
+    rows: g.sponsors,
+  }));
 
   const missingLogo = sponsors.filter((s) => !s.hasLogo).length;
   const hotlinked = sponsors.filter((s) => s.logoURL && !isSelfHosted(s.logoURL)).length;
@@ -250,12 +275,12 @@ export default async function SponsorManagerPage({
         title="Sponsor Manager"
         tags={<Tag color="blue">{sponsors.length} sponsors</Tag>}
         actions={
-          showForm || importing ? (
+          showForm || importing || reportId ? (
             <Link href={ROUTES.sponsorManager} className="whova-btn-main secondary">
               Back to list
             </Link>
           ) : (
-            <Link href="?new=1" className="whova-btn-main">
+            <Link href="?new=1" className="whova-btn-main primary">
               + Add sponsor
             </Link>
           )
@@ -283,7 +308,13 @@ export default async function SponsorManagerPage({
           ]}
         />
 
-        {sp.tab === 'reminder' ? (
+        {report ? (
+          <SponsorReportView report={report} strays={strayLinks} />
+        ) : reportId ? (
+          <p className="body-2" style={{ marginTop: 12 }}>
+            That sponsor is no longer on the list. <Link href={ROUTES.sponsorManager}>Back to the list</Link>.
+          </p>
+        ) : sp.tab === 'reminder' ? (
           /*
             The reminder *is* a send, and the send exists: Message Sponsors
             resolves the two segments this tab would chase — a missing logo and
@@ -297,7 +328,7 @@ export default async function SponsorManagerPage({
             <p className="body-2">
               A reminder is an email to the sponsors missing something. Both segments are on{' '}
               <Link href={ROUTES.messageSponsors}>Message Sponsors</Link>, which shows every address
-              before it sends and records each one individually.
+              before it sends.
             </p>
             <div className="toolbar">
               <Link className="btn btn-primary" href={`${ROUTES.messageSponsors}?segment=no-logo`}>
@@ -315,25 +346,24 @@ export default async function SponsorManagerPage({
             <h2 style={{ fontSize: 15, marginTop: 0 }}>
               {editing ? `Edit ${editing.name}` : 'New sponsor'}
             </h2>
-            <SponsorForm existing={editing ?? undefined} tiers={TIER_ORDER} />
+            <SponsorForm existing={formValues} tiers={tiers} />
           </>
         ) : (
           <>
             <p className="body-2" style={{ marginTop: 0 }}>
               {sponsors.length} sponsors across {byTier.length}{' '}
-              {byTier.length === 1 ? 'tier' : 'tiers'}. Sponsors buy brand visibility; exhibitors
-              buy direct engagement and booth staff, and they live in{' '}
+              {byTier.length === 1 ? 'tier' : 'tiers'}. Exhibitors are managed in{' '}
               <Link href="/content/exhibitor-center/exhibitor-manager">Exhibitor Manager</Link>.
             </p>
 
+            {/*
+              No Import and no Add sponsor here. Both were a second copy of a
+              control already on screen: the tab strip directly above carries
+              "Import from a spreadsheet", about sixty pixels up, and the page
+              header carries "+ Add sponsor". Two ways to reach one screen,
+              side by side, read as two different screens.
+            */}
             <div className="toolbar">
-              <Link href="?tab=import" className="btn btn-primary">
-                Import from a spreadsheet
-              </Link>
-              <Link href="?new=1" className="btn btn-primary">
-                Add sponsor
-              </Link>
-              <span className="spacer" />
               {/*
                 A plain anchor with `download`, not a `Link` and not a menu.
 
@@ -360,18 +390,16 @@ export default async function SponsorManagerPage({
                 <strong>
                   {missingLogo} of {sponsors.length} sponsors have no logo.
                 </strong>{' '}
-                The app&rsquo;s People tab renders a name where a logo should be, and the public
-                sponsor page does the same, which is the one thing a sponsor notices. Open one and
-                upload it.
+                The app and the public sponsor page show their name instead. Open one and upload
+                it.
               </Banner>
             ) : null}
 
             {hotlinked > 0 ? (
               <Banner kind="warning">
-                <strong>{hotlinked} logos are hotlinked to a third-party CDN</strong> rather than
-                stored here. If that host moves or blocks them they vanish from the app and from
-                this screen at once. Uploading a replacement on the sponsor&rsquo;s own form fixes
-                one permanently.
+                <strong>{hotlinked} logos are linked from another website</strong> and not stored
+                here. If that site removes them they disappear from the app and this screen. Upload
+                a copy on the sponsor&rsquo;s form to fix it.
               </Banner>
             ) : null}
 
@@ -379,14 +407,14 @@ export default async function SponsorManagerPage({
               <NotInputted
                 what="sponsors"
                 action={
-                  <Link href="?new=1" className="whova-btn-main">
+                  <Link href="?new=1" className="whova-btn-main secondary">
                     Add the first one
                   </Link>
                 }
               />
             ) : (
-              byTier.map(({ tier, rows }) => (
-                <TierGroup key={tier} tier={tier} rows={rows} editing={editId} />
+              byTier.map(({ id, tier, rows }) => (
+                <TierGroup key={id} tier={tier} rows={rows} editing={editId} />
               ))
             )}
 
@@ -435,13 +463,6 @@ export default async function SponsorManagerPage({
             whatever Firestore holds. So uploading a new logo for one of those eighteen changes the
             app and this screen and <em>not</em> the public page. Removing a slug from that list is
             what hands control back to this form.
-          </li>
-          <li>
-            <strong>Creating a tier.</strong> <code>SponsorTier</code> is a hard-coded union of the
-            four values the conference sells — <code>platinum</code>, <code>gold</code>,{' '}
-            <code>silver</code>, <code>bronze</code> — so a fifth tier is a code change in{' '}
-            <code>models.ts</code> and three consumers, not a form. That is the right trade at one
-            event a year and the wrong one at ten.
           </li>
           <li>
             <strong>The sponsor self-service portal.</strong> A personal link letting each sponsor

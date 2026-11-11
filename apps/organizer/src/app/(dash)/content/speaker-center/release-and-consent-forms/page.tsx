@@ -82,9 +82,8 @@ export default async function ReleaseAndConsentFormsPage({
           <>
             <strong>Signatures bind to the wording</strong>
             <p>
-              Each signature stores the sha256 of the release as it stood when it was given, and no
-              client (this dashboard included) can edit or delete one. A speaker with no account
-              signs through the link in their row.
+              Each signature is kept with the exact wording the speaker agreed to, and it cannot be
+              edited or deleted. A speaker with no account signs through the link in their row.
             </p>
           </>
         }
@@ -94,7 +93,7 @@ export default async function ReleaseAndConsentFormsPage({
           ) : undefined
         }
         actions={
-          <Link href="/attendees/release-and-consent-forms?new=1" className="whova-btn-main">
+          <Link href="/attendees/release-and-consent-forms?new=1" className="whova-btn-main primary">
             + New form
           </Link>
         }
@@ -114,9 +113,8 @@ export default async function ReleaseAndConsentFormsPage({
       {speakerForms.length === 0 ? (
         <>
           <Banner kind="warning">
-            <strong>No speaker release has been published.</strong> Nothing is being collected, so
-            no recording should be published on the assumption that anybody agreed to it. Write the
-            wording and this screen becomes a register.
+            <strong>No speaker release has been published.</strong> No consent is being collected,
+            so do not publish recordings yet.
           </Banner>
 
           <StatTiles
@@ -131,7 +129,7 @@ export default async function ReleaseAndConsentFormsPage({
             <NotInputted
               what="speaker releases"
               action={
-                <Link href="/attendees/release-and-consent-forms?new=1" className="whova-btn-main">
+                <Link href="/attendees/release-and-consent-forms?new=1" className="whova-btn-main secondary">
                   Write the release
                 </Link>
               }
@@ -140,8 +138,8 @@ export default async function ReleaseAndConsentFormsPage({
               Forms are authored on{' '}
               <Link href="/attendees/release-and-consent-forms">
                 Attendees › Release &amp; Consent Forms
-              </Link>{' '}. One screen for all three audiences, because the machinery is the same and only the
-              audience differs. Choose <strong>Speakers</strong> and it appears here.
+              </Link>
+              . Choose <strong>Speakers</strong> as the audience and the form appears here.
             </p>
           </Panel>
         </>
@@ -178,9 +176,8 @@ export default async function ReleaseAndConsentFormsPage({
                 {noAddress} {noAddress === 1 ? 'speaker has' : 'speakers have'} no contact address
                 on file.
               </strong>{' '}
-              Their signing link exists and there is nowhere to send it. That is a Speaker Manager
-              problem before it is a consent problem. A chase that cannot be addressed is a chase
-              that silently does not happen.
+              Add an address in <Link href={ROUTES.speakerManager}>Speaker Manager</Link> so their
+              signing link can be sent.
             </Banner>
           )}
           <ConsentRegisterView register={reg} />
@@ -190,17 +187,12 @@ export default async function ReleaseAndConsentFormsPage({
       <Panel>
         <h2 className="section-header">Chasing a signature</h2>
         <p className="body-2">
-          Each unsigned row carries its own link, minted with the capability-token pattern{' '}
-          <code>/order/&#123;token&#125;</code> uses and honoured by <code>/consent/&#123;token&#125;</code>{' '}
-          on the public site. Copy it into a message and the speaker signs without an account.{' '}
-          <Link href={ROUTES.messageSpeakers}>Message Speakers</Link> sends to a segment but has no
-          &ldquo;has not signed&rdquo; one, so the chase is per person for now.
+          Each unsigned row has its own signing link. Copy it into a message and the speaker
+          signs without an account. <Link href={ROUTES.messageSpeakers}>Message Speakers</Link>{' '}
+          cannot filter by who has not signed yet, so send each link yourself.
         </p>
         <p className="body-2">
-          What is stored is a typed name against the hash of the wording, not a countersigned PDF,
-          a certificate of completion, or an identity check. For forty-five speakers once a year a
-          signing service holding those may still be the better trade; the register says{' '}
-          <code>by link</code> or <code>in the app</code> rather than implying more.
+          A signature is a typed name, not a countersigned PDF or an identity check.
         </p>
       </Panel>
 

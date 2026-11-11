@@ -95,6 +95,34 @@ export function callWindow(call: CallWindowInput, now: number): CallWindowState 
  * and a form left open across the deadline posts from a page that was honest
  * when it rendered.
  */
+/** What `pickShownCall` needs from each call. */
+export interface ShownCallCandidate extends CallWindowInput {
+  id: string;
+  eventId?: string;
+  showOnWebsite?: boolean;
+  /** `CallDoc.updatedAt`, as epoch ms. */
+  updatedAtMs: number;
+}
+
+/**
+ * The call the website's "Apply to speak" button points at, or null (T277).
+ *
+ * One with "Show on website" ticked, for this event, published and not yet
+ * closed. A call that has not opened still counts: its page says when
+ * submissions open, which is worth a button. The dashboard keeps the flag on one
+ * call at a time; should two ever have it, the one saved last wins, so the
+ * answer never depends on the order Firestore returned them in.
+ */
+export function pickShownCall<T extends ShownCallCandidate>(calls: T[], eventId: string, now: number): T | null {
+  const live = calls.filter((c) => {
+    if (c.showOnWebsite !== true || c.eventId !== eventId) return false;
+    const state = callWindow(c, now);
+    return state === "open" || state === "not-open";
+  });
+  live.sort((a, b) => b.updatedAtMs - a.updatedAtMs || a.id.localeCompare(b.id));
+  return live[0] ?? null;
+}
+
 export function submissionRefusal(call: CallWindowInput, now: number): string | null {
   switch (callWindow(call, now)) {
     case "open":

@@ -4,11 +4,12 @@ import { publicSiteOrigin, type TicketAudience } from '@kgc/shared';
 import { listTicketTypes, money } from '@/lib/commerce';
 import { ROUTES } from '@/lib/nav';
 import { Banner, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, Table, Tag } from '../ui';
+import { salesWindowText } from '@/lib/sales-window';
 
 /**
  * The exhibitor and sponsor ticket catalogues.
  *
- * Whova ships three parallel catalogue screens — 1.1 Create Tickets, 2.1
+ * Whova ships three parallel catalogue screens — 1.1 Create & Edit Tickets, 2.1
  * Exhibitor Tickets, Sponsor Tickets — and they are the same screen three
  * times over a different slice of one price list. `TicketTypeDoc.audience`
  * already models exactly that slice, so this is one component the two
@@ -18,7 +19,7 @@ import { Banner, GapPanel, NotInputted, PageHeader, Panel, ProgressBar, Table, T
  * ── These are editable now, and both halves of that had to be fixed ─────────
  *
  * This file used to argue, at length, that an Edit link here would be a trap:
- * the save action on 1.1 Create Tickets wrote `audience: 'attendee'` as a
+ * the save action on 1.1 Create & Edit Tickets wrote `audience: 'attendee'` as a
  * literal, so opening an exhibitor tier in it and pressing Save silently moved
  * that tier into the attendee catalogue. That is fixed — the form carries the
  * field and an edit preserves whatever the tier already was.
@@ -90,11 +91,10 @@ export async function AudienceCatalogue({
         title={title}
         info={
           <>
-            <strong>The public page reads this list live</strong>
+            <strong>Changes are live right away</strong>
             <p>
-              A price edited here is the price charged on the next request; there is nothing to
-              publish. Hidden tiers stay purchasable by direct link, which is how a negotiated rate
-              works without a second code path.
+              A price edited here is the price charged from then on. Hidden tiers can still be
+              bought by direct link, which is useful for a negotiated rate.
             </p>
             {info}
           </>
@@ -165,8 +165,8 @@ export async function AudienceCatalogue({
                       </Tag>
                     )}
                   </div>
-                  <div className="muted" style={{ fontSize: 11 }}>
-                    {t.tagline || <em>no tagline</em>} · <code>{t.id}</code>
+                  <div className="muted" style={{ fontSize: 11, maxWidth: 'max(50vw, 220px)' }}>
+                    {t.tagline || <em>no tagline</em>}
                   </div>
                 </div>,
 
@@ -187,14 +187,7 @@ export async function AudienceCatalogue({
                 </div>,
 
                 <span key="w" className="muted" style={{ fontSize: 12 }}>
-                  {t.salesOpenAtLocal || t.salesCloseAtLocal ? (
-                    <>
-                      {t.salesOpenAtLocal?.slice(0, 10) ?? 'now'} →{' '}
-                      {t.salesCloseAtLocal?.slice(0, 10) ?? 'no end'}
-                    </>
-                  ) : (
-                    'always'
-                  )}
+                  {salesWindowText(t)}
                 </span>,
 
                 <Link key="e" href={`${ROUTES.createTickets}?edit=${t.id}`}>
@@ -211,7 +204,7 @@ export async function AudienceCatalogue({
         <ul className="muted" style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
           <li>
             <strong>A dedicated {noun} editor.</strong> Edit above opens the attendee-shaped form
-            on <Link href={ROUTES.createTickets}>1.1 Create Tickets</Link>. It saves correctly, but
+            on <Link href={ROUTES.createTickets}>1.1 Create & Edit Tickets</Link>. It saves correctly, but
             it has no field for the things only a {noun} package has — booth size, staff pass
             count, banner placement. Those live on other screens or nowhere.
           </li>

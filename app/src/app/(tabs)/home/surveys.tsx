@@ -62,7 +62,7 @@ export default function SurveysScreen() {
         <Screen grouped>
           <SkeletonScreen
             label="the surveys"
-            slowNotice="Still loading. The app cannot reach the server.">
+            slowNotice="Still loading. Check your connection.">
             <SkeletonBlock width="40%" height={26} />
             <SkeletonBlock height={64} radius={Radius.lg} />
             <SkeletonBlock height={64} radius={Radius.lg} />

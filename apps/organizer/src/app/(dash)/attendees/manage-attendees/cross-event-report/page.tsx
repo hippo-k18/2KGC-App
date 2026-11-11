@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { EVENT_ID } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
 import { listAttendees } from '@/lib/data';
 import { ROUTES } from '@/lib/nav';
@@ -52,11 +51,8 @@ export default async function CrossEventReportPage() {
         title="Cross-Event Report"
         info={
           <>
-            <strong>One event in this database</strong>
-            <p>
-              There is nothing on the other side of a comparison, so no returning-attendee figure,
-              retention rate or year-on-year trend is computed, and none is shown.
-            </p>
+            <strong>Only one event so far</strong>
+            <p>Cross-event reports need a past event to compare with. There is none yet.</p>
           </>
         }
         tags={<Tag color="grey">one event</Tag>}
@@ -72,19 +68,17 @@ export default async function CrossEventReportPage() {
 
       <StatTiles
         tiles={[
-          { label: 'Events in this database', value: 1, sub: EVENT_ID },
-          { label: 'Attendees this event', value: attendees.length, sub: 'nothing to compare to' },
-          { label: 'Returning attendees', value: '—', sub: 'not computable' },
+          { label: 'Events', value: 1 },
+          { label: 'Attendees this event', value: attendees.length },
         ]}
       />
 
       <Panel>
         <EmptyState icon="◌">
-          <strong>No prior event to report against.</strong>
+          <strong>No past event to compare with yet.</strong>
           <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-            Single-event analytics live on{' '}
-            <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link>. Adoption,
-            ticket mix, top organisations and the exports that leave the building.
+            Reports for this event are on{' '}
+            <Link href={ROUTES.analyticsExports}>Analytics &amp; Exports</Link>.
           </div>
         </EmptyState>
       </Panel>
