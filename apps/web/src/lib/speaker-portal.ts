@@ -13,6 +13,7 @@ import { readSpeakerToken } from '@kgc/scripts/src/lib/speaker-token';
 import {
   normaliseDraft,
   portalLinkOpens,
+  profilePrefill,
   type DraftInput,
 } from '@kgc/scripts/src/lib/speaker-portal-core';
 import { db } from '@/lib/firestore';
@@ -68,11 +69,6 @@ export interface PortalContext {
    * the page asks about these rather than about `sessions`.
    */
   submissions: PortalSubmission[];
-  /**
-   * What they last sent, for the confirmation after a send (T405). The form
-   * above still starts from the held record; this is only read back to them.
-   */
-  sent?: { title?: string; company?: string };
   /** Where their last submission stands, so the page can say what happens next. */
   state?: {
     status: SpeakerProfileEditDoc['status'];
@@ -179,17 +175,32 @@ export async function loadPortal(rawToken: string): Promise<PortalContext | null
 
   const submissions = await portalSubmissions(edit?.submissionIds ?? []);
 
+  /*
+   * The boxes start from a sent profile still waiting to be read, else from
+   * what we hold (T409). The confirmation after a send reads the same values.
+   */
+  const shown = profilePrefill(
+    {
+      title: speaker.title,
+      company: speaker.company,
+      bio: speaker.bio,
+      photoURL: speaker.photoURL,
+      social: { ...speaker.social },
+      slides: Object.fromEntries(sessions.map((s) => [s.id, s.slidesUrl])),
+    },
+    edit,
+  );
+
   return {
     speakerId: grant.speakerId,
     submissions,
     name: speaker.name,
-    title: speaker.title,
-    company: speaker.company,
-    bio: speaker.bio,
-    photoURL: speaker.photoURL,
-    social: speaker.social,
-    sessions,
-    ...(edit?.draft ? { sent: { title: edit.draft.title, company: edit.draft.company } } : {}),
+    title: shown.title,
+    company: shown.company,
+    bio: shown.bio,
+    photoURL: shown.photoURL,
+    social: shown.social,
+    sessions: sessions.map((s) => ({ ...s, slidesUrl: shown.slides[s.id] })),
     state: edit
       ? {
           status: edit.status,

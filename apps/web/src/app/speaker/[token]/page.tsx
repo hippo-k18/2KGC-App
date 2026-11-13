@@ -117,8 +117,8 @@ export default async function SpeakerProfilePage({
             key={renderedAt}
             token={token}
             name={ctx.name}
-            title={ctx.sent?.title ?? ctx.title}
-            company={ctx.sent?.company ?? ctx.company}
+            title={ctx.title}
+            company={ctx.company}
             sessions={[...new Set(sessionTitles)]}
           />
         </div>

@@ -463,3 +463,49 @@ export const STATUS_LABEL: Record<SpeakerProfileEditStatus, string> = {
   approved: 'Approved',
   rejected: 'Turned down',
 };
+
+/** What the speaker form shows in its boxes: the profile, its links and a slides link per session. */
+export interface ProfilePrefill {
+  title?: string;
+  company?: string;
+  bio?: string;
+  photoURL?: string;
+  social: { linkedin?: string; x?: string; website?: string };
+  /** Session id → slides link. */
+  slides: Record<string, string | undefined>;
+}
+
+/**
+ * Where the speaker form starts (T409). While a sent profile waits to be read,
+ * from that draft, field by field: a key the draft holds wins, including an
+ * emptied one (""), and a key it lacks falls back to the held record.
+ *
+ * Starting from the held record instead meant a speaker who came back to
+ * change one thing saw empty boxes where their last send was, and the next
+ * send replaced the whole draft with those empty boxes. Display only: what is
+ * saved, and how it is checked, is `normaliseDraft`'s business.
+ */
+export function profilePrefill(
+  held: ProfilePrefill,
+  edit: { status?: SpeakerProfileEditStatus; draft?: SpeakerProfileDraft } | undefined,
+): ProfilePrefill {
+  const draft = edit?.status === 'submitted' ? edit.draft : undefined;
+  if (!draft) return held;
+  const pick = (sent: string | undefined, kept: string | undefined) => (sent !== undefined ? sent : kept);
+  const social = draft.social ?? {};
+  const slides = draft.slides ?? {};
+  return {
+    title: pick(draft.title, held.title),
+    company: pick(draft.company, held.company),
+    bio: pick(draft.bio, held.bio),
+    photoURL: pick(draft.photoURL, held.photoURL),
+    social: {
+      linkedin: pick(social.linkedin, held.social.linkedin),
+      x: pick(social.x, held.social.x),
+      website: pick(social.website, held.social.website),
+    },
+    slides: Object.fromEntries(
+      Object.entries(held.slides).map(([id, url]) => [id, Object.hasOwn(slides, id) ? slides[id] : url]),
+    ),
+  };
+}

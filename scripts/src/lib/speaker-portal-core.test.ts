@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   approvalPlan,
+  profilePrefill,
   draftChanges,
   isOurOwnImage,
   linkIsLive,
@@ -314,5 +315,64 @@ describe('a photo uploaded through the speaker link (T379)', () => {
     const pasted = approvalPlan({}, { photoURL: 'https://example.com/me.jpg' }, []);
     expect(pasted.speaker.photoURL).toBeUndefined();
     expect(pasted.heldPhotoURL).toBe('https://example.com/me.jpg');
+  });
+});
+
+describe('profilePrefill (T409)', () => {
+  const held = {
+    title: 'Held title',
+    company: 'Held Co',
+    bio: 'Held bio.',
+    photoURL: 'https://example.com/held.jpg',
+    social: { linkedin: 'https://linkedin.com/in/held', x: 'https://x.com/held', website: undefined },
+    slides: { s1: 'https://example.com/held-deck', s2: undefined },
+  };
+
+  it('starts from the held record when nothing is waiting', () => {
+    expect(profilePrefill(held, undefined)).toEqual(held);
+    expect(profilePrefill(held, { status: 'submitted' })).toEqual(held);
+  });
+
+  it('starts from a waiting draft, field by field', () => {
+    const out = profilePrefill(held, {
+      status: 'submitted',
+      draft: {
+        title: 'Chief Scientist',
+        bio: 'A full bio.',
+        social: { website: 'https://example.com' },
+        slides: { s2: 'https://example.com/new-deck' },
+      },
+    });
+    expect(out).toEqual({
+      title: 'Chief Scientist',
+      company: 'Held Co',
+      bio: 'A full bio.',
+      photoURL: 'https://example.com/held.jpg',
+      social: { linkedin: 'https://linkedin.com/in/held', x: 'https://x.com/held', website: 'https://example.com' },
+      slides: { s1: 'https://example.com/held-deck', s2: 'https://example.com/new-deck' },
+    });
+  });
+
+  it('keeps a field the draft emptied empty', () => {
+    const out = profilePrefill(held, {
+      status: 'submitted',
+      draft: { company: '', photoURL: '', social: { linkedin: '' }, slides: { s1: '' } },
+    });
+    expect(out.company).toBe('');
+    expect(out.photoURL).toBe('');
+    expect(out.social.linkedin).toBe('');
+    expect(out.slides.s1).toBe('');
+    expect(out.title).toBe('Held title');
+  });
+
+  it('ignores a draft that was already decided', () => {
+    for (const status of ['approved', 'rejected'] as const) {
+      expect(profilePrefill(held, { status, draft: { title: 'Old draft' } }).title).toBe('Held title');
+    }
+  });
+
+  it('never adds a session the speaker does not hold', () => {
+    const out = profilePrefill(held, { status: 'submitted', draft: { slides: { other: 'https://example.com/x' } } });
+    expect(Object.keys(out.slides)).toEqual(['s1', 's2']);
   });
 });
