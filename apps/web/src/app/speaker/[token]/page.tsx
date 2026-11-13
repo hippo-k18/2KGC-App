@@ -96,8 +96,35 @@ export default async function SpeakerProfilePage({
   const problems = invalid && e ? e.split('|').filter(Boolean) : [];
   const waiting = ctx.state?.status === 'submitted';
   const approved = ctx.state?.status === 'approved';
-  const result = failed || invalid || justSaved;
+  const result = failed || invalid;
   const renderedAt = Date.now();
+
+  /*
+   * A send that saved replaces the form with a confirmation (T405, owner). A
+   * notice on a long form was missed: the browser keeps its scroll position
+   * after the action redirects, and a speaker pressed Send a dozen times
+   * without seeing anything change.
+   */
+  if (justSaved) {
+    const sessionTitles = [
+      ...ctx.submissions.map((sub) => sub.details?.title || sub.title),
+      ...ctx.sessions.map((sess) => sess.title),
+    ].filter(Boolean);
+    return (
+      <section>
+        <div className="wrap narrow cfp-page" style={{ paddingBottom: 48 }}>
+          <Sent
+            key={renderedAt}
+            token={token}
+            name={ctx.name}
+            title={ctx.sent?.title ?? ctx.title}
+            company={ctx.sent?.company ?? ctx.company}
+            sessions={[...new Set(sessionTitles)]}
+          />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -112,27 +139,27 @@ export default async function SpeakerProfilePage({
         </p>
 
         {/*
-          The result of a send, here and again above the button (T405). The
-          button is at the bottom of a long page and the browser stays there
-          after the redirect, so a speaker who saved a dozen times saw nothing
-          change. This one is scrolled to and focused; the copy by the button
-          is for whoever is still looking there, and without JavaScript.
+          A refused or failed send, here and again above the button (T405).
+          The button is at the bottom of a long page and the browser stays
+          there after the redirect. This one is scrolled to and focused; the
+          copy by the button is for whoever is still looking there, and for
+          a browser without JavaScript.
         */}
         {result && (
           <div id="send-result" tabIndex={-1} style={{ outline: 'none' }}>
-            <SendResult failed={failed} invalid={invalid} problems={problems} saved={justSaved} live />
+            <SendResult failed={failed} invalid={invalid} problems={problems} live />
             {/* A fresh key per render, so the next result focuses again even when the URL is the same. */}
             <FocusOnMount key={renderedAt} id="send-result" />
           </div>
         )}
 
-        {waiting && !justSaved && (
+        {waiting && (
           <p className="notice" role="status">
             You sent us a profile and it is waiting to be read. Sending again replaces it.
           </p>
         )}
 
-        {approved && !justSaved && (
+        {approved && (
           <p className="notice" role="status">
             Your last profile was approved and is live. You can still change it.
           </p>
@@ -305,7 +332,7 @@ export default async function SpeakerProfilePage({
             </p>
           )}
 
-          {result && <SendResult failed={failed} invalid={invalid} problems={problems} saved={justSaved} />}
+          {result && <SendResult failed={failed} invalid={invalid} problems={problems} />}
           <SendButton>Send to the organizers</SendButton>
           <p className="muted" style={{ marginTop: 16 }}>
             Nothing changes on the website or in the app until one of the organizers has read this.
@@ -330,20 +357,96 @@ export default async function SpeakerProfilePage({
 }
 
 /**
- * What happened to the last send. Twice on the page (T405); only the copy at
- * the top is a live region, so a screen reader hears it once.
+ * The page after a send that saved (T405). The form is not rendered: a
+ * heading that takes focus, what they sent read back, and a way back to the
+ * form. "Make another change" is a plain link to the page without `?r=`.
+ */
+function Sent({
+  token,
+  name,
+  title,
+  company,
+  sessions,
+}: {
+  token: string;
+  name: string;
+  title?: string;
+  company?: string;
+  sessions: string[];
+}) {
+  const rows: [string, string][] = [
+    ['Name', name],
+    ['Job title', title || 'Not given'],
+    ['Company or university', company || 'Not given'],
+    ...sessions.map((t, i): [string, string] => [sessions.length > 1 ? `Session ${i + 1}` : 'Session', t]),
+  ];
+  return (
+    <div style={{ paddingTop: 8 }}>
+      <p className="eyebrow">
+        {SITE.shortName} {SITE.year} speakers
+      </p>
+      <div
+        aria-hidden="true"
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          background: '#1f8a4c',
+          color: '#fff',
+          display: 'grid',
+          placeItems: 'center',
+          fontSize: 32,
+          fontWeight: 700,
+          margin: '8px 0 16px',
+        }}
+      >
+        ✓
+      </div>
+      <h1 id="send-result" tabIndex={-1} style={{ outline: 'none' }}>
+        Thank you, we have your profile
+      </h1>
+      <p className="lede" role="status">
+        The organizers will read it before anything changes on the website. You can close this page.
+      </p>
+      <dl
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, max-content) minmax(0, 1fr)',
+          gap: '10px 24px',
+          margin: '28px 0 32px',
+          padding: '20px 0',
+          borderTop: '1px solid rgba(0,0,0,.12)',
+          borderBottom: '1px solid rgba(0,0,0,.12)',
+        }}
+      >
+        {rows.map(([k, v]) => (
+          <div key={k + v} style={{ display: 'contents' }}>
+            <dt className="muted">{k}</dt>
+            <dd style={{ margin: 0, overflowWrap: 'anywhere' }}>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <Link href={`/speaker/${encodeURIComponent(token)}`} className="btn btn-outline">
+        Make another change
+      </Link>
+      <FocusOnMount id="send-result" top />
+    </div>
+  );
+}
+
+/**
+ * A refused or failed send. Twice on the page (T405); only the copy at the
+ * top is a live region, so a screen reader hears it once.
  */
 function SendResult({
   failed,
   invalid,
   problems,
-  saved,
   live = false,
 }: {
   failed: boolean;
   invalid: boolean;
   problems: string[];
-  saved: boolean;
   live?: boolean;
 }) {
   if (failed) {
@@ -370,14 +473,6 @@ function SendResult({
           'Check the boxes and send it again.'
         )}
       </div>
-    );
-  }
-  if (saved) {
-    return (
-      <p className="notice" role={live ? 'status' : undefined}>
-        <strong>Thank you, the organizers have it.</strong> It appears on the website once
-        they have read it.
-      </p>
     );
   }
   return null;

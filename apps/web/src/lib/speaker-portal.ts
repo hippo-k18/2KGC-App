@@ -68,6 +68,11 @@ export interface PortalContext {
    * the page asks about these rather than about `sessions`.
    */
   submissions: PortalSubmission[];
+  /**
+   * What they last sent, for the confirmation after a send (T405). The form
+   * above still starts from the held record; this is only read back to them.
+   */
+  sent?: { title?: string; company?: string };
   /** Where their last submission stands, so the page can say what happens next. */
   state?: {
     status: SpeakerProfileEditDoc['status'];
@@ -184,6 +189,7 @@ export async function loadPortal(rawToken: string): Promise<PortalContext | null
     photoURL: speaker.photoURL,
     social: speaker.social,
     sessions,
+    ...(edit?.draft ? { sent: { title: edit.draft.title, company: edit.draft.company } } : {}),
     state: edit
       ? {
           status: edit.status,
