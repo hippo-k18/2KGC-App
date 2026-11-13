@@ -5,6 +5,8 @@ import { BIO_MAX } from '@kgc/scripts/src/lib/speaker-portal-core';
 import { SITE } from '@/lib/site';
 import { loadPortal, markOpened } from '@/lib/speaker-portal';
 import { KeepTypedForm } from '@/components/keep-typed-form';
+import { FocusOnMount } from '@/components/focus-on-mount';
+import { SendButton } from '@/components/send-button';
 import { saveSpeakerProfileAction } from './actions';
 import { PhotoField } from './photo-field';
 
@@ -94,6 +96,8 @@ export default async function SpeakerProfilePage({
   const problems = invalid && e ? e.split('|').filter(Boolean) : [];
   const waiting = ctx.state?.status === 'submitted';
   const approved = ctx.state?.status === 'approved';
+  const result = failed || invalid || justSaved;
+  const renderedAt = Date.now();
 
   return (
     <section>
@@ -107,25 +111,19 @@ export default async function SpeakerProfilePage({
           {ctx.name}, this is what we hold for you. Change anything that is wrong and send it back.
         </p>
 
-        {failed && (
-          <p className="notice bad" role="alert">
-            <strong>That did not save.</strong> Nothing has been recorded. Try again, and if it
-            keeps failing email <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
-          </p>
-        )}
-
-        {invalid && (
-          <p className="notice warn" role="alert">
-            <strong>Nothing was saved.</strong>{' '}
-            {problems.length ? problems.join(' ') : 'Check the boxes below and send it again.'}
-          </p>
-        )}
-
-        {justSaved && (
-          <p className="notice" role="status">
-            <strong>Thank you, the organizers have it.</strong> It appears on the website once
-            they have read it.
-          </p>
+        {/*
+          The result of a send, here and again above the button (T405). The
+          button is at the bottom of a long page and the browser stays there
+          after the redirect, so a speaker who saved a dozen times saw nothing
+          change. This one is scrolled to and focused; the copy by the button
+          is for whoever is still looking there, and without JavaScript.
+        */}
+        {result && (
+          <div id="send-result" tabIndex={-1} style={{ outline: 'none' }}>
+            <SendResult failed={failed} invalid={invalid} problems={problems} saved={justSaved} live />
+            {/* A fresh key per render, so the next result focuses again even when the URL is the same. */}
+            <FocusOnMount key={renderedAt} id="send-result" />
+          </div>
         )}
 
         {waiting && !justSaved && (
@@ -307,9 +305,8 @@ export default async function SpeakerProfilePage({
             </p>
           )}
 
-          <button type="submit" className="btn btn-primary">
-            Send to the organizers
-          </button>
+          {result && <SendResult failed={failed} invalid={invalid} problems={problems} saved={justSaved} />}
+          <SendButton>Send to the organizers</SendButton>
           <p className="muted" style={{ marginTop: 16 }}>
             Nothing changes on the website or in the app until one of the organizers has read this.
             Clearing a box asks them to remove what is there now.
@@ -330,4 +327,58 @@ export default async function SpeakerProfilePage({
       </div>
     </section>
   );
+}
+
+/**
+ * What happened to the last send. Twice on the page (T405); only the copy at
+ * the top is a live region, so a screen reader hears it once.
+ */
+function SendResult({
+  failed,
+  invalid,
+  problems,
+  saved,
+  live = false,
+}: {
+  failed: boolean;
+  invalid: boolean;
+  problems: string[];
+  saved: boolean;
+  live?: boolean;
+}) {
+  if (failed) {
+    return (
+      <p className="notice bad" role={live ? 'alert' : undefined}>
+        <strong>That did not save.</strong> Nothing has been recorded. Try again, and if it
+        keeps failing email <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+      </p>
+    );
+  }
+  if (invalid) {
+    return (
+      <div className="notice warn" role={live ? 'alert' : undefined}>
+        <strong>Nothing was saved.</strong>{' '}
+        {problems.length > 1 ? (
+          <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        ) : problems.length ? (
+          problems[0]
+        ) : (
+          'Check the boxes and send it again.'
+        )}
+      </div>
+    );
+  }
+  if (saved) {
+    return (
+      <p className="notice" role={live ? 'status' : undefined}>
+        <strong>Thank you, the organizers have it.</strong> It appears on the website once
+        they have read it.
+      </p>
+    );
+  }
+  return null;
 }

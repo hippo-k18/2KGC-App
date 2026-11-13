@@ -1,7 +1,8 @@
 import { PAGE_CONTENT_KEYS, type CallPageContent } from '@kgc/shared';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { callMilestones, pageContent } from '@/lib/data';
+import { callMilestones, pageContent, shownCall } from '@/lib/data';
+import { speakHref } from '@/lib/speak-link';
 import { SITE } from '@/lib/site';
 
 /**
@@ -90,6 +91,7 @@ const REASONS = [
 export default async function StartupPitchPage() {
   const call = await pageContent(PAGE_CONTENT_KEYS.startupPitch, CALL);
   const dates = callMilestones(call.dates);
+  const speak = speakHref(await shownCall());
 
   return (
     <>
@@ -189,7 +191,7 @@ export default async function StartupPitchPage() {
 
           <p style={{ marginTop: 32 }}>
             Not a startup? <Link href="/sponsor">Sponsorship packages</Link> and the{' '}
-            <Link href="/sponsor#speak">call for speakers</Link> are the other two ways in.
+            <Link href={speak}>call for speakers</Link> are the other two ways in.
           </p>
         </div>
       </section>

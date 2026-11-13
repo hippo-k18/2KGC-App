@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listAgenda, listConfirmedSpeakers, listPublicPages, siteVisibility } from '@/lib/data';
+import { listAgenda, listConfirmedSpeakers, listPublicPages, shownCall, siteVisibility } from '@/lib/data';
+import { speakHref } from '@/lib/speak-link';
 import { blogUrl } from '@/lib/blog/paths';
 import { POSTS } from '@/lib/posts';
 import { ABOUT_MENU, formatDayHeading, localTime, NAV, NAV_MORE } from '@/lib/site';
@@ -16,13 +17,15 @@ export const dynamic = 'force-dynamic';
 /**
  * Pages that exist on every build, beyond the menus. The footer's own list, so
  * a page a visitor can reach by scrolling is also one they can find by name.
+ * "Speak at KGC" goes where the footer's does: the shown call, else
+ * `/sponsor#speak` (T405).
  */
-const EXTRA_PAGES: { href: string; label: string }[] = [
+const extraPages = (speak: string): { href: string; label: string }[] => [
   { href: '/exhibitors', label: 'Exhibitors' },
   { href: '/announcements', label: 'Announcements' },
   { href: '/documents', label: 'Documents' },
   { href: '/about', label: 'Venue and travel' },
-  { href: '/sponsor#speak', label: 'Speak at KGC' },
+  { href: speak, label: 'Speak at KGC' },
   { href: '/call-for-posters', label: 'Poster track' },
   { href: '/startup-pitch', label: 'Startup pitch' },
   { href: '/code-of-conduct', label: 'Code of conduct' },
@@ -60,7 +63,7 @@ export default async function SearchPage({
   let posts: typeof POSTS = [];
 
   if (needle.length) {
-    const [show, cms] = await Promise.all([siteVisibility(), listPublicPages()]);
+    const [show, cms, call] = await Promise.all([siteVisibility(), listPublicPages(), shownCall()]);
     // A hidden programme is not searched, so no result leads to a page that is not there.
     const [days, people] = await Promise.all([
       show.agenda ? listAgenda() : Promise.resolve([]),
@@ -95,7 +98,7 @@ export default async function SearchPage({
         meta: [p.title, p.company].filter(Boolean).join(', '),
       }));
 
-    const menu = [...NAV.filter((m) => !m.external), ...NAV_MORE, ...ABOUT_MENU.filter((m) => !m.external), ...EXTRA_PAGES];
+    const menu = [...NAV.filter((m) => !m.external), ...NAV_MORE, ...ABOUT_MENU.filter((m) => !m.external), ...extraPages(speakHref(call))];
     const seen = new Set<string>();
     pages = [
       ...menu.map((m) => ({ href: m.href, label: m.label })),

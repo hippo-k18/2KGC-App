@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
-import { listSponsorsByTier } from '@/lib/data';
+import { listSponsorsByTier, shownCall } from '@/lib/data';
+import { speakCloseLabel } from '@/lib/speak-link';
 import { SponsorTiers } from '@/components/sponsor-tiers';
 import { SITE } from '@/lib/site';
 import Image from 'next/image';
+import Link from 'next/link';
 import s from './sponsor.module.css';
 
 export const metadata: Metadata = {
@@ -49,7 +51,7 @@ export const revalidate = 30;
  */
 
 export default async function SponsorPage() {
-  const bands = await listSponsorsByTier();
+  const [bands, call] = await Promise.all([listSponsorsByTier(), shownCall()]);
 
   const mail = (subject: string, to: string = SITE.contactEmail) =>
     `mailto:${to}?subject=${encodeURIComponent(subject)}`;
@@ -139,10 +141,11 @@ export default async function SponsorPage() {
       )}
 
       {/*
-        The call for speakers, moved from the top of the page to the end of it
-        (T173). Seven links still land on `#speak`: the footer, search, the
-        startup pitch and poster pages, the HCLS speakers card and two redirects
-        from the old site. It is the only call for speakers on the site.
+        The speaking box, moved from the top of the page to the end of it
+        (T173). Its button goes to the call page while a call is shown on the
+        website (T405): the email it used to be did nothing for anyone without a
+        mail app set up. The email stays only as the fallback with no call. Two
+        redirects from the old site and an old newsletter still land on `#speak`.
       */}
       <section className="band-white" style={{ paddingBlock: '0 80px' }}>
         <div className="wrap">
@@ -154,12 +157,18 @@ export default async function SponsorPage() {
             </p>
             <p>
               Talks run 25 or 45 minutes, and there are panels and half-day workshops. Submissions
-              open in September and close in December.
+              close {speakCloseLabel(call?.closeDate)}.
             </p>
             <p className="speak-box-cta">
-              <a className="btn btn-primary" href={mail('KGC 2027 talk proposal')}>
-                Pitch a talk
-              </a>
+              {call ? (
+                <Link className="btn btn-primary" href={`/submit/${encodeURIComponent(call.id)}`}>
+                  Submit a talk
+                </Link>
+              ) : (
+                <a className="btn btn-primary" href={mail('KGC 2027 talk proposal')}>
+                  Pitch a talk
+                </a>
+              )}
             </p>
           </div>
         </div>

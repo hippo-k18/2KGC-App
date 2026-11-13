@@ -1,6 +1,14 @@
 'use client';
 
-import { startTransition, useRef, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from 'react';
+import {
+  createContext,
+  useRef,
+  useTransition,
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { useStaleGuard, type StaleGuard } from './stale-guard';
 
 /**
@@ -26,7 +34,14 @@ import { useStaleGuard, type StaleGuard } from './stale-guard';
  * A form whose action comes from `useActionState` runs the guard itself, on
  * the action before `useActionState` wraps it (that is the only place its
  * error can be caught), and passes it here as `guard` with the same `formRef`.
+ *
+ * While a send is in flight a second submit is dropped, and `FormSending` says
+ * so to the button (T405): the submit is caught here, so `useFormStatus` never
+ * sees it. A speaker pressed Send a dozen times on a long page because nothing
+ * changed under the button, and every press saved again.
  */
+export const FormSending = createContext(false);
+
 export function KeepTypedForm({
   action,
   className,
@@ -52,26 +67,39 @@ export function KeepTypedForm({
   const ref = formRef ?? ownRef;
   const own = useStaleGuard(ref, again, !guard, name);
   const g = guard ?? own;
+  const [sending, startSending] = useTransition();
+  // The state above lands a render later; a double click is two events first.
+  const inFlight = useRef(false);
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
     const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | HTMLInputElement | null;
     const data = new FormData(e.currentTarget);
     // The pressed button's own name and value, as a native post would send.
     if (submitter?.name) data.set(submitter.name, submitter.value);
     const send = g.guardAction(action);
-    startTransition(() => {
+    startSending(async () => {
       // As before T379, nothing left over is thrown into the page: only
       // Next's own redirect signals get past the guard, and the router has
       // already acted on those.
-      send(data).catch(() => {});
+      try {
+        await send(data);
+      } catch {
+        // See above.
+      } finally {
+        inFlight.current = false;
+      }
     });
   };
 
   return (
     <form ref={ref} action={action as (formData: FormData) => void} className={className} style={style} onSubmit={onSubmit}>
-      {g.notice}
-      {children}
+      <FormSending.Provider value={sending}>
+        {g.notice}
+        {children}
+      </FormSending.Provider>
     </form>
   );
 }

@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { programmeCounts, siteEvent, ticketSalesOpen } from '@/lib/data';
+import { programmeCounts, shownCall, siteEvent, ticketSalesOpen } from '@/lib/data';
+import { speakHref } from '@/lib/speak-link';
 import { ATTENDEES_EXPECTED, SITE } from '@/lib/site';
 import { HCLS_ORGANIZERS, initials, linkLabel } from '@/lib/hcls-organizers';
 
@@ -59,6 +60,7 @@ const OBJECTIVES = [
 function stats(
   counts: { speakers: number; sponsors: number },
   salesOpen: boolean,
+  speak: string,
 ): { n: string | null; label: string; body: string; href?: string; cta?: string }[] {
   return [
     {
@@ -79,13 +81,13 @@ function stats(
       label: counts.speakers === 0 ? 'Call for speakers' : counts.speakers === 1 ? 'Speaker' : 'Speakers',
       body: 'Data scientists, healthcare and life-sciences researchers, finance analysts, knowledge engineers and ontologists.',
       /*
-        `/sponsor#speak` and not `/speakers`. This card's call to action is
-        "Become a speaker" and it pointed at the roster — a list of people who
-        already are one, with no submission path on it. The call for speakers
-        lives on `/sponsor#speak`, which is where `/call-for-posters` and
-        `/startup-pitch` have always sent people.
+        The call page, not `/speakers`. This card's call to action is "Become a
+        speaker" and it once pointed at the roster, a list of people who already
+        are one. Since T405 it goes straight to the call shown on the website,
+        like `/call-for-posters` and `/startup-pitch`; `/sponsor#speak` only
+        when there is no call.
       */
-      href: '/sponsor#speak',
+      href: speak,
       cta: 'Become a speaker →',
     },
   ];
@@ -116,6 +118,7 @@ export default async function HclsPage() {
   const ev = await siteEvent();
   const counts = await programmeCounts();
   const salesOpen = await ticketSalesOpen();
+  const speak = speakHref(await shownCall());
 
   return (
     <>
@@ -141,7 +144,7 @@ export default async function HclsPage() {
                 </Link>
               )}
               {/* The call for speakers, not the roster — see `stats()`. */}
-              <Link href="/sponsor#speak" className="btn btn-outline">
+              <Link href={speak} className="btn btn-outline">
                 Become a speaker
               </Link>
             </div>
@@ -248,7 +251,7 @@ export default async function HclsPage() {
           <p className="lede">We’d love to see you here in May.</p>
 
           <div className="stat-cards">
-            {stats(counts, salesOpen).map((s) => (
+            {stats(counts, salesOpen, speak).map((s) => (
               <div key={s.label} className="stat-card">
                 <h3>
                   {s.n !== null && (

@@ -1,7 +1,8 @@
 import { PAGE_CONTENT_KEYS, type CallPageContent } from '@kgc/shared';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { callMilestones, pageContent } from '@/lib/data';
+import { callMilestones, pageContent, shownCall } from '@/lib/data';
+import { speakHref } from '@/lib/speak-link';
 import { formatDeadline, SITE } from '@/lib/site';
 import { openCallFor, type OpenCall } from '@/lib/submissions';
 
@@ -121,6 +122,7 @@ export default async function CallForPostersPage() {
   const open = await openCallFor('poster');
   const call = await pageContent(PAGE_CONTENT_KEYS.callForPosters, defaults(open));
   const dates = callMilestones(call.dates);
+  const speak = speakHref(await shownCall());
   /*
    * A relative `submitUrl` is our own portal and must not open in a new tab or
    * carry `rel="noopener"` — both of those describe handing somebody to a third
@@ -255,7 +257,7 @@ export default async function CallForPostersPage() {
 
           <p style={{ marginTop: 32 }}>
             Posters are not the only way to present. The{' '}
-            <Link href="/sponsor#speak">call for speakers</Link> covers talks, deep dives, panels
+            <Link href={speak}>call for speakers</Link> covers talks, deep dives, panels
             and workshops.
           </p>
         </div>

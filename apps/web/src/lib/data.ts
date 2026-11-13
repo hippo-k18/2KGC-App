@@ -46,6 +46,7 @@ import {
   usable,
 } from '@kgc/shared';
 import { pickShownCall } from '@kgc/scripts/src/lib/call-window';
+import { cfpWithClose } from '@kgc/scripts/src/lib/cfp-core';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import { db } from './firestore';
@@ -314,7 +315,12 @@ export interface SiteEvent extends EventBasics {
  * layout's minute. Nothing invalidates it on save: the dashboard is a separate
  * deployment (see `SITE_CONTENT_TAG`).
  */
-export const shownCall = cache(async function shownCall(): Promise<{ id: string; title: string } | null> {
+export const shownCall = cache(async function shownCall(): Promise<{
+  id: string;
+  title: string;
+  /** The call's close date, `YYYY-MM-DD`, read the way its own page reads it (T405). */
+  closeDate?: string;
+} | null> {
   return shared(
     'shownCall',
     async () => {
@@ -339,12 +345,14 @@ export const shownCall = cache(async function shownCall(): Promise<{ id: string;
             opensAtMs: ms(call.opensAt),
             closesAtMs: ms(call.closesAt),
             updatedAtMs: ms(call.updatedAt),
+            closeDate: cfpWithClose(call.cfp, call.closesAtLocal).closeDate,
           };
         }),
         EVENT_ID,
         Date.now(),
       );
-      return shown ? { id: shown.id, title: shown.title } : null;
+      if (!shown) return null;
+      return shown.closeDate ? { id: shown.id, title: shown.title, closeDate: shown.closeDate } : { id: shown.id, title: shown.title };
     },
     null,
     15,
