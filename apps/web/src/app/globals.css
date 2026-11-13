@@ -6384,12 +6384,15 @@ a.li-icon::after {
 }
 
 /*
- * Capped well inside `.wrap`, which is allowed to run to 2000px.
+ * Capped inside `.wrap`, which is allowed to run to 2000px.
  *
- * A form stretched across a 1440px window is a form with 700px input fields,
- * and a 700px input field looks like a mistake. 1080 puts the summary at ~460
- * and the form at ~570, which is about as wide as a labelled field can be
- * before the label and its value stop feeling related.
+ * Until T402 the cap was 1080 at every desktop width, with the form the
+ * narrower of the two columns (~560px). The form holds cards inside it (each
+ * extra attendee, each merch item), so their fields were ~470px and the
+ * T-shirt's design select cut "a little semantics goes a long way" short,
+ * while a 1440 window left a quarter of the screen empty ("a little
+ * squished", owner, 2026-11-12). From 1200px the summary keeps a fixed,
+ * readable width and the form takes the rest, up to 1280 (1360 from 1600).
  */
 .buy-layout {
   display: grid;
@@ -6420,6 +6423,21 @@ a.li-icon::after {
   .order-rail {
     position: sticky;
     top: calc(var(--header-height) + 20px);
+  }
+}
+
+@media (width >= 1200px) {
+  .buy-layout {
+    max-width: 1280px;
+    gap: 48px;
+    grid-template-columns: minmax(380px, 440px) minmax(0, 1fr);
+  }
+}
+
+@media (width >= 1600px) {
+  .buy-layout {
+    max-width: 1360px;
+    gap: 56px;
   }
 }
 
@@ -10663,8 +10681,13 @@ body:has([data-home-venue]) .venue-home {
   min-width: 116px;
 }
 
+/*
+ * The design gets a row to itself unless the line fits all three fields with
+ * it at 400px (T402): "a little semantics goes a long way" needs ~390px, and
+ * sharing a row with size and quantity cut it short below that.
+ */
 .merch-field-wide {
-  flex: 1 1 200px;
+  flex: 1 1 400px;
 }
 
 .merch-add,
