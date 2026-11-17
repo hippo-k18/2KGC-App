@@ -14,8 +14,8 @@
 /** Supplied by the owner (T399, 2026-11-10). */
 export const HELENA_DEUS_LINK: string | null = 'https://www.linkedin.com/in/helenadeus/';
 /** Supplied by the owner (T399, 2026-11-10). No checked affiliation yet. */
-export const ANALEE_ETHERIDGE_LINK: string | null = 'https://www.linkedin.com/in/aetheredge/';
-export const ANALEE_ETHERIDGE_AFFILIATION: string | null = null;
+export const ANALEE_ETHEREDGE_LINK: string | null = 'https://www.linkedin.com/in/aetheredge/';
+export const ANALEE_ETHEREDGE_AFFILIATION: string | null = null;
 
 export interface HclsOrganizer {
   name: string;
@@ -57,9 +57,9 @@ export const HCLS_ORGANIZERS: readonly HclsOrganizer[] = [
     photo: '/kgc/speakers/ted-slater.jpg',
   },
   {
-    name: 'Analee Etheridge',
-    affiliation: ANALEE_ETHERIDGE_AFFILIATION,
-    link: ANALEE_ETHERIDGE_LINK,
+    name: 'Analee Etheredge',
+    affiliation: ANALEE_ETHEREDGE_AFFILIATION,
+    link: ANALEE_ETHEREDGE_LINK,
     /** Supplied by the owner (T414, 2026-11-16). */
     photo: '/kgc/organizers/analee-etheredge.webp',
   },

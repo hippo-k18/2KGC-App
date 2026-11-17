@@ -11,7 +11,7 @@ describe('HCLS organizers (T381)', () => {
       'Deborah McGuinness',
       'Jamie McCusker',
       'Ted Slater',
-      'Analee Etheridge',
+      'Analee Etheredge',
     ]);
   });
 
@@ -22,7 +22,7 @@ describe('HCLS organizers (T381)', () => {
       'Deborah McGuinness': 'https://en.wikipedia.org/wiki/Deborah_McGuinness',
       'Jamie McCusker': 'https://www.linkedin.com/in/jpmccu',
       'Ted Slater': 'https://www.linkedin.com/in/tedslater',
-      'Analee Etheridge': 'https://www.linkedin.com/in/aetheredge/',
+      'Analee Etheredge': 'https://www.linkedin.com/in/aetheredge/',
     });
   });
 
@@ -41,12 +41,12 @@ describe('HCLS organizers (T381)', () => {
       expect(o.photo, o.name).toMatch(/^\/kgc\//);
       expect(existsSync(join(__dirname, '../../public', o.photo ?? '')), o.name).toBe(true);
     }
-    expect(HCLS_ORGANIZERS.find((o) => o.name === 'Analee Etheridge')?.photo).toBe(
+    expect(HCLS_ORGANIZERS.find((o) => o.name === 'Analee Etheredge')?.photo).toBe(
       '/kgc/organizers/analee-etheredge.webp',
     );
   });
 
   it('makes initials for the avatar', () => {
-    expect(initials('Analee Etheridge')).toBe('AE');
+    expect(initials('Analee Etheredge')).toBe('AE');
   });
 });
