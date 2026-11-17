@@ -547,7 +547,7 @@ export function CheckoutForm({
         */}
         <Questions fields={questions} ticketTypeId={tier} errors={shown.fieldErrors} />
 
-        <MerchPicker items={merch} onTotalChange={setMerchCents} />
+        <MerchPicker items={merch} onTotalChange={setMerchCents} compact />
 
         {groupDiscountCents > 0 && (
           <div className="summary summary-fee">
@@ -564,7 +564,7 @@ export function CheckoutForm({
           </div>
         )}
         {merchCents > 0 && (
-          <div className="summary summary-fee">
+          <div className="summary summary-fee summary-merch">
             <span>Merch, picked up at the conference</span>
             <span>{formatPrice(merchCents, selected.currency)}</span>
           </div>

@@ -10715,6 +10715,174 @@ body:has([data-home-venue]) .venue-home {
   }
 }
 
+/*
+ * The checkout's merch (T417): no image, and one row per item on a desktop,
+ * the name and price on the left and the choices on the right.
+ *
+ * What wrapped before: every field set its label on a line above the select,
+ * the design field asked for a 400px row (T402) so the quantity fell to a row
+ * of its own below 1600px, the size select was too narrow for "Choose", and on
+ * a phone the 48px image plus 116px minimum fields left room for one field per
+ * row. Here the field names sit inside the selects, each select is as wide as
+ * its longest choice, and only the design select gives way when a row is short.
+ */
+.merch-compact {
+  margin: 4px 0 16px;
+  container: merch / inline-size;
+}
+
+.merch-compact .merch-title {
+  margin: 0 0 2px;
+  font-size: max(17px, 0.9rem);
+}
+
+.buy-layout .merch-compact .merch-pickup {
+  margin: 0 0 8px;
+  font-size: max(15px, 0.8rem);
+  text-wrap: balance;
+}
+
+.merch-compact .merch-item {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+
+/* Level with the first line of choices when an item has several. */
+.merch-compact .merch-name {
+  flex: 1 1 auto;
+  align-self: flex-start;
+  min-height: 42px;
+  font-size: max(16px, 0.9rem);
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+
+.merch-compact .merch-price {
+  color: var(--muted);
+}
+
+.merch-compact .merch-lines {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.merch-compact .merch-line {
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.merch-compact .merch-field,
+.merch-compact .merch-field-wide {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+/* The one select that may give way: a design name is the long text here. */
+.merch-compact .merch-field-wide {
+  flex-shrink: 1;
+}
+
+.merch-compact .merch-field select {
+  width: auto;
+  max-width: 100%;
+  height: 42px;
+  min-height: 0;
+  /* The root size runs to 22px on a wide screen; never under 16px, or iOS zooms. */
+  font-size: max(16px, 0.85rem);
+  padding: 0 28px 0 9px;
+  background-position: calc(100% - 17px) calc(50% + 2px), calc(100% - 12px) calc(50% + 2px);
+}
+
+.merch-compact .merch-qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.buy-layout .merch-compact .merch-qty label {
+  margin: 0;
+  font-size: max(15px, 0.8rem);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.merch-compact .merch-add {
+  margin: 0;
+  white-space: nowrap;
+  font-size: max(15px, 0.8rem);
+}
+
+.merch-compact .merch-remove {
+  align-self: center;
+  margin: 0;
+  min-width: 32px;
+  min-height: 42px;
+  font-size: 1.3rem;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--muted);
+}
+
+.merch-compact .merch-remove:hover {
+  color: var(--ink);
+}
+
+/*
+ * A phone: the choices go under the name. The design select takes what the
+ * size and quantity leave, so the word "Qty" goes from that line (the label
+ * stays for screen readers), and a line with a remove button puts the design
+ * on a row of its own rather than squeezing it to a few letters.
+ */
+@container merch (max-width: 480px) {
+  .merch-compact .merch-item {
+    padding: 8px 10px;
+  }
+
+  .merch-compact .merch-line {
+    gap: 6px;
+  }
+
+  .merch-compact .merch-line:has(.merch-field-wide) .merch-qty-word {
+    display: none;
+  }
+
+  .merch-compact .merch-line:has(.merch-field-wide) .merch-qty {
+    gap: 0;
+  }
+
+  .merch-compact .merch-line:has(.merch-remove):has(.merch-field-wide) {
+    flex-wrap: wrap;
+  }
+
+  .merch-compact .merch-line:has(.merch-remove) .merch-field-wide {
+    flex: 1 1 100%;
+  }
+
+  .merch-compact .merch-line:has(.merch-remove) .merch-field-wide select {
+    width: 100%;
+  }
+}
+
+.summary-merch > span:first-child {
+  text-wrap: balance;
+}
+
 .order-merch {
   margin: 24px 0 8px;
 }

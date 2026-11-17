@@ -11,6 +11,10 @@ import { formatPrice } from '@/lib/tickets';
  *
  * An item with designs or sizes can take several lines ("two Et al. in M, one
  * in L"), added with "Add another".
+ *
+ * `compact` is the checkout's version (T417): no image, one row per item on a
+ * desktop (name and price, then the choices), the field names inside the
+ * selects instead of above them. `/tickets/merch` keeps the full layout.
  */
 interface Line {
   key: number;
@@ -24,10 +28,12 @@ export function MerchPicker({
   items,
   onTotalChange,
   title = 'Add merch',
+  compact = false,
 }: {
   items: MerchItem[];
   onTotalChange?: (cents: number) => void;
   title?: string | null;
+  compact?: boolean;
 }) {
   const nextKey = useRef(items.length);
   const [lines, setLines] = useState<Line[]>(() =>
@@ -55,7 +61,7 @@ export function MerchPicker({
   const removeLine = (key: number) => setLines((prev) => prev.filter((l) => l.key !== key));
 
   return (
-    <section className="merch" aria-labelledby={title ? 'merch-title' : undefined}>
+    <section className={compact ? 'merch merch-compact' : 'merch'} aria-labelledby={title ? 'merch-title' : undefined}>
       {title ? (
         <h3 className="merch-title" id="merch-title">
           {title}
@@ -66,20 +72,27 @@ export function MerchPicker({
       {items.map((item) => {
         const own = lines.filter((l) => l.itemId === item.id);
         const choosable = item.options.length > 0 || item.sizes.length > 0;
+        const name = (
+          <p className="merch-name">
+            <span>{item.name}</span>
+            <span className="merch-price">{formatPrice(item.priceCents, item.currency)}</span>
+          </p>
+        );
+        // In the compact layout the field's name is the select's empty choice,
+        // and the label stays for screen readers.
+        const labelClass = compact ? 'sr-only' : undefined;
         return (
           <div className="merch-item" key={item.id}>
-            {item.imageUrl ? (
+            {compact ? null : item.imageUrl ? (
               <img className="merch-image" src={item.imageUrl} alt="" />
             ) : (
               <span className="merch-image merch-image-empty" aria-hidden="true">
                 {item.name.slice(0, 1)}
               </span>
             )}
-            <div className="merch-body">
-              <p className="merch-name">
-                {item.name}
-                <span className="merch-price">{formatPrice(item.priceCents, item.currency)}</span>
-              </p>
+            {compact ? name : null}
+            <div className={compact ? 'merch-lines' : 'merch-body'}>
+              {compact ? null : name}
               {own.map((line, n) => {
                 const base = `merch-${item.id}-${line.key}`;
                 const needed = line.quantity > 0;
@@ -87,14 +100,16 @@ export function MerchPicker({
                   <div className="merch-line" key={line.key}>
                     {item.options.length > 0 && (
                       <div className="field merch-field merch-field-wide">
-                        <label htmlFor={`${base}-o`}>Design</label>
+                        <label htmlFor={`${base}-o`} className={labelClass}>
+                          Design
+                        </label>
                         <select
                           id={`${base}-o`}
                           value={line.optionId}
                           required={needed}
                           onChange={(e) => update(line.key, { optionId: e.target.value })}
                         >
-                          <option value="">Choose</option>
+                          <option value="">{compact ? 'Design' : 'Choose'}</option>
                           {item.options.map((o) => (
                             <option key={o.id} value={o.id}>
                               {o.label}
@@ -105,14 +120,16 @@ export function MerchPicker({
                     )}
                     {item.sizes.length > 0 && (
                       <div className="field merch-field">
-                        <label htmlFor={`${base}-s`}>Size</label>
+                        <label htmlFor={`${base}-s`} className={labelClass}>
+                          Size
+                        </label>
                         <select
                           id={`${base}-s`}
                           value={line.size}
                           required={needed}
                           onChange={(e) => update(line.key, { size: e.target.value })}
                         >
-                          <option value="">Choose</option>
+                          <option value="">{compact ? 'Size' : 'Choose'}</option>
                           {item.sizes.map((s) => (
                             <option key={s} value={s}>
                               {s}
@@ -121,8 +138,19 @@ export function MerchPicker({
                         </select>
                       </div>
                     )}
-                    <div className="field merch-field">
-                      <label htmlFor={`${base}-q`}>Quantity</label>
+                    <div className="field merch-field merch-qty">
+                      <label htmlFor={`${base}-q`}>
+                        {compact ? (
+                          <>
+                            <span className="merch-qty-word" aria-hidden="true">
+                              Qty
+                            </span>
+                            <span className="sr-only">Quantity</span>
+                          </>
+                        ) : (
+                          'Quantity'
+                        )}
+                      </label>
                       <select
                         id={`${base}-q`}
                         value={line.quantity}
@@ -136,8 +164,13 @@ export function MerchPicker({
                       </select>
                     </div>
                     {n > 0 && (
-                      <button type="button" className="merch-remove" onClick={() => removeLine(line.key)}>
-                        Remove
+                      <button
+                        type="button"
+                        className="merch-remove"
+                        aria-label={compact ? 'Remove' : undefined}
+                        onClick={() => removeLine(line.key)}
+                      >
+                        {compact ? '×' : 'Remove'}
                       </button>
                     )}
                     {line.quantity > 0 && (
