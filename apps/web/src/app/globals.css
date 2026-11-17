@@ -10844,38 +10844,45 @@ body:has([data-home-venue]) .venue-home {
 }
 
 /*
- * A phone: the choices go under the name. The design select takes what the
- * size and quantity leave, so the word "Qty" goes from that line (the label
- * stays for screen readers), and a line with a remove button puts the design
- * on a row of its own rather than squeezing it to a few letters.
+ * A phone: the choices go under the name, and a design gets a full-width row
+ * of its own on every line, with size, quantity and remove on the row below.
+ * Sharing a row cut the longest design to "a little ser" at 375px (T419 F1);
+ * three rows per T-shirt line is the price of showing every choice in full.
+ *
+ * Even a full row inside a boxed item left 212px for "a little semantics goes
+ * a long way", which needs about 250px at 16px. So on a phone the items are
+ * rows between hairlines rather than boxes, and the checkout card's padding
+ * drops from 26px to 16px (below), which gives the select the card's width.
  */
 @container merch (max-width: 480px) {
   .merch-compact .merch-item {
-    padding: 8px 10px;
+    padding: 10px 0;
+    margin: 0;
+    border-width: 1px 0 0;
+    border-radius: 0;
+    background: none;
   }
 
   .merch-compact .merch-line {
     gap: 6px;
   }
 
-  .merch-compact .merch-line:has(.merch-field-wide) .merch-qty-word {
-    display: none;
-  }
-
-  .merch-compact .merch-line:has(.merch-field-wide) .merch-qty {
-    gap: 0;
-  }
-
-  .merch-compact .merch-line:has(.merch-remove):has(.merch-field-wide) {
+  .merch-compact .merch-line:has(.merch-field-wide) {
     flex-wrap: wrap;
   }
 
-  .merch-compact .merch-line:has(.merch-remove) .merch-field-wide {
+  .merch-compact .merch-field-wide {
     flex: 1 1 100%;
   }
 
-  .merch-compact .merch-line:has(.merch-remove) .merch-field-wide select {
+  .merch-compact .merch-field-wide select {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .buy-layout .checkout {
+    padding: 20px 16px;
   }
 }
 
