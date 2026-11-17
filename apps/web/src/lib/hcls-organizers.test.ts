@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { HCLS_ORGANIZERS, initials, linkLabel } from './hcls-organizers';
 
@@ -32,6 +34,16 @@ describe('HCLS organizers (T381)', () => {
     expect(linkLabel('https://www.linkedin.com/in/tedslater')).toBe('LinkedIn');
     expect(linkLabel('https://en.wikipedia.org/wiki/Deborah_McGuinness')).toBe('Wikipedia');
     expect(linkLabel('https://example.org/x')).toBe('Profile');
+  });
+
+  it('gives every organizer a photo that exists under public/ (T414)', () => {
+    for (const o of HCLS_ORGANIZERS) {
+      expect(o.photo, o.name).toMatch(/^\/kgc\//);
+      expect(existsSync(join(__dirname, '../../public', o.photo ?? '')), o.name).toBe(true);
+    }
+    expect(HCLS_ORGANIZERS.find((o) => o.name === 'Analee Etheridge')?.photo).toBe(
+      '/kgc/organizers/analee-etheredge.webp',
+    );
   });
 
   it('makes initials for the avatar', () => {

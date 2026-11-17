@@ -215,7 +215,7 @@ export default async function HclsPage() {
                 {o.photo ? (
                   <Image
                     src={o.photo}
-                    alt=""
+                    alt={o.name}
                     width={240}
                     height={240}
                     sizes="120px"

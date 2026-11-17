@@ -60,7 +60,8 @@ export const HCLS_ORGANIZERS: readonly HclsOrganizer[] = [
     name: 'Analee Etheridge',
     affiliation: ANALEE_ETHERIDGE_AFFILIATION,
     link: ANALEE_ETHERIDGE_LINK,
-    photo: null,
+    /** Supplied by the owner (T414, 2026-11-16). */
+    photo: '/kgc/organizers/analee-etheredge.webp',
   },
 ];
 
