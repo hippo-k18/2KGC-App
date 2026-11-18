@@ -13,6 +13,15 @@ import { ticketSalesOpen } from '@/lib/data';
 /** The newsletter form lives on the conference's HubSpot, same as the live site. */
 const NEWSLETTER = 'https://info.knowledgegraph.tech/kgc-newsletter-sign-up';
 
+/**
+ * The cover's rendered width, from `.post-layout` and `.post-card`. From 1024px
+ * the grid is the article plus a 25% sidebar and a 77px gap, inside
+ * `--wrap-padding` (24px) on each side and capped at `--max` (2000px); the card
+ * pads 32px. So the cover is 0.75 × (100vw − 48px) − 77px − 64px, which stops
+ * growing at 1323px. Below 1024px it is one column, close enough to 100vw.
+ */
+const COVER_SIZES = '(width >= 2000px) 1323px, (width >= 1024px) calc(75vw - 177px), 100vw';
+
 /** The archive plus whatever editors have published, so rendered per request from a cached list. */
 export const dynamic = 'force-dynamic';
 
@@ -109,7 +118,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           </header>
 
           {post.fromEditor && post.image && (
-            <PostCover cover={{ src: post.image, width: post.imageWidth, height: post.imageHeight }} />
+            <PostCover
+              cover={{ src: post.image, width: post.imageWidth, height: post.imageHeight }}
+              sizes={COVER_SIZES}
+            />
           )}
 
           <ShareRow title={post.title} url={blogUrl(`/${post.slug}`)} />

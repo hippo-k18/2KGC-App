@@ -9,15 +9,19 @@ import type { Cover } from './types';
  * One component for the published page and the editor's preview, so what a
  * writer previews is what readers get. The caller decides whether a post shows
  * one at all (`isFromEditor`); this only draws it.
+ *
+ * `sizes` comes from the caller because the two pages lay the card out in
+ * different columns, and an understated width makes the browser fetch a
+ * smaller variant and upscale it — a soft image at the top of the page.
  */
-export function PostCover({ cover }: { cover: Cover }) {
+export function PostCover({ cover, sizes }: { cover: Cover; sizes: string }) {
   return (
     <Image
       src={cover.src}
       alt=""
       width={cover.width}
       height={cover.height}
-      sizes="(width >= 1024px) 700px, 100vw"
+      sizes={sizes}
       priority
       className="post-cover"
     />

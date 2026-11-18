@@ -24,9 +24,9 @@ export type PublicPost = Post & {
   previousSlugs: string[];
   /**
    * Written in the editor, not brought across from the archive. Only these
-   * posts show their cover above the article: an archive post's body already
-   * opens with its WordPress featured image, so a cover there would repeat it.
-   * See `isFromEditor`.
+   * posts show their cover above the article: most archive bodies already open
+   * with their WordPress featured image, so a cover there would repeat it.
+   * Not all of them do — see `isFromEditor` for the ones that lose out.
    */
   fromEditor: boolean;
 };

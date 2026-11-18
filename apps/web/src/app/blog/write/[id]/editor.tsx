@@ -389,7 +389,8 @@ export function PostEditor(props: EditorProps) {
               }}
             />
             <p className="ed-byline">By {authorName || '…'}</p>
-            {cover && (
+            {/* Same rule as the preview and the published page: see `isFromEditor`. */}
+            {cover && !props.isArchive && (
               <figure className="ed-cover">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={cover.src} alt="" width={cover.width} height={cover.height} />
@@ -445,6 +446,11 @@ export function PostEditor(props: EditorProps) {
             <div className="st-field">
               <span className="st-label">Cover image</span>
               <CoverPicker cover={cover} disabled={!can.canEdit} onChange={set(setCover)} onError={(m) => showToast(m, true)} />
+              {props.isArchive && (
+                <p className="st-muted" style={{ fontSize: 14, margin: '8px 0 0' }}>
+                  This image is used in the blog list and social previews, not at the top of this article.
+                </p>
+              )}
             </div>
             )}
 

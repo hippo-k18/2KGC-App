@@ -39,7 +39,13 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                 <span>{f.date ? formatPostDate(f.date) : 'Date set when published'}</span>
               </div>
             </header>
-            {isFromEditor(post) && f.cover && <PostCover cover={f.cover} />}
+            {/*
+              One 1000px column, less 24px of `--wrap-padding` each side and
+              the card's 32px padding: 888px at most.
+            */}
+            {isFromEditor(post) && f.cover && (
+              <PostCover cover={f.cover} sizes="(width >= 1000px) 888px, 100vw" />
+            )}
             {f.body.kind === 'doc' ? (
               <div className="post-body">
                 <PostBodyDoc doc={f.body.doc} />
