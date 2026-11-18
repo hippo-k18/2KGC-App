@@ -24,6 +24,9 @@ export function PostCover({ cover, sizes }: { cover: Cover; sizes: string }) {
       sizes={sizes}
       priority
       className="post-cover"
+      // Never wider than the file itself: a small upload stays sharp and sits
+      // centred in the column rather than being stretched across it.
+      style={{ maxWidth: cover.width }}
     />
   );
 }
