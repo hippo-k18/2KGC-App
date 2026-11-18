@@ -56,6 +56,23 @@ export interface BlogPostDoc {
   updatedBy: string;
 }
 
+/**
+ * Whether a post was written in the editor rather than brought across from the
+ * WordPress archive.
+ *
+ * Read from `legacySlug`, which is set when an archive post is first stored and
+ * never on a new one — not from `body.kind`. Saving an archive post in the
+ * editor turns its body from `legacy` into `doc`, but the text it carries is
+ * still the WordPress article, featured image and all.
+ *
+ * Used to keep the cover off archive posts. Most of them, not all, open with
+ * their featured image already: 26 of the 70 archive bodies contain no image
+ * at all (mostly talk posts that open with a video), and those get no cover at
+ * the top either. That is the accepted cost of deciding from an explicit field
+ * rather than from the body's content; the editor says so under "Cover image".
+ */
+export const isFromEditor = (post: Pick<BlogPostDoc, 'legacySlug'>): boolean => !post.legacySlug;
+
 /** Defined in `@kgc/shared`, because the organizer dashboard manages the list. */
 export type { BlogMemberDoc } from '@kgc/shared';
 
