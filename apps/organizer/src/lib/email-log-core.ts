@@ -10,7 +10,7 @@ import type { EmailLogDoc } from '@kgc/shared';
 export type EmailTemplate = EmailLogDoc['template'];
 export type EmailStatus = EmailLogDoc['status'];
 
-export type EmailGroup = 'cfp' | 'tickets' | 'sign-in' | 'messages' | 'speakers' | 'blog' | 'team';
+export type EmailGroup = 'cfp' | 'tickets' | 'sign-in' | 'messages' | 'speakers' | 'blog' | 'team' | 'requests';
 
 export const GROUP_LABEL: Record<EmailGroup, string> = {
   cfp: 'Call for speakers',
@@ -20,6 +20,7 @@ export const GROUP_LABEL: Record<EmailGroup, string> = {
   speakers: 'Speakers, sponsors and exhibitors',
   blog: 'Blog',
   team: 'Dashboard team',
+  requests: 'Change requests',
 };
 
 /**
@@ -59,6 +60,8 @@ export const TEMPLATE_INFO: Record<EmailTemplate, { label: string; group: EmailG
   'blog-review-request': { label: 'Blog review request', group: 'blog' },
   'blog-review-decision': { label: 'Blog review decision', group: 'blog' },
   'team-invitation': { label: 'Team invitation', group: 'team' },
+  'change-request-built': { label: 'Change request built', group: 'requests' },
+  'change-request-live': { label: 'Change request live', group: 'requests' },
 };
 
 export const TEMPLATES = Object.keys(TEMPLATE_INFO) as EmailTemplate[];

@@ -1941,6 +1941,38 @@ export interface StripeIgnoredDoc {
   at: Timestamp;
 }
 
+/** Where a change request has got to (T428). Only `built` and `live` send an email. */
+export type ChangeRequestStatus = "new" | "building" | "built" | "live" | "declined";
+
+/**
+ * `changeRequests/{id}`: one change somebody asked for on the public form at
+ * `/request` on the dashboard host (T428). Written and read by the dashboard's
+ * Admin SDK only.
+ */
+export interface ChangeRequestDoc {
+  email: string;
+  description: string;
+  /** A page on the site the change is about, as typed. Always http or https. */
+  pageUrl?: string;
+  /** Storage object paths, `change-requests/{id}/shot-1.png`. Never public URLs. */
+  screenshots: string[];
+  status: ChangeRequestStatus;
+  /** An organizer's own note. Never shown to the sender. */
+  notes?: string;
+  /**
+   * When each status email was claimed. Set in the same transaction that moves
+   * the status, before the send, so a second move to `built` (or a double
+   * press) never mails the sender again.
+   */
+  emailed?: { built?: Timestamp; live?: Timestamp };
+  /** A keyed hash of the sender's IP, to spot one sender behind many emails. Never the IP. */
+  ipHash?: string;
+  /** Who last changed the status or note, by dashboard email. */
+  updatedBy?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 export interface EmailLogDoc {
   eventId: string;
   to: string;
@@ -2066,7 +2098,14 @@ export interface EmailLogDoc {
      * The one reminder to somebody who reached the payment page and left
      * without paying (T363). Carries an unsubscribe link, unlike the receipts.
      */
-    | "checkout-reminder";
+    | "checkout-reminder"
+    /**
+     * The two emails to whoever sent a change request (T428): one when an
+     * organizer marks it built, one when it is marked live. Each is sent once
+     * per request, on the first move to that status.
+     */
+    | "change-request-built"
+    | "change-request-live";
   subject: string;
   /**
    * The From header the mail went out with, e.g.

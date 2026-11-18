@@ -8,6 +8,8 @@ import {
   blogReviewDecisionMessage,
   blogReviewRequestMessage,
   bulkMessageMessage,
+  changeRequestBuiltMessage,
+  changeRequestLiveMessage,
   CHECKOUT_REMINDER_DEFAULTS,
   checkoutReminderMessage,
   cfpAcceptNoticeMessage,
@@ -78,7 +80,9 @@ export type SenderName =
   | 'sendBlogReviewRequest'
   | 'sendBlogReviewDecision'
   | 'sendCfpMessage'
-  | 'sendCheckoutReminder';
+  | 'sendCheckoutReminder'
+  | 'sendChangeRequestBuilt'
+  | 'sendChangeRequestLive';
 
 export interface FormatVariant {
   /** Short and stable, for the address bar. */
@@ -126,6 +130,8 @@ function blog(path: string): string {
 function dashboard(path: string): string {
   return `${(process.env.ORGANIZER_PUBLIC_ORIGIN ?? 'https://dashboard.knowledgegraph.tech').replace(/\/$/, '')}${path}`;
 }
+
+const CHANGE_SAMPLE = 'On the speakers page, my company name is spelled wrong. It should be Sample Company, not Sampel Company.';
 
 const v = (id: string, label: string, render: () => EmailMessage): FormatVariant => ({ id, label, render });
 
@@ -642,6 +648,29 @@ export const EMAIL_FORMATS: EmailFormat[] = [
       v('default', 'Invitation', () =>
         teamInvitationMessage({ name: 'Sample Teammate', rolesLabel: 'Finance, Check-in', link: dashboard(`/login?email=${encodeURIComponent(SAMPLE_TO)}`) }),
       ),
+    ],
+  },
+
+  // ── Change requests (T428) ───────────────────────────────────────────────
+  {
+    id: 'change-request-built',
+    name: 'Change request built',
+    template: 'change-request-built',
+    sender: 'sendChangeRequestBuilt',
+    when: 'When an organizer first marks a change request Built on Tools › Change requests.',
+    to: 'Whoever sent the change request',
+    variants: [v('default', 'Built', () => changeRequestBuiltMessage({ description: CHANGE_SAMPLE }))],
+  },
+  {
+    id: 'change-request-live',
+    name: 'Change request live',
+    template: 'change-request-live',
+    sender: 'sendChangeRequestLive',
+    when: 'When an organizer first marks a change request Live on Tools › Change requests.',
+    to: 'Whoever sent the change request',
+    variants: [
+      v('page', 'With a page on our site', () => changeRequestLiveMessage({ description: CHANGE_SAMPLE, pageUrl: site('/speakers') })),
+      v('plain', 'No page given', () => changeRequestLiveMessage({ description: CHANGE_SAMPLE })),
     ],
   },
 ];

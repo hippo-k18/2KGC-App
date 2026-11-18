@@ -3,7 +3,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { getStorage } from 'firebase-admin/storage';
 import { db } from './firestore';
-import { IMAGE_EXTENSIONS, MAX_UPLOAD_BYTES, type AcceptedImageType } from './upload-limits';
+import { IMAGE_EXTENSIONS, MAX_UPLOAD_BYTES, sniffImageType, type AcceptedImageType } from './upload-limits';
 
 /**
  * The one path by which a file enters this project.
@@ -175,32 +175,6 @@ function looksLikeMissingBucket(err: unknown): boolean {
   return /bucket does not exist|specified bucket|notFound/i.test(message);
 }
 
-/**
- * What the file really is, from its first bytes rather than its label.
- *
- * `File.type` is whatever the browser guessed from the extension and is
- * trivially spoofed. This decides the stored content type — which is also the
- * content type Firebase serves the object back with — so it must come from the
- * bytes.
- */
-function sniffImageType(bytes: Uint8Array): AcceptedImageType | undefined {
-  const at = (i: number) => bytes[i];
-  const ascii = (start: number, end: number) =>
-    String.fromCharCode(...bytes.slice(start, end));
-
-  if (
-    bytes.length > 8 &&
-    at(0) === 0x89 && at(1) === 0x50 && at(2) === 0x4e && at(3) === 0x47 &&
-    at(4) === 0x0d && at(5) === 0x0a && at(6) === 0x1a && at(7) === 0x0a
-  ) {
-    return 'image/png';
-  }
-  if (bytes.length > 3 && at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) return 'image/jpeg';
-  if (bytes.length > 6 && (ascii(0, 6) === 'GIF87a' || ascii(0, 6) === 'GIF89a')) return 'image/gif';
-  if (bytes.length > 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
-  return undefined;
-}
-
 /** Rejects traversal and anything that would make a Firestore path unreadable. */
 function assertSafeTarget(target: UploadTarget): void {
   const ok = /^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/;
@@ -352,5 +326,53 @@ export function isUploadedImageUrl(url: string | undefined): boolean {
     return protocol === 'https:' && hostname === 'firebasestorage.googleapis.com';
   } catch {
     return false;
+  }
+}
+
+/**
+ * Store bytes the server has already checked, with NO download token (T428).
+ *
+ * `uploadImage` stamps a token so the URL can sit on a public document. A
+ * change request's screenshot must never be public: it can show anything on
+ * the sender's screen. Without a token the object has no URL that works
+ * outside the Admin SDK, and `storage.rules` refuses every client, so the only
+ * way to see it is the dashboard's signed-in screenshot route.
+ */
+export async function storePrivateImage(path: string, bytes: Uint8Array, contentType: AcceptedImageType): Promise<void> {
+  assertSafeTarget({ folder: path.slice(0, path.lastIndexOf('/')), name: path.slice(path.lastIndexOf('/') + 1) });
+  assertStorageReachable();
+  try {
+    await bucket().file(path).save(Buffer.from(bytes), {
+      contentType,
+      resumable: false,
+      metadata: { cacheControl: 'private, no-store' },
+    });
+    // Firebase mints a download token for some writes on its own (the
+    // emulator does it on every one), and a token URL skips the rules. Clear
+    // it, so the object has no public URL at all.
+    await bucket().file(path).setMetadata({ metadata: { firebaseStorageDownloadTokens: null } });
+  } catch (err) {
+    if (looksLikeMissingBucket(err)) throw bucketMissing(storageBucketName());
+    throw err;
+  }
+}
+
+/** The bytes of one stored object, for an authed route to stream. Null when it is gone. */
+export async function readPrivateObject(path: string): Promise<Buffer | null> {
+  try {
+    const [buf] = await bucket().file(path).download();
+    return buf;
+  } catch (err) {
+    if ((err as { code?: unknown })?.code === 404) return null;
+    throw err;
+  }
+}
+
+/** Delete every object under a folder, best effort. */
+export async function removeFolder(folder: string): Promise<void> {
+  try {
+    await bucket().deleteFiles({ prefix: `${folder}/` });
+  } catch {
+    // An orphan costs a few kilobytes; see `uploadImage`.
   }
 }

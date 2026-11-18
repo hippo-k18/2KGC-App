@@ -54,5 +54,9 @@ export const config = {
   // Node rather than Edge, so the cookie is signed by the same `node:crypto`
   // code as at sign-in.
   runtime: 'nodejs',
-  matcher: ['/((?!_next/|kgc/|favicon.ico).*)'],
+  // The public change request form and its upload route (T428) are left out:
+  // nothing here applies to a visitor with no session, and a matched request
+  // has its body buffered by the middleware, which caps it below three 5 MB
+  // screenshots. Exactly those two paths; `/tools/change-requests` is matched.
+  matcher: ['/((?!_next/|kgc/|favicon.ico|request(?:/|$)|api/change-requests(?:/|$)).*)'],
 };

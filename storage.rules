@@ -91,5 +91,13 @@ service firebase.storage {
       allow read: if signedIn();
       allow write: if false;
     }
+
+    // Screenshots sent with a change request on the public form (T428).
+    // Anything on the sender's screen can be in one, so no client may read
+    // them, signed in or not, and the objects carry no download token. The
+    // dashboard reads them with the Admin SDK behind its own sign-in.
+    match /change-requests/{requestId}/{fileName} {
+      allow read, write: if false;
+    }
   }
 }

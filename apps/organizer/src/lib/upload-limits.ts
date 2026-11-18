@@ -51,3 +51,30 @@ export const IMAGE_EXTENSIONS: Record<AcceptedImageType, string> = {
  * roughly 100 KB — comfortably inside the cap above, which is the point.
  */
 export const DEFAULT_MAX_EDGE = 1024;
+
+/**
+ * What the file really is, from its first bytes rather than its label.
+ *
+ * `File.type` is whatever the browser guessed from the extension and is
+ * trivially spoofed. This decides the stored content type — which is also the
+ * content type Firebase serves the object back with — so it must come from the
+ * bytes. It lives here, not in `uploads.ts`, so the change request form (T428)
+ * and the tests can use the same check.
+ */
+export function sniffImageType(bytes: Uint8Array): AcceptedImageType | undefined {
+  const at = (i: number) => bytes[i];
+  const ascii = (start: number, end: number) =>
+    String.fromCharCode(...bytes.slice(start, end));
+
+  if (
+    bytes.length > 8 &&
+    at(0) === 0x89 && at(1) === 0x50 && at(2) === 0x4e && at(3) === 0x47 &&
+    at(4) === 0x0d && at(5) === 0x0a && at(6) === 0x1a && at(7) === 0x0a
+  ) {
+    return 'image/png';
+  }
+  if (bytes.length > 3 && at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) return 'image/jpeg';
+  if (bytes.length > 6 && (ascii(0, 6) === 'GIF87a' || ascii(0, 6) === 'GIF89a')) return 'image/gif';
+  if (bytes.length > 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
+  return undefined;
+}

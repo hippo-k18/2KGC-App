@@ -3111,3 +3111,105 @@ export async function sendCfpMessage(
     actor: input.actor,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Change requests (T428)
+//
+// Somebody asked for a change on the public form at `/request` on the
+// dashboard host. They hear from us twice, and only these twice (owner,
+// 2026-11-18: "just an email after it is built and after it is live"). The
+// dashboard claims each email in the transaction that moves the status, so
+// this only builds and sends.
+// ---------------------------------------------------------------------------
+
+export interface ChangeRequestEmailInput {
+  to: string;
+  /** What they asked for, as they typed it. Quoted back, shortened. */
+  description: string;
+  /** The page they named, if any. Linked only when it is on our own site. */
+  pageUrl?: string;
+  /** The dashboard user who moved the status, for the Email Log. */
+  actor?: string;
+}
+
+/** How much of their request the email quotes back, so they know which one it is. */
+const CHANGE_QUOTE_CHARS = 280;
+
+function changeQuote(description: string): string {
+  const flat = description.replace(/\s+/g, ' ').trim();
+  return flat.length > CHANGE_QUOTE_CHARS ? `${flat.slice(0, CHANGE_QUOTE_CHARS - 1).trimEnd()}…` : flat;
+}
+
+/**
+ * The page link for the "live" email, or null.
+ *
+ * Only a page on knowledgegraph.tech is linked. The form takes any address,
+ * and the email goes out under our name, so a link to somewhere else would let
+ * anybody put their own link in a mail we send.
+ */
+export function changeRequestPageLink(pageUrl: string | undefined): string | null {
+  if (!pageUrl) return null;
+  try {
+    const url = new URL(pageUrl);
+    const host = url.hostname.toLowerCase();
+    const ours = host === 'knowledgegraph.tech' || host.endsWith('.knowledgegraph.tech');
+    return url.protocol === 'https:' && ours ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function changeQuoteHtml(description: string): string {
+  return `<p style="margin:0 0 6px;font-size:13px;color:#6b7280;">You asked for:</p>
+     <p style="margin:0 0 18px;padding:10px 14px;border-left:3px solid #e3e5e8;font-size:14px;line-height:1.55;color:#374151;">${esc(changeQuote(description))}</p>`;
+}
+
+/** "Your change has been built and is being tested", built and not sent. */
+export function changeRequestBuiltMessage(input: Pick<ChangeRequestEmailInput, 'description'>): EmailMessage {
+  const subject = 'Your change has been built and is being tested';
+  const html = shell(
+    subject,
+    `${changeQuoteHtml(input.description)}
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">Thanks for sending it. The change is built and we are testing it now. We'll email you again when it is live.</p>
+     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;">If something about it is not what you meant, reply to this email.</p>`,
+  );
+  const text = `You asked for:
+"${changeQuote(input.description)}"
+
+Thanks for sending it. The change is built and we are testing it now. We'll
+email you again when it is live.
+
+If something about it is not what you meant, reply to this email.`;
+  return { subject, html, text };
+}
+
+/** "Your change is live", built and not sent. */
+export function changeRequestLiveMessage(input: Pick<ChangeRequestEmailInput, 'description' | 'pageUrl'>): EmailMessage {
+  const subject = 'Your change is live';
+  const link = changeRequestPageLink(input.pageUrl);
+  const html = shell(
+    subject,
+    `${changeQuoteHtml(input.description)}
+     <p style="margin:0 0 14px;font-size:15px;line-height:1.6;">The change you asked for is now live.${link ? '' : ' Thanks for taking the time to send it.'}</p>
+     ${link ? `${button(esc(link), 'See the page')}<p style="margin:0;font-size:15px;line-height:1.6;">Thanks for taking the time to send it.</p>` : ''}
+     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;">If something looks wrong, reply to this email.</p>`,
+  );
+  const text = `You asked for:
+"${changeQuote(input.description)}"
+
+The change you asked for is now live.${link ? `\n\nSee the page: ${link}` : ''}
+
+Thanks for taking the time to send it. If something looks wrong, reply to
+this email.`;
+  return { subject, html, text };
+}
+
+/** The "built" email. Never throws; the Email Log records what happened. */
+export async function sendChangeRequestBuilt(store: Firestore, input: ChangeRequestEmailInput): Promise<SendOutcome> {
+  return send(store, { to: input.to, ...changeRequestBuiltMessage(input), template: 'change-request-built', actor: input.actor });
+}
+
+/** The "live" email. Never throws; the Email Log records what happened. */
+export async function sendChangeRequestLive(store: Firestore, input: ChangeRequestEmailInput): Promise<SendOutcome> {
+  return send(store, { to: input.to, ...changeRequestLiveMessage(input), template: 'change-request-live', actor: input.actor });
+}

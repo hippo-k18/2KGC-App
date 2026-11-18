@@ -34,6 +34,13 @@ export const COLLECTIONS = {
   emailLog: "emailLog",
   /** The rendered message behind one `emailLog` row, keyed by the same id (T274). */
   emailBodies: "emailBodies",
+  /**
+   * A change somebody asked for on the public form at `/request` on the
+   * dashboard host (T428). Server-only: no `firestore.rules` match block, so
+   * every client read and write is refused, and the dashboard reads it with the
+   * Admin SDK. Screenshots sit in Storage under `change-requests/{id}/`.
+   */
+  changeRequests: "changeRequests",
   /** Organizer-authored preference bags, one document per feature area. */
   settings: "settings",
   /**

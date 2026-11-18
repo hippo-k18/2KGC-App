@@ -6,6 +6,8 @@ import { eventBasics } from '@/lib/event';
 import { ChevronIcon } from '@/lib/icons';
 import { IMPLEMENTED, NAV, allPaths, searchIndex, type NavNode } from '@/lib/nav';
 import { canOpen } from '@/lib/team-core';
+import { newCountLabel } from '@/lib/change-requests-core';
+import { newChangeRequestCount } from '@/lib/change-requests';
 import { AccountMenu, AccountProvider } from './account-menu';
 import { Sidebar, TopNav, type SlimNode } from './dash-nav';
 import { NavProgress } from './nav-progress';
@@ -81,6 +83,17 @@ function slim(nodes: NavNode[], open: (path: string) => boolean, prefix = ''): S
   });
 }
 
+/** Puts "3 new" on one rail entry, by path. The tree is rebuilt only along that path. */
+function withCount(nodes: SlimNode[], path: string, label: string | undefined, prefix = ''): SlimNode[] {
+  if (!label) return nodes;
+  return nodes.map((n) => {
+    const p = prefix ? `${prefix}/${n.slug}` : n.slug;
+    if (p === path) return { ...n, tag: 'new', tagLabel: label };
+    if (!path.startsWith(`${p}/`) || !n.children) return n;
+    return { ...n, children: withCount(n.children, path, label, p) };
+  });
+}
+
 function prettyDay(day: string): string {
   const [y, m, d] = day.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
@@ -103,6 +116,8 @@ export default async function DashLayout({ children }: { children: React.ReactNo
     countWhereEvent(COLLECTIONS.speakers),
     countWhereEvent(COLLECTIONS.sponsors),
   ]);
+  // One count aggregation, only for someone who can open the screen (T428).
+  const changeRequestsNew = open('tools/change-requests') ? await newChangeRequestCount() : 0;
   const { registrations, cancelled, signedIn } = adoption;
 
   const days = [...new Set(sessions.map((s) => s.day))].sort();
@@ -116,7 +131,7 @@ export default async function DashLayout({ children }: { children: React.ReactNo
         : `${prettyDay(days[0])} – ${prettyDay(days[days.length - 1])}`;
 
   const published = sessions.filter((s) => s.status === 'published').length;
-  const nav = slim(NAV, open);
+  const nav = withCount(slim(NAV, open), 'tools/change-requests', newCountLabel(changeRequestsNew));
   // For the rail's fixed links, which are not in the tree. Null for an owner,
   // so the common case ships no list at all.
   const allowed = roles.includes('owner')

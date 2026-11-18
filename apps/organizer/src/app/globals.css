@@ -1522,6 +1522,166 @@ select[multiple].whova-text-input {
   padding: 24px;
 }
 
+/* ─────────────────── public change request form (T428) ─────────────────────
+ * `/request`, the one page on this host a visitor sees without signing in.
+ * The sign-in card, wider, so a description has room. 16px fields so iOS
+ * does not zoom on focus.
+ */
+.login-card.request-card {
+  max-width: 560px;
+}
+
+.request-card .request-title {
+  margin: 0 0 6px;
+}
+
+.request-card .request-lede {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+.request-card .whova-text-input {
+  font-size: 16px;
+  width: 100%;
+}
+
+.request-card .request-textarea {
+  height: auto;
+  line-height: 1.5;
+  min-height: 140px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.request-card .request-count {
+  color: var(--faint);
+  font-size: 12px;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.request-card .request-hint {
+  margin: 0 0 8px;
+}
+
+.request-card .request-banner {
+  background: #fdf0ef;
+  border-radius: 3px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
+.request-files {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.request-files li {
+  align-items: baseline;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+}
+
+.request-file-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.request-file-size {
+  color: var(--faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.request-file-input {
+  font-size: 14px;
+  max-width: 100%;
+}
+
+/* Off screen rather than display:none, which some bots check for. */
+.request-trap {
+  height: 1px;
+  left: -10000px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.request-card .request-submit {
+  margin-top: 4px;
+}
+
+.request-sent .request-tick {
+  background: var(--success);
+  border-radius: 50%;
+  color: #fff;
+  display: grid;
+  font-size: 28px;
+  font-weight: 700;
+  height: 52px;
+  margin: 4px 0 16px;
+  place-items: center;
+  width: 52px;
+}
+
+.request-sent h1:focus {
+  outline: none;
+}
+
+.request-sent .body-2 {
+  margin: 0 0 20px;
+}
+
+/* Tools › Change requests (T428). */
+.change-heading {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+
+.change-text {
+  line-height: 1.55;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.change-shots {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.change-shots a {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  display: block;
+  overflow: hidden;
+}
+
+.change-shots img {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.change-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 /* ───────────────────────── placeholder (not built) ─────────────────────── */
 
 .gap-grid {

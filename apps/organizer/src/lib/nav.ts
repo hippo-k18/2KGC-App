@@ -318,7 +318,9 @@ export const NAV: NavNode[] = [
       { name: "code_access_control", title: "Code Access Control", slug: "code-access-control" }
     ] },
     { name: "report", title: "Report", slug: "report" },
-    { name: "email_log", title: "Email Log", slug: "email-log" }
+    { name: "email_log", title: "Email Log", slug: "email-log" },
+    /** Ours, not Whova's (T428): what people sent on the public form at `/request`. */
+    { name: "change_requests", title: "Change requests", slug: "change-requests" }
   ] }
 ];
 
@@ -341,6 +343,7 @@ export const IMPLEMENTED = new Set<string>([
   'attendees/check-in-and-checkout/check-in',
   'tools/report',
   'tools/email-log',
+  'tools/change-requests',
   'tickets/ticket-setup/1-1-create-tickets',
   'tickets/orders-and-transactions/summary',
   'tickets/orders-and-transactions/attendee-orders',
@@ -573,6 +576,7 @@ export const ROUTES = {
   checkIn: '/attendees/check-in-and-checkout/check-in',
   report: '/tools/report',
   emailLog: '/tools/email-log',
+  changeRequests: '/tools/change-requests',
   /** Kept under its Whova-era name so copied server actions revalidate correctly. */
   warRoom: '/tools/report',
   createTickets: '/tickets/ticket-setup/1-1-create-tickets',

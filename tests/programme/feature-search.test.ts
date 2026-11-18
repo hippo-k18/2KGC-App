@@ -33,8 +33,9 @@ describe('the index itself', () => {
   it('covers the whole nav tree', () => {
     // Whova's 215, plus Engagement › Community › Reports (T210) and Tools ›
     // Email Log (T274), which Whova has no screens for, and the call for
-    // speakers' five screens (T293), and Content › Learn Page (T309).
-    expect(ENTRIES.length).toBe(223);
+    // speakers' five screens (T293), Content › Learn Page (T309) and Tools ›
+    // Change requests (T428).
+    expect(ENTRIES.length).toBe(224);
   });
 
   it('finds the Reports queue', () => {
