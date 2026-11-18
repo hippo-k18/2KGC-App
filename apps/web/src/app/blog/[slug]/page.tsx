@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { blogBase, blogUrl } from '@/lib/blog/paths';
 import { publicPost, publicPosts, type PublicPost } from '@/lib/blog/public';
-import { PostBodyDoc } from '@/lib/blog/render';
+import { PostBodyDoc, PostCover } from '@/lib/blog/render';
 import { getAuthor, getPostBody } from '@/lib/post-content';
 import { formatPostDate } from '@/lib/posts';
 import { SITE } from '@/lib/site';
@@ -107,6 +107,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               <time dateTime={post.date}>{formatPostDate(post.date)}</time>
             </div>
           </header>
+
+          {post.fromEditor && post.image && (
+            <PostCover cover={{ src: post.image, width: post.imageWidth, height: post.imageHeight }} />
+          )}
 
           <ShareRow title={post.title} url={blogUrl(`/${post.slug}`)} />
 

@@ -9152,6 +9152,21 @@ section .site-search-form {
   opacity: 0.35;
 }
 
+/*
+ * The cover above an article. Wide banners fill the column; a capped height
+ * with `contain` keeps a square logo from taking the whole screen, without
+ * cropping it.
+ */
+.post-cover {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 480px;
+  object-fit: contain;
+  border-radius: 4px;
+  margin: 0.4em 0 24px;
+}
+
 .post-share {
   display: flex;
   gap: 6px;

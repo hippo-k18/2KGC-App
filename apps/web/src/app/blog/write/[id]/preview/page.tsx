@@ -2,8 +2,9 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import * as rules from '@/lib/blog/access';
 import { requireViewer } from '@/lib/blog/auth';
-import { PostBodyDoc } from '@/lib/blog/render';
+import { PostBodyDoc, PostCover } from '@/lib/blog/render';
 import { allMembers, facts, findPost } from '@/lib/blog/store';
+import { isFromEditor } from '@/lib/blog/types';
 import { getAuthor, getPostBody } from '@/lib/post-content';
 import { formatPostDate } from '@/lib/posts';
 
@@ -38,9 +39,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                 <span>{f.date ? formatPostDate(f.date) : 'Date set when published'}</span>
               </div>
             </header>
-            {f.cover && (
-              <Image src={f.cover.src} alt="" width={f.cover.width} height={f.cover.height} style={{ width: '100%', height: 'auto', margin: '0 0 32px' }} />
-            )}
+            {isFromEditor(post) && f.cover && <PostCover cover={f.cover} />}
             {f.body.kind === 'doc' ? (
               <div className="post-body">
                 <PostBodyDoc doc={f.body.doc} />

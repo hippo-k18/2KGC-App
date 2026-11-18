@@ -5,7 +5,7 @@ import { COLLECTIONS } from '@kgc/shared';
 import { db } from '@/lib/firestore';
 import { POSTS, type Post } from '@/lib/posts';
 import { autoExcerpt, sanitizeDoc } from './doc';
-import type { BlogMemberDoc, BlogPostDoc, PostBody, PostFields } from './types';
+import { isFromEditor, type BlogMemberDoc, type BlogPostDoc, type PostBody, type PostFields } from './types';
 
 /**
  * The posts readers see: the checked-in archive, with every stored post laid
@@ -22,9 +22,19 @@ export type PublicPost = Post & {
   authorBio?: string;
   authorAvatar?: string;
   previousSlugs: string[];
+  /**
+   * Written in the editor, not brought across from the archive. Only these
+   * posts show their cover above the article: an archive post's body already
+   * opens with its WordPress featured image, so a cover there would repeat it.
+   * See `isFromEditor`.
+   */
+  fromEditor: boolean;
 };
 
-function fromFields(f: PostFields, extra: { bio?: string; avatar?: string; previous: string[] }): PublicPost {
+function fromFields(
+  f: PostFields,
+  extra: { bio?: string; avatar?: string; previous: string[]; fromEditor: boolean },
+): PublicPost {
   const archive = f.body.kind === 'legacy' ? POSTS.find((p) => p.slug === (f.body as { slug: string }).slug) : undefined;
   const excerpt =
     f.excerpt ||
@@ -47,6 +57,7 @@ function fromFields(f: PostFields, extra: { bio?: string; avatar?: string; previ
     authorBio: extra.bio,
     authorAvatar: extra.avatar,
     previousSlugs: extra.previous,
+    fromEditor: extra.fromEditor,
   };
 }
 
@@ -70,6 +81,7 @@ async function load(): Promise<PublicPost[]> {
     ...p,
     body: { kind: 'legacy', slug: p.slug },
     previousSlugs: [],
+    fromEditor: false,
   }));
   const live: PublicPost[] = stored
     .filter((p) => p.live)
@@ -79,6 +91,7 @@ async function load(): Promise<PublicPost[]> {
         bio: m?.bio || undefined,
         avatar: m?.avatar || undefined,
         previous: p.previousSlugs ?? [],
+        fromEditor: isFromEditor(p),
       });
     });
 

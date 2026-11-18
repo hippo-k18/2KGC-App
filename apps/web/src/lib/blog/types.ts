@@ -56,6 +56,17 @@ export interface BlogPostDoc {
   updatedBy: string;
 }
 
+/**
+ * Whether a post was written in the editor rather than brought across from the
+ * WordPress archive.
+ *
+ * Read from `legacySlug`, which is set when an archive post is first stored and
+ * never on a new one — not from `body.kind`. Saving an archive post in the
+ * editor turns its body from `legacy` into `doc`, but the text it carries is
+ * still the WordPress article, featured image and all.
+ */
+export const isFromEditor = (post: Pick<BlogPostDoc, 'legacySlug'>): boolean => !post.legacySlug;
+
 /** Defined in `@kgc/shared`, because the organizer dashboard manages the list. */
 export type { BlogMemberDoc } from '@kgc/shared';
 

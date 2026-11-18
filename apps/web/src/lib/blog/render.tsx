@@ -1,5 +1,28 @@
+import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { safeHref, sanitizeDoc, type Mark, type Node } from './doc';
+import type { Cover } from './types';
+
+/**
+ * The cover image at the head of an article, between the byline and the body.
+ *
+ * One component for the published page and the editor's preview, so what a
+ * writer previews is what readers get. The caller decides whether a post shows
+ * one at all (`isFromEditor`); this only draws it.
+ */
+export function PostCover({ cover }: { cover: Cover }) {
+  return (
+    <Image
+      src={cover.src}
+      alt=""
+      width={cover.width}
+      height={cover.height}
+      sizes="(width >= 1024px) 700px, 100vw"
+      priority
+      className="post-cover"
+    />
+  );
+}
 
 /**
  * A stored post body as React elements.
