@@ -290,7 +290,7 @@ export function CheckoutForm({
         merchCents={merchCents}
       />
 
-      <form action={action} className="checkout">
+      <form action={action} className="checkout ticket-form">
         <Title className="checkout-title">Register</Title>
 
         {shown.error && (

@@ -6793,6 +6793,106 @@ a.li-icon::after {
   font-size: 0.9rem;
 }
 
+/*
+ * The purchase form's vertical rhythm (T425): one gap between fields, one
+ * larger gap between sections.
+ *
+ * Three things added up to an uneven form once the registration questions
+ * showed. A hint is a `<p>`, so it carried the site's `1em` paragraph margin
+ * inside its field, which put about 50px under "Printed on the badge." and
+ * 16px under a select with no hint. The single buyer's fields sit straight in
+ * the `.seats` grid, so its 14px gap stacked on every field's own margin. And
+ * the merch block's 4px top margin collapsed into the field above, so "Add
+ * merch" sat as close to the consent box as two fields sit to each other.
+ *
+ * Scoped to the ticket form (`.ticket-form`) because `.field` and `.hint` are
+ * also the abstract portal's and the invoice form's, and `.checkout` is also
+ * the merch-only form on /tickets/merch.
+ */
+.ticket-form {
+  --form-gap: 24px;
+  --form-section: 32px;
+}
+
+.ticket-form .field {
+  margin-bottom: var(--form-gap);
+}
+
+.ticket-form .field .hint {
+  margin-bottom: 0;
+}
+
+/* One buyer: the fields are the grid's own children, so the gap is the field's. */
+.ticket-form .seats:not(:has(> .seat-card)) {
+  gap: 0;
+}
+
+.ticket-form .seats {
+  margin-bottom: var(--form-gap);
+}
+
+.ticket-form .seats > :last-child,
+.ticket-form .seat-card > :last-child {
+  margin-bottom: 0;
+}
+
+.ticket-form .seat-card {
+  padding-bottom: 16px;
+}
+
+.ticket-form .seats .tier-chosen,
+.ticket-form .seats .tier-choice {
+  margin-bottom: var(--form-gap);
+}
+
+.ticket-form .addon-choices {
+  margin: 0 0 var(--form-gap);
+}
+
+/* A section: merch, then the total. Each collapses with the field above it. */
+.ticket-form .merch-compact {
+  margin: var(--form-section) 0;
+}
+
+.ticket-form .summary {
+  margin-top: var(--form-section);
+}
+
+.ticket-form .summary + .summary {
+  margin-top: 0;
+}
+
+/*
+ * A tick box with a sentence beside it: the consent question, and any
+ * checkbox or multi-choice one. The words are set as the form's body copy,
+ * the size of the terms sentence above the pay button, not at the bold label
+ * size, which made a two-line consent read louder than every question on the
+ * page. The box sits on the first line rather than centred on the whole
+ * sentence, and is the same size and distance from its words as the add-on
+ * box at the top of the form.
+ */
+.ticket-form .field .check {
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 0;
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.ticket-form .field .check input[type='checkbox'] {
+  margin-top: calc((1lh - 20px) / 2);
+}
+
+.ticket-form .field .checks .check + .check {
+  margin-top: 8px;
+}
+
+.ticket-form .addon-choice input {
+  width: 20px;
+  height: 20px;
+}
+
 
 .tier-option:focus-within {
   outline: 2px solid var(--blue);
