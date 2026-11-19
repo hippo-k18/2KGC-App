@@ -3197,3 +3197,23 @@ describe('the event code prompt', () => {
     await assertFails(getDoc(doc(asOrg(), 'settings/access')));
   });
 });
+
+describe('blog review links', () => {
+  it('keep every review link and every draft closed to every client', async () => {
+    /*
+     * `blogReviewLinks/{token}` is the token itself, so reading the collection
+     * would hand out every unpublished draft that has a link. Like `blogPosts`,
+     * it is written and read by the website's Admin SDK alone and has no match
+     * block. Holding a token must not help either: a `get` by the token's id is
+     * the exact shape a leaked link would try.
+     */
+    const token = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    for (const db of [unauth(), asA(), asOrg()]) {
+      await assertFails(getDoc(doc(db, `blogReviewLinks/${token}`)));
+      await assertFails(getDocs(collection(db, 'blogReviewLinks')));
+      await assertFails(setDoc(doc(db, `blogReviewLinks/${token}`), { postId: 'p1' }));
+      await assertFails(getDoc(doc(db, 'blogPosts/p1')));
+      await assertFails(getDocs(collection(db, 'blogPosts')));
+    }
+  });
+});

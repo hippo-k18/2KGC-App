@@ -3,8 +3,9 @@ import * as rules from '@/lib/blog/access';
 import { currentViewer, requireViewer } from '@/lib/blog/auth';
 import { blogBase, blogOrigin } from '@/lib/blog/paths';
 import { categoriesOf, publicPosts } from '@/lib/blog/public';
-import { facts, findPost } from '@/lib/blog/store';
+import { currentReviewLink, facts, findPost } from '@/lib/blog/store';
 import { getPostBody } from '@/lib/post-content';
+import { formatPostDate } from '@/lib/posts';
 import { statusClass } from '../post-list';
 import { PostEditor } from './editor';
 
@@ -23,6 +24,11 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
   const f = facts(post);
   const legacyHtml = post.draft.body.kind === 'legacy' ? (getPostBody(post.draft.body.slug) ?? '') : null;
   const categories = categoriesOf(await publicPosts()).map((c) => c.name);
+  const link = rules.canRevokeReviewLink(viewer, f) ? await currentReviewLink(post) : null;
+  // Formatted here, in UTC, so the server and the browser print the same day.
+  const reviewLink = link
+    ? { url: link.url, expired: link.expired, expiresLabel: formatPostDate(new Date(link.expiresAt).toISOString().slice(0, 10)) }
+    : null;
 
   return (
     <PostEditor
@@ -40,6 +46,7 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
       reviewNoteBy={post.reviewNoteBy}
       isArchive={Boolean(post.legacySlug)}
       categorySuggestions={categories}
+      reviewLink={reviewLink}
       can={{
         editor: rules.isEditor(viewer),
         canEdit: rules.canEdit(viewer, f),
@@ -50,6 +57,8 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
         canDiscard: rules.canDiscardDraft(viewer, f),
         canDelete: rules.canDelete(viewer, f) && !post.legacySlug,
         canChangeSlug: rules.canChangeSlug(viewer, f),
+        canShare: rules.canShareForReview(viewer, f),
+        canRevokeShare: rules.canRevokeReviewLink(viewer, f),
       }}
     />
   );

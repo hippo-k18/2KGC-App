@@ -12,10 +12,12 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { slugify, type Cover, type PostFields } from '@/lib/blog/types';
 import {
+  createReviewLinkAction,
   deletePostAction,
   discardDraftAction,
   publishAction,
   requestChangesAction,
+  revokeReviewLinkAction,
   saveDraftAction,
   submitAction,
   unpublishAction,
@@ -34,6 +36,16 @@ export interface EditorPermissions {
   canDiscard: boolean;
   canDelete: boolean;
   canChangeSlug: boolean;
+  canShare: boolean;
+  canRevokeShare: boolean;
+}
+
+/** The post's review link, as the server last saw it. */
+export interface ReviewLinkProps {
+  url: string;
+  expired: boolean;
+  /** "18 December 2026", formatted on the server. */
+  expiresLabel: string;
 }
 
 export interface EditorProps {
@@ -52,6 +64,7 @@ export interface EditorProps {
   reviewNoteBy?: string;
   isArchive: boolean;
   categorySuggestions: string[];
+  reviewLink: ReviewLinkProps | null;
   can: EditorPermissions;
 }
 
@@ -268,6 +281,21 @@ export function PostEditor(props: EditorProps) {
     showToast(done);
     setEditedSinceLoad(false);
     after?.(res);
+    router.refresh();
+  }
+
+  /**
+   * Turning a review link off does not go through `act`, which saves first and
+   * stops if the save fails. A link that has leaked must stop working even when
+   * the draft cannot be saved (a slug already in use, a stale tab), and the
+   * revoke does not depend on the draft's content.
+   */
+  async function revokeLink() {
+    setBusy(true);
+    const res = await revokeReviewLinkAction(id);
+    setBusy(false);
+    if (!res.ok) return showToast(res.error, true);
+    showToast('Review link turned off');
     router.refresh();
   }
 
@@ -502,6 +530,18 @@ export function PostEditor(props: EditorProps) {
               </div>
             )}
           </div>
+
+          {(can.canShare || (can.canRevokeShare && props.reviewLink)) && (
+            <ReviewLinkPanel
+              link={props.reviewLink}
+              canCreate={can.canShare}
+              busy={busy}
+              onCreate={() => act(() => createReviewLinkAction(id), 'Review link ready')}
+              onRevoke={() => void revokeLink()}
+              onCopied={() => showToast('Link copied')}
+              onCopyFailed={() => showToast('Could not copy. Select the link and copy it instead.', true)}
+            />
+          )}
         </aside>
       </div>
 
@@ -780,6 +820,96 @@ function Toolbar({ editor, onError }: { editor: Editor; onError: (m: string) => 
 }
 
 // ── Settings fields ─────────────────────────────────────────────────────────
+
+/**
+ * "Share for review": one private link to a read-only copy of the draft.
+ * The rules — who, how long, what ends it — are in `@/lib/blog/review-link`.
+ * The copy here says what the link does, because a writer deciding whether to
+ * paste it into an email needs to know who it will reach.
+ */
+function ReviewLinkPanel({
+  link,
+  canCreate,
+  busy,
+  onCreate,
+  onRevoke,
+  onCopied,
+  onCopyFailed,
+}: {
+  link: ReviewLinkProps | null;
+  canCreate: boolean;
+  busy: boolean;
+  onCreate: () => void;
+  onRevoke: () => void;
+  onCopied: () => void;
+  onCopyFailed: () => void;
+}) {
+  const active = link && !link.expired ? link : null;
+  const copy = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      onCopied();
+    } catch {
+      onCopyFailed();
+    }
+  };
+
+  return (
+    <div className="st-panel" style={{ marginTop: 16 }}>
+      <h2>Share for review</h2>
+      <p className="st-muted" style={{ fontSize: 14, margin: '0 0 12px' }}>
+        Anyone with the link can read this draft without signing in. They cannot change it. The link stops working
+        after 30 days, when you turn it off, or when the post is published, unpublished, discarded or deleted.
+      </p>
+
+      {active ? (
+        <>
+          <input
+            className="st-input"
+            readOnly
+            value={active.url}
+            aria-label="Review link"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <p className="st-muted" style={{ fontSize: 14, margin: '8px 0 12px' }}>
+            Works until {active.expiresLabel}.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button className="st-btn" onClick={() => void copy(active.url)}>
+              Copy link
+            </button>
+            {canCreate && (
+              <button className="st-btn st-btn-quiet" disabled={busy} onClick={onCreate}>
+                Replace link
+              </button>
+            )}
+            <button className="st-btn st-btn-quiet st-btn-danger" disabled={busy} onClick={onRevoke}>
+              Turn off link
+            </button>
+          </div>
+          {canCreate && (
+            <p className="st-muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
+              Replacing it makes a new link and stops the old one.
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          {link?.expired && (
+            <p className="st-muted" style={{ fontSize: 14, margin: '0 0 12px' }}>
+              The last link expired on {link.expiresLabel}.
+            </p>
+          )}
+          {canCreate && (
+            <button className="st-btn" disabled={busy} onClick={onCreate}>
+              Create review link
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 function CoverPicker({
   cover,

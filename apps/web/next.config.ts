@@ -1,6 +1,7 @@
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { NextConfig } from 'next';
+import { REVIEW_LINK_HEADERS, REVIEW_LINK_SOURCES } from './src/lib/blog/review-link';
 
 /**
  * Same shape as `apps/organizer/next.config.ts`, and for the same reasons — see
@@ -132,6 +133,9 @@ const nextConfig: NextConfig = {
         source: '/api/stripe/webhook',
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
+      // A review link shows an unpublished draft. After the site-wide entry,
+      // because the last match wins: see `src/lib/blog/review-link.ts`.
+      ...REVIEW_LINK_SOURCES.map((source) => ({ source, headers: REVIEW_LINK_HEADERS })),
     ];
   },
 

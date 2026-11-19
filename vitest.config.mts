@@ -29,6 +29,13 @@ import { defineConfig } from 'vitest/config';
  * Vite's native config loader warns on ESM in a file it has to treat as CommonJS.
  */
 export default defineConfig({
+  /*
+   * JSX compiled for React, not preserved. `apps/web/tsconfig.json` says
+   * `"jsx": "preserve"` because Next compiles it later, and Vite follows the
+   * nearest tsconfig, so a website component reached Node as raw JSX and could
+   * not be rendered in a test.
+   */
+  oxc: { jsx: { runtime: 'automatic' } },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, 'app/src'),

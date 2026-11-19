@@ -81,6 +81,16 @@ export const canChangeSlug = (v: Viewer, p: PostAccessFacts) =>
 
 export const canManagePeople = (v: Viewer) => isEditor(v);
 
+/**
+ * Create a review link to the draft. Whoever may read the draft may show it to
+ * somebody else — but only while there is a draft that differs from what is
+ * published, because publishing ends every link (see `review-link.ts`).
+ */
+export const canShareForReview = (v: Viewer, p: PostAccessFacts) => canView(v, p) && p.draftState !== 'none';
+
+/** Revoke one. Never blocked by the post's state: stopping a link must always work. */
+export const canRevokeReviewLink = (v: Viewer, p: PostAccessFacts) => canView(v, p);
+
 /** The label a post carries in the editor's list. */
 export function statusLabel(p: Pick<PostAccessFacts, 'isLive' | 'draftState'>): string {
   if (p.draftState === 'review') return p.isLive ? 'Edits in review' : 'In review';

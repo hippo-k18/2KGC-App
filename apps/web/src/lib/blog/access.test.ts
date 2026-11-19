@@ -71,3 +71,31 @@ describe('status labels', () => {
     expect(r.statusLabel({ isLive: false, draftState: 'changes' })).toBe('Changes requested');
   });
 });
+
+describe('review links', () => {
+  it('are created and revoked by the post’s writer and by editors, nobody else', () => {
+    expect(r.canShareForReview(writer, post())).toBe(true);
+    expect(r.canShareForReview(editor, post())).toBe(true);
+    expect(r.canShareForReview(other, post())).toBe(false);
+    expect(r.canRevokeReviewLink(writer, post())).toBe(true);
+    expect(r.canRevokeReviewLink(editor, post())).toBe(true);
+    expect(r.canRevokeReviewLink(other, post())).toBe(false);
+  });
+
+  it('can still be shared while in review, because the link is read-only', () => {
+    expect(r.canShareForReview(writer, post({ draftState: 'review' }))).toBe(true);
+  });
+
+  it('cannot be created when nothing is unpublished, but can always be revoked', () => {
+    const published = post({ isLive: true, everPublished: true, draftState: 'none' });
+    expect(r.canShareForReview(writer, published)).toBe(false);
+    expect(r.canShareForReview(editor, published)).toBe(false);
+    expect(r.canRevokeReviewLink(writer, published)).toBe(true);
+  });
+
+  it('are not open to writers on archive posts', () => {
+    const archive = post({ authorEmail: null, isLive: true, everPublished: true, draftState: 'editing' });
+    expect(r.canShareForReview(writer, archive)).toBe(false);
+    expect(r.canShareForReview(editor, archive)).toBe(true);
+  });
+});
