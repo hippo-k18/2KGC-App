@@ -207,3 +207,71 @@ export function parseStatusFilter(raw: string | string[] | undefined): ChangeReq
 export function newCountLabel(count: number): string | undefined {
   return count > 0 ? `${count > 99 ? '99+' : count} new` : undefined;
 }
+
+/* ───────────────────── the public list on /request (T433) ─────────────────────
+ * Owner, 2026-11-19: "on the request page list requests that have been made
+ * and their status". Anyone can read it, so only four things leave the
+ * server: an id, a short plain summary, the status and the day it was sent.
+ * Never the sender, the IP hash, the note, the page link or the screenshots.
+ */
+
+/** How many the public list shows, newest first. */
+export const PUBLIC_LIST_MAX = 50;
+/** The summary's length before it is cut at a word. */
+export const PUBLIC_SUMMARY_MAX = 140;
+/** Seconds the public list is cached, so the page cannot be used to hammer Firestore. */
+export const PUBLIC_LIST_REVALIDATE = 60;
+/** The cache tag a status or visibility change clears, so the owner sees it at once. */
+export const PUBLIC_LIST_TAG = 'public-change-requests';
+
+/** One request as the public sees it. Nothing else is ever on it. */
+export interface PublicChangeRequest {
+  id: string;
+  summary: string;
+  status: Exclude<ChangeRequestStatus, 'declined'>;
+  sentMs: number;
+}
+
+/**
+ * The first `max` characters of a description as one line of plain text,
+ * cut at a word with an ellipsis. React escapes it on the page; this only
+ * shortens it.
+ */
+export function publicSummary(description: string, max = PUBLIC_SUMMARY_MAX): string {
+  const flat = description.replace(/\s+/g, ' ').trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?-]+$/, '')}…`;
+}
+
+/** The fields the public row is built from. Anything else on the doc is ignored. */
+export interface PublicSource {
+  description?: unknown;
+  status?: unknown;
+  hiddenFromPublic?: unknown;
+  createdAtMs: number;
+}
+
+/** The public row for one request, or null when it must not be listed: declined, hidden, or empty. */
+export function toPublicChangeRequest(id: string, d: PublicSource): PublicChangeRequest | null {
+  if (d.hiddenFromPublic === true) return null;
+  if (!isStatus(d.status) || d.status === 'declined') return null;
+  const summary = publicSummary(typeof d.description === 'string' ? d.description : '');
+  if (!summary) return null;
+  return { id, summary, status: d.status, sentMs: d.createdAtMs };
+}
+
+/** Newest first, the listable ones only, at most `PUBLIC_LIST_MAX`. */
+export function publicChangeRequests(rows: { id: string; source: PublicSource }[]): PublicChangeRequest[] {
+  return rows
+    .map((r) => toPublicChangeRequest(r.id, r.source))
+    .filter((r): r is PublicChangeRequest => r !== null)
+    .sort((a, b) => b.sentMs - a.sentMs)
+    .slice(0, PUBLIC_LIST_MAX);
+}
+
+/** "Nov 19, 2026", in the conference's time zone. */
+export function publicSentDate(ms: number, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone }).format(new Date(ms));
+}

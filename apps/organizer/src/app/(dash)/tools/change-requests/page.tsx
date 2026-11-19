@@ -50,6 +50,8 @@ export default async function ChangeRequestsPage({
         <>
           Small changes people asked for on the public form, which needs no sign-in. The sender gets one email
           when you mark a request Built and one when you mark it Live, never more. Notes are for the team only.
+          Every request except declined ones is listed on the form page with its short description, status and
+          date, never the sender. Untick Show on public list on a request to take it off.
         </>
       }
       links={[
@@ -108,7 +110,10 @@ export default async function ChangeRequestsPage({
               {r.description}
               {r.screenshots.length ? ` (${r.screenshots.length} screenshot${r.screenshots.length > 1 ? 's' : ''})` : ''}
             </Link>,
-            <ChangeStatusTag key="s" status={r.status} />,
+            <span key="s">
+              <ChangeStatusTag status={r.status} />
+              {r.hiddenFromPublic && r.status !== 'declined' ? <span className="muted change-hidden-note">Hidden</span> : null}
+            </span>,
           ])}
           empty={
             <EmptyState compact>

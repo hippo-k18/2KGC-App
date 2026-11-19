@@ -1969,6 +1969,11 @@ export interface ChangeRequestDoc {
   ipHash?: string;
   /** Who last changed the status or note, by dashboard email. */
   updatedBy?: string;
+  /**
+   * True when an owner took it off the public list on `/request` (T433).
+   * Missing means shown: the list is opt-out, so spam text can be hidden.
+   */
+  hiddenFromPublic?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

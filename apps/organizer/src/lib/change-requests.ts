@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createHmac } from 'node:crypto';
 import { FieldValue, Timestamp, type Firestore as AdminFirestore } from 'firebase-admin/firestore';
+import { unstable_cache } from 'next/cache';
 import { COLLECTIONS, type ChangeRequestDoc, type ChangeRequestStatus } from '@kgc/shared';
 import { sendChangeRequestBuilt, sendChangeRequestLive, type SendOutcome } from '@kgc/scripts/src/lib/email';
 import { limitId, perHourAndDay, takeAllowance } from '@kgc/scripts/src/lib/rate-limit';
@@ -9,12 +10,16 @@ import {
   CHANGE_REQUEST_CAPS,
   capKey,
   NOTE_MAX,
+  PUBLIC_LIST_REVALIDATE,
+  PUBLIC_LIST_TAG,
   emailForTransition,
+  publicChangeRequests,
   isStatus,
   screenshotPath,
   screenshotType,
   type ChangeEmail,
   type CleanSubmission,
+  type PublicChangeRequest,
 } from './change-requests-core';
 import { recordError } from './errors';
 import { db } from './firestore';
@@ -118,6 +123,8 @@ export interface ChangeRequestRow {
   notes?: string;
   emailed: { built?: number; live?: number };
   updatedBy?: string;
+  /** True when an owner took it off the public list on `/request` (T433). */
+  hiddenFromPublic: boolean;
   createdAtMs: number;
   updatedAtMs: number;
 }
@@ -138,6 +145,7 @@ function toRow(id: string, d: ChangeRequestDoc): ChangeRequestRow {
       ...(d.emailed?.live ? { live: ms(d.emailed.live) } : {}),
     },
     updatedBy: d.updatedBy,
+    hiddenFromPublic: d.hiddenFromPublic === true,
     createdAtMs: ms(d.createdAt),
     updatedAtMs: ms(d.updatedAt),
   };
@@ -253,4 +261,65 @@ export async function readScreenshot(id: string, index: number): Promise<{ bytes
   if (!path) return null;
   const bytes = await readPrivateObject(path);
   return bytes ? { bytes, path } : null;
+}
+
+/**
+ * Show or hide one request on the public list (T433). The guard against spam
+ * text reaching `/request`: a hidden request is never listed there.
+ */
+export async function setChangeRequestPublic(id: string, show: boolean, actor: string): Promise<boolean> {
+  try {
+    await col().doc(id).update({
+      hiddenFromPublic: show ? FieldValue.delete() : true,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: actor,
+    });
+    return true;
+  } catch (err) {
+    recordError('change-requests.public', err);
+    return false;
+  }
+}
+
+/**
+ * Read the newest requests and keep only what the public may see. Reads a
+ * few more than it shows, so hidden and declined ones do not shorten the
+ * list; no `where`, so no composite index. Only the description, status,
+ * hidden flag and date are passed on: the row is built from those alone.
+ */
+async function readPublicList(): Promise<PublicChangeRequest[]> {
+  const snap = await col().orderBy('createdAt', 'desc').limit(200).get();
+  return publicChangeRequests(
+    snap.docs.map((d) => {
+      const data = d.data() as Partial<ChangeRequestDoc>;
+      return {
+        id: d.id,
+        source: {
+          description: data.description,
+          status: data.status,
+          hiddenFromPublic: data.hiddenFromPublic,
+          createdAtMs: ms(data.createdAt),
+        },
+      };
+    }),
+  );
+}
+
+const cachedPublicList = unstable_cache(readPublicList, ['public-change-requests-v1'], {
+  revalidate: PUBLIC_LIST_REVALIDATE,
+  tags: [PUBLIC_LIST_TAG],
+});
+
+/**
+ * The public list, from a cache that refills at most once a minute, or when
+ * an owner changes a status or hides a request. A failed read is not cached:
+ * it throws out of the cache and the page shows its "could not load" line.
+ */
+export async function listPublicChangeRequests(): Promise<PublicChangeRequest[] | null> {
+  try {
+    return await cachedPublicList();
+  } catch (err) {
+    recordError('change-requests.public-list', err);
+    return null;
+  }
 }

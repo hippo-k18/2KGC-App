@@ -2,11 +2,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { TIME_ZONE } from '@kgc/shared';
 import { requireOrganizer } from '@/lib/auth';
-import { CHANGE_REQUESTS_PATH, NOTE_MAX, STATUSES, STATUS_LABEL } from '@/lib/change-requests-core';
+import { CHANGE_REQUESTS_PATH, CHANGE_REQUEST_FORM_PATH, NOTE_MAX, STATUSES, STATUS_LABEL } from '@/lib/change-requests-core';
 import { getChangeRequest } from '@/lib/change-requests';
 import { formatWhen } from '@/lib/email-log-core';
 import { Banner, DetailList, Email, PageHeader, Panel } from '../../../ui';
-import { saveChangeRequestNoteAction, setChangeRequestStatusAction } from '../actions';
+import { saveChangeRequestNoteAction, setChangeRequestPublicAction, setChangeRequestStatusAction } from '../actions';
 import { ChangeStatusTag } from '../status-tag';
 
 export const dynamic = 'force-dynamic';
@@ -62,8 +62,18 @@ export default async function ChangeRequestPage({
         <Banner kind="success">Status saved. No email was due for this change.</Banner>
       ) : saved === 'note' ? (
         <Banner kind="success">Note saved.</Banner>
+      ) : saved === 'shown' ? (
+        <Banner kind="success">Shown on the public list. It can take a minute to appear.</Banner>
+      ) : saved === 'hidden' ? (
+        <Banner kind="success">Hidden from the public list.</Banner>
       ) : error ? (
-        <Banner kind="danger">{error === 'note' ? 'The note could not be saved. Try again.' : 'The status could not be saved. Try again.'}</Banner>
+        <Banner kind="danger">
+          {error === 'note'
+            ? 'The note could not be saved. Try again.'
+            : error === 'public'
+              ? 'The public list setting could not be saved. Try again.'
+              : 'The status could not be saved. Try again.'}
+        </Banner>
       ) : null}
 
       <Panel>
@@ -82,6 +92,7 @@ export default async function ChangeRequestPage({
                 <span className="muted">Not given</span>
               ),
             },
+            { label: 'Public list', value: row.status === 'declined' ? <span className="muted">Not listed (declined)</span> : row.hiddenFromPublic ? <span className="muted">Hidden</span> : 'Shown' },
             { label: 'Emails sent', value: emailedLine.length ? emailedLine.join(' · ') : <span className="muted">None yet</span> },
             ...(row.updatedBy ? [{ label: 'Last changed by', value: `${row.updatedBy}, ${formatWhen(row.updatedAtMs, TIME_ZONE)}` }] : []),
           ]}
@@ -129,6 +140,26 @@ export default async function ChangeRequestPage({
           </label>
           <button type="submit" className="whova-btn-main primary">
             Save status
+          </button>
+        </form>
+      </Panel>
+
+      <Panel>
+        <form action={setChangeRequestPublicAction}>
+          <input type="hidden" name="id" value={row.id} />
+          <div className="whova-form-group">
+            <label className="change-public-toggle">
+              <input type="checkbox" name="public" defaultChecked={!row.hiddenFromPublic} key={String(row.hiddenFromPublic)} />
+              Show on public list
+            </label>
+            <div className="whova-checkbox-description">
+              {row.status === 'declined'
+                ? 'Declined requests are never listed, whatever this says.'
+                : <>The short description, status and date show at <a href={CHANGE_REQUEST_FORM_PATH} target="_blank" rel="noreferrer">{CHANGE_REQUEST_FORM_PATH}</a>. Never the sender, the note or the screenshots.</>}
+            </div>
+          </div>
+          <button type="submit" className="whova-btn-main">
+            Save
           </button>
         </form>
       </Panel>
