@@ -23,13 +23,21 @@ import type { DraftState } from './access';
  *
  * ── When it stops working ──────────────────────────────────────────────────
  *
- * Revoked, replaced by a new link, expired (30 days), post deleted, or post
- * published — publishing revokes it, and a post with nothing unpublished has
- * nothing to review. Every one of those is the same 404, so a dead link does
- * not say it ever existed.
+ * Turned off, replaced by a new link, expired (30 days), or the post published,
+ * unpublished, discarded back to its live version, or deleted. Each of those
+ * four post changes deletes the link, and the page also refuses a post with
+ * nothing unpublished, so a link left behind shows nothing. Every one of those
+ * is the same 404, so a dead link does not say it ever existed.
+ *
+ * Unpublishing ends it too, although the post becomes a draft again: taking a
+ * post down is often urgent, and it should take every copy down at once. The
+ * writer can make a new link afterwards.
  *
  * ⚠️ The accepted threat: the link is a bearer credential. Forward the email
  * and you forward the draft. Revocation and expiry bound it; nothing detects it.
+ * It is tied to the post, not to the person who made it: removing a writer
+ * from the blog leaves their links working until they expire, unless an editor
+ * turns them off.
  *
  * Pure apart from `randomBytes`, so the rules below are tested without a
  * database, and `next.config.ts` can import the header list.

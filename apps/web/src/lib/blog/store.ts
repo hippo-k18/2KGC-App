@@ -430,11 +430,14 @@ export async function unpublish(viewer: Viewer, id: string): Promise<void> {
     const { ref, post, exists } = await loadForWrite(tx, id);
     if (!rules.canUnpublish(viewer, facts(post))) throw new BlogError('This post is not published.');
     const now = Date.now();
+    // Taking a post down takes its review link down with it (see `review-link.ts`).
+    if (post.reviewLinkId) tx.delete(reviewLinks().doc(post.reviewLinkId));
     tx.set(
       ref,
       stripId({
         ...post,
         live: null,
+        reviewLinkId: undefined,
         draftState: post.draftState === 'none' ? 'editing' : post.draftState,
         updatedAt: now,
         updatedBy: viewer.email,
@@ -514,9 +517,8 @@ export async function createReviewLink(viewer: Viewer, id: string): Promise<{ ur
     if (!snap.exists) throw new BlogError('There is no unpublished draft to share.');
     const post = toStored(id, snap.data() as BlogPostDoc);
     if (!rules.canShareForReview(viewer, facts(post))) {
-      throw new BlogError(
-        rules.canView(viewer, facts(post)) ? 'There is no unpublished draft to share.' : 'You cannot share this post.',
-      );
+      // One message whether or not the caller may see the post, so it does not say which ids exist.
+      throw new BlogError('There is no unpublished draft to share.');
     }
     if (post.reviewLinkId) tx.delete(reviewLinks().doc(post.reviewLinkId));
     const now = Date.now();

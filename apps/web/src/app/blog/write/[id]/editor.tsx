@@ -284,6 +284,21 @@ export function PostEditor(props: EditorProps) {
     router.refresh();
   }
 
+  /**
+   * Turning a review link off does not go through `act`, which saves first and
+   * stops if the save fails. A link that has leaked must stop working even when
+   * the draft cannot be saved (a slug already in use, a stale tab), and the
+   * revoke does not depend on the draft's content.
+   */
+  async function revokeLink() {
+    setBusy(true);
+    const res = await revokeReviewLinkAction(id);
+    setBusy(false);
+    if (!res.ok) return showToast(res.error, true);
+    showToast('Review link turned off');
+    router.refresh();
+  }
+
   const [dialog, setDialog] = useState<null | 'changes' | 'unpublish' | 'delete' | 'discard'>(null);
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -522,7 +537,7 @@ export function PostEditor(props: EditorProps) {
               canCreate={can.canShare}
               busy={busy}
               onCreate={() => act(() => createReviewLinkAction(id), 'Review link ready')}
-              onRevoke={() => act(() => revokeReviewLinkAction(id), 'Review link turned off')}
+              onRevoke={() => void revokeLink()}
               onCopied={() => showToast('Link copied')}
               onCopyFailed={() => showToast('Could not copy. Select the link and copy it instead.', true)}
             />
@@ -844,7 +859,7 @@ function ReviewLinkPanel({
       <h2>Share for review</h2>
       <p className="st-muted" style={{ fontSize: 14, margin: '0 0 12px' }}>
         Anyone with the link can read this draft without signing in. They cannot change it. The link stops working
-        after 30 days, when the post is published, or when you turn it off.
+        after 30 days, when you turn it off, or when the post is published, unpublished, discarded or deleted.
       </p>
 
       {active ? (

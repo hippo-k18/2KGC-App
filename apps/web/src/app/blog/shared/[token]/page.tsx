@@ -39,8 +39,9 @@ export default async function SharedDraftPage({ params }: { params: Promise<{ to
       coverSizes={DRAFT_COVER_SIZES}
       banner={
         <p className="notice" role="note">
-          <strong>Draft shared for review. It is not published.</strong> It may still change, and this
-          link stops working when the post is published or the writer turns it off.
+          <strong>Draft shared for review. It is not published.</strong> It may still change. This link
+          stops working when it expires, is turned off or replaced, or when the post is published,
+          unpublished, discarded or deleted.
         </p>
       }
     />
