@@ -1601,9 +1601,27 @@ select[multiple].whova-text-input {
   white-space: nowrap;
 }
 
+/* Visually hidden, still focusable and named; the label below is what shows. */
 .request-file-input {
-  font-size: 14px;
-  max-width: 100%;
+  border: 0;
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.request-card .request-file-button {
+  cursor: pointer;
+  display: inline-flex;
+}
+
+.request-file-input:focus-visible + .request-file-button {
+  outline: 2px solid var(--interactive);
+  outline-offset: 2px;
 }
 
 /* Off screen rather than display:none, which some bots check for. */

@@ -195,7 +195,7 @@ export function RequestForm() {
         <div className="whova-form-label">
           <label htmlFor="screenshots">Screenshots</label>
         </div>
-        <div className="whova-checkbox-description request-hint">
+        <div id="screenshots-hint" className="whova-checkbox-description request-hint">
           Up to {MAX_SCREENSHOTS}, PNG, JPEG or WebP, {SCREENSHOT_MAX_BYTES / MB} MB each.
         </div>
         {files.length ? (
@@ -229,8 +229,20 @@ export function RequestForm() {
             accept={SCREENSHOT_ACCEPT}
             multiple
             className="request-file-input"
+            aria-describedby="screenshots-hint"
             onChange={(e) => pick(e.target.files)}
           />
+        ) : null}
+        {/*
+          The native control is visually hidden, not removed: it keeps its
+          focus, its keyboard and its screen-reader name, and this label is
+          the part a person sees. Its "No file chosen" text never shows beside
+          a list that says otherwise (gate T429).
+        */}
+        {files.length < MAX_SCREENSHOTS ? (
+          <label htmlFor="screenshots" className="whova-btn-main secondary request-file-button">
+            {files.length ? 'Add another screenshot' : 'Choose screenshots'}
+          </label>
         ) : null}
         {errors.screenshots ? <p className="whova-form-error-message">{errors.screenshots}</p> : null}
       </div>

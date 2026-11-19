@@ -18,6 +18,15 @@ export const CHANGE_REQUEST_FORM_PATH = '/request';
 /** The upload route the form posts to. Kept out of the middleware's matcher with the form. */
 export const CHANGE_REQUEST_API_PATH = '/api/change-requests';
 
+/**
+ * The policy a screenshot is served with: nothing may load or run, and the
+ * framing rule the rest of the dashboard sends. `next.config.ts` sets it on
+ * the screenshot path, after the global rule, so it is the one that arrives.
+ */
+export const SHOT_CSP = "default-src 'none'; sandbox; frame-ancestors 'self'";
+/** The route pattern `next.config.ts` applies `SHOT_CSP` to. */
+export const SHOT_ROUTE_SOURCE = '/tools/change-requests/:id/shot/:n';
+
 export const DESCRIPTION_MAX = 4000;
 export const EMAIL_MAX = 254;
 export const PAGE_URL_MAX = 2000;
@@ -54,6 +63,19 @@ export function isValidEmail(raw: string): boolean {
   const email = raw.trim();
   if (!email || email.length > EMAIL_MAX) return false;
   return /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[a-z]{2,}$/i.test(email);
+}
+
+/**
+ * The sender as the per-email cap counts them: lower case, with any `+tag`
+ * dropped from the local part, so `ada+1@x.com` and `ada+2@x.com` share
+ * Ada's five an hour. Only for counting; the stored address is as typed.
+ */
+export function capKey(email: string): string {
+  const e = email.trim().toLowerCase();
+  const at = e.lastIndexOf('@');
+  if (at <= 0) return e;
+  const local = e.slice(0, at).split('+')[0] || e.slice(0, at);
+  return `${local}@${e.slice(at + 1)}`;
 }
 
 /** A page link, when one is given: http or https only, so a `javascript:` link never reaches the screen. */

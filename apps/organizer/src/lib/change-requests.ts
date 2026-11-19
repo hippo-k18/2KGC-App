@@ -7,6 +7,7 @@ import { sendChangeRequestBuilt, sendChangeRequestLive, type SendOutcome } from 
 import { limitId, perHourAndDay, takeAllowance } from '@kgc/scripts/src/lib/rate-limit';
 import {
   CHANGE_REQUEST_CAPS,
+  capKey,
   NOTE_MAX,
   emailForTransition,
   isStatus,
@@ -42,12 +43,24 @@ function ipHash(ip: string | undefined): string | undefined {
   return createHmac('sha256', key).update(`change-request:${ip}`).digest('hex').slice(0, 32);
 }
 
-/** One more request from this address and this IP, or false when either is full. Fails closed. */
-export async function changeRequestAllowed(email: string, ip: string | undefined): Promise<boolean> {
-  const caps = perHourAndDay(CHANGE_REQUEST_CAPS.perHour, CHANGE_REQUEST_CAPS.perDay);
+const capsFor = () => perHourAndDay(CHANGE_REQUEST_CAPS.perHour, CHANGE_REQUEST_CAPS.perDay);
+
+/**
+ * One more request from this IP, or false when it is full. Taken from the
+ * headers BEFORE the body is read (T430), so a capped IP cannot keep sending
+ * 15 MB bodies. No IP (a local run with no proxy) skips this dimension only.
+ * Fails closed, like every caller of `takeAllowance`.
+ */
+export async function changeRequestIpAllowed(ip: string | undefined): Promise<boolean> {
   return takeAllowance(db() as unknown as AdminFirestore, [
-    { id: limitId('changeRequest', 'email', email), kind: 'change-request-email', caps },
-    { id: ip ? limitId('changeRequest', 'ip', ip) : undefined, kind: 'change-request-ip', caps },
+    { id: ip ? limitId('changeRequest', 'ip', ip) : undefined, kind: 'change-request-ip', caps: capsFor() },
+  ]);
+}
+
+/** One more request from this sender, counted as `capKey` folds it (`a+x@y` is `a@y`). */
+export async function changeRequestEmailAllowed(email: string): Promise<boolean> {
+  return takeAllowance(db() as unknown as AdminFirestore, [
+    { id: limitId('changeRequest', 'email', capKey(email)), kind: 'change-request-email', caps: capsFor() },
   ]);
 }
 

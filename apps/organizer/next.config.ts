@@ -94,6 +94,16 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         ],
       },
+      {
+        // A change request screenshot (T428). Its own CSP, which the route
+        // sets too: Next applies these after the route's headers, so without
+        // this entry the global one above replaced it (gate T429). Later
+        // entries win for the same key. Spelled out rather than imported, so
+        // the config loads nothing from `src/`; `change-requests-core.test.ts`
+        // checks these two strings match SHOT_ROUTE_SOURCE and SHOT_CSP.
+        source: '/tools/change-requests/:id/shot/:n',
+        headers: [{ key: 'Content-Security-Policy', value: "default-src 'none'; sandbox; frame-ancestors 'self'" }],
+      },
     ];
   },
 
