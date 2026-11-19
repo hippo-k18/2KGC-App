@@ -49,6 +49,8 @@ export interface BlogPostDoc {
   previousSlugs?: string[];
   reviewNote?: string;
   reviewNoteBy?: string;
+  /** The token of this post's one active review link, if it has one. See `review-link.ts`. */
+  reviewLinkId?: string;
   submittedAt?: Date;
   publishedAt?: Date;
   createdAt: Date;
@@ -73,6 +75,14 @@ export interface BlogPostDoc {
  */
 export const isFromEditor = (post: Pick<BlogPostDoc, 'legacySlug'>): boolean => !post.legacySlug;
 
+/** `blogReviewLinks/{token}`. The token is the document id and appears nowhere else but the post. */
+export interface BlogReviewLinkDoc {
+  postId: string;
+  createdBy: string;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
 /** Defined in `@kgc/shared`, because the organizer dashboard manages the list. */
 export type { BlogMemberDoc } from '@kgc/shared';
 
@@ -89,6 +99,7 @@ export interface StoredPost extends Omit<BlogPostDoc, 'submittedAt' | 'published
 export const RESERVED_SLUGS = new Set([
   'write', 'media', 'feed', 'rss', 'rss.xml', 'feed.xml', 'page', 'category', 'tag', 'tags',
   'author', 'authors', 'api', 'search', 'admin', 'login', 'sign-in', 'new', 'drafts',
+  'shared',
 ]);
 
 export function slugify(title: string): string {

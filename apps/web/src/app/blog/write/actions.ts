@@ -94,6 +94,14 @@ export async function discardDraftAction(id: string) {
   return run(async (v) => (await store.discardDraft(v, id), {}));
 }
 
+export async function createReviewLinkAction(id: string) {
+  return run(async (v) => store.createReviewLink(v, id));
+}
+
+export async function revokeReviewLinkAction(id: string) {
+  return run(async (v) => (await store.revokeReviewLink(v, id), {}));
+}
+
 export async function deletePostAction(id: string) {
   const path = await go('/write');
   return run(async (v) => (await store.deletePost(v, id), { go: path }));

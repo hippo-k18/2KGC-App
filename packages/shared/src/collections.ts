@@ -196,6 +196,13 @@ export const COLLECTIONS = {
   /** One pending blog sign-in code per address, stored hashed. Server-only. */
   blogSignInCodes: "blogSignInCodes",
   /**
+   * Review links: `blogReviewLinks/{token}` lets whoever holds the token read
+   * one post's draft without signing in. Server-only, like `blogPosts`, and the
+   * token is the document id so a revoke is a delete. See
+   * `apps/web/src/lib/blog/review-link.ts`.
+   */
+  blogReviewLinks: "blogReviewLinks",
+  /**
    * One pending organizer-dashboard code per address, stored hashed: to sign
    * in, or `{email}__confirm` to confirm a refund, erasure or mass send.
    * Server-only.

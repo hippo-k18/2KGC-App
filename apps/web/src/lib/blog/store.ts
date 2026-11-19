@@ -2,21 +2,25 @@ import 'server-only';
 
 import { randomBytes } from 'node:crypto';
 import { cache } from 'react';
+import { FieldValue } from 'firebase-admin/firestore';
 import { revalidateTag } from 'next/cache';
 import { COLLECTIONS } from '@kgc/shared';
 import { sendBlogReviewDecision, sendBlogReviewRequest } from '@kgc/scripts/src/lib/email';
 import { db } from '@/lib/firestore';
+import { getAuthor } from '@/lib/post-content';
 import { POSTS, type Post } from '@/lib/posts';
 import * as rules from './access';
 import type { PostAccessFacts, Viewer } from './access';
 import { envEditors } from './auth';
 import { isEmptyDoc, sanitizeDoc, type Doc } from './doc';
 import { blogUrl } from './paths';
+import { isReviewToken, newReviewToken, REVIEW_LINK_TTL_MS, reviewLinkState } from './review-link';
 import {
   isValidSlug,
   slugify,
   type BlogMemberDoc,
   type BlogPostDoc,
+  type BlogReviewLinkDoc,
   type Cover,
   type PostFields,
   type StoredPost,
@@ -34,6 +38,7 @@ export const BLOG_TAG = 'blog';
 
 const posts = () => db().collection(COLLECTIONS.blogPosts);
 const membersCol = () => db().collection(COLLECTIONS.blogMembers);
+const reviewLinks = () => db().collection(COLLECTIONS.blogReviewLinks);
 
 const ms = (t: unknown): number | undefined => {
   const v = t as { toMillis?: () => number } | undefined;
@@ -355,6 +360,9 @@ export async function publish(viewer: Viewer, id: string): Promise<{ slug: strin
     if (post.legacySlug && post.legacySlug !== live.slug) previousSlugs.add(post.legacySlug);
     previousSlugs.delete(live.slug);
     const now = Date.now();
+    // Publishing ends the review link: what it showed is now public, and the
+    // next edit should not reach an old reviewer without the writer deciding so.
+    if (post.reviewLinkId) tx.delete(reviewLinks().doc(post.reviewLinkId));
     const next: StoredPost = {
       ...post,
       live,
@@ -364,6 +372,7 @@ export async function publish(viewer: Viewer, id: string): Promise<{ slug: strin
       previousSlugs: [...previousSlugs],
       reviewNote: undefined,
       reviewNoteBy: undefined,
+      reviewLinkId: undefined,
       publishedAt: now,
       updatedAt: now,
       updatedBy: viewer.email,
@@ -441,7 +450,16 @@ export async function discardDraft(viewer: Viewer, id: string): Promise<void> {
   await db().runTransaction(async (tx) => {
     const { ref, post } = await loadForWrite(tx, id);
     if (!rules.canDiscardDraft(viewer, facts(post)) || !post.live) throw new BlogError('There are no edits to discard.');
-    tx.update(ref, { draft: post.live, draftState: 'none', reviewNote: null, reviewNoteBy: null, ...touched(viewer) });
+    // Nothing unpublished is left to review, so the link goes with the edits.
+    if (post.reviewLinkId) tx.delete(reviewLinks().doc(post.reviewLinkId));
+    tx.update(ref, {
+      draft: post.live,
+      draftState: 'none',
+      reviewNote: null,
+      reviewNoteBy: null,
+      reviewLinkId: FieldValue.delete(),
+      ...touched(viewer),
+    });
   });
 }
 
@@ -453,9 +471,97 @@ export async function deletePost(viewer: Viewer, id: string): Promise<void> {
   const revisions = await posts().doc(id).collection('revisions').listDocuments();
   const batch = db().batch();
   revisions.forEach((r) => batch.delete(r));
+  if (post.reviewLinkId) batch.delete(reviewLinks().doc(post.reviewLinkId));
   batch.delete(posts().doc(id));
   await batch.commit();
   revalidateTag(BLOG_TAG);
+}
+
+// ── Review links ────────────────────────────────────────────────────────────
+//
+// The rules are in `review-link.ts`. These are the reads and writes, each one
+// checked against the post as it stands in the transaction.
+
+/** The photo beside a draft's byline: the writer's own, or the archive author's. */
+export async function draftAvatar(post: Pick<StoredPost, 'authorEmail' | 'draft'>): Promise<string | null> {
+  if (post.authorEmail) return (await allMembers()).find((m) => m.email === post.authorEmail)?.avatar ?? null;
+  return getAuthor(post.draft.authorName)?.avatar ?? null;
+}
+
+export interface ReviewLinkView {
+  url: string;
+  expiresAt: number;
+  expired: boolean;
+}
+
+/** The post's current link, for the editor. Expired links are still shown, as expired. */
+export async function currentReviewLink(post: Pick<StoredPost, 'reviewLinkId'>): Promise<ReviewLinkView | null> {
+  if (!post.reviewLinkId) return null;
+  const snap = await reviewLinks().doc(post.reviewLinkId).get();
+  if (!snap.exists) return null;
+  const expiresAt = ms((snap.data() as BlogReviewLinkDoc).expiresAt) ?? 0;
+  return { url: blogUrl(`/shared/${post.reviewLinkId}`), expiresAt, expired: expiresAt <= Date.now() };
+}
+
+/** Create the post's review link, replacing any earlier one, which stops working at once. */
+export async function createReviewLink(viewer: Viewer, id: string): Promise<{ url: string }> {
+  const token = newReviewToken();
+  await db().runTransaction(async (tx) => {
+    const ref = posts().doc(id);
+    const snap = await tx.get(ref);
+    // Not `loadForWrite`: an archive post that was never stored has nothing
+    // unpublished, so there is nothing to share and nothing to materialise.
+    if (!snap.exists) throw new BlogError('There is no unpublished draft to share.');
+    const post = toStored(id, snap.data() as BlogPostDoc);
+    if (!rules.canShareForReview(viewer, facts(post))) {
+      throw new BlogError(
+        rules.canView(viewer, facts(post)) ? 'There is no unpublished draft to share.' : 'You cannot share this post.',
+      );
+    }
+    if (post.reviewLinkId) tx.delete(reviewLinks().doc(post.reviewLinkId));
+    const now = Date.now();
+    const link: BlogReviewLinkDoc = {
+      postId: id,
+      createdBy: viewer.email,
+      createdAt: new Date(now),
+      expiresAt: new Date(now + REVIEW_LINK_TTL_MS),
+    };
+    tx.create(reviewLinks().doc(token), link);
+    tx.update(ref, { reviewLinkId: token, ...touched(viewer) });
+  });
+  return { url: blogUrl(`/shared/${token}`) };
+}
+
+export async function revokeReviewLink(viewer: Viewer, id: string): Promise<void> {
+  await db().runTransaction(async (tx) => {
+    const ref = posts().doc(id);
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const post = toStored(id, snap.data() as BlogPostDoc);
+    if (!rules.canRevokeReviewLink(viewer, facts(post))) throw new BlogError('You cannot change this post.');
+    if (!post.reviewLinkId) return;
+    tx.delete(reviewLinks().doc(post.reviewLinkId));
+    tx.update(ref, { reviewLinkId: FieldValue.delete(), ...touched(viewer) });
+  });
+}
+
+/**
+ * The post a review link shows, or null for every reason it must not: see
+ * `reviewLinkState`. Read fresh on every request, never from the public cache.
+ */
+export async function findSharedDraft(token: string): Promise<StoredPost | null> {
+  if (!isReviewToken(token)) return null;
+  const linkSnap = await reviewLinks().doc(token).get();
+  const link = linkSnap.exists ? (linkSnap.data() as BlogReviewLinkDoc) : null;
+  const postSnap = link ? await posts().doc(link.postId).get() : null;
+  const post = postSnap?.exists ? toStored(postSnap.id, postSnap.data() as BlogPostDoc) : null;
+  const state = reviewLinkState(
+    token,
+    link ? { postId: link.postId, expiresAt: ms(link.expiresAt) ?? 0 } : null,
+    post,
+    Date.now(),
+  );
+  return state === 'ok' ? post : null;
 }
 
 export type { Doc };
