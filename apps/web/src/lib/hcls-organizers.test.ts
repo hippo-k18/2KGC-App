@@ -44,6 +44,10 @@ describe('HCLS organizers (T381)', () => {
     expect(HCLS_ORGANIZERS.find((o) => o.name === 'Analee Etheredge')?.photo).toBe(
       '/kgc/organizers/analee-etheredge.webp',
     );
+    // The colour photo he sent (T439), not the black and white speaker one.
+    expect(HCLS_ORGANIZERS.find((o) => o.name === 'Ted Slater')?.photo).toBe(
+      '/kgc/organizers/ted-slater.webp',
+    );
   });
 
   it('makes initials for the avatar', () => {

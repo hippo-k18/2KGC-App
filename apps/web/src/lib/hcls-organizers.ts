@@ -54,7 +54,7 @@ export const HCLS_ORGANIZERS: readonly HclsOrganizer[] = [
     name: 'Ted Slater',
     affiliation: 'EPAM Systems',
     link: 'https://www.linkedin.com/in/tedslater',
-    photo: '/kgc/speakers/ted-slater.jpg',
+    photo: '/kgc/organizers/ted-slater.webp',
   },
   {
     name: 'Analee Etheredge',
