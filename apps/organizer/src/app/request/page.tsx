@@ -7,7 +7,9 @@ import { RequestForm } from './request-form';
 
 /**
  * `/request` on the dashboard host: ask for a small change, no sign-in (T428),
- * and see what has been asked for so far (T433).
+ * and see what has been asked for so far (T433). On a wide screen the list
+ * sits beside the form and scrolls on its own; below 900px it follows the
+ * form (T436).
  *
  * Outside `(dash)`, so its layout's `requireAccess()` never runs, and outside
  * the middleware's matcher. Unlisted: nothing on the website links here, and
@@ -30,37 +32,40 @@ export default async function RequestPage() {
   const requests = await listPublicChangeRequests();
   return (
     <main className="login-shell request-shell">
-      <div className="login-card request-card">
-        <div className="whova-header__blue-bar" />
-        <div className="login-body">
-          <RequestForm />
+      <div className="request-layout">
+        <div className="login-card request-card request-form-card">
+          <div className="whova-header__blue-bar" />
+          <div className="login-body">
+            <RequestForm />
+          </div>
         </div>
-      </div>
 
-      <section className="login-card request-card request-list" aria-labelledby="requests-so-far">
-        <div className="login-body">
-          <h2 id="requests-so-far" className="request-list-title">
-            Requests so far
-          </h2>
-          {requests === null ? (
-            <p className="body-2 request-list-empty">The list could not be loaded just now. Reload the page to try again.</p>
-          ) : requests.length === 0 ? (
-            <p className="body-2 request-list-empty">No requests yet.</p>
-          ) : (
-            <ol className="request-list-items">
-              {requests.map((r) => (
-                <li key={r.id}>
-                  <p className="request-list-summary">{r.summary}</p>
-                  <p className="request-list-meta">
-                    <ChangeStatusTag status={r.status} />
-                    <time dateTime={new Date(r.sentMs).toISOString()}>Sent {publicSentDate(r.sentMs, TIME_ZONE)}</time>
-                  </p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      </section>
+        <section className="login-card request-card request-list" aria-labelledby="requests-heading">
+          <div className="whova-header__blue-bar" />
+          <div className="login-body">
+            <h2 id="requests-heading" className="request-list-title">
+              Requests
+            </h2>
+            {requests === null ? (
+              <p className="body-2 request-list-empty">The list could not be loaded just now. Reload the page to try again.</p>
+            ) : requests.length === 0 ? (
+              <p className="body-2 request-list-empty">No requests so far</p>
+            ) : (
+              <ol className="request-list-items">
+                {requests.map((r) => (
+                  <li key={r.id}>
+                    <p className="request-list-summary">{r.summary}</p>
+                    <p className="request-list-meta">
+                      <ChangeStatusTag status={r.status} />
+                      <time dateTime={new Date(r.sentMs).toISOString()}>Sent {publicSentDate(r.sentMs, TIME_ZONE)}</time>
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

@@ -233,16 +233,30 @@ export interface PublicChangeRequest {
 }
 
 /**
+ * The description cut into what a reader sees as single characters, so a cut
+ * never splits an emoji, a flag, an accent or a surrogate pair (T436). Code
+ * points where `Intl.Segmenter` is missing, which still keeps pairs whole.
+ */
+function graphemes(text: string): string[] {
+  if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
+    return Array.from(new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(text), (s) => s.segment);
+  }
+  return Array.from(text);
+}
+
+/**
  * The first `max` characters of a description as one line of plain text,
- * cut at a word with an ellipsis. React escapes it on the page; this only
- * shortens it.
+ * cut at a word with an ellipsis. Counted in characters as a reader sees
+ * them, not UTF-16 units. React escapes it on the page; this only shortens it.
  */
 export function publicSummary(description: string, max = PUBLIC_SUMMARY_MAX): string {
   const flat = description.replace(/\s+/g, ' ').trim();
-  if (flat.length <= max) return flat;
-  const cut = flat.slice(0, max);
-  const space = cut.lastIndexOf(' ');
-  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?-]+$/, '')}…`;
+  const chars = graphemes(flat);
+  if (chars.length <= max) return flat;
+  const kept = chars.slice(0, max);
+  const space = kept.lastIndexOf(' ');
+  const words = space > max * 0.6 ? kept.slice(0, space) : kept;
+  return `${words.join('').replace(/[\s.,;:!?-]+$/, '')}…`;
 }
 
 /** The fields the public row is built from. Anything else on the doc is ignored. */

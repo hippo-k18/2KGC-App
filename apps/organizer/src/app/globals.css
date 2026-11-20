@@ -1658,11 +1658,60 @@ select[multiple].whova-text-input {
   margin: 0 0 20px;
 }
 
-/* The public list under the form on /request (T433). */
+/* The public list on /request (T433), beside the form from 900px (T436):
+ * form about 60%, list about 40%, tops aligned. The list stays in view and
+ * scrolls on its own when it is long. Below 900px the two stack, form first.
+ */
 .login-shell.request-shell {
-  flex-direction: column;
+  display: block;
+}
+
+.request-layout {
+  align-items: start;
+  display: grid;
   gap: 16px;
-  justify-content: flex-start;
+  margin: 0 auto;
+  max-width: 560px;
+  width: 100%;
+}
+
+.request-layout .login-card.request-card {
+  max-width: none;
+}
+
+@media (min-width: 900px) {
+  .request-layout {
+    gap: 24px;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    max-width: 1120px;
+  }
+
+  .request-layout .request-list {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 48px);
+    position: sticky;
+    top: 24px;
+  }
+
+  /* The card's blue bar must not give up height to a long list. */
+  .request-layout .request-list .whova-header__blue-bar {
+    flex: none;
+  }
+
+  .request-layout .request-list .login-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .request-layout .request-list-items {
+    margin-right: -8px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 8px;
+  }
 }
 
 .request-list .request-list-title {

@@ -95,6 +95,36 @@ describe('publicSummary (T433)', () => {
   it('cuts one very long word at the limit', () => {
     expect(publicSummary('x'.repeat(300))).toBe(`${'x'.repeat(140)}…`);
   });
+
+  // T436: the cut counts characters as a reader sees them and never splits one.
+  const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+  it('never splits an emoji that straddles the 140th character', () => {
+    for (const emoji of ['😀', '👍🏽', '👩‍💻', '🇺🇸', 'é']) {
+      for (let at = 135; at <= 141; at++) {
+        const text = `${'x'.repeat(at)}${emoji}${'y'.repeat(40)}`;
+        const out = publicSummary(text);
+        expect(out).not.toMatch(lone);
+        expect(out).not.toContain('\uFFFD');
+        // Either the whole emoji is kept or none of it.
+        const body = out.slice(0, -1).slice(at);
+        expect(body === '' || body.startsWith(emoji)).toBe(true);
+      }
+    }
+  });
+
+  it('keeps 140 emoji whole and counts each as one character', () => {
+    const out = publicSummary('🎉'.repeat(200));
+    expect(out).toBe(`${'🎉'.repeat(140)}…`);
+    expect(publicSummary('🎉'.repeat(140))).toBe('🎉'.repeat(140));
+  });
+
+  it('cuts a sentence of emoji and words at a word', () => {
+    const out = publicSummary(`${'Fix the 🚀 launch page '.repeat(10)}`);
+    expect(out.endsWith('…')).toBe(true);
+    expect(out).not.toMatch(lone);
+    expect([...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(out)].length).toBeLessThanOrEqual(141);
+  });
 });
 
 /** An in-memory store that counts writes. */
